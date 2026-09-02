@@ -58,6 +58,7 @@ async function postHighlightToDiscord(input: {
   weekNumber: number;
   playbackUrl: string | null;
   streamUid: string | null;
+  title?: string | null;
 }): Promise<{ posted: boolean }> {
   try {
     const linked = await findServerRoutesForLeague(input.leagueId);
@@ -115,7 +116,7 @@ async function postHighlightToDiscord(input: {
       }
     }
     const embed: any = {
-      title: `New Highlight — ${teamName ?? "Unassigned"} · Week ${input.weekNumber}`,
+      title: input.title?.trim() || `New Highlight — ${teamName ?? "Unassigned"} · Week ${input.weekNumber}`,
       color: 0x1d9bf0,
       description: [
         `Submitted by ${submitterLabel}`,
@@ -510,6 +511,80 @@ export async function createHighlightDirectUpload(input: {
   };
 }
 
+// Commissioner-authored highlights are official league content, not a matchup clip -- longer
+// leash than the 45s member cap (recaps, hype videos, etc.).
+const COMMISSIONER_HIGHLIGHT_MAX_DURATION_SECONDS = 180;
+
+/** Commissioner direct-post to the Highlight Reel -- same Cloudflare Stream direct-upload
+ * pipeline as a member's matchup clip (createHighlightDirectUpload above), but skips the
+ * matchup-participant check, the weekly-upload cap, and the payout-review gate entirely: the
+ * commissioner posting it *is* the approval. hub_visible is set true immediately (the existing
+ * hub query still also requires media_status='ready', so nothing shows until Stream actually
+ * finishes encoding); once ready, the same generic Stream webhook that posts every other
+ * highlight to Discord posts this one too, no extra wiring needed. */
+export async function createCommissionerHighlightUpload(input: {
+  guildId: string;
+  discordId: string;
+  fileName?: string | null;
+  title?: string | null;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const account = await getDiscordAccount(input.discordId);
+
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  const seasonStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "regular_season");
+  const highlightId = randomUUID();
+
+  const stream = await createStreamDirectUpload({
+    maxDurationSeconds: COMMISSIONER_HIGHLIGHT_MAX_DURATION_SECONDS,
+    meta: {
+      name: input.fileName?.slice(0, 120) || `commissioner-highlight-${highlightId}`,
+      highlightId,
+      leagueId: context.leagueId,
+    },
+  });
+
+  const now = new Date().toISOString();
+  const inserted = await supabase
+    .from("rec_highlight_posts")
+    .insert({
+      id: highlightId,
+      league_id: context.leagueId,
+      user_id: account.user_id,
+      team_id: null,
+      season_number: seasonNumber,
+      week_number: weekNumber,
+      season_stage: seasonStage,
+      game_id: null,
+      cloudflare_stream_uid: stream.uid,
+      storage_provider: "cloudflare_stream",
+      media_status: "uploading",
+      max_height: HIGHLIGHT_MAX_HEIGHT,
+      retained_as_poty: false,
+      hub_visible: true,
+      content: null,
+      title: input.title?.trim() || null,
+      source: "commissioner",
+      created_at: now,
+      updated_at: now,
+    })
+    .select("id,cloudflare_stream_uid,media_status")
+    .single();
+  if (inserted.error) {
+    await bestEffort("stream.delete_orphan_on_insert_failure", () => deleteStreamVideo(stream.uid), { entityId: stream.uid });
+    throw new ApiError(500, "We couldn't create that highlight draft. Please try again.", inserted.error);
+  }
+
+  return {
+    highlightId: inserted.data.id,
+    uploadURL: stream.uploadURL,
+    streamUid: stream.uid,
+    maxDurationSeconds: COMMISSIONER_HIGHLIGHT_MAX_DURATION_SECONDS,
+    maxHeight: HIGHLIGHT_MAX_HEIGHT,
+  };
+}
+
 const DURATION_REJECT_MESSAGE =
   "Clip longer than 45 seconds. Crop to 45 seconds or less and upload again.";
 
@@ -574,12 +649,12 @@ type StreamWebhookBody = {
   input?: { height?: number; duration?: number };
 };
 
-function isDurationReject(body: StreamWebhookBody): boolean {
+function isDurationReject(body: StreamWebhookBody, maxDurationSeconds: number): boolean {
   const code = String(body.status?.errorReasonCode ?? "").toUpperCase();
   const text = String(body.status?.errorReasonText ?? "").toLowerCase();
   if (code.includes("DURATION") || text.includes("duration") || text.includes("maxduration")) return true;
   const duration = Number(body.duration ?? body.input?.duration ?? 0);
-  return Number.isFinite(duration) && duration > HIGHLIGHT_MAX_DURATION_SECONDS;
+  return Number.isFinite(duration) && duration > maxDurationSeconds;
 }
 
 export async function handleStreamWebhook(input: { rawBody: string; signatureHeader: string | undefined }) {
@@ -599,7 +674,7 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
 
   const row = await supabase
     .from("rec_highlight_posts")
-    .select("id,league_id,user_id,team_id,game_id,season_number,week_number,season_stage,discord_channel_id,discord_message_id,payout_review_id")
+    .select("id,league_id,user_id,team_id,game_id,season_number,week_number,season_stage,discord_channel_id,discord_message_id,payout_review_id,title,source")
     .eq("cloudflare_stream_uid", uid)
     .maybeSingle();
   if (row.error) throw new ApiError(500, "We couldn't load that highlight. Please try again.", row.error);
@@ -610,8 +685,13 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
 
   const state = String(body.status?.state ?? "").toLowerCase();
   const now = new Date().toISOString();
+  // Commissioner-posted highlights are allowed up to COMMISSIONER_HIGHLIGHT_MAX_DURATION_SECONDS
+  // (see createCommissionerHighlightUpload) -- this must match whichever cap that upload was
+  // actually created with, or a longer commissioner video Cloudflare itself accepted would get
+  // rejected here anyway against the shorter member cap.
+  const maxDurationSeconds = row.data.source === "commissioner" ? COMMISSIONER_HIGHLIGHT_MAX_DURATION_SECONDS : HIGHLIGHT_MAX_DURATION_SECONDS;
 
-  if (state === "error" || isDurationReject(body)) {
+  if (state === "error" || isDurationReject(body, maxDurationSeconds)) {
     await supabase
       .from("rec_highlight_posts")
       .update({ media_status: "failed", updated_at: now })
@@ -623,7 +703,7 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
       ok: true,
       matched: true,
       mediaStatus: "failed",
-      reason: isDurationReject(body) ? DURATION_REJECT_MESSAGE : undefined,
+      reason: isDurationReject(body, maxDurationSeconds) ? DURATION_REJECT_MESSAGE : undefined,
     };
   }
 
@@ -661,6 +741,7 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
         weekNumber: row.data.week_number,
         playbackUrl,
         streamUid: uid,
+        title: row.data.title,
       });
     }
 

@@ -5,6 +5,7 @@ import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import {
   backfillDiscordHighlights,
+  createCommissionerHighlightUpload,
   createHighlightDirectUpload,
   getHighlightUploadStatus,
   getMyHighlightWeekCounts,
@@ -28,6 +29,26 @@ export async function mediaRoutes(app: FastifyInstance) {
         discordId: auth.discordId,
         gameId: body.gameId,
         fileName: body.fileName,
+      }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/hub/highlights/commissioner-upload", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        fileName: z.string().max(200).optional().nullable(),
+        title: z.string().max(200).optional().nullable(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot") throw new ApiError(400, "Highlight uploads require a user session.");
+      return reply.send(await createCommissionerHighlightUpload({
+        guildId: body.guildId,
+        discordId: auth.discordId,
+        fileName: body.fileName,
+        title: body.title,
       }));
     } catch (error) {
       return sendError(reply, error);

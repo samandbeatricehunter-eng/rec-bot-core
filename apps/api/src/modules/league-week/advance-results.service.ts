@@ -1013,6 +1013,11 @@ export async function completeAdvanceWeek(input: {
     game: context.rec_leagues.game,
   }).catch((err) => console.error("[ERROR] League Leaders post failed after advance (non-fatal):", err));
 
+  // Rise to Immortality HOF Milestones -- edits every already-posted prospect's career-stats
+  // card in place. No-ops instantly for non-RTI leagues.
+  const { refreshHofMilestonesForLeague } = await import("../immortality/hof-milestones.service.js");
+  await refreshHofMilestonesForLeague(context.leagueId).catch((err) => console.error("[ERROR] HOF Milestones refresh failed after advance (non-fatal):", err));
+
   await notifyLeagueMembersOfAdvance({
     leagueId: context.leagueId,
     leagueName: context.rec_leagues.name,

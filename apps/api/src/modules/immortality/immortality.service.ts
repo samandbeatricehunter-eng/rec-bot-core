@@ -1718,6 +1718,8 @@ export async function chooseImmortalityTeam(input: { guildId: string; discordId:
           leagueId: context.leagueId, prospectId: prospect.id,
           side: prospect.side as "offense" | "defense", discordId: cardDiscordId,
         });
+        void import("./hof-milestones.service.js").then(({ postOrRefreshHofMilestoneCard }) => postOrRefreshHofMilestoneCard(prospect.id))
+          .catch((error) => console.error(`[WARN] Could not post HOF Milestones card for prospect ${prospect.id} (non-fatal):`, error));
       }
     }
     if (offenseProspect && defenseProspect) {

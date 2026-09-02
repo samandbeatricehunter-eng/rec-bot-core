@@ -1901,7 +1901,7 @@ export function HubHome() {
           })()}
         </SectionFrame>
         <SectionFrame
-          eyebrow="Community clips"
+          eyebrow={isRise ? "REC Network Clips" : "Community clips"}
           title={`Weekly Recap - Season ${hub.league.seasonNumber}`}
           className="hub-highlight-section"
         >

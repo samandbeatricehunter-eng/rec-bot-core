@@ -409,6 +409,11 @@ export const recApi = {
       "/v1/hub/highlights/direct-upload",
       { method: "POST", body: JSON.stringify(input) },
     ),
+  createCommissionerHighlightUpload: (input: { guildId: string; fileName?: string | null; title?: string | null }) =>
+    recApiFetch<{ highlightId: string; uploadURL: string; streamUid: string; maxDurationSeconds: number; maxHeight: number }>(
+      "/v1/hub/highlights/commissioner-upload",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
   markHighlightUploadReceived: (input: { guildId: string; highlightId: string }) =>
     recApiFetch<{ highlightId: string; mediaStatus: string }>("/v1/hub/highlights/upload-received", { method: "POST", body: JSON.stringify(input) }),
   getHighlightUploadStatus: (input: { guildId: string; highlightId: string }) =>

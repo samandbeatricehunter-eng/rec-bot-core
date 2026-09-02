@@ -120,6 +120,34 @@ export async function getLeagueStats(input: { guildId: string; teamId?: string |
   return getLeagueStatsForLeagueId(context.leagueId, input);
 }
 
+export type SingleGameLeaderEntry = { playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; value: number; rank: number };
+
+/** Top 5 single-game (single weekly-stats-row) performances for each of the given canonical
+ * stat keys, across every week/season on record for the league -- distinct from
+ * getLeagueStatsForLeagueId's `leaders`, which sums across weeks. Used for the RTI "single-game
+ * record" board (see immortality/nfl-record-holders.service.ts); a player can occupy more than
+ * one of their own category's top-5 slots if they've had multiple huge individual games, same
+ * as a real single-game leaderboard. */
+export async function getSingleGameLeadersForLeague(leagueId: string, statKeys: string[]): Promise<Record<string, SingleGameLeaderEntry[]>> {
+  if (!statKeys.length) return {};
+  const result = await getPgPool().query<{ key: string; leaders: SingleGameLeaderEntry[] }>(
+    `with rows as (
+       select s.player_id, e.key, e.value::numeric as value
+       from rec_player_weekly_stats s cross join lateral jsonb_each_text(s.stats) e
+       where s.league_id=$1 and e.key = any($2::text[]) and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$'
+     ), ranked as (
+       select r.*, p.full_name, p.position, t.name as team_name, t.abbreviation as team_abbreviation,
+              row_number() over (partition by r.key order by r.value desc, p.full_name) as rank
+       from rows r join rec_players p on p.id=r.player_id left join rec_teams t on t.id=p.team_id
+     )
+     select key, jsonb_agg(jsonb_build_object('playerId',player_id,'playerName',full_name,'position',position,
+       'teamName',team_name,'teamAbbreviation',team_abbreviation,'value',value,'rank',rank) order by rank) as leaders
+     from ranked where rank<=5 group by key`,
+    [leagueId, statKeys],
+  );
+  return Object.fromEntries(result.rows.map((row) => [row.key, row.leaders]));
+}
+
 const TEAM_STAT_COLUMNS: Array<[canonicalKey: string, sqlSum: string]> = [
   ["points_for", "coalesce(sum(g.points_for),0)"],
   ["points_allowed", "coalesce(sum(g.points_against),0)"],

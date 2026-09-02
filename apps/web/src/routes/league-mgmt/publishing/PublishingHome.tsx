@@ -7,6 +7,7 @@ import { Card } from "../../../components/ui/Card.js";
 import { Button } from "../../../components/ui/Button.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import type { CommissionerPoll, TeamRosterResponse, TradeLegInput } from "../../../types/api.js";
+import { CommissionerHighlightUploadCard } from "./CommissionerHighlightUploadCard.js";
 
 function CommissionerTradeBuilderCard() {
   const { guildId } = useReadyAuth();
@@ -301,6 +302,7 @@ export function PublishingHome() {
       <CommissionerTradeBuilderCard />
       <CommissionerPollsCard />
       <DiscordHeadlineRepairCard />
+      <CommissionerHighlightUploadCard />
       <DiscordHighlightBackfillCard />
       <SeasonHighlightsExportCard />
     </div>

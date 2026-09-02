@@ -13,6 +13,8 @@ import { findServerRoutesForLeague, isSiteOnlyDiscordId } from "../league-contex
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { renderProTrackerPng } from "../../lib/pro-tracker-render.js";
 import { loadImmortalityLeague } from "../immortality/immortality.service.js";
+import { getLeagueStatsForLeagueId } from "../league-stats/league-stats.service.js";
+import { statLinesForPosition } from "../immortality/player-stat-line.js";
 
 const STAT_KEY_MAP: Record<keyof WeeklyPlayerStatLine, string> = {
   passYards: "pass_yards", rushYards: "rush_yards", receivingYards: "receiving_yards",
@@ -70,13 +72,17 @@ async function computePlayerLine(input: { leagueId: string; playerId: string; se
   const player = await supabase.from("rec_players").select("id,full_name,position,team_id,photo_url").eq("id", input.playerId).maybeSingle();
   if (player.error || !player.data) return null;
 
-  const [weekRows, seasonRows, positionRows, team] = await Promise.all([
+  const [weekRows, seasonRows, positionRows, team, seasonStats] = await Promise.all([
     supabase.from("rec_player_weekly_stats").select("stats").eq("league_id", input.leagueId).eq("season_number", input.seasonNumber).eq("week_number", input.weekNumber).eq("player_id", input.playerId),
     supabase.from("rec_player_weekly_stats").select("stats").eq("league_id", input.leagueId).eq("season_number", input.seasonNumber).lte("week_number", input.weekNumber).eq("player_id", input.playerId),
     supabase.from("rec_player_weekly_stats").select("player_id,stats").eq("league_id", input.leagueId).eq("season_number", input.seasonNumber).lte("week_number", input.weekNumber).eq("position", player.data.position),
     player.data.team_id
       ? supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated,abbreviation,display_abbr,logo_url,primary_color,secondary_color").eq("id", player.data.team_id).maybeSingle()
       : Promise.resolve({ data: null }),
+    // Season-scope totals (with passer rating/completion % etc. already derived) for the fuller
+    // "current season" stat line -- separate from weekRows/seasonRows above, which only feed
+    // the score-based position rank and the compact per-week recap line.
+    getLeagueStatsForLeagueId(input.leagueId, { scope: "season" }),
   ]);
 
   const offense = isImmortalityOffensePosition(player.data.position ?? "");
@@ -95,6 +101,8 @@ async function computePlayerLine(input: { leagueId: string; playerId: string; se
   const positionRank = ranked.length ? ranked.findIndex((r) => r.playerId === input.playerId) + 1 || null : null;
 
   const teamData = team.data as Record<string, unknown> | null;
+  const seasonPlayerRow = (seasonStats.players as Array<Record<string, unknown>>).find((row) => String(row.id) === String(input.playerId));
+  const seasonTotals = (seasonPlayerRow?.stats as Record<string, unknown>) ?? {};
   return {
     playerId: input.playerId, playerName: player.data.full_name ?? "Player", position: player.data.position,
     headshotUrl: player.data.photo_url ?? null,
@@ -104,7 +112,7 @@ async function computePlayerLine(input: { leagueId: string; playerId: string; se
     teamPrimaryColor: (teamData?.primary_color as string) ?? null,
     teamSecondaryColor: (teamData?.secondary_color as string) ?? null,
     weekLines: offense ? offenseLines(aggregateLine(weekRows.data ?? [])) : defenseLines(aggregateLine(weekRows.data ?? [])),
-    seasonLines: offense ? offenseLines(aggregateLine(seasonRows.data ?? [])) : defenseLines(aggregateLine(seasonRows.data ?? [])),
+    seasonLines: statLinesForPosition(String(player.data.position ?? ""), seasonTotals),
     positionRank, positionCount,
   };
 }
