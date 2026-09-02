@@ -15,6 +15,7 @@ import { ActiveCheckReviewModal } from "./ActiveCheckReviewModal.js";
 import { EosAwardResolveModal } from "./EosAwardResolveModal.js";
 import { EosPayoutLedgers } from "./EosPayoutLedgers.js";
 import { CustomPlayerReviewModal } from "../settings/CustomPlayerReviewQueue.js";
+import { ImmortalityProspectReviewModal } from "./ImmortalityProspectReviewModal.js";
 
 const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   box_score: "Box Score", purchase: "Purchase", highlight: "Highlight", stream: "Stream",
@@ -23,6 +24,7 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   media: "Media", game_of_the_year: "Game of the Year", legend: "Legend",
   custom_player: "Custom Player",
   custom_team: "Custom Team",
+  immortality_prospect: "Prospect Review",
   ea_auto_import: "EA Import",
   force_win_request: "Force Win Request", autopilot_request: "AutoPilot Request",
   matchup_issue_report: "Matchup Issue", trade: "Trade",
@@ -97,6 +99,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
   const [activeEosAwardId, setActiveEosAwardId] = useState<string | null>(null);
   const [activeResolve, setActiveResolve] = useState<CommissionerNotification | null>(null);
   const [activeCustomPlayerBuildId, setActiveCustomPlayerBuildId] = useState<string | null>(null);
+  const [activeImmortalityProspect, setActiveImmortalityProspect] = useState<CommissionerNotification | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   function load() {
@@ -122,6 +125,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
     // approve/deny modal — same idea as legend/box-score/active-check/eos-award below,
     // opened inline instead of navigating away to Settings.
     if (notification.type === "custom_player" && notification.sourceId) return setActiveCustomPlayerBuildId(notification.sourceId);
+    if (notification.type === "immortality_prospect") return setActiveImmortalityProspect(notification);
     if (!notification.sourceId) return setActiveResolve(notification);
     if (notification.type === "box_score") return setActiveBoxScoreId(notification.sourceId);
     if (notification.type === "active_check") return setActiveActiveCheckId(notification.sourceId);
@@ -136,6 +140,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
     setActiveEosAwardId(null);
     setActiveResolve(null);
     setActiveCustomPlayerBuildId(null);
+    setActiveImmortalityProspect(null);
     load();
     window.dispatchEvent(new Event("rec:notifications-changed"));
   }
@@ -201,6 +206,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
     {activeEosAwardId && <EosAwardResolveModal pollId={activeEosAwardId} onClose={() => setActiveEosAwardId(null)} onResolved={() => afterResolved("Award settled.")} />}
     {activeResolve && <ResolveNotificationModal notification={activeResolve} onClose={() => setActiveResolve(null)} onResolved={() => afterResolved("Resolved.")} />}
     {activeCustomPlayerBuildId && <CustomPlayerReviewModal guildId={guildId} buildId={activeCustomPlayerBuildId} onClose={() => setActiveCustomPlayerBuildId(null)} onResolved={() => afterResolved("Custom player reviewed.")} />}
+    {activeImmortalityProspect && <ImmortalityProspectReviewModal guildId={guildId} notification={activeImmortalityProspect} onClose={() => setActiveImmortalityProspect(null)} onResolved={() => afterResolved("Prospect reviewed.")} />}
   </>;
 }
 

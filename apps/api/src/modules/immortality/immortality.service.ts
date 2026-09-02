@@ -33,7 +33,6 @@ import {
   originsOpen,
   personaQuestionsForSide,
   personaQuestionsForOwner,
-  pickTeamOffers,
   playstyleQuestionsForGroup,
   positionGroupFor,
   publicPersonaQuestions,
@@ -66,6 +65,7 @@ import {
   validateCharacteristicSelection,
   MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY,
   MADDEN_ATTRIBUTE_BY_CODE,
+  MADDEN_ATTRIBUTE_DEFINITIONS,
   rosterAttributeValueForCode,
   type MaddenAttributeCode,
   matchupInterviewPool,
@@ -94,6 +94,7 @@ import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDisc
 import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { applyLeagueTeamIdentityOverrides, type LeagueTeamIdentityOverride } from "../team-identities/team-identities.service.js";
 import { postDiscordChannelMessageWithFile, editDiscordMessageWithFile, setGuildMemberNickname } from "../../lib/discord-guild.js";
+import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { renderProspectCardPng } from "../../lib/prospect-card-render.js";
 
@@ -409,13 +410,13 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     : { data: [] as Array<{ id: string; overall_rating: number | null }> };
   const realOvrByPlayerId = new Map<string, number | null>((realPlayers.data ?? []).map((row) => [String(row.id), row.overall_rating == null ? null : Number(row.overall_rating)]));
   const chapterState = league.chapter_state as ImmortalityState;
-  const [poolMembers, linkedAssignments, storedGrades, teamIdentities, ownerRow, teamOfferRow, introView] = await Promise.all([
+  const [poolMembers, linkedAssignments, storedGrades, teamIdentities, ownerRow, allFranchiseClaims, introView] = await Promise.all([
     supabase.from("rec_league_memberships").select("user_id,role").eq("league_id", context.leagueId).eq("status", "active"),
-    supabase.from("rec_team_assignments").select("user_id").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
+    supabase.from("rec_team_assignments").select("user_id,team_id").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
     supabase.from("rec_immortality_draft_grades").select("*").eq("immortality_league_id", league.id),
     supabase.from("rec_league_team_identities").select("*").eq("league_id", context.leagueId).order("conference").order("division").order("default_abbreviation"),
     supabase.from("rec_immortality_owners").select("*").eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle(),
-    supabase.from("rec_immortality_team_offers").select("*").eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle(),
+    supabase.from("rec_immortality_user_team_assignments").select("team_id,user_id").eq("immortality_league_id", league.id),
     supabase.from("rec_immortality_intro_views").select("completed_at").eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle(),
   ]);
   // Own child-row lookup, not a reverse-relation embed on the query above -- the Supabase shim's
@@ -494,13 +495,38 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
       personaPrimary: ownerPersona.data?.primary_dimension ?? null,
       personaSecondary: ownerPersona.data?.secondary_dimension ?? null,
     } : null,
-    teamOffer: teamOfferRow.data ? {
-      offered: (teamOfferRow.data.offered_team_ids ?? []).map((teamId: string) => ({
-        teamId,
-        ...(teamDisplayById.get(teamId) ?? { name: null, city: null, abbreviation: null }),
-      })),
-      chosenTeamId: teamOfferRow.data.chosen_team_id ?? null,
-    } : null,
+    franchiseOptions: (() => {
+      const claimedTeamIds = new Set<string>([
+        ...(linkedAssignments.data ?? []).map((row) => String(row.team_id)),
+        ...(allFranchiseClaims.data ?? []).map((row) => String(row.team_id)),
+      ]);
+      const myClaim = (allFranchiseClaims.data ?? []).find((row) => String(row.user_id) === userId);
+      const myProspects = prospects.data ?? [];
+      const offenseProspect = myProspects.find((row: any) => row.side === "offense");
+      const defenseProspect = myProspects.find((row: any) => row.side === "defense");
+      const buildByProspectId = new Set((builds.data ?? []).map((row: any) => String(row.prospect_id)));
+      let reason: string | null = null;
+      if (!offenseProspect || !defenseProspect) reason = "Finish Origins for both your offense and defense players first.";
+      else if (!buildByProspectId.has(String(offenseProspect.id)) || !buildByProspectId.has(String(defenseProspect.id))) reason = "Finish Creation Points for both players first.";
+      else if (offenseProspect.review_status === "pending_review" || defenseProspect.review_status === "pending_review") reason = "Waiting on commissioner approval for your prospect(s).";
+      else if (offenseProspect.review_status === "rejected" || defenseProspect.review_status === "rejected") reason = "One of your prospects was not approved -- contact your commissioner.";
+      else if (ownerRow.data?.origins_step !== "complete") reason = "Create your owner and finish their interview first.";
+      return {
+        eligible: !myClaim && reason == null,
+        reason: myClaim ? null : reason,
+        chosenTeamId: myClaim ? String(myClaim.team_id) : null,
+        teams: (teamIdentities.data ?? []).map((row: any) => ({
+          teamId: String(row.team_id),
+          name: row.display_team_name ?? row.default_team_name,
+          city: row.display_city ?? row.default_city,
+          abbreviation: row.display_abbreviation ?? row.default_abbreviation,
+          conference: row.conference ?? null,
+          division: row.division ?? null,
+          logoUrl: row.primary_logo_url ?? null,
+          open: !claimedTeamIds.has(String(row.team_id)),
+        })),
+      };
+    })(),
     draftBoard: {
       frozen: board.frozen === true,
       readyPairCount: readyUserIds.length,
@@ -673,6 +699,21 @@ export async function upsertProspectIdentity(input: {
   await bumpOriginsStep(String(result.data.id), existing?.origins_step, "identity");
   await refreshImmortalityDraftBoard(league.id, context.leagueId);
   return result.data;
+}
+
+/** QB only -- every other offense/defense position has no throwing motion to pick. */
+export async function submitThrowingMotion(input: { guildId: string; discordId: string; side: "offense" | "defense"; motionKey: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+  if (String(prospect.position ?? "").toUpperCase() !== "QB") throw new ApiError(400, "Throwing motion only applies to QB prospects.");
+  const updated = await supabase.from("rec_immortality_prospects").update({
+    throwing_motion_key: input.motionKey, updated_at: new Date().toISOString(),
+  }).eq("id", prospect.id).select("throwing_motion_key").single();
+  if (updated.error) throw new ApiError(500, "Could not save throwing motion.", updated.error);
+  return { throwingMotionKey: updated.data.throwing_motion_key };
 }
 
 export async function startIqAttempt(input: { guildId: string; discordId: string; side: "offense" | "defense" }) {
@@ -1121,6 +1162,10 @@ export async function evaluateCreationBuild(input: {
   }).select("*").single();
   if (saved.error) throw new ApiError(500, "Could not save creation build.", saved.error);
   await bumpOriginsStep(String(prospect.id), prospect.origins_step, "creation");
+  await submitProspectForReview({
+    leagueId: context.leagueId, immortalityLeagueId: league.id, prospect, userId,
+    finalAttributes: spent.attributes, startingDev: startingDevTrait(modifiers),
+  }).catch((err) => console.error(`[ERROR] Failed to submit prospect ${prospect.id} for commissioner review (non-fatal):`, err));
   // The commissioner already has a franchise (picked outright at league creation) before their
   // own prospects finish Origins -- everyone else's team isn't known until they choose from
   // their post-Origins offers (chooseImmortalityTeam). Materialize immediately when a team is
@@ -1364,6 +1409,121 @@ export async function refreshImmortalityProspectCardsForLeague(leagueId: string)
   }
 }
 
+/** Fires once, right after Creation Points is submitted (the last real build step) -- drops a
+ * rec_commissioners_inbox row (queue_type "immortality_prospect") with the full build so a
+ * commissioner can review it from League Mgmt's Pending Items, same flow custom players already
+ * go through. Attributes are listed in MADDEN_ATTRIBUTE_DEFINITIONS order (first 24, matching
+ * CreationPanel's own field order) since that's the in-game attribute order. Best-effort --
+ * never blocks Creation Points itself from succeeding. */
+async function submitProspectForReview(input: {
+  leagueId: string; immortalityLeagueId: string; prospect: Record<string, any>; userId: string;
+  finalAttributes: Record<string, number>; startingDev: string;
+}): Promise<void> {
+  const { prospect } = input;
+  const [personaResult, branchingPlaystyle, flatPlaystyle, personaDnaTraits, playerTraits, characteristics, discordId] = await Promise.all([
+    supabase.from("rec_immortality_persona_results").select("label,primary_type,secondary_type").eq("prospect_id", prospect.id).maybeSingle(),
+    supabase.from("rec_immortality_branching_playstyle_results").select("primary_archetype,secondary_archetype").eq("prospect_id", prospect.id).maybeSingle(),
+    supabase.from("rec_immortality_playstyle_results").select("primary_archetype,secondary_archetype").eq("prospect_id", prospect.id).maybeSingle(),
+    supabase.from("rec_immortality_prospect_persona_dna").select("trait_key").eq("prospect_id", prospect.id),
+    supabase.from("rec_immortality_prospect_player_traits").select("trait_key").eq("prospect_id", prospect.id),
+    supabase.from("rec_immortality_prospect_characteristics").select("characteristic_key").eq("prospect_id", prospect.id),
+    discordIdForRecUser(input.userId).catch(() => null),
+  ]);
+
+  const position = String(prospect.position ?? "");
+  const group = positionGroupFor(position as ImmortalityPosition);
+  const personaDnaNames = (personaDnaTraits.data ?? [])
+    .map((t) => personaDnaCatalog().find((c) => c.key === t.trait_key)?.name)
+    .filter((name): name is string => Boolean(name));
+  const playerTraitGroup = position === "QB" ? "QB" : position === "MIKE" ? "MIKE" : null;
+  const playerTraitNames = playerTraitGroup
+    ? (playerTraits.data ?? [])
+      .map((t) => playerTraitCatalog(playerTraitGroup).find((c) => c.key === t.trait_key)?.name)
+      .filter((name): name is string => Boolean(name))
+    : [];
+  const characteristicNames = (characteristics.data ?? [])
+    .map((t) => characteristicCatalog(group).find((c) => c.key === t.characteristic_key)?.displayName)
+    .filter((name): name is string => Boolean(name));
+  const playstyleArchetype = (branchingPlaystyle.data?.primary_archetype ?? flatPlaystyle.data?.primary_archetype ?? null) as string | null;
+  const playstyleSecondary = (branchingPlaystyle.data?.secondary_archetype ?? flatPlaystyle.data?.secondary_archetype ?? null) as string | null;
+
+  const attributeLines = MADDEN_ATTRIBUTE_DEFINITIONS.slice(0, 24)
+    .map((def) => ({ code: def.code, name: def.name, value: input.finalAttributes[def.code] ?? null }))
+    .filter((attr): attr is { code: MaddenAttributeCode; name: string; value: number } => attr.value != null);
+
+  const name = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Unnamed Prospect";
+  const summary = [
+    `Position: ${position} (${prospect.side})`,
+    `Age ${prospect.age ?? "?"} · ${prospect.height_inches ? `${Math.floor(prospect.height_inches / 12)}'${prospect.height_inches % 12}"` : "?"} · ${prospect.weight_lbs ?? "?"} lbs · ${prospect.body_type ?? "—"}`,
+    `Hometown: ${prospect.hometown ?? "—"}${prospect.hometown_state ? `, ${prospect.hometown_state}` : ""}${prospect.college ? ` · ${prospect.college}` : ""}`,
+    `Jersey #${prospect.jersey_number ?? "?"} · Starting Dev Trait: ${input.startingDev}`,
+    prospect.throwing_motion_key ? `Throwing Motion: ${prospect.throwing_motion_key}` : null,
+    "",
+    `Persona: ${personaResult.data?.label ?? "—"}`,
+    `Playstyle: ${playstyleArchetype ?? "—"}${playstyleSecondary ? ` / ${playstyleSecondary}` : ""}`,
+    `Persona DNA: ${personaDnaNames.join(", ") || "—"}`,
+    playerTraitGroup ? `Player Traits: ${playerTraitNames.join(", ") || "—"}` : null,
+    `Natural Characteristics: ${characteristicNames.join(", ") || "—"}`,
+    "",
+    "Attributes:",
+    attributeLines.map((attr) => `${attr.code} ${attr.name}: ${attr.value}`).join("\n") || "—",
+  ].filter((line): line is string => line != null).join("\n");
+
+  const inboxInsert = await supabase.from("rec_commissioners_inbox").insert({
+    league_id: input.leagueId,
+    queue_type: "immortality_prospect",
+    status: "pending",
+    priority: 0,
+    header: `${prospect.side === "offense" ? "Offensive" : "Defensive"} Prospect: ${name} (${position})`,
+    summary,
+    requester_user_id: input.userId,
+    requester_discord_id: discordId,
+    source_table: "rec_immortality_prospects",
+    source_id: prospect.id,
+    payload: {
+      prospectId: prospect.id, side: prospect.side, position, name,
+      age: prospect.age, heightInches: prospect.height_inches, weightLbs: prospect.weight_lbs, bodyType: prospect.body_type,
+      hometown: prospect.hometown, hometownState: prospect.hometown_state, college: prospect.college,
+      jerseyNumber: prospect.jersey_number, startingDev: input.startingDev, throwingMotionKey: prospect.throwing_motion_key ?? null,
+      personaLabel: personaResult.data?.label ?? null, playstyleArchetype, playstyleSecondary,
+      personaDnaTraits: personaDnaNames, playerTraits: playerTraitNames, characteristics: characteristicNames,
+      attributes: attributeLines,
+    },
+  });
+  if (inboxInsert.error) throw new ApiError(500, "Failed to submit prospect for review.", inboxInsert.error);
+  await notifyLeagueCommissionersOfPendingItem(input.leagueId);
+}
+
+/** Approve/reject a pending prospect build. Approving just flips review_status -- the prospect
+ * was already fully built by Creation Points, there's nothing left to "apply." Rejecting
+ * requires a reason so the member knows what to fix; nothing currently lets them resubmit the
+ * same prospect automatically, so a rejected build needs the commissioner to follow up directly. */
+export async function reviewImmortalityProspect(input: {
+  guildId: string; prospectId: string; action: "approve" | "reject"; reviewerDiscordId: string; note?: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const prospect = await supabase.from("rec_immortality_prospects").select("id,review_status").eq("id", input.prospectId).eq("immortality_league_id", league.id).maybeSingle();
+  if (prospect.error || !prospect.data) throw new ApiError(404, "Prospect not found in this league.");
+  if (prospect.data.review_status !== "pending_review") throw new ApiError(409, `Prospect is already ${prospect.data.review_status}.`);
+  if (input.action === "reject" && !input.note?.trim()) throw new ApiError(400, "A rejection reason is required.");
+
+  const nextStatus = input.action === "approve" ? "approved" : "rejected";
+  const updated = await supabase.from("rec_immortality_prospects").update({
+    review_status: nextStatus, review_reason: input.note?.trim() ?? null,
+    reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString(),
+  }).eq("id", input.prospectId).select("*").single();
+  if (updated.error) throw new ApiError(500, "Could not save that review decision.", updated.error);
+
+  await supabase.from("rec_commissioners_inbox").update({
+    status: input.action === "approve" ? "approved" : "denied",
+    reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString(),
+    review_reason: input.note?.trim() ?? null,
+  }).eq("source_table", "rec_immortality_prospects").eq("source_id", input.prospectId);
+
+  return updated.data;
+}
+
 export async function setImmortalityIntroVideo(input: { guildId: string; discordId: string; url: string | null }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const league = await requireImmortalityLeague(context.leagueId);
@@ -1436,13 +1596,18 @@ export async function submitOwnerPersona(input: {
   return result;
 }
 
-export async function getOrGenerateTeamOffers(input: { guildId: string; discordId: string }) {
+/** Members browse every still-open franchise (grouped by division client-side) and pick one
+ * directly -- no more random 4-team offer. Eligibility (both prospects built + approved, owner
+ * complete) and openness are both re-checked here regardless of what the UI last showed, same
+ * as any other claim-a-resource flow; the UNIQUE(immortality_league_id, team_id) constraint on
+ * rec_immortality_user_team_assignments is the real race guard. */
+export async function chooseImmortalityTeam(input: { guildId: string; discordId: string; teamId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const league = await requireImmortalityLeague(context.leagueId);
   const userId = await recUserIdFromDiscordId(input.discordId);
 
-  const existing = await supabase.from("rec_immortality_team_offers").select("offered_team_ids,chosen_team_id").eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle();
-  if (existing.data) return { offeredTeamIds: existing.data.offered_team_ids ?? [], chosenTeamId: existing.data.chosen_team_id ?? null };
+  const already = await supabase.from("rec_immortality_user_team_assignments").select("team_id").eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle();
+  if (already.data) throw new ApiError(400, "You already chose your franchise.");
 
   const [offenseProspect, defenseProspect, owner] = await Promise.all([
     loadProspectForUser(league.id, userId, "offense"),
@@ -1456,59 +1621,23 @@ export async function getOrGenerateTeamOffers(input: { guildId: string; discordI
   ]);
   if (!offenseBuild.data || !defenseBuild.data) throw new ApiError(400, "Finish Creation Points for both players first.");
   if (owner.data?.origins_step !== "complete") throw new ApiError(400, "Create your owner and finish their interview first.");
+  const pendingSide = offenseProspect.review_status === "pending_review" ? "offensive" : defenseProspect.review_status === "pending_review" ? "defensive" : null;
+  if (pendingSide) throw new ApiError(400, `Your ${pendingSide} player is still waiting on commissioner approval.`);
+  const rejectedSide = offenseProspect.review_status === "rejected" ? "offensive" : defenseProspect.review_status === "rejected" ? "defensive" : null;
+  if (rejectedSide) throw new ApiError(400, `Your ${rejectedSide} player was not approved${(rejectedSide === "offensive" ? offenseProspect : defenseProspect).review_reason ? `: ${(rejectedSide === "offensive" ? offenseProspect : defenseProspect).review_reason}` : "."} Contact your commissioner.`);
 
-  const [teams, commissionerClaims, userClaims] = await Promise.all([
-    supabase.from("rec_teams").select("id,division").eq("league_id", context.leagueId),
-    supabase.from("rec_team_assignments").select("team_id").eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null),
-    supabase.from("rec_immortality_user_team_assignments").select("team_id").eq("immortality_league_id", league.id),
+  const team = await supabase.from("rec_teams").select("id").eq("id", input.teamId).eq("league_id", context.leagueId).maybeSingle();
+  if (!team.data) throw new ApiError(404, "Team not found in this league.");
+  const [commissionerClaim, userClaim] = await Promise.all([
+    supabase.from("rec_team_assignments").select("id").eq("league_id", context.leagueId).eq("team_id", input.teamId).eq("assignment_status", "active").is("ended_at", null).maybeSingle(),
+    supabase.from("rec_immortality_user_team_assignments").select("id").eq("immortality_league_id", league.id).eq("team_id", input.teamId).maybeSingle(),
   ]);
-  if (teams.error) throw new ApiError(500, "Could not load the franchise pool.", teams.error);
-  const claimedIds = new Set<string>([
-    ...(commissionerClaims.data ?? []).map((row) => String(row.team_id)),
-    ...(userClaims.data ?? []).map((row) => String(row.team_id)),
-  ]);
-  const divisionCounts: Record<string, number> = {};
-  for (const row of teams.data ?? []) {
-    if (!claimedIds.has(String(row.id))) continue;
-    const division = String(row.division ?? "");
-    divisionCounts[division] = (divisionCounts[division] ?? 0) + 1;
-  }
-  const candidates = (teams.data ?? [])
-    .filter((row) => !claimedIds.has(String(row.id)))
-    .map((row) => ({ teamId: String(row.id), division: String(row.division ?? "") }));
-  if (!candidates.length) throw new ApiError(400, "No franchises are available right now.");
-
-  const offeredTeamIds = pickTeamOffers({ candidates, claimedDivisionCounts: divisionCounts, count: 4, seed: `${league.id}:${userId}` });
-  const inserted = await supabase.from("rec_immortality_team_offers").insert({
-    immortality_league_id: league.id, user_id: userId, offered_team_ids: offeredTeamIds,
-  }).select("offered_team_ids,chosen_team_id").single();
-  if (inserted.error) throw new ApiError(500, "Could not generate franchise offers.", inserted.error);
-  return { offeredTeamIds: inserted.data.offered_team_ids ?? [], chosenTeamId: inserted.data.chosen_team_id ?? null };
-}
-
-export async function chooseImmortalityTeam(input: { guildId: string; discordId: string; teamId: string }) {
-  const context = await getCurrentLeagueContext(input.guildId);
-  const league = await requireImmortalityLeague(context.leagueId);
-  const userId = await recUserIdFromDiscordId(input.discordId);
-
-  const offer = await supabase.from("rec_immortality_team_offers").select("id,offered_team_ids,chosen_team_id").eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle();
-  if (!offer.data) throw new ApiError(400, "You don't have franchise offers yet.");
-  if (offer.data.chosen_team_id) throw new ApiError(400, "You already chose your franchise.");
-  const offeredIds = (offer.data.offered_team_ids ?? []) as string[];
-  if (!offeredIds.includes(input.teamId)) throw new ApiError(400, "That team wasn't one of your offered franchises.");
-
-  const claimed = await supabase.from("rec_immortality_team_offers").update({
-    chosen_team_id: input.teamId, chosen_at: new Date().toISOString(),
-  }).eq("id", offer.data.id).is("chosen_team_id", null).select("id").maybeSingle();
-  if (!claimed.data) throw new ApiError(409, "That franchise was already claimed. Refresh your offers.");
+  if (commissionerClaim.data || userClaim.data) throw new ApiError(409, "That franchise was just claimed. Pick another.");
 
   const assignment = await supabase.from("rec_immortality_user_team_assignments").insert({
     immortality_league_id: league.id, user_id: userId, team_id: input.teamId, revealed_at: new Date().toISOString(),
   });
-  if (assignment.error) {
-    await supabase.from("rec_immortality_team_offers").update({ chosen_team_id: null, chosen_at: null }).eq("id", offer.data.id);
-    throw new ApiError(409, "That franchise was just claimed by someone else. Refresh your offers.");
-  }
+  if (assignment.error) throw new ApiError(409, "That franchise was just claimed by someone else. Pick another.");
 
   try {
     const discordId = await discordIdForRecUser(userId);
@@ -1527,10 +1656,6 @@ export async function chooseImmortalityTeam(input: { guildId: string; discordId:
     console.error(`[WARN] Rise team choice could not link user ${userId} to team ${input.teamId}:`, error);
   }
 
-  const [offenseProspect, defenseProspect] = await Promise.all([
-    loadProspectForUser(league.id, userId, "offense"),
-    loadProspectForUser(league.id, userId, "defense"),
-  ]);
   for (const prospect of [offenseProspect, defenseProspect]) {
     if (prospect) await materializeProspectToPlayer(prospect, input.teamId, context.leagueId);
   }

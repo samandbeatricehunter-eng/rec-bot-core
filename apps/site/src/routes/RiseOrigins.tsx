@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS } from "@rec/shared";
+import { HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, THROWING_MOTIONS } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import {
   siteApi,
@@ -11,11 +11,12 @@ import {
 } from "../lib/site-api.js";
 
 type Side = "offense" | "defense";
-type Stage = "identity" | "iq" | "persona" | "playstyle" | "persona_dna" | "player_traits" | "characteristics" | "creation" | "owner" | "franchise";
+type Stage = "identity" | "throwing_motion" | "iq" | "persona" | "playstyle" | "persona_dna" | "player_traits" | "characteristics" | "creation" | "owner" | "franchise";
 type TransitionPhase = "idle" | "out" | "in";
 
 const STAGES: { id: Stage; label: string }[] = [
   { id: "identity", label: "Identity" },
+  { id: "throwing_motion", label: "Throwing Motion" },
   { id: "iq", label: "IQ Test" },
   { id: "persona", label: "Persona" },
   { id: "playstyle", label: "Playstyle" },
@@ -169,6 +170,18 @@ export function RiseOriginsPage() {
             <IdentityForm key={effectiveSide} guildId={guildId} side={effectiveSide} position={position ?? ""} prospect={prospectFor(hub, effectiveSide)}
               onSaved={reload} setError={setError} setBusy={setBusy} busy={busy} />
           ) : null}
+          {stage === "throwing_motion" ? (
+            position === "QB" ? (
+              <ThrowingMotionPanel key={effectiveSide} guildId={guildId} side={effectiveSide}
+                currentKey={(prospectFor(hub, effectiveSide)?.throwing_motion_key as string | null | undefined) ?? null}
+                onSaved={reload} setError={setError} />
+            ) : (
+              <section className="rise-card">
+                <h2>Throwing Motion</h2>
+                <p className="site-muted">Throwing motion only applies to QB — not available for {position || "this position"}.</p>
+              </section>
+            )
+          ) : null}
           {stage === "iq" ? (
             <IqPanel key={effectiveSide} guildId={guildId} side={effectiveSide} setError={setError} onSaved={reload} />
           ) : null}
@@ -229,7 +242,7 @@ export function RiseOriginsPage() {
               onSaved={reload} setError={setError} />
           ) : null}
           {stage === "franchise" ? (
-            <FranchisePanel guildId={guildId} teamOffer={hub.teamOffer ?? null} onSaved={reload} setError={setError} />
+            <FranchisePanel guildId={guildId} franchiseOptions={hub.franchiseOptions ?? null} onSaved={reload} setError={setError} />
           ) : null}
         </>
       )}
@@ -326,6 +339,63 @@ function IdentityForm({
             setError(err instanceof Error ? err.message : "Could not save identity.");
           } finally { setBusy(false); }
         }}>Save identity</button>
+    </section>
+  );
+}
+
+/** QB only. Pages through the league's catalogued throwing-motion clips (each a Cloudflare
+ * Stream video, muted+looping so the passing animation replays while the user compares them)
+ * and logs the chosen motion's key on Proceed. */
+function ThrowingMotionPanel({
+  guildId, side, currentKey, onSaved, setError,
+}: {
+  guildId: string; side: Side; currentKey: string | null;
+  onSaved: () => Promise<void>; setError: (value: string | null) => void;
+}) {
+  const startIndex = Math.max(0, THROWING_MOTIONS.findIndex((motion) => motion.key === currentKey));
+  const [index, setIndex] = useState(startIndex);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(currentKey);
+  const motion = THROWING_MOTIONS[index];
+
+  return (
+    <section className="rise-card">
+      <h2>Throwing Motion</h2>
+      <p className="site-muted">Page through the motions below — each clip loops so you can watch the release more than once. Pick one, then Proceed.</p>
+      {motion ? (
+        <>
+          <p><strong>{motion.name}</strong> ({index + 1} / {THROWING_MOTIONS.length})</p>
+          <div className="rise-origins-video-frame">
+            <iframe
+              key={motion.key}
+              src={`https://iframe.videodelivery.net/${motion.streamUid}?autoplay=true&muted=true&loop=true&controls=false`}
+              title={motion.name}
+              allow="autoplay"
+              style={{ width: "100%", aspectRatio: "16 / 9", border: 0 }}
+            />
+          </div>
+          <div className="rise-actions">
+            <button type="button" className="site-btn site-btn-ghost" disabled={index === 0}
+              onClick={() => setIndex((prev) => Math.max(0, prev - 1))}>◀ Previous</button>
+            <button type="button" className="site-btn site-btn-ghost" disabled={index >= THROWING_MOTIONS.length - 1}
+              onClick={() => setIndex((prev) => Math.min(THROWING_MOTIONS.length - 1, prev + 1))}>Next ▶</button>
+            <button type="button" className="site-btn site-btn-primary" disabled={busy}
+              onClick={async () => {
+                setBusy(true); setError(null);
+                try {
+                  await siteApi.immortalitySubmitThrowingMotion({ guildId, side, motionKey: motion.key });
+                  setSaved(motion.key);
+                  await onSaved();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Could not save that throwing motion.");
+                } finally { setBusy(false); }
+              }}>{busy ? "Saving…" : "Proceed"}</button>
+          </div>
+          {saved === motion.key ? <p className="site-muted">Locked in: {motion.name}</p> : null}
+        </>
+      ) : (
+        <p className="site-muted">No throwing motions are catalogued yet.</p>
+      )}
     </section>
   );
 }
@@ -698,40 +768,27 @@ function OwnerPanel({
 }
 
 function FranchisePanel({
-  guildId, teamOffer, onSaved, setError,
+  guildId, franchiseOptions, onSaved, setError,
 }: {
   guildId: string;
-  teamOffer: ImmortalityHubResponse["teamOffer"];
+  franchiseOptions: ImmortalityHubResponse["franchiseOptions"];
   onSaved: () => Promise<void>;
   setError: (value: string | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [pendingTeamId, setPendingTeamId] = useState<string | null>(null);
 
-  async function requestOffers() {
-    setLoading(true); setError(null);
-    try { await siteApi.immortalityGetTeamOffers(guildId); await onSaved(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Could not generate franchise offers."); }
-    finally { setLoading(false); }
-  }
-
-  if (!teamOffer) {
+  if (!franchiseOptions) {
     return (
       <section className="rise-card">
         <h2>Choose Your Franchise</h2>
-        <p className="site-muted">
-          Once both players and your owner are finished, your owner is offered 4 random
-          still-available franchises to purchase.
-        </p>
-        <button type="button" className="site-btn site-btn-primary" disabled={loading} onClick={() => void requestOffers()}>
-          {loading ? "Checking…" : "See my franchise offers"}
-        </button>
+        <p className="site-muted">Loading available franchises…</p>
       </section>
     );
   }
 
-  if (teamOffer.chosenTeamId) {
-    const chosen = teamOffer.offered.find((team) => team.teamId === teamOffer.chosenTeamId);
+  if (franchiseOptions.chosenTeamId) {
+    const chosen = franchiseOptions.teams.find((team) => team.teamId === franchiseOptions.chosenTeamId);
     const label = chosen ? `${chosen.city ?? ""} ${chosen.name ?? chosen.abbreviation ?? ""}`.trim() : "your franchise";
     return (
       <section className="rise-card">
@@ -741,24 +798,74 @@ function FranchisePanel({
     );
   }
 
+  if (!franchiseOptions.eligible) {
+    return (
+      <section className="rise-card">
+        <h2>Choose Your Franchise</h2>
+        <p className="site-muted">{franchiseOptions.reason ?? "Finish the rest of Origins first."}</p>
+      </section>
+    );
+  }
+
+  const pendingTeam = pendingTeamId ? franchiseOptions.teams.find((team) => team.teamId === pendingTeamId) ?? null : null;
+  const groups = new Map<string, typeof franchiseOptions.teams>();
+  for (const team of franchiseOptions.teams) {
+    const key = team.division || team.conference || "Teams";
+    const list = groups.get(key) ?? [];
+    list.push(team);
+    groups.set(key, list);
+  }
+
+  async function confirmChoice() {
+    if (!pendingTeamId) return;
+    setBusy(true); setError(null);
+    try { await siteApi.immortalityChooseTeam({ guildId, teamId: pendingTeamId }); await onSaved(); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not choose that franchise."); }
+    finally { setBusy(false); setPendingTeamId(null); }
+  }
+
   return (
     <section className="rise-card">
       <h2>Choose Your Franchise</h2>
-      <p className="site-muted">Your owner is deciding between these four franchises. Pick one — this is final.</p>
-      <div className="wizard-team-grid">
-        {teamOffer.offered.map((team) => (
-          <button key={team.teamId} type="button" className="wizard-team-card" disabled={busy}
-            onClick={async () => {
-              setBusy(true); setError(null);
-              try { await siteApi.immortalityChooseTeam({ guildId, teamId: team.teamId }); await onSaved(); }
-              catch (err) { setError(err instanceof Error ? err.message : "Could not choose that franchise."); }
-              finally { setBusy(false); }
-            }}>
-            <strong>{team.city ?? ""} {team.name ?? team.abbreviation}</strong>
-            {team.abbreviation ? <span className="site-muted">{team.abbreviation}</span> : null}
-          </button>
-        ))}
-      </div>
+      <p className="site-muted">Pick any still-open franchise, grouped by division. This is final once confirmed.</p>
+      {[...groups.entries()].map(([division, teams]) => (
+        <div key={division} className="rise-question">
+          <p><strong>{division}</strong></p>
+          <div className="wizard-team-grid">
+            {teams.map((team) => (
+              <button
+                key={team.teamId}
+                type="button"
+                className={`wizard-team-card${team.open ? "" : " wizard-team-card-taken"}`}
+                disabled={busy || !team.open}
+                aria-disabled={!team.open}
+                onClick={() => team.open && setPendingTeamId(team.teamId)}
+              >
+                {team.logoUrl ? <img src={team.logoUrl} alt="" className="wizard-team-card-logo" /> : null}
+                <strong>{team.city ?? ""} {team.name ?? team.abbreviation}</strong>
+                {team.abbreviation ? <span className="site-muted">{team.abbreviation}</span> : null}
+                {!team.open ? <span className="site-muted">Taken</span> : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {pendingTeam ? (
+        <div className="rise-split-card" style={{ marginTop: 8 }}>
+          <div className="rise-split-half" style={{ cursor: "default" }}>
+            <span className="rise-split-eyebrow">Confirm</span>
+            <strong>{pendingTeam.city ?? ""} {pendingTeam.name ?? pendingTeam.abbreviation}</strong>
+            <span className="site-muted">This choice is final — your owner and both prospects join this franchise.</span>
+            <div className="rise-actions" style={{ marginTop: 8 }}>
+              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setPendingTeamId(null)}>Cancel</button>
+              <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => void confirmChoice()}>
+                {busy ? "Confirming…" : "Confirm & Proceed"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

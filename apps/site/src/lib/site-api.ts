@@ -470,9 +470,14 @@ export type ImmortalityHubResponse = {
     personaPrimary: string | null;
     personaSecondary: string | null;
   } | null;
-  teamOffer?: {
-    offered: Array<{ teamId: string; name: string | null; city: string | null; abbreviation: string | null }>;
+  franchiseOptions?: {
+    eligible: boolean;
+    reason: string | null;
     chosenTeamId: string | null;
+    teams: Array<{
+      teamId: string; name: string | null; city: string | null; abbreviation: string | null;
+      conference: string | null; division: string | null; logoUrl: string | null; open: boolean;
+    }>;
   } | null;
   personaDna?: Array<{ prospect_id: string; trait_key: string }>;
   playerTraits?: Array<{ prospect_id: string; trait_key: string }>;
@@ -1235,6 +1240,9 @@ export const siteApi = {
   immortalitySubmitWeeklyInterview(input: { guildId: string; side: "offense" | "defense"; questionId: number; optionIndex: number }) {
     return request<{ question: unknown; answer: Record<string, unknown> }>("/v1/immortality/interview/weekly/submit", input);
   },
+  immortalitySubmitThrowingMotion(input: { guildId: string; side: "offense" | "defense"; motionKey: string }) {
+    return request<{ throwingMotionKey: string | null }>("/v1/immortality/throwing-motion/set", input);
+  },
   immortalitySetIntroVideo(input: { guildId: string; url: string | null }) {
     return request<{ introVideoUrl: string | null }>("/v1/immortality/intro-video/set", input);
   },
@@ -1246,9 +1254,6 @@ export const siteApi = {
   },
   immortalitySubmitOwnerPersona(input: { guildId: string; answers: Array<{ questionNumber: number; optionIndex: number }> }) {
     return request<{ label: string; primary: string; secondary: string; scores: Record<string, number> }>("/v1/immortality/owner/persona", input);
-  },
-  immortalityGetTeamOffers(guildId: string) {
-    return request<{ offeredTeamIds: string[]; chosenTeamId: string | null }>("/v1/immortality/team-offers", { guildId });
   },
   immortalityChooseTeam(input: { guildId: string; teamId: string }) {
     return request<{ teamId: string }>("/v1/immortality/team-offers/choose", input);

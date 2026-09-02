@@ -8,7 +8,6 @@ import {
   convertXp,
   evaluateCreationBuild,
   getImmortalityHub,
-  getOrGenerateTeamOffers,
   installImmortalityCustomTeams,
   getImmortalityRivalHistory,
   getImmortalityRivals,
@@ -33,6 +32,8 @@ import {
   upsertProspectIdentity,
   selectImmortalityAbility,
   removeImmortalityAbility,
+  reviewImmortalityProspect,
+  submitThrowingMotion,
 } from "./immortality.service.js";
 import { IMMORTALITY_STATES, IQ_QUESTION_COUNT } from "@rec/shared";
 
@@ -71,6 +72,15 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Origins is website-only.");
       return reply.send(await upsertProspectIdentity({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/throwing-motion/set", async (request, reply) => {
+    try {
+      const body = SideBody.extend({ motionKey: z.string().trim().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Throwing motion selection is website-only.");
+      return reply.send(await submitThrowingMotion({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 
@@ -228,6 +238,19 @@ export async function immortalityRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
+  app.post("/v1/immortality/prospect/review", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({
+        prospectId: z.string().uuid(),
+        action: z.enum(["approve", "reject"]),
+        note: z.string().max(1000).optional(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Prospect review requires a website session.");
+      return reply.send(await reviewImmortalityProspect({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
   app.post("/v1/immortality/rivals/set", async (request, reply) => {
     try {
       const body = SideBody.extend({ rivalTeamId: z.string().uuid() }).parse(request.body);
@@ -296,15 +319,6 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Interviews are website-only.");
       return reply.send(await submitOwnerPersona({ ...body, discordId: auth.discordId }));
-    } catch (error) { return sendError(reply, error); }
-  });
-
-  app.post("/v1/immortality/team-offers", async (request, reply) => {
-    try {
-      const body = GuildBody.parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      if (auth.mode !== "user") throw new ApiError(400, "Franchise offers are website-only.");
-      return reply.send(await getOrGenerateTeamOffers({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

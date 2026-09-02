@@ -1936,6 +1936,9 @@ h1, h2, h3, .site-wordmark {
 .wizard-team-card-active { border-color: var(--gold, #d4a843); box-shadow: 0 0 0 1px var(--gold, #d4a843); }
 .wizard-team-card strong { font-size: 14px; }
 .wizard-team-card .site-muted { font-size: 12px; }
+.wizard-team-card-logo { width: 36px; height: 36px; object-fit: contain; align-self: center; }
+.wizard-team-card-taken { opacity: 0.4; cursor: not-allowed; filter: grayscale(1); }
+.wizard-team-card-taken:hover { border-color: var(--card-border, rgba(255,255,255,0.12)); }
 /* --- Pricing / billing --- */
 .site-pricing {
   display: flex;

@@ -29,3 +29,8 @@ apps/api/scripts/.cache/
 # Raw Madden 27 EA team-page dumps (large; the compact, committed CSV in
 # data/madden27/madden27_ea_players.csv is the seed/crossref input, re-scrape to refresh)
 apps/api/scripts/data/madden27/ea/
+
+# Raw QB throwing-motion source clips (~30 MB of .mp4s) are uploaded to Cloudflare Stream --
+# see apps/api/scripts/upload-throwing-motions.ts, which regenerates the committed catalog at
+# packages/shared/src/immortality/throwing-motions.ts. The clips themselves aren't source.
+apps/QB Throwing Motions/
