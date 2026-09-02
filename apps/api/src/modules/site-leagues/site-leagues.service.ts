@@ -51,6 +51,7 @@ export type SiteLeagueSummary = {
   gameLabel: string;
   teamName: string | null;
   teamAbbr: string | null;
+  teamLogoUrl: string | null;
   /** This league's current-season win-loss(-tie) record for the caller's team, e.g. "6-2". Null with no team assigned or no games played yet. */
   seasonRecordText: string | null;
   isCommissioner: boolean;
@@ -174,6 +175,7 @@ export async function listMySiteLeagues(input: {
       gameLabel: gameLabelFor(row.game),
       teamName: row.team_name ?? null,
       teamAbbr: null,
+      teamLogoUrl: null,
       seasonRecordText: null,
       isCommissioner: commissionerRole !== "member",
       commissionerRole,
@@ -230,6 +232,7 @@ export async function listMySiteLeagues(input: {
           ) as member_count,
           ta.team_id,
           coalesce(my_t.display_abbr, my_t.abbreviation) as team_abbr,
+          my_t.logo_url as team_logo_url,
           g.id as game_id,
           g.home_team_id,
           g.away_team_id,
@@ -276,6 +279,7 @@ export async function listMySiteLeagues(input: {
       league.maxMembers = Number(row.max_members ?? 32);
       league.memberCount = Number(row.member_count ?? 0);
       league.teamAbbr = row.team_abbr ?? null;
+      league.teamLogoUrl = row.team_logo_url ?? null;
       if (row.team_id) {
         const wins = Number(row.record_wins ?? 0);
         const losses = Number(row.record_losses ?? 0);

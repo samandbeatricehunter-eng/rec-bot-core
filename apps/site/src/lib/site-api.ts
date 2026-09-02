@@ -342,6 +342,7 @@ export type SiteLeagueSummary = {
   gameLabel: string;
   teamName: string | null;
   teamAbbr?: string | null;
+  teamLogoUrl?: string | null;
   seasonRecordText?: string | null;
   isCommissioner: boolean;
   commissionerRole?: "head" | "co" | "member";
@@ -515,6 +516,7 @@ export type ImmortalityIdentityInput = {
   heightInches: number;
   weightLbs: number;
   bodyType?: string;
+  headshotUrl?: string | null;
 };
 
 export type ImmortalityIqState = {

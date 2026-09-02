@@ -4258,6 +4258,13 @@ h1, h2, h3, .site-wordmark {
 .rise-stage-nav button { border: var(--card-border); background: rgba(8, 8, 10, 0.97); color: var(--text); border-radius: var(--radius-md); padding: 8px 12px; cursor: pointer; }
 .rise-stage-nav button.is-active { border-color: var(--gold, #d4a843); }
 .rise-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-3); }
+.rise-headshot-picker { margin: var(--space-4) 0; padding: 0; border: 0; }
+.rise-headshot-picker legend { font-weight: 700; }
+.rise-headshot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: var(--space-2); max-height: 390px; overflow: auto; padding: 2px; }
+.rise-headshot-option { display: grid; gap: 6px; padding: 6px; color: inherit; background: var(--surface-raised, #181818); border: 2px solid transparent; border-radius: 10px; cursor: pointer; }
+.rise-headshot-option img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 7px; background: #222; }
+.rise-headshot-option span { font-size: .75rem; }
+.rise-headshot-option.is-selected { border-color: var(--color-accent, #d9a521); }
 .rise-trait-list { display: flex; flex-direction: column; gap: var(--space-2); }
 .rise-question { display: flex; flex-direction: column; gap: var(--space-2); }
 .rise-stock-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }

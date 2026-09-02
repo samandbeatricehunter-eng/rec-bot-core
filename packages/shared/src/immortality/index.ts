@@ -22,3 +22,4 @@ export * from "./matchup-interview.js";
 export * from "./nfl-records.js";
 export * from "./backstory.js";
 export * from "./throwing-motions.js";
+export * from "./headshots.js";

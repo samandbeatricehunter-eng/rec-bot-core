@@ -17,6 +17,7 @@ export const NATIVE_PG_ARRAY_COLUMNS = new Set([
   "rec_league_configuration.fair_sim_rules_postseason",
   "rec_user_league_history.roles",
   "rec_availability_nag_state.message_ids",
+  "rec_immortality_iq_answers.presented_option_order",
 ]);
 
 export function serializePgValue(table: string, column: string, value: unknown): unknown {

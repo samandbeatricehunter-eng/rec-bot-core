@@ -68,6 +68,7 @@ export async function immortalityRoutes(app: FastifyInstance) {
           heightInches: z.number().int().min(60).max(90),
           weightLbs: z.number().int().min(140).max(400),
           bodyType: z.string().trim().max(40).optional(),
+          headshotUrl: z.string().url().max(500).optional().nullable(),
         }),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });

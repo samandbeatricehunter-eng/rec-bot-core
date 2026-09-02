@@ -51,6 +51,23 @@ export function isCareerRecordBroken(category: NflRecordCategory, careerTotal: n
 
 export type NflRecordTop5Entry = { rank: 1 | 2 | 3 | 4 | 5; holder: string; value: number };
 
+/** NFL-issued source used for the game and season boards (2025 Record & Fact Book,
+ * All-Time Records, pp. 564-581). */
+export const NFL_RECORDS_SOURCE = {
+  title: "2025 NFL Record & Fact Book",
+  url: "https://static.clubs.nfl.com/image/upload/patriots/fvc6qgwyqlztq1muztpi.pdf",
+  pages: "564-581",
+} as const;
+
+/** Unofficial tackle leaderboards use Pro Football Reference's complete-stat eras:
+ * combined since 1987 and solo since 1994. These are not NFL-certified all-era records. */
+export const NFL_TACKLE_RECORDS_SOURCE = {
+  combinedGame: "https://www.pro-football-reference.com/leaders/tackles_combined_single_game.htm",
+  combinedSeason: "https://www.pro-football-reference.com/leaders/tackles_combined_single_season.htm",
+  soloGame: "https://www.pro-football-reference.com/leaders/tackles_solo_single_game.htm",
+  soloSeason: "https://www.pro-football-reference.com/leaders/tackles_solo_single_season.htm",
+} as const;
+
 /**
  * The all-time top 5 for each category, seeding the RTI "record book" a league's own players
  * try to climb into (see apps/api/src/modules/immortality/nfl-record-holders.service.ts).
@@ -142,109 +159,106 @@ export const NFL_CAREER_RECORDS_TOP5: Record<NflRecordCategory, NflRecordTop5Ent
 };
 
 /**
- * Single-game top 5, same 11 categories. Lower confidence than NFL_CAREER_RECORDS_TOP5 above --
- * single-game specialty marks (tied records especially, and every defensive/tackle category)
- * are far more obscure than career totals and were not independently verified against a live
- * source. Treat these as flavor/reference data for the RTI record book, not a certified source
- * of NFL history -- spot-check before treating any individual entry as fact.
+ * Single-game leaders transcribed from the NFL's 2025 Record & Fact Book. When the fifth
+ * position is tied, this frozen board uses the first listed qualifying performances. Tackle
+ * rows are the best-available Pro Football Reference leaderboards for their tracked eras.
  */
 export const NFL_SINGLE_GAME_RECORDS_TOP5: Record<NflRecordCategory, NflRecordTop5Entry[]> = {
   pass_yards: [
     { rank: 1, holder: "Norm Van Brocklin", value: 554 },
     { rank: 2, holder: "Warren Moon", value: 527 },
     { rank: 3, holder: "Matt Schaub", value: 527 },
-    { rank: 4, holder: "Ben Roethlisberger", value: 522 },
-    { rank: 5, holder: "Tom Brady", value: 517 },
+    { rank: 4, holder: "Joe Burrow", value: 525 },
+    { rank: 5, holder: "Ben Roethlisberger", value: 522 },
   ],
   pass_tds: [
     { rank: 1, holder: "Sid Luckman", value: 7 },
     { rank: 2, holder: "Adrian Burk", value: 7 },
     { rank: 3, holder: "George Blanda", value: 7 },
     { rank: 4, holder: "Y.A. Tittle", value: 7 },
-    { rank: 5, holder: "Nick Foles", value: 7 },
+    { rank: 5, holder: "Joe Kapp", value: 7 },
   ],
   rush_yards: [
     { rank: 1, holder: "Adrian Peterson", value: 296 },
     { rank: 2, holder: "Jamal Lewis", value: 295 },
-    { rank: 3, holder: "Corey Dillon", value: 278 },
-    { rank: 4, holder: "Walter Payton", value: 275 },
-    { rank: 5, holder: "O.J. Simpson", value: 273 },
+    { rank: 3, holder: "Jerome Harrison", value: 286 },
+    { rank: 4, holder: "Corey Dillon", value: 278 },
+    { rank: 5, holder: "Walter Payton", value: 275 },
   ],
   rush_tds: [
     { rank: 1, holder: "Ernie Nevers", value: 6 },
-    { rank: 2, holder: "William \"Dub\" Jones", value: 6 },
-    { rank: 3, holder: "Gale Sayers", value: 6 },
-    { rank: 4, holder: "Alvin Kamara", value: 6 },
-    { rank: 5, holder: "James Stewart", value: 5 },
+    { rank: 2, holder: "Alvin Kamara", value: 6 },
+    { rank: 3, holder: "Jimmy Conzelman", value: 5 },
+    { rank: 4, holder: "Jim Brown", value: 5 },
+    { rank: 5, holder: "Cookie Gilchrist", value: 5 },
   ],
   receptions: [
     { rank: 1, holder: "Brandon Marshall", value: 21 },
-    { rank: 2, holder: "Tom Fears", value: 18 },
-    { rank: 3, holder: "Golden Tate", value: 16 },
-    { rank: 4, holder: "Terrell Owens", value: 16 },
-    { rank: 5, holder: "Jerry Rice", value: 15 },
+    { rank: 2, holder: "Terrell Owens", value: 20 },
+    { rank: 3, holder: "Tom Fears", value: 18 },
+    { rank: 4, holder: "Brandon Marshall", value: 18 },
+    { rank: 5, holder: "Jason Witten", value: 18 },
   ],
   receiving_yards: [
     { rank: 1, holder: "Flipper Anderson", value: 336 },
-    { rank: 2, holder: "Stephone Paige", value: 309 },
-    { rank: 3, holder: "Jim Benton", value: 303 },
-    { rank: 4, holder: "Calvin Johnson", value: 329 },
-    { rank: 5, holder: "Anquan Boldin", value: 217 },
+    { rank: 2, holder: "Calvin Johnson", value: 329 },
+    { rank: 3, holder: "Stephone Paige", value: 309 },
+    { rank: 4, holder: "Jim Benton", value: 303 },
+    { rank: 5, holder: "Cloyce Box", value: 302 },
   ],
   receiving_tds: [
-    { rank: 1, holder: "Kellen Winslow Sr.", value: 5 },
-    { rank: 2, holder: "Bob Shaw", value: 5 },
+    { rank: 1, holder: "Bob Shaw", value: 5 },
+    { rank: 2, holder: "Kellen Winslow Sr.", value: 5 },
     { rank: 3, holder: "Jerry Rice", value: 5 },
-    { rank: 4, holder: "Nate Burleson", value: 5 },
-    { rank: 5, holder: "DeAndre Hopkins", value: 4 },
+    { rank: 4, holder: "Cloyce Box", value: 4 },
+    { rank: 5, holder: "Marvin Jones Jr.", value: 4 },
   ],
   tackles_combined: [
-    { rank: 1, holder: "Ray Lewis", value: 24 },
-    { rank: 2, holder: "London Fletcher", value: 22 },
-    { rank: 3, holder: "Zach Thomas", value: 21 },
-    { rank: 4, holder: "Derrick Brooks", value: 20 },
-    { rank: 5, holder: "Junior Seau", value: 19 },
+    { rank: 1, holder: "Luke Kuechly", value: 24 },
+    { rank: 2, holder: "David Harris", value: 24 },
+    { rank: 3, holder: "Kiko Alonso", value: 22 },
+    { rank: 4, holder: "Damien Covington", value: 22 },
+    { rank: 5, holder: "Roquan Smith", value: 21 },
   ],
   tackles_solo: [
-    { rank: 1, holder: "Ray Lewis", value: 17 },
-    { rank: 2, holder: "London Fletcher", value: 16 },
-    { rank: 3, holder: "Zach Thomas", value: 15 },
-    { rank: 4, holder: "Derrick Brooks", value: 14 },
-    { rank: 5, holder: "Junior Seau", value: 13 },
+    { rank: 1, holder: "David Harris", value: 20 },
+    { rank: 2, holder: "Alex Singleton", value: 19 },
+    { rank: 3, holder: "Derrick Brooks", value: 19 },
+    { rank: 4, holder: "Eric Hill", value: 19 },
+    { rank: 5, holder: "Derrick Brooks", value: 18 },
   ],
   interceptions: [
     { rank: 1, holder: "Sammy Baugh", value: 4 },
-    { rank: 2, holder: "Charley Brock", value: 4 },
-    { rank: 3, holder: "Bill Dudley", value: 4 },
-    { rank: 4, holder: "Don Doll", value: 4 },
-    { rank: 5, holder: "Jim Hill", value: 4 },
+    { rank: 2, holder: "Dan Sandifer", value: 4 },
+    { rank: 3, holder: "Don Doll", value: 4 },
+    { rank: 4, holder: "Bob Nussbaumer", value: 4 },
+    { rank: 5, holder: "Russ Craft", value: 4 },
   ],
   sacks: [
     { rank: 1, holder: "Derrick Thomas", value: 7 },
     { rank: 2, holder: "Fred Dean", value: 6 },
-    { rank: 3, holder: "Bruce Smith", value: 4.5 },
-    { rank: 4, holder: "Reggie White", value: 4.5 },
-    { rank: 5, holder: "William Perry", value: 4 },
+    { rank: 3, holder: "Derrick Thomas", value: 6 },
+    { rank: 4, holder: "Osi Umenyiora", value: 6 },
+    { rank: 5, holder: "Adrian Clayborn", value: 6 },
   ],
 };
 
 /**
- * Single-season top 5, same 11 categories. Same lower-confidence caveat as
- * NFL_SINGLE_GAME_RECORDS_TOP5 above.
+ * Single-season leaders from the same NFL-issued source and tie policy as the game board.
  */
 export const NFL_SINGLE_SEASON_RECORDS_TOP5: Record<NflRecordCategory, NflRecordTop5Entry[]> = {
   pass_yards: [
     { rank: 1, holder: "Peyton Manning", value: 5477 },
     { rank: 2, holder: "Drew Brees", value: 5476 },
-    { rank: 3, holder: "Drew Brees", value: 5208 },
+    { rank: 3, holder: "Tom Brady", value: 5316 },
     { rank: 4, holder: "Tom Brady", value: 5235 },
-    { rank: 5, holder: "Matthew Stafford", value: 5038 },
+    { rank: 5, holder: "Drew Brees", value: 5208 },
   ],
   pass_tds: [
     { rank: 1, holder: "Peyton Manning", value: 55 },
     { rank: 2, holder: "Tom Brady", value: 50 },
-    { rank: 3, holder: "Drew Brees", value: 46 },
-    { rank: 4, holder: "Aaron Rodgers", value: 45 },
+    { rank: 3, holder: "Patrick Mahomes", value: 50 },
+    { rank: 4, holder: "Peyton Manning", value: 49 },
     { rank: 5, holder: "Dan Marino", value: 48 },
   ],
   rush_yards: [
@@ -252,7 +266,7 @@ export const NFL_SINGLE_SEASON_RECORDS_TOP5: Record<NflRecordCategory, NflRecord
     { rank: 2, holder: "Adrian Peterson", value: 2097 },
     { rank: 3, holder: "Jamal Lewis", value: 2066 },
     { rank: 4, holder: "Barry Sanders", value: 2053 },
-    { rank: 5, holder: "Terrell Davis", value: 2008 },
+    { rank: 5, holder: "Derrick Henry", value: 2027 },
   ],
   rush_tds: [
     { rank: 1, holder: "LaDainian Tomlinson", value: 28 },
@@ -271,9 +285,9 @@ export const NFL_SINGLE_SEASON_RECORDS_TOP5: Record<NflRecordCategory, NflRecord
   receiving_yards: [
     { rank: 1, holder: "Calvin Johnson", value: 1964 },
     { rank: 2, holder: "Cooper Kupp", value: 1947 },
-    { rank: 3, holder: "Justin Jefferson", value: 1809 },
+    { rank: 3, holder: "Julio Jones", value: 1871 },
     { rank: 4, holder: "Jerry Rice", value: 1848 },
-    { rank: 5, holder: "Josh Gordon", value: 1646 },
+    { rank: 5, holder: "Antonio Brown", value: 1834 },
   ],
   receiving_tds: [
     { rank: 1, holder: "Randy Moss", value: 23 },
@@ -283,31 +297,31 @@ export const NFL_SINGLE_SEASON_RECORDS_TOP5: Record<NflRecordCategory, NflRecord
     { rank: 5, holder: "Mark Clayton", value: 18 },
   ],
   tackles_combined: [
-    { rank: 1, holder: "London Fletcher", value: 166 },
-    { rank: 2, holder: "Ray Lewis", value: 161 },
-    { rank: 3, holder: "Zach Thomas", value: 158 },
-    { rank: 4, holder: "Derrick Brooks", value: 154 },
-    { rank: 5, holder: "Junior Seau", value: 150 },
+    { rank: 1, holder: "Hardy Nickerson", value: 214 },
+    { rank: 2, holder: "Jessie Tuggle", value: 207 },
+    { rank: 3, holder: "Jessie Tuggle", value: 201 },
+    { rank: 4, holder: "Kyle Clifton", value: 199 },
+    { rank: 5, holder: "Chris Spielman", value: 195 },
   ],
   tackles_solo: [
-    { rank: 1, holder: "London Fletcher", value: 120 },
-    { rank: 2, holder: "Ray Lewis", value: 115 },
-    { rank: 3, holder: "Zach Thomas", value: 112 },
-    { rank: 4, holder: "Derrick Brooks", value: 108 },
-    { rank: 5, holder: "Junior Seau", value: 105 },
+    { rank: 1, holder: "Ray Lewis", value: 156 },
+    { rank: 2, holder: "Patrick Willis", value: 136 },
+    { rank: 3, holder: "Ray Lewis", value: 130 },
+    { rank: 4, holder: "Foyesade Oluokun", value: 128 },
+    { rank: 5, holder: "Jonathan Vilma", value: 128 },
   ],
   interceptions: [
     { rank: 1, holder: "Dick \"Night Train\" Lane", value: 14 },
-    { rank: 2, holder: "Lester Hayes", value: 13 },
-    { rank: 3, holder: "Dan Sandifer", value: 13 },
-    { rank: 4, holder: "Spec Sanders", value: 13 },
-    { rank: 5, holder: "Everson Walls", value: 11 },
+    { rank: 2, holder: "Dan Sandifer", value: 13 },
+    { rank: 3, holder: "Spec Sanders", value: 13 },
+    { rank: 4, holder: "Lester Hayes", value: 13 },
+    { rank: 5, holder: "Jack Christiansen", value: 12 },
   ],
   sacks: [
     { rank: 1, holder: "Michael Strahan", value: 22.5 },
     { rank: 2, holder: "T.J. Watt", value: 22.5 },
     { rank: 3, holder: "Mark Gastineau", value: 22 },
-    { rank: 4, holder: "Chris Doleman", value: 21 },
-    { rank: 5, holder: "Reggie White", value: 21 },
+    { rank: 4, holder: "Jared Allen", value: 22 },
+    { rank: 5, holder: "Justin Houston", value: 22 },
   ],
 };

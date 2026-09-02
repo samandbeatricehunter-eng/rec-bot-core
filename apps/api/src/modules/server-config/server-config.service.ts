@@ -137,7 +137,7 @@ export async function setServerConfig(input: SetServerConfigInput) {
   // leagues and is idempotent (a no-op once the league's board is already seeded).
   if (input.recordHoldersChannelId && input.recordHoldersChannelId !== (existing.data as any)?.record_holders_channel_id) {
     const { ensureNflRecordBaselinePosted } = await import("../immortality/nfl-record-holders.service.js");
-    ensureNflRecordBaselinePosted(context.leagueId).catch((error) => console.error("[ERROR] Failed to post RTI NFL record baseline after channel assignment (non-fatal):", error));
+    ensureNflRecordBaselinePosted(context.leagueId, { postExisting: true }).catch((error) => console.error("[ERROR] Failed to post RTI NFL record baseline after channel assignment (non-fatal):", error));
   }
 
   return {

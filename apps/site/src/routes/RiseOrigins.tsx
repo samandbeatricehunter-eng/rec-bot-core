@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, THROWING_MOTIONS } from "@rec/shared";
+import { HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_OWNER_HEADSHOTS, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, THROWING_MOTIONS, immortalityPlayerHeadshots, type ImmortalityHeadshot } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import {
   siteApi,
@@ -290,6 +290,7 @@ function IdentityForm({
   const [jerseyNumber, setJerseyNumber] = useState(Number(prospect?.jersey_number ?? 1));
   const [heightInches, setHeightInches] = useState(Number(prospect?.height_inches ?? 74));
   const [weightLbs, setWeightLbs] = useState(Number(prospect?.weight_lbs ?? 220));
+  const [headshotUrl, setHeadshotUrl] = useState(String(prospect?.headshot_url ?? ""));
 
   useEffect(() => {
     setFirstName(String(prospect?.first_name ?? ""));
@@ -300,6 +301,7 @@ function IdentityForm({
     setJerseyNumber(Number(prospect?.jersey_number ?? 1));
     setHeightInches(Number(prospect?.height_inches ?? 74));
     setWeightLbs(Number(prospect?.weight_lbs ?? 220));
+    setHeadshotUrl(String(prospect?.headshot_url ?? ""));
   }, [prospect]);
 
   const maxHeight = IMMORTALITY_POSITION_MAX_HEIGHT_INCHES[position as keyof typeof IMMORTALITY_POSITION_MAX_HEIGHT_INCHES] ?? 76;
@@ -320,6 +322,12 @@ function IdentityForm({
           <input className="site-input" type="number" min={60} max={90} value={heightInches} onChange={(e) => setHeightInches(Number(e.target.value))} /></label>
         <label className="site-field"><span>Weight (lbs)</span><input className="site-input" type="number" min={140} max={400} value={weightLbs} onChange={(e) => setWeightLbs(Number(e.target.value))} /></label>
       </div>
+      <HeadshotPicker
+        label={`${position || side} headshot`}
+        options={immortalityPlayerHeadshots(position)}
+        value={headshotUrl}
+        onChange={setHeadshotUrl}
+      />
       {heightCost > 0 ? (
         <p className="site-muted">{heightInches - maxHeight}" over the {position || side} max will cost <strong>{heightCost} Creation Points</strong> out of your budget.</p>
       ) : null}
@@ -332,6 +340,7 @@ function IdentityForm({
               identity: {
                 firstName: firstName.trim(), lastName: lastName.trim(), hometown, hometownState,
                 college: college.trim() || null, jerseyNumber, heightInches, weightLbs,
+                headshotUrl: headshotUrl || null,
               },
             });
             await onSaved();
@@ -340,6 +349,33 @@ function IdentityForm({
           } finally { setBusy(false); }
         }}>Save identity</button>
     </section>
+  );
+}
+
+function HeadshotPicker({ label, options, value, onChange }: {
+  label: string;
+  options: readonly ImmortalityHeadshot[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <fieldset className="rise-headshot-picker">
+      <legend>{label}</legend>
+      <p className="site-muted">Choose a catalog portrait, or keep the silhouette.</p>
+      <div className="rise-headshot-grid">
+        <button type="button" className={`rise-headshot-option${!value ? " is-selected" : ""}`} onClick={() => onChange("")}>
+          <img src="/assets/player-cards/player-silhouette.svg" alt="Silhouette" />
+          <span>Silhouette</span>
+        </button>
+        {options.map((option) => (
+          <button type="button" key={option.id} className={`rise-headshot-option${value === option.imageUrl ? " is-selected" : ""}`}
+            onClick={() => onChange(option.imageUrl)} aria-pressed={value === option.imageUrl}>
+            <img src={option.imageUrl} alt={option.label} loading="lazy" />
+            <span>{option.label}</span>
+          </button>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
@@ -735,9 +771,8 @@ function OwnerPanel({
           style={{ width: 96, height: 96, objectFit: "cover", borderRadius: "50%", background: "#222" }} />
         <label className="site-field"><span>First name</span><input className="site-input" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></label>
         <label className="site-field"><span>Last name</span><input className="site-input" value={lastName} onChange={(e) => setLastName(e.target.value)} /></label>
-        <label className="site-field"><span>Headshot URL (optional)</span>
-          <input className="site-input" value={headshotUrl} onChange={(e) => setHeadshotUrl(e.target.value)} placeholder="Leave blank for a generic silhouette" /></label>
       </div>
+      <HeadshotPicker label="Owner headshot" options={IMMORTALITY_OWNER_HEADSHOTS} value={headshotUrl} onChange={setHeadshotUrl} />
       <button type="button" className="site-btn site-btn-primary" disabled={busy || !firstName.trim() || !lastName.trim()}
         onClick={async () => {
           setBusy(true); setError(null);

@@ -324,7 +324,7 @@ type ParsedScheduleMatchup = {
   slotNumber: number;
 };
 
-function buildNflSlotTeamMap(teams: Array<{ id: string; abbreviation: string; original_abbreviation?: string | null }>) {
+export function buildNflSlotTeamMap(teams: Array<{ id: string; abbreviation: string; original_abbreviation?: string | null }>) {
   const map = new Map<string, string>();
   for (const team of teams) {
     map.set(team.abbreviation.toUpperCase(), team.id);

@@ -66,6 +66,31 @@ app.addContentTypeParser("application/json", { parseAs: "string" }, (request, bo
 await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024 } });
 await app.register(websocket);
 await registerRoutes(app);
+
+let shutdownStarted = false;
+async function shutdown(signal: NodeJS.Signals) {
+  if (shutdownStarted) return;
+  shutdownStarted = true;
+  app.log.info({ signal }, "Shutdown requested; draining API connections");
+  const forcedExit = setTimeout(() => {
+    app.log.error({ signal }, "Graceful shutdown timed out");
+    process.exit(1);
+  }, 25_000);
+  forcedExit.unref();
+  try {
+    await app.close();
+    clearTimeout(forcedExit);
+    app.log.info({ signal }, "API shutdown complete");
+    process.exit(0);
+  } catch (error) {
+    clearTimeout(forcedExit);
+    app.log.error({ err: error, signal }, "API shutdown failed");
+    process.exit(1);
+  }
+}
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => void shutdown("SIGINT"));
+
 try { await app.listen({ host: env.API_HOST, port: env.API_PORT }); }
 catch (error) { app.log.error(error); process.exit(1); }
 

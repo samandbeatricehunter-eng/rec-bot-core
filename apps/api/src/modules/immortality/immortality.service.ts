@@ -664,6 +664,7 @@ export async function upsertProspectIdentity(input: {
     heightInches: number;
     weightLbs: number;
     bodyType?: string;
+    headshotUrl?: string | null;
   };
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -689,6 +690,7 @@ export async function upsertProspectIdentity(input: {
     height_inches: input.identity.heightInches,
     weight_lbs: input.identity.weightLbs,
     body_type: input.identity.bodyType ?? null,
+    headshot_url: input.identity.headshotUrl ?? null,
     origins_step: "identity",
     updated_at: new Date().toISOString(),
   };
@@ -1714,16 +1716,16 @@ export async function chooseImmortalityTeam(input: { guildId: string; discordId:
   if (cardDiscordId) {
     for (const prospect of [offenseProspect, defenseProspect]) {
       if (prospect) {
-        void postProspectCardToDiscord({
+        await postProspectCardToDiscord({
           leagueId: context.leagueId, prospectId: prospect.id,
           side: prospect.side as "offense" | "defense", discordId: cardDiscordId,
         });
-        void import("./hof-milestones.service.js").then(({ postOrRefreshHofMilestoneCard }) => postOrRefreshHofMilestoneCard(prospect.id))
+        await import("./hof-milestones.service.js").then(({ postOrRefreshHofMilestoneCard }) => postOrRefreshHofMilestoneCard(prospect.id))
           .catch((error) => console.error(`[WARN] Could not post HOF Milestones card for prospect ${prospect.id} (non-fatal):`, error));
       }
     }
     if (offenseProspect && defenseProspect) {
-      void import("./franchise-headline.js").then(({ postFranchiseSelectionHeadline }) => postFranchiseSelectionHeadline({
+      await import("./franchise-headline.js").then(({ postFranchiseSelectionHeadline }) => postFranchiseSelectionHeadline({
         guildId: input.guildId, recLeagueId: context.leagueId, immortalityLeagueId: league.id,
         userId, discordId: cardDiscordId, teamId: input.teamId,
         offenseProspectId: offenseProspect.id, defenseProspectId: defenseProspect.id,

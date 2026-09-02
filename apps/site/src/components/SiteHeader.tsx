@@ -65,7 +65,7 @@ function HeaderRow2() {
           <span className="site-header-row2-active">
             {selected.teamAbbr ? (
               <span className="site-header-row2-team">
-                <TeamLogo abbreviation={selected.teamAbbr} alt="" className="site-header-row2-logo" />
+                <TeamLogo abbreviation={selected.teamAbbr} logoUrl={selected.teamLogoUrl} alt="" className="site-header-row2-logo" />
                 <strong className="site-header-row2-abbr">{selected.teamAbbr}</strong>
               </span>
             ) : null}
@@ -86,7 +86,7 @@ function HeaderRow2() {
             <button key={league.id} type="button" role="menuitem" className={["site-header-league-row", selected?.id === league.id ? "is-active" : ""].filter(Boolean).join(" ")} onClick={() => chooseLeague(league)}>
               {league.teamAbbr ? (
                 <span className="site-header-league-row-team">
-                  <TeamLogo abbreviation={league.teamAbbr} alt="" className="site-header-league-row-logo" />
+                  <TeamLogo abbreviation={league.teamAbbr} logoUrl={league.teamLogoUrl} alt="" className="site-header-league-row-logo" />
                   <strong>{league.teamAbbr}</strong>
                 </span>
               ) : null}

@@ -274,21 +274,28 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
         .order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (!next.data) continue;
 
+      const routes = await findServerRoutesForLeague(leagueId).catch(() => null);
+      const channelId = (routes?.routes as any)?.tweets_channel_id as string | null | undefined;
+      if (!channelId) continue;
+
       const claimed = await supabase.from("rec_immortality_tweet_queue")
         .update({ status: "posted", posted_at: new Date().toISOString() })
         .eq("id", String(next.data.id)).eq("status", "pending").select("id").maybeSingle();
       if (!claimed.data) continue; // another tick already claimed this row
-
-      const routes = await findServerRoutesForLeague(leagueId).catch(() => null);
-      const channelId = (routes?.routes as any)?.tweets_channel_id as string | null | undefined;
-      if (!channelId) continue;
-      await postDiscordChannelMessage(channelId, {
-        embeds: [{
-          author: { name: `${next.data.author_display_name} (${next.data.author_handle})` },
-          description: next.data.body,
-          color: 0x1d9bf0,
-        }],
-      }).catch((err) => console.error(`[ERROR] Failed to post RTI tweet for league ${leagueId} (non-fatal):`, err));
+      try {
+        await postDiscordChannelMessage(channelId, {
+          embeds: [{
+            author: { name: `${next.data.author_display_name} (${next.data.author_handle})` },
+            description: next.data.body,
+            color: 0x1d9bf0,
+          }],
+        });
+      } catch (err) {
+        // A Discord outage must not permanently consume the queue entry.
+        await supabase.from("rec_immortality_tweet_queue")
+          .update({ status: "pending", posted_at: null }).eq("id", String(next.data.id));
+        console.error(`[ERROR] Failed to post RTI tweet for league ${leagueId} (will retry):`, err);
+      }
     } catch (err) {
       console.error(`[ERROR] Tweet queue sweep failed for league ${leagueId} (non-fatal):`, err);
     }

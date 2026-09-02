@@ -51,6 +51,14 @@ test("other native text[] columns stay JS arrays", () => {
   assert.equal(serializePgValue("rec_user_league_history", "roles", roles), roles);
 });
 
+test("RTI IQ option order stays a native integer[]", () => {
+  const order = [1, 3, 2, 0];
+  assert.equal(
+    serializePgValue("rec_immortality_iq_answers", "presented_option_order", order),
+    order,
+  );
+});
+
 test("json-stringifying a text[] value is the settings-save 500", () => {
   const keys = ["failure_to_schedule", "missed_window", "dashing", "rule_violation"];
   const broken = JSON.stringify(keys);
