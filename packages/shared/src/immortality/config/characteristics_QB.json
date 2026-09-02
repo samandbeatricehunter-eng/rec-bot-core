@@ -1,6 +1,6 @@
 {
   "position_group": "QB",
-  "available_slots": 6,
+  "available_slots": 3,
   "characteristics": [
     {
       "name": "Born With Quick Feet",
@@ -212,7 +212,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 150
+      "xp_cost": 50
     },
     {
       "name": "Self-Made",
@@ -222,7 +222,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 250
+      "xp_cost": 90
     },
     {
       "name": "Personnel Chief",
@@ -232,7 +232,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 150
+      "xp_cost": 50
     }
   ]
 }

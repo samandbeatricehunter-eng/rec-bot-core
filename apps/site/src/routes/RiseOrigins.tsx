@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_OWNER_HEADSHOTS, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, THROWING_MOTIONS, immortalityPlayerHeadshots, type ImmortalityHeadshot } from "@rec/shared";
+import { HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_OWNER_HEADSHOTS, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, MAX_EQUIPPED_CHARACTERISTICS, REC_FIRST_NAMES, REC_LAST_NAMES, spendCreationPoints, THROWING_MOTIONS, immortalityPlayerHeadshots, type ImmortalityHeadshot } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import { RiseContractSigning } from "../components/RiseContractSigning.js";
+import { HEADSHOT_ALLOWED_TYPES, readImageAsResizedBase64 } from "../lib/image-resize.js";
 import {
   siteApi,
   type ImmortalityBranchingPlaystyleGroup,
@@ -10,6 +11,18 @@ import {
   type ImmortalityIqState,
   type ImmortalityInterviewQuestion,
 } from "../lib/site-api.js";
+
+function randomFrom<T>(items: readonly T[]): T {
+  return items[Math.floor(Math.random() * items.length)]!;
+}
+
+/** Small 🎲 button that fills a name field with a random pick from the same corpus custom
+ * players already use (packages/shared/src/player-builder/name-corpus.ts). Purely client-side. */
+function DiceButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button type="button" className="site-btn site-btn-ghost rise-dice-btn" title={label} aria-label={label} onClick={onClick}>🎲</button>
+  );
+}
 
 type Side = "offense" | "defense";
 type Stage = "identity" | "throwing_motion" | "iq" | "persona" | "playstyle" | "persona_dna" | "player_traits" | "characteristics" | "creation" | "owner" | "franchise";
@@ -235,7 +248,7 @@ export function RiseOriginsPage() {
               onSaved={reload} setError={setError} />
           ) : null}
           {stage === "creation" ? (
-            <CreationPanel key={effectiveSide} guildId={guildId} side={effectiveSide} budget={hub.league.creationPointBudget}
+            <CreationPanel key={effectiveSide} guildId={guildId} side={effectiveSide}
               setError={setError} onSaved={reload} />
           ) : null}
           {stage === "owner" ? (
@@ -313,14 +326,33 @@ function IdentityForm({
       <h2>Identity — {position || side}</h2>
       <p className="site-muted">Age is fixed at 21 for every prospect. This is your created-player class, not Player Lock.</p>
       <div className="rise-grid">
-        <label className="site-field"><span>First name</span><input className="site-input" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></label>
-        <label className="site-field"><span>Last name</span><input className="site-input" value={lastName} onChange={(e) => setLastName(e.target.value)} /></label>
+        <label className="site-field"><span>First name</span>
+          <div className="rise-input-with-dice">
+            <input className="site-input" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+            <DiceButton label="Randomize first name" onClick={() => setFirstName(randomFrom(REC_FIRST_NAMES))} />
+          </div>
+        </label>
+        <label className="site-field"><span>Last name</span>
+          <div className="rise-input-with-dice">
+            <input className="site-input" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            <DiceButton label="Randomize last name" onClick={() => setLastName(randomFrom(REC_LAST_NAMES))} />
+          </div>
+        </label>
         <label className="site-field"><span>Jersey</span><input className="site-input" type="number" min={0} max={99} value={jerseyNumber} onChange={(e) => setJerseyNumber(Number(e.target.value))} /></label>
         <label className="site-field"><span>Hometown</span><input className="site-input" value={hometown} onChange={(e) => setHometown(e.target.value)} /></label>
         <label className="site-field"><span>State</span><input className="site-input" value={hometownState} onChange={(e) => setHometownState(e.target.value)} /></label>
         <label className="site-field"><span>College</span><input className="site-input" value={college} onChange={(e) => setCollege(e.target.value)} /></label>
-        <label className="site-field"><span>Height (inches) — {position || side} max is {maxHeight}" before it costs Creation Points</span>
-          <input className="site-input" type="number" min={60} max={90} value={heightInches} onChange={(e) => setHeightInches(Number(e.target.value))} /></label>
+        <div className="site-field">
+          <span>Height — {position || side} max is {Math.floor(maxHeight / 12)}'{maxHeight % 12}" before it costs Creation Points</span>
+          <div className="rise-height-inputs">
+            <input className="site-input" type="number" min={4} max={7} value={Math.floor(heightInches / 12)}
+              onChange={(e) => setHeightInches(Math.max(60, Math.min(90, Number(e.target.value) * 12 + (heightInches % 12))))} />
+            <span className="site-muted">ft</span>
+            <input className="site-input" type="number" min={0} max={11} value={heightInches % 12}
+              onChange={(e) => setHeightInches(Math.max(60, Math.min(90, Math.floor(heightInches / 12) * 12 + Number(e.target.value))))} />
+            <span className="site-muted">in</span>
+          </div>
+        </div>
         <label className="site-field"><span>Weight (lbs)</span><input className="site-input" type="number" min={140} max={400} value={weightLbs} onChange={(e) => setWeightLbs(Number(e.target.value))} /></label>
       </div>
       <HeadshotPicker
@@ -328,6 +360,11 @@ function IdentityForm({
         options={immortalityPlayerHeadshots(position)}
         value={headshotUrl}
         onChange={setHeadshotUrl}
+        onUpload={async (file) => {
+          const resized = await readImageAsResizedBase64(file);
+          const result = await siteApi.immortalityUploadProspectHeadshot({ guildId, side, contentType: resized.contentType, imageBase64: resized.imageBase64 });
+          return result.headshotUrl;
+        }}
       />
       {heightCost > 0 ? (
         <p className="site-muted">{heightInches - maxHeight}" over the {position || side} max will cost <strong>{heightCost} Creation Points</strong> out of your budget.</p>
@@ -353,16 +390,37 @@ function IdentityForm({
   );
 }
 
-function HeadshotPicker({ label, options, value, onChange }: {
+function HeadshotPicker({ label, options, value, onChange, onUpload }: {
   label: string;
   options: readonly ImmortalityHeadshot[];
   value: string;
   onChange: (value: string) => void;
+  /** Resolves the uploaded file to a hosted URL (Cloudflare Images) -- omit to disable custom uploads. */
+  onUpload?: (file: File) => Promise<string>;
 }) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const isCustomUpload = Boolean(value) && !options.some((option) => option.imageUrl === value);
+
+  async function handleFile(file: File | undefined) {
+    if (!file || !onUpload) return;
+    setUploadBusy(true); setUploadError(null);
+    try {
+      if (!(HEADSHOT_ALLOWED_TYPES as readonly string[]).includes(file.type)) {
+        setUploadError("Headshot must be a JPEG, PNG, or WebP image.");
+        return;
+      }
+      onChange(await onUpload(file));
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Failed to upload headshot.");
+    } finally { setUploadBusy(false); }
+  }
+
   return (
     <fieldset className="rise-headshot-picker">
       <legend>{label}</legend>
-      <p className="site-muted">Choose a catalog portrait, or keep the silhouette.</p>
+      <p className="site-muted">Choose a catalog portrait, upload your own, or keep the silhouette.</p>
       <div className="rise-headshot-grid">
         <button type="button" className={`rise-headshot-option${!value ? " is-selected" : ""}`} onClick={() => onChange("")}>
           <img src="/assets/player-cards/player-silhouette.svg" alt="Silhouette" />
@@ -375,7 +433,19 @@ function HeadshotPicker({ label, options, value, onChange }: {
             <span>{option.label}</span>
           </button>
         ))}
+        {onUpload ? (
+          <button type="button" className={`rise-headshot-option${isCustomUpload ? " is-selected" : ""}`}
+            onClick={() => fileInputRef.current?.click()} disabled={uploadBusy}>
+            <img src={isCustomUpload ? value : "/assets/player-cards/player-silhouette.svg"} alt="Custom upload" loading="lazy" />
+            <span>{uploadBusy ? "Uploading…" : isCustomUpload ? "Custom (replace)" : "Upload photo"}</span>
+          </button>
+        ) : null}
       </div>
+      {onUpload ? (
+        <input ref={fileInputRef} type="file" accept={HEADSHOT_ALLOWED_TYPES.join(",")} style={{ display: "none" }}
+          onChange={(e) => { void handleFile(e.target.files?.[0]); e.target.value = ""; }} />
+      ) : null}
+      {uploadError ? <p className="site-muted" style={{ color: "var(--error, #c0392b)" }}>{uploadError}</p> : null}
     </fieldset>
   );
 }
@@ -635,26 +705,30 @@ function CharacteristicsPanel({
 }) {
   const [keys, setKeys] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const slotCost = useMemo(
-    () => catalog.filter((item) => keys.includes(item.key)).reduce((sum, item) => sum + item.slotCost, 0),
+  const selectedAttributeCodes = useMemo(
+    () => new Set(catalog.filter((item) => keys.includes(item.key)).flatMap((item) => item.attributeCodes)),
     [catalog, keys],
   );
 
   return (
     <section className="rise-card">
       <h2>Natural characteristics</h2>
-      <p className="site-muted">Pick before Creation Points. 6 slots max. Known Commodity then Negotiator for the 30% discount cap.</p>
-      <p>Used {slotCost} / 6</p>
+      <p className="site-muted">Pick before Creation Points. Max {MAX_EQUIPPED_CHARACTERISTICS} — traits that touch the same rating can't be combined.</p>
+      <p>Used {keys.length} / {MAX_EQUIPPED_CHARACTERISTICS}</p>
       <div className="rise-trait-list">
         {catalog.map((item) => {
           const selected = keys.includes(item.key);
+          const overlaps = !selected && item.attributeCodes.some((code) => selectedAttributeCodes.has(code));
+          const atCap = !selected && keys.length >= MAX_EQUIPPED_CHARACTERISTICS;
+          const disabled = overlaps || atCap;
           return (
-            <label key={item.key} className={`wizard-option-card ${selected ? "wizard-option-card-active" : ""}`}>
-              <input type="checkbox" checked={selected} onChange={() => {
+            <label key={item.key} className={`wizard-option-card ${selected ? "wizard-option-card-active" : ""}`} aria-disabled={disabled} style={disabled ? { opacity: 0.45 } : undefined}>
+              <input type="checkbox" checked={selected} disabled={disabled} onChange={() => {
                 setKeys((prev) => selected ? prev.filter((key) => key !== item.key) : [...prev, item.key]);
               }} />
               <strong>{item.displayName}</strong> <span className="site-muted">({item.slotCost} slot{item.slotCost === 1 ? "" : "s"})</span>
               <span className="site-muted">{item.effect}</span>
+              {overlaps ? <span className="site-muted"> — conflicts with an equipped trait</span> : null}
             </label>
           );
         })}
@@ -670,37 +744,98 @@ function CharacteristicsPanel({
   );
 }
 
+/** Baseline is only computable once the rest of Origins (interviews + Natural Characteristics,
+ * throwing motion for QB) is submitted -- see assertOriginsCompleteForCreation server-side.
+ * Fetches on mount/side-change and shows a locked message instead of the build form until then. */
 function CreationPanel({
-  guildId, side, budget, setError, onSaved,
+  guildId, side, setError, onSaved,
 }: {
-  guildId: string; side: Side; budget: number; setError: (value: string | null) => void; onSaved: () => Promise<void>;
+  guildId: string; side: Side; setError: (value: string | null) => void; onSaved: () => Promise<void>;
 }) {
+  const [baseline, setBaseline] = useState<{ baseline: Record<string, number>; heightCost: number; totalBudget: number; effectiveBudget: number; discounts: Record<string, number> } | null>(null);
+  const [lockedReason, setLockedReason] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [spent, setSpent] = useState<Record<string, number>>({});
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const used = Object.values(spent).reduce((sum, value) => sum + value, 0);
+  // The real per-attribute CP cost escalates with the target value (and speed attributes carry a
+  // surcharge) -- a naive sum of the raw "+N" inputs badly understates it. Run the exact same
+  // pure function the server charges against (budget: Infinity so it always resolves a total
+  // instead of short-circuiting on overage) so this preview can never drift from what actually
+  // gets charged on submit.
+  const preview = useMemo(() => {
+    if (!baseline) return null;
+    return spendCreationPoints({ baseline: baseline.baseline, spent, budget: Number.POSITIVE_INFINITY, discounts: baseline.discounts });
+  }, [baseline, spent]);
+  // ok:false here only ever means a target went over 99 (budget is infinite above) -- a genuine
+  // build error, distinct from "over budget" below, which needs its own message and still wants
+  // an accurate point count so the user knows how far over they are.
+  const invalid = preview !== null && !preview.ok;
+  const spentPoints = preview?.ok ? preview.spentPoints : 0;
+  const overBudget = Boolean(baseline) && !invalid && spentPoints > baseline!.effectiveBudget;
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setLockedReason(null); setBaseline(null);
+    siteApi.immortalityCreationBaseline({ guildId, side }).then((next) => {
+      if (!cancelled) setBaseline(next);
+    }).catch((err) => {
+      if (!cancelled) setLockedReason(err instanceof Error ? err.message : "Finish the rest of Origins first.");
+    }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [guildId, side]);
+
+  if (loading) {
+    return (
+      <section className="rise-card">
+        <h2>Creation Points</h2>
+        <p className="site-muted">Loading your baseline…</p>
+      </section>
+    );
+  }
+
+  if (!baseline) {
+    return (
+      <section className="rise-card">
+        <h2>Creation Points</h2>
+        <p className="site-muted">{lockedReason ?? "Finish the rest of Origins first."}</p>
+      </section>
+    );
+  }
 
   return (
     <section className="rise-card">
       <h2>Creation Points</h2>
-      <p className="site-muted">Test budget is {budget} points. Values are rating increases on top of the generated 68–72 baseline, not absolute ratings.</p>
-      <p>Used {used} / {budget}</p>
+      <p className="site-muted">
+        Budget is {baseline.effectiveBudget} points{baseline.heightCost > 0 ? ` (${baseline.heightCost} of your ${baseline.totalBudget} already went to your above-average height)` : ""}.
+        Values below are your generated baseline from Origins — the input is how many points on top of it you're spending.
+      </p>
+      <p style={overBudget || invalid ? { color: "var(--error, #c0392b)" } : undefined}>
+        Used {spentPoints} / {baseline.effectiveBudget}
+        {overBudget ? " — over budget, lower an attribute before evaluating" : ""}
+        {invalid && preview && !preview.ok ? ` — ${preview.error}` : ""}
+      </p>
       <div className="rise-grid">
-        {MADDEN_ATTRIBUTE_DEFINITIONS.slice(0, 24).map((def) => (
-          <label key={def.code} className="site-field">
-            <span>{def.code} — {def.name}</span>
-            <input className="site-input" type="number" min={0} max={20} value={spent[def.code] ?? 0}
-              onChange={(e) => setSpent((prev) => ({ ...prev, [def.code]: Number(e.target.value) }))} />
-          </label>
-        ))}
+        {MADDEN_ATTRIBUTE_DEFINITIONS.slice(0, 24).map((def) => {
+          const base = baseline.baseline[def.code] ?? 0;
+          const add = spent[def.code] ?? 0;
+          return (
+            <label key={def.code} className="site-field">
+              <span>{def.code} — {def.name} (baseline {base})</span>
+              <input className="site-input" type="number" min={0} max={20} value={add}
+                onChange={(e) => setSpent((prev) => ({ ...prev, [def.code]: Number(e.target.value) }))} />
+              {add > 0 ? <span className="site-muted">Total: {base + add}</span> : null}
+            </label>
+          );
+        })}
       </div>
-      <button type="button" className="site-btn site-btn-primary" disabled={busy}
+      <button type="button" className="site-btn site-btn-primary" disabled={busy || overBudget || invalid}
         onClick={async () => {
           setBusy(true); setError(null);
           try {
             const cleaned = Object.fromEntries(Object.entries(spent).filter(([, value]) => value > 0));
             const next = await siteApi.immortalityEvaluateCreation({ guildId, side, spent: cleaned });
-            setResult(`Build saved. Spent ${next.spentPoints ?? next.creationPointsSpent ?? next.creation_points_spent ?? used} CP. Your real OVR will come from the league's first game-data import.`);
+            setResult(`Build saved. Spent ${next.spentPoints ?? next.creationPointsSpent ?? next.creation_points_spent ?? spentPoints} CP. Your real OVR will come from the league's first game-data import.`);
             await onSaved();
           } catch (err) {
             setError(err instanceof Error ? err.message : "Could not evaluate that build.");
@@ -770,10 +905,26 @@ function OwnerPanel({
       <div className="rise-grid">
         <img src={headshotUrl.trim() || "/assets/player-cards/player-silhouette.svg"} alt=""
           style={{ width: 96, height: 96, objectFit: "cover", borderRadius: "50%", background: "#222" }} />
-        <label className="site-field"><span>First name</span><input className="site-input" value={firstName} onChange={(e) => setFirstName(e.target.value)} /></label>
-        <label className="site-field"><span>Last name</span><input className="site-input" value={lastName} onChange={(e) => setLastName(e.target.value)} /></label>
+        <label className="site-field"><span>First name</span>
+          <div className="rise-input-with-dice">
+            <input className="site-input" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+            <DiceButton label="Randomize first name" onClick={() => setFirstName(randomFrom(REC_FIRST_NAMES))} />
+          </div>
+        </label>
+        <label className="site-field"><span>Last name</span>
+          <div className="rise-input-with-dice">
+            <input className="site-input" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            <DiceButton label="Randomize last name" onClick={() => setLastName(randomFrom(REC_LAST_NAMES))} />
+          </div>
+        </label>
       </div>
-      <HeadshotPicker label="Owner headshot" options={IMMORTALITY_OWNER_HEADSHOTS} value={headshotUrl} onChange={setHeadshotUrl} />
+      <HeadshotPicker label="Owner headshot" options={IMMORTALITY_OWNER_HEADSHOTS} value={headshotUrl} onChange={setHeadshotUrl}
+        onUpload={async (file) => {
+          const resized = await readImageAsResizedBase64(file);
+          const result = await siteApi.immortalityUploadOwnerHeadshot({ guildId, contentType: resized.contentType, imageBase64: resized.imageBase64 });
+          return result.headshotUrl;
+        }}
+      />
       <button type="button" className="site-btn site-btn-primary" disabled={busy || !firstName.trim() || !lastName.trim()}
         onClick={async () => {
           setBusy(true); setError(null);

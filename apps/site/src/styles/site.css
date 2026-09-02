@@ -4265,6 +4265,11 @@ h1, h2, h3, .site-wordmark {
 .rise-headshot-option img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 7px; background: #222; }
 .rise-headshot-option span { font-size: .75rem; }
 .rise-headshot-option.is-selected { border-color: var(--color-accent, #d9a521); }
+.rise-input-with-dice { display: flex; align-items: stretch; gap: 6px; }
+.rise-input-with-dice input { flex: 1; }
+.rise-dice-btn { flex: 0 0 auto; padding: 0 12px; font-size: 18px; line-height: 1; }
+.rise-height-inputs { display: flex; align-items: center; gap: 6px; }
+.rise-height-inputs input { width: 64px; flex: 0 0 auto; }
 .rise-trait-list { display: flex; flex-direction: column; gap: var(--space-2); }
 .rise-question { display: flex; flex-direction: column; gap: var(--space-2); }
 .rise-stock-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }

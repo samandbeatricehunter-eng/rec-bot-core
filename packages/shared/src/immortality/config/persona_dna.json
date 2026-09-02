@@ -1,5 +1,5 @@
 {
-  "max_equipped": 5,
+  "max_equipped": 10,
   "traits": [
     { "name": "Team First", "definition": "Chooses team fit over personal gain." },
     { "name": "Win At All Costs", "definition": "Will take risks to secure a win." },
@@ -76,7 +76,9 @@
         { "text": "Whoever helps the team most, full stop.", "trait": "Team First" },
         { "text": "I go coach the younger guy up myself.", "trait": "Mentor" },
         { "text": "I make sure the room knows where I stand on it.", "trait": "Leader" },
-        { "text": "Not my call to make noise about.", "trait": "Reserved" }
+        { "text": "Not my call to make noise about.", "trait": "Reserved" },
+        { "text": "Whatever they decide, I'll own my role in making it work.", "trait": "Accountable" },
+        { "text": "I'd rather the room actually talk it through together.", "trait": "Collaborative" }
       ]
     },
     {
@@ -86,7 +88,9 @@
         { "text": "Every clause matters to me — structure, terms, all of it.", "trait": "Contract Minded" },
         { "text": "I push hard and fast for the number I want.", "trait": "Aggressive" },
         { "text": "I can wait as long as it takes for the right deal.", "trait": "Patient" },
-        { "text": "I'd rather take less and know it's guaranteed.", "trait": "Frugal" }
+        { "text": "I'd rather take less and know it's guaranteed.", "trait": "Frugal" },
+        { "text": "I've already run the numbers three different ways before we sit down.", "trait": "Calculated" },
+        { "text": "I push until every term favors me more than their first offer.", "trait": "Demanding" }
       ]
     },
     {
@@ -96,7 +100,9 @@
         { "text": "I'm back to normal fast — it doesn't linger.", "trait": "Resilient" },
         { "text": "It stays with me longer than it should.", "trait": "Emotional" },
         { "text": "I don't let it show either way.", "trait": "Stoic" },
-        { "text": "The criticism actually gets to me.", "trait": "Sensitive" }
+        { "text": "The criticism actually gets to me.", "trait": "Sensitive" },
+        { "text": "I stay even-keeled, at least on the outside.", "trait": "Composed" },
+        { "text": "I use it — I come back sharper and angrier.", "trait": "Intense" }
       ]
     },
     {
@@ -106,7 +112,9 @@
         { "text": "Getting to the next level, faster than people expect.", "trait": "Ambitious" },
         { "text": "Doing it the right way, even when no one's watching.", "trait": "Principled" },
         { "text": "I genuinely just love this.", "trait": "Passionate" },
-        { "text": "Staying realistic about what's actually in front of me.", "trait": "Pragmatic" }
+        { "text": "Staying realistic about what's actually in front of me.", "trait": "Pragmatic" },
+        { "text": "I stick to the plan, no matter how I feel that morning.", "trait": "Disciplined" },
+        { "text": "I don't think about it, I just show up and do the work.", "trait": "Focused" }
       ]
     },
     {
@@ -116,7 +124,69 @@
         { "text": "Whatever I'm actually thinking — no filter.", "trait": "Outspoken" },
         { "text": "Something that keeps everyone happy.", "trait": "Diplomatic" },
         { "text": "As little as possible.", "trait": "Private" },
-        { "text": "Exactly what I mean, plainly.", "trait": "Transparent" }
+        { "text": "Exactly what I mean, plainly.", "trait": "Transparent" },
+        { "text": "I keep my answer vague — no reason to give them more.", "trait": "Guarded" },
+        { "text": "I say it once, and I'm not walking it back no matter who pushes.", "trait": "Assertive" }
+      ]
+    },
+    {
+      "number": 16,
+      "question": "Locker room energy before kickoff. What's actually going on in your head?",
+      "options": [
+        { "text": "I'm hyping guys up — that's my role in this room.", "trait": "Charismatic" },
+        { "text": "I already know how this one's going to go.", "trait": "Confident" },
+        { "text": "I stay even — this is just another Sunday to me.", "trait": "Grounded" },
+        { "text": "Depends on the day, honestly — even I don't always know.", "trait": "Unpredictable" },
+        { "text": "I'm thinking about who's watching back home.", "trait": "Family Focused" },
+        { "text": "Whatever it takes today, I don't care how it looks.", "trait": "Win At All Costs" }
+      ]
+    },
+    {
+      "number": 17,
+      "question": "A trade rumor with your name in it starts making the rounds.",
+      "options": [
+        { "text": "I already know how these things usually shake out.", "trait": "Savvy" },
+        { "text": "If a better situation opens up somewhere else, I'm taking it.", "trait": "Opportunistic" },
+        { "text": "At the end of the day, I control where my career goes, not them.", "trait": "Independent" },
+        { "text": "I've made it clear where I stand, and that's not changing.", "trait": "Stubborn" },
+        { "text": "I want to know exactly what's actually being discussed.", "trait": "Curious" },
+        { "text": "I think about what actually makes sense long-term, not the noise.", "trait": "Cerebral" }
+      ]
+    },
+    {
+      "number": 18,
+      "question": "The front office asks you to take a below-market deal, citing your history together.",
+      "options": [
+        { "text": "If they've always treated me right, I'll meet them halfway.", "trait": "Respectful" },
+        { "text": "I've kept my word to this team — I expect the same back.", "trait": "Reliable" },
+        { "text": "History or not, I'm not caving on this one.", "trait": "Headstrong" },
+        { "text": "I'd rather just sit down and talk it through honestly.", "trait": "Approachable" },
+        { "text": "I notice exactly how this compares to what other guys are getting.", "trait": "Observant" },
+        { "text": "I get it — I know the cap situation they're working with.", "trait": "Empathetic" }
+      ]
+    },
+    {
+      "number": 19,
+      "question": "Offseason program starts. What's actually driving how you train?",
+      "options": [
+        { "text": "There's always more tape, more to learn.", "trait": "Student Of The Game" },
+        { "text": "I'm building toward exactly where I want to be in five years.", "trait": "Strategic" },
+        { "text": "I need to be better than every guy at my position, period.", "trait": "Overly Competitive" },
+        { "text": "I want people to notice the work, not just see the results.", "trait": "Particular" },
+        { "text": "I think about how this offseason affects where the team is in three years, not just me.", "trait": "Mindful" },
+        { "text": "Whatever the plan calls for, I adjust and get it done.", "trait": "Flexible" }
+      ]
+    },
+    {
+      "number": 20,
+      "question": "Contract talks stall and your agent asks how you want to play it from here.",
+      "options": [
+        { "text": "I'm not moving off my number. Full stop.", "trait": "Uncompromising" },
+        { "text": "I want to go back through every clause again before we respond.", "trait": "Conscientious" },
+        { "text": "I tell them exactly how I feel about where this stands.", "trait": "Expressive" },
+        { "text": "I need more from them before I trust this is real.", "trait": "Wary" },
+        { "text": "This isn't something I'm going to joke around about.", "trait": "Serious" },
+        { "text": "I want to understand exactly why they're holding this line.", "trait": "Inquisitive" }
       ]
     }
   ]

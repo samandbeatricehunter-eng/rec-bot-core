@@ -377,6 +377,7 @@ export type ImmortalityCharacteristic = {
   slotCost: number;
   effect: string;
   tags: string[];
+  attributeCodes: string[];
 };
 
 export type ImmortalityTraitDefinition = {
@@ -1225,6 +1226,9 @@ export const siteApi = {
   immortalitySelectCharacteristics(input: { guildId: string; side: "offense" | "defense"; keys: string[] }) {
     return request<{ slotCost: number; selected: Array<{ key: string; displayName: string; slotCost: number }> }>("/v1/immortality/characteristics", input);
   },
+  immortalityCreationBaseline(input: { guildId: string; side: "offense" | "defense" }) {
+    return request<{ baseline: Record<string, number>; heightCost: number; totalBudget: number; effectiveBudget: number; discounts: Record<string, number> }>("/v1/immortality/creation/baseline", input);
+  },
   immortalityEvaluateCreation(input: { guildId: string; side: "offense" | "defense"; spent: Record<string, number> }) {
     return request<{
       estimatedOvr?: number;
@@ -1269,6 +1273,12 @@ export const siteApi = {
   },
   immortalitySubmitThrowingMotion(input: { guildId: string; side: "offense" | "defense"; motionKey: string }) {
     return request<{ throwingMotionKey: string | null }>("/v1/immortality/throwing-motion/set", input);
+  },
+  immortalityUploadProspectHeadshot(input: { guildId: string; side: "offense" | "defense"; contentType: string; imageBase64: string }) {
+    return request<{ headshotUrl: string }>("/v1/immortality/prospect/headshot/upload", input);
+  },
+  immortalityUploadOwnerHeadshot(input: { guildId: string; contentType: string; imageBase64: string }) {
+    return request<{ headshotUrl: string }>("/v1/immortality/owner/headshot/upload", input);
   },
   immortalitySetIntroVideo(input: { guildId: string; url: string | null }) {
     return request<{ introVideoUrl: string | null }>("/v1/immortality/intro-video/set", input);

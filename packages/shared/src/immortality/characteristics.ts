@@ -1,13 +1,17 @@
 import { FORMULA_VERSIONS, type ImmortalityPositionGroup } from "./types.js";
 
-export const CHARACTERISTIC_SLOT_BUDGET = 6;
+/** Origins picks are capped by count now, not by summed slot cost -- a prospect equips at most
+ * this many Natural Characteristics total, and two that discount the same attribute code can
+ * never both be equipped (see attributeCodesFor/validateCharacteristicSelection) rather than
+ * stacking with diminishing returns. */
+export const MAX_EQUIPPED_CHARACTERISTICS = 3;
 export const MAX_ATTRIBUTE_DISCOUNT = 0.3;
 export const SECOND_OVERLAP_EFFECTIVENESS = 0.5;
 export const THIRD_OVERLAP_EFFECTIVENESS = 0.25;
 
 export type CharacteristicTier = 1 | 2 | 3;
 
-export const DEFAULT_XP_COST_BY_SLOT: Record<number, number> = { 1: 40, 2: 70, 3: 110 };
+export const DEFAULT_XP_COST_BY_SLOT: Record<number, number> = { 1: 15, 2: 25, 3: 40 };
 export const ALL_ATTRIBUTES_DISCOUNT_CODE = "ALL";
 
 export type CharacteristicModifiers = {
@@ -39,7 +43,8 @@ export type CharacteristicDefinition = {
 };
 
 export type CharacteristicSelectionError =
-  | "slot_budget_exceeded"
+  | "count_exceeded"
+  | "overlapping_attribute"
   | "unknown_characteristic"
   | "duplicate_characteristic"
   | "wrong_position_group";
@@ -49,7 +54,7 @@ export type CharacteristicPurchaseError =
   | "wrong_position_group"
   | "already_owned"
   | "tier_locked"
-  | "slot_budget_exceeded"
+  | "count_exceeded"
   | "insufficient_xp";
 
 export function characteristicKey(name: string): string {
@@ -141,6 +146,13 @@ export function creationDiscountForAttribute(modifiers: CharacteristicModifiers,
   return stackDiscounts([modifiers.creationDiscounts[attributeCode] ?? 0, modifiers.creationDiscounts[ALL_ATTRIBUTES_DISCOUNT_CODE] ?? 0]);
 }
 
+/** Attribute codes (plus the "ALL" sentinel for broad-discount perks like Complete Package)
+ * this characteristic discounts -- used to block equipping two characteristics that touch the
+ * same rating, rather than letting them stack. */
+export function attributeCodesFor(definition: Pick<CharacteristicDefinition, "modifiers">): string[] {
+  return Object.keys(definition.modifiers.creationDiscounts);
+}
+
 export function stackDiscounts(rates: number[]): number {
   const sorted = [...rates].filter((rate) => rate > 0).sort((a, b) => b - a);
   if (!sorted.length) return 0;
@@ -191,6 +203,7 @@ export function validateCharacteristicSelection(input: {
 }): { ok: true; selected: CharacteristicDefinition[]; slotCost: number } | { ok: false; error: CharacteristicSelectionError } {
   const selected: CharacteristicDefinition[] = [];
   const seen = new Set<string>();
+  const seenAttributeCodes = new Set<string>();
   let slotCost = 0;
   for (const key of input.keys) {
     if (seen.has(key)) return { ok: false, error: "duplicate_characteristic" };
@@ -198,10 +211,14 @@ export function validateCharacteristicSelection(input: {
     const definition = input.catalog.find((item) => item.key === key);
     if (!definition) return { ok: false, error: "unknown_characteristic" };
     if (definition.positionGroup !== input.positionGroup) return { ok: false, error: "wrong_position_group" };
+    for (const code of attributeCodesFor(definition)) {
+      if (seenAttributeCodes.has(code)) return { ok: false, error: "overlapping_attribute" };
+      seenAttributeCodes.add(code);
+    }
     selected.push(definition);
     slotCost += definition.slotCost;
   }
-  if (slotCost > CHARACTERISTIC_SLOT_BUDGET) return { ok: false, error: "slot_budget_exceeded" };
+  if (selected.length > MAX_EQUIPPED_CHARACTERISTICS) return { ok: false, error: "count_exceeded" };
   return { ok: true, selected, slotCost };
 }
 
@@ -225,8 +242,7 @@ export function purchaseCharacteristic(input: {
     return { ok: false, error: "tier_locked" };
   }
 
-  const usedSlots = owned.reduce((sum, item) => sum + item.slotCost, 0);
-  if (usedSlots + definition.slotCost > CHARACTERISTIC_SLOT_BUDGET) return { ok: false, error: "slot_budget_exceeded" };
+  if (owned.length + 1 > MAX_EQUIPPED_CHARACTERISTICS) return { ok: false, error: "count_exceeded" };
   if (input.availableXp < definition.xpCost) return { ok: false, error: "insufficient_xp" };
 
   return { ok: true, xpCost: definition.xpCost, slotCost: definition.slotCost };

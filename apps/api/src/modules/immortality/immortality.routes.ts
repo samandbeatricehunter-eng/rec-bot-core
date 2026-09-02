@@ -7,6 +7,7 @@ import {
   chooseImmortalityTeam,
   convertXp,
   evaluateCreationBuild,
+  getCreationBaseline,
   getImmortalityHub,
   installImmortalityCustomTeams,
   getImmortalityRivalHistory,
@@ -28,6 +29,8 @@ import {
   submitPlaystyle,
   spendPlayerXp,
   transitionImmortalityState,
+  uploadOwnerHeadshot,
+  uploadProspectHeadshot,
   upsertOwnerIdentity,
   upsertProspectIdentity,
   selectImmortalityAbility,
@@ -75,6 +78,16 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Origins is website-only.");
       return reply.send(await upsertProspectIdentity({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/prospect/headshot/upload", async (request, reply) => {
+    try {
+      const body = SideBody.extend({ contentType: z.string().min(1), imageBase64: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Headshot upload is website-only.");
+      const imageBuffer = Buffer.from(body.imageBase64, "base64");
+      return reply.send(await uploadProspectHeadshot({ guildId: body.guildId, discordId: auth.discordId, side: body.side, contentType: body.contentType, imageBuffer }));
     } catch (error) { return sendError(reply, error); }
   });
 
@@ -150,7 +163,7 @@ export async function immortalityRoutes(app: FastifyInstance) {
   app.post("/v1/immortality/interview/persona-dna", async (request, reply) => {
     try {
       const body = SideBody.extend({
-        answers: z.array(z.object({ questionNumber: z.number().int(), optionIndex: z.number().int().min(0).max(3) })).min(1).max(5),
+        answers: z.array(z.object({ questionNumber: z.number().int(), optionIndex: z.number().int().min(0).max(5) })).min(1).max(10),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Interviews are website-only.");
@@ -161,7 +174,7 @@ export async function immortalityRoutes(app: FastifyInstance) {
   app.post("/v1/immortality/interview/player-traits", async (request, reply) => {
     try {
       const body = SideBody.extend({
-        answers: z.array(z.object({ questionNumber: z.number().int(), optionIndex: z.number().int().min(0).max(3) })).min(1).max(6),
+        answers: z.array(z.object({ questionNumber: z.number().int(), optionIndex: z.number().int().min(0).max(5) })).min(1).max(8),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Interviews are website-only.");
@@ -175,6 +188,15 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Characteristic selection is website-only.");
       return reply.send(await selectCharacteristics({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/creation/baseline", async (request, reply) => {
+    try {
+      const body = SideBody.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Creation Point preview is website-only.");
+      return reply.send(await getCreationBaseline({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 
@@ -326,6 +348,16 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Origins is website-only.");
       return reply.send(await upsertOwnerIdentity({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/owner/headshot/upload", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ contentType: z.string().min(1), imageBase64: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Headshot upload is website-only.");
+      const imageBuffer = Buffer.from(body.imageBase64, "base64");
+      return reply.send(await uploadOwnerHeadshot({ guildId: body.guildId, discordId: auth.discordId, contentType: body.contentType, imageBuffer }));
     } catch (error) { return sendError(reply, error); }
   });
 

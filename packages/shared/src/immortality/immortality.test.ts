@@ -16,7 +16,7 @@ import {
   issuedWeeklyChallenges,
   rookieContractPayout,
   performanceContractPayout,
-  CHARACTERISTIC_SLOT_BUDGET,
+  MAX_EQUIPPED_CHARACTERISTICS,
   characteristicCatalog,
   discountedXpCost,
   gradeIqSubmission,
@@ -39,6 +39,11 @@ import {
   matchingAbilityGate,
   rtiAbilitiesForPosition,
   validateCharacteristicSelection,
+  personaDnaCatalog,
+  personaDnaQuestions,
+  playerTraitCatalog,
+  playerTraitQuestions,
+  playerTraitKey,
   matchupInterviewPool,
   selectMatchupInterviewQuestion,
   scoreMatchupInterviewAnswer,
@@ -126,12 +131,14 @@ test("IQ awareness and PRC formulas are deterministic", () => {
   assert.equal(perfect.playRecognition, 85);
 });
 
-test("characteristic slot budget cannot exceed six and discounts cap at 30%", () => {
+test("natural characteristics cap at three equipped and discounts cap at 30%", () => {
   const catalog = characteristicCatalog("QB");
-  const expensive = catalog.filter((item) => item.slotCost >= 3).slice(0, 3).map((item) => item.key);
-  const over = validateCharacteristicSelection({ positionGroup: "QB", catalog, keys: expensive });
+  // These four don't share any discounted attribute code, so this exercises the count cap in
+  // isolation from the overlap rule below.
+  const nonOverlapping = ["naturally_fast", "faster_developer", "known_commodity", "generational_ceiling"];
+  const over = validateCharacteristicSelection({ positionGroup: "QB", catalog, keys: nonOverlapping });
   assert.equal(over.ok, false);
-  if (!over.ok) assert.equal(over.error, "slot_budget_exceeded");
+  if (!over.ok) assert.equal(over.error, "count_exceeded");
   const stacked = stackDiscounts([0.2, 0.2, 0.2]);
   assert.ok(stacked <= MAX_ATTRIBUTE_DISCOUNT);
   const legal = validateCharacteristicSelection({
@@ -140,7 +147,46 @@ test("characteristic slot budget cannot exceed six and discounts cap at 30%", ()
     keys: ["born_with_quick_feet", "faster_developer"],
   });
   assert.equal(legal.ok, true);
-  if (legal.ok) assert.ok(legal.slotCost <= CHARACTERISTIC_SLOT_BUDGET);
+  if (legal.ok) assert.ok(legal.selected.length <= MAX_EQUIPPED_CHARACTERISTICS);
+});
+
+test("natural characteristics that discount the same attribute can't both be equipped", () => {
+  const catalog = characteristicCatalog("QB");
+  // Born With Quick Feet discounts AGI/COD; Escape Artist discounts BSK/COD/ACC -- both touch COD.
+  const overlapping = validateCharacteristicSelection({
+    positionGroup: "QB",
+    catalog,
+    keys: ["born_with_quick_feet", "escape_artist"],
+  });
+  assert.equal(overlapping.ok, false);
+  if (!overlapping.ok) assert.equal(overlapping.error, "overlapping_attribute");
+  // Born With an Arm (THP) and Natural Accuracy (SAC/MAC/DAC) don't overlap.
+  const clean = validateCharacteristicSelection({
+    positionGroup: "QB",
+    catalog,
+    keys: ["born_with_an_arm", "natural_accuracy"],
+  });
+  assert.equal(clean.ok, true);
+});
+
+// Regression guard: every trait defined in these catalogs must be grantable by at least one
+// interview question option, or it's permanently dead content nobody can ever equip. "conservative"
+// is the one deliberate exception -- QB player traits auto-grant it from stacking risk-averse
+// picks rather than a direct question option (see scorePlayerTraitInterview).
+test("every Persona DNA trait is reachable through the interview", () => {
+  const catalog = personaDnaCatalog().map((trait) => trait.key);
+  const referenced = new Set(personaDnaQuestions().flatMap((q) => q.options.map((o) => o.traitKey)));
+  const unreachable = catalog.filter((key) => !referenced.has(key));
+  assert.deepEqual(unreachable, []);
+});
+
+test("every QB and MIKE Player Trait is reachable through its interview", () => {
+  for (const group of ["QB", "MIKE"] as const) {
+    const catalog = playerTraitCatalog(group).map((trait) => trait.key);
+    const referenced = new Set(playerTraitQuestions(group).flatMap((q) => q.options.map((o) => o.traitKey)));
+    const unreachable = catalog.filter((key) => !referenced.has(key) && key !== playerTraitKey("Conservative"));
+    assert.deepEqual(unreachable, []);
+  }
 });
 
 test("Known Commodity floors before Great Negotiator multiplies", () => {

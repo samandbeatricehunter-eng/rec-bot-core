@@ -1,5 +1,6 @@
 import {
   allCharacteristicCatalogs,
+  attributeCodesFor,
   applyBranchingDeltas,
   applyIqOverlay,
   applyRiseToImmortalityLockedSettings,
@@ -98,6 +99,10 @@ import { postDiscordChannelMessageWithFile, editDiscordMessageWithFile, setGuild
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { renderProspectCardPng } from "../../lib/prospect-card-render.js";
+import { uploadImageToCloudflare } from "../../lib/cloudflare-images.js";
+
+const HEADSHOT_ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const HEADSHOT_MAX_BYTES = 5 * 1024 * 1024;
 
 export async function recUserIdFromDiscordId(discordId: string): Promise<string> {
   if (isSiteOnlyDiscordId(discordId)) {
@@ -653,11 +658,13 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     })),
     catalogs: {
       characteristics: {
-        offense: characteristicCatalog(positionGroupFor(league.offense_position as ImmortalityPosition)).map(({ key, displayName, positionGroup, slotCost, effect, tags }) => ({
-          key, displayName, positionGroup, slotCost, effect, tags,
+        offense: characteristicCatalog(positionGroupFor(league.offense_position as ImmortalityPosition)).map((item) => ({
+          key: item.key, displayName: item.displayName, positionGroup: item.positionGroup, slotCost: item.slotCost, effect: item.effect, tags: item.tags,
+          attributeCodes: attributeCodesFor(item),
         })),
-        defense: characteristicCatalog(positionGroupFor(league.defense_position as ImmortalityPosition)).map(({ key, displayName, positionGroup, slotCost, effect, tags }) => ({
-          key, displayName, positionGroup, slotCost, effect, tags,
+        defense: characteristicCatalog(positionGroupFor(league.defense_position as ImmortalityPosition)).map((item) => ({
+          key: item.key, displayName: item.displayName, positionGroup: item.positionGroup, slotCost: item.slotCost, effect: item.effect, tags: item.tags,
+          attributeCodes: attributeCodesFor(item),
         })),
       },
       persona: {
@@ -743,6 +750,37 @@ export async function upsertProspectIdentity(input: {
   await bumpOriginsStep(String(result.data.id), existing?.origins_step, "identity");
   await refreshImmortalityDraftBoard(league.id, context.leagueId);
   return result.data;
+}
+
+/** Custom headshot upload for a prospect, mirroring roster.service.ts's uploadPlayerPhoto --
+ * uploads to Cloudflare Images keyed by the prospect's own id, so a re-upload replaces the same
+ * image instead of accumulating orphans. */
+export async function uploadProspectHeadshot(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  contentType: string;
+  imageBuffer: Buffer;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+  if (!HEADSHOT_ALLOWED_TYPES.has(input.contentType)) throw new ApiError(400, "Headshot must be a JPEG, PNG, or WebP image.");
+  if (input.imageBuffer.length === 0 || input.imageBuffer.length > HEADSHOT_MAX_BYTES) throw new ApiError(400, "Headshot must be between 1 byte and 5 MB.");
+
+  const uploaded = await uploadImageToCloudflare({
+    buffer: input.imageBuffer,
+    contentType: input.contentType,
+    imageId: `rti-prospect-${prospect.id}`,
+    meta: { leagueId: context.leagueId, prospectId: String(prospect.id) },
+  });
+  const updated = await supabase.from("rec_immortality_prospects")
+    .update({ headshot_url: uploaded.url, updated_at: new Date().toISOString() })
+    .eq("id", prospect.id).select("headshot_url").single();
+  if (updated.error) throw new ApiError(500, "Could not save that headshot.", updated.error);
+  return { headshotUrl: updated.data.headshot_url };
 }
 
 /** QB only -- every other offense/defense position has no throwing motion to pick. */
@@ -1102,31 +1140,38 @@ function rosterAttributesToCodes(row: Record<string, unknown>): Record<string, n
   return out;
 }
 
-export async function evaluateCreationBuild(input: {
-  guildId: string;
-  discordId: string;
-  side: "offense" | "defense";
-  spent: Record<string, number>;
-}) {
-  const context = await getCurrentLeagueContext(input.guildId);
-  const league = await requireImmortalityLeague(context.leagueId);
-  const userId = await recUserIdFromDiscordId(input.discordId);
-  const prospect = await loadProspectForUser(league.id, userId, input.side);
-  if (!prospect) throw new ApiError(400, "Save identity first.");
+/** The rest of Origins (persona, playstyle, Persona DNA, Player Traits where applicable, and
+ * Natural Characteristics) must be submitted before Creation Points -- checked via the
+ * monotonic origins_step tracker (bumpOriginsStep) rather than re-querying every table, plus a
+ * direct throwing_motion_key check for QB since that step isn't tracked in ORIGINS_STEPS. */
+function assertOriginsCompleteForCreation(prospect: Record<string, any>): void {
+  const stepIndex = ORIGINS_STEPS.indexOf(String(prospect.origins_step ?? "identity") as (typeof ORIGINS_STEPS)[number]);
+  const characteristicsIndex = ORIGINS_STEPS.indexOf("characteristics");
+  if (stepIndex < characteristicsIndex) {
+    throw new ApiError(400, "Finish the rest of Origins (interviews and Natural Characteristics) before Creation Points.");
+  }
+  if (String(prospect.position ?? "").toUpperCase() === "QB" && !prospect.throwing_motion_key) {
+    throw new ApiError(400, "Pick a throwing motion before Creation Points.");
+  }
+}
+
+/** Loads the IQ/playstyle rows a baseline needs and computes it -- shared by the real Creation
+ * Points submission (evaluateCreationBuild) and the read-only preview (getCreationBaseline) so
+ * both compute the exact same numbers. Throws if IQ or the playstyle interview aren't done. */
+async function loadBaselineForProspect(prospect: Record<string, any>): Promise<{
+  baseline: Record<string, number>;
+  iq: { iq_score: number; awareness_result: number; play_recognition_result: number };
+}> {
   const position = prospect.position as ImmortalityPosition;
   const usesFixedBaseline = hasFixedRtiBaseline(position);
-  const [iq, playstyle, branchingPlaystyle, traits] = await Promise.all([
+  const [iq, playstyle, branchingPlaystyle] = await Promise.all([
     supabase.from("rec_immortality_iq_attempts").select("*").eq("prospect_id", prospect.id).maybeSingle(),
     usesFixedBaseline ? Promise.resolve({ data: null }) : supabase.from("rec_immortality_playstyle_results").select("*").eq("prospect_id", prospect.id).maybeSingle(),
     usesFixedBaseline ? supabase.from("rec_immortality_branching_playstyle_results").select("*").eq("prospect_id", prospect.id).maybeSingle() : Promise.resolve({ data: null }),
-    supabase.from("rec_immortality_prospect_characteristics").select("characteristic_key").eq("prospect_id", prospect.id),
   ]);
   if (!iq.data?.completed_at) throw new ApiError(400, "Finish the IQ test first.");
   if (usesFixedBaseline ? !branchingPlaystyle.data : !playstyle.data) throw new ApiError(400, "Finish the playstyle interview first.");
-  const group = positionGroupFor(position);
-  const catalog = characteristicCatalog(group);
-  const selected = catalog.filter((item) => (traits.data ?? []).some((row) => row.characteristic_key === item.key));
-  const modifiers = combinedModifiers(selected);
+
   let baseline: Record<string, number> = {};
   if (usesFixedBaseline) {
     // QB and MIKE use a permanent, hand-set baseline (see baseline.ts) instead of a live lookup
@@ -1177,6 +1222,53 @@ export async function evaluateCreationBuild(input: {
       });
     }
   }
+  return { baseline, iq: iq.data as { iq_score: number; awareness_result: number; play_recognition_result: number } };
+}
+
+/** Read-only preview for the Creation Points screen: the baseline attributes this prospect will
+ * start from, computed from their IQ/playstyle answers exactly as evaluateCreationBuild would,
+ * but with no writes -- no build upsert, no commissioner-review submission, no step bump. Gated
+ * the same way evaluateCreationBuild is, so the panel can't be previewed before it's unlocked. */
+export async function getCreationBaseline(input: { guildId: string; discordId: string; side: "offense" | "defense" }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+  assertOriginsCompleteForCreation(prospect);
+  const [{ baseline }, traits] = await Promise.all([
+    loadBaselineForProspect(prospect),
+    supabase.from("rec_immortality_prospect_characteristics").select("characteristic_key").eq("prospect_id", prospect.id),
+  ]);
+  const group = positionGroupFor(prospect.position as ImmortalityPosition);
+  const catalog = characteristicCatalog(group);
+  const selected = catalog.filter((item) => (traits.data ?? []).some((row) => row.characteristic_key === item.key));
+  const modifiers = combinedModifiers(selected);
+  const heightCost = heightOverageCreationPointCost(prospect.position as ImmortalityPosition, Number(prospect.height_inches ?? 0));
+  const totalBudget = Number(league.creation_point_budget ?? DEFAULT_CREATION_POINT_BUDGET);
+  const effectiveBudget = Math.max(0, totalBudget - heightCost);
+  return { baseline, heightCost, totalBudget, effectiveBudget, discounts: modifiers.creationDiscounts };
+}
+
+export async function evaluateCreationBuild(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  spent: Record<string, number>;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+  assertOriginsCompleteForCreation(prospect);
+  const position = prospect.position as ImmortalityPosition;
+  const traits = await supabase.from("rec_immortality_prospect_characteristics").select("characteristic_key").eq("prospect_id", prospect.id);
+  const { baseline, iq } = await loadBaselineForProspect(prospect);
+  const group = positionGroupFor(position);
+  const catalog = characteristicCatalog(group);
+  const selected = catalog.filter((item) => (traits.data ?? []).some((row) => row.characteristic_key === item.key));
+  const modifiers = combinedModifiers(selected);
   const heightCost = heightOverageCreationPointCost(prospect.position as ImmortalityPosition, Number(prospect.height_inches ?? 0));
   const totalBudget = Number(league.creation_point_budget ?? DEFAULT_CREATION_POINT_BUDGET);
   const effectiveBudget = Math.max(0, totalBudget - heightCost);
@@ -1199,7 +1291,7 @@ export async function evaluateCreationBuild(input: {
     creation_points_spent: spent.spentPoints + heightCost,
     creation_points_budget: totalBudget,
     estimated_ovr: null,
-    draft_value: draftValueFromProfile({ ovr: 0, iq: Number(iq.data.iq_score), classRank: 16 }),
+    draft_value: draftValueFromProfile({ ovr: 0, iq: Number(iq.iq_score), classRank: 16 }),
     projected_round: projectedRoundFromRank(16, 32),
     formula_version: FORMULA_VERSIONS.creationPoints,
     updated_at: new Date().toISOString(),
@@ -1662,6 +1754,34 @@ export async function upsertOwnerIdentity(input: {
     : await supabase.from("rec_immortality_owners").insert(payload).select("*").single();
   if (result.error) throw new ApiError(500, "Could not save owner identity.", result.error);
   return result.data;
+}
+
+/** Custom headshot upload for an owner, mirroring uploadProspectHeadshot above. */
+export async function uploadOwnerHeadshot(input: {
+  guildId: string;
+  discordId: string;
+  contentType: string;
+  imageBuffer: Buffer;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const owner = await supabase.from("rec_immortality_owners").select("id").eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle();
+  if (!owner.data) throw new ApiError(400, "Create your owner first.");
+  if (!HEADSHOT_ALLOWED_TYPES.has(input.contentType)) throw new ApiError(400, "Headshot must be a JPEG, PNG, or WebP image.");
+  if (input.imageBuffer.length === 0 || input.imageBuffer.length > HEADSHOT_MAX_BYTES) throw new ApiError(400, "Headshot must be between 1 byte and 5 MB.");
+
+  const uploaded = await uploadImageToCloudflare({
+    buffer: input.imageBuffer,
+    contentType: input.contentType,
+    imageId: `rti-owner-${owner.data.id}`,
+    meta: { leagueId: context.leagueId, ownerId: String(owner.data.id) },
+  });
+  const updated = await supabase.from("rec_immortality_owners")
+    .update({ headshot_url: uploaded.url, updated_at: new Date().toISOString() })
+    .eq("id", owner.data.id).select("headshot_url").single();
+  if (updated.error) throw new ApiError(500, "Could not save that headshot.", updated.error);
+  return { headshotUrl: updated.data.headshot_url };
 }
 
 export async function submitOwnerPersona(input: {

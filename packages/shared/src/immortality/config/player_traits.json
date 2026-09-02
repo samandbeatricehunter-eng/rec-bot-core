@@ -65,7 +65,9 @@
           { "text": "I throw it away — live for the next down.", "trait": "Throw Away" },
           { "text": "I force it to my guy anyway.", "trait": "Panic Button" },
           { "text": "Honestly, I barely notice him.", "trait": "Oblivious" },
-          { "text": "Every free rusher feels like the whole pass rush.", "trait": "Paranoid" }
+          { "text": "Every free rusher feels like the whole pass rush.", "trait": "Paranoid" },
+          { "text": "I'll take the risk even if it draws a flag.", "trait": "Undisciplined" },
+          { "text": "I keep it clean — no penalty, no matter the pressure.", "trait": "Disciplined" }
         ]
       },
       {
@@ -95,7 +97,8 @@
           { "text": "More aggressive than ever — moments like this are why I play.", "trait": "Invincible" },
           { "text": "I tighten up and play it safe in bad weather.", "trait": "Frozen Solid" },
           { "text": "The cold doesn't slow me down at all.", "trait": "Snow Ball" },
-          { "text": "The louder it gets, the more I want to push the ball down the field.", "trait": "Traveling Showmen" }
+          { "text": "The louder it gets, the more I want to push the ball down the field.", "trait": "Traveling Showmen" },
+          { "text": "It's the 4th quarter — I'm forcing it downfield no matter what.", "trait": "28-3" }
         ]
       },
       {
@@ -106,6 +109,27 @@
           { "text": "I know exactly when I've got a free play and I take my shot.", "trait": "Free Play Finder" },
           { "text": "I'll scramble toward the sideline just to buy an extra second.", "trait": "Double Back" },
           { "text": "I'll take a shot downfield even into a tight window.", "trait": "Risk Taker" }
+        ]
+      },
+      {
+        "number": 32,
+        "question": "You break contain and there's green grass in front of you. What's your move?",
+        "options": [
+          { "text": "I'm running through the first tackler, not around him.", "trait": "Run Over" },
+          { "text": "Stiff arm, every time, if there's a hand in reach.", "trait": "Stiff Arm Tendency" },
+          { "text": "I'm spinning off the first arm tackle.", "trait": "Whirlwind" },
+          { "text": "I juke before I ever think about taking a hit.", "trait": "Elusive Instinct" },
+          { "text": "I'm sliding or stepping out before contact — not risking it.", "trait": "Steering Clear" }
+        ]
+      },
+      {
+        "number": 33,
+        "question": "That scramble just turned into six. What happens in the end zone, and what were you thinking on the way there?",
+        "options": [
+          { "text": "I'm doing something for the cameras on the way in.", "trait": "Showboat" },
+          { "text": "I'm diving into the end zone, no question.", "trait": "Cannonball" },
+          { "text": "Honestly, I was never sliding once I saw the end zone.", "trait": "Hero Ball" },
+          { "text": "Ball's covered with two hands the entire way there.", "trait": "Cover Ball" }
         ]
       }
     ],
@@ -146,6 +170,16 @@
           { "text": "Nothing changes — I play my technique the same way.", "trait": "Disciplined" },
           { "text": "I get a little more physical than I probably should.", "trait": "Undisciplined" },
           { "text": "I'm looking to make him pay with a big hit.", "trait": "Big Hitter" }
+        ]
+      },
+      {
+        "number": 30,
+        "question": "You just recovered a fumble with green grass in front of you. What's your first instinct?",
+        "options": [
+          { "text": "If I've got a shot at the end zone, I'm diving in for it.", "trait": "Cannonball" },
+          { "text": "I'm getting out of bounds the second I feel a hit coming.", "trait": "Steering Clear" },
+          { "text": "First guy that gets close is getting stiff-armed.", "trait": "Stiff Arm Tendency" },
+          { "text": "I'm spinning off the first tackle attempt.", "trait": "Whirlwind" }
         ]
       }
     ]
