@@ -226,7 +226,11 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     season_number: input.seasonNumber ?? 1,
     current_week: 1,
     trust_mode: "manual",
-    fantasy_draft_status: input.leagueType === "fantasy_draft" ? "pending" : "not_applicable",
+    // Rise to Immortality runs its own 3-round rookie draft through this same pick-clock
+    // system after franchises are assigned (see fantasy-draft module) -- give it a usable
+    // "pending" status too, not "not_applicable", even though its roster fill method isn't
+    // literally "fantasy_draft".
+    fantasy_draft_status: (input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE) ? "pending" : "not_applicable",
     is_online: input.isOnline ?? true,
   };
 
@@ -509,9 +513,9 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     }
   }
 
-  // Fantasy-draft leagues get a not_scheduled draft session alongside their unassigned pool
-  // (the draft tracker's initial state — see docs/madden-fantasy-draft-plan.md §4).
-  if (input.leagueType === "fantasy_draft") {
+  // Fantasy-draft leagues (and RTI, which runs its own 3-round rookie draft through the same
+  // pick-clock system after franchises are assigned) get a not_started draft session up front.
+  if (input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE) {
     await ensureFantasyDraftSession(league.data.id);
   }
 
@@ -873,7 +877,7 @@ export async function createUnclaimedLeague(input: {
     season_number: seasonNumber,
     current_week: input.currentWeek ?? 1,
     trust_mode: "manual",
-    fantasy_draft_status: leagueType === "fantasy_draft" ? "pending" : "not_applicable",
+    fantasy_draft_status: (leagueType === "fantasy_draft" || leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE) ? "pending" : "not_applicable",
     is_online: input.isOnline ?? true,
     advertisement_eligible: input.isOnline ?? true,
     max_members: input.maxMembers ?? 32,
@@ -984,8 +988,9 @@ export async function createUnclaimedLeague(input: {
       }
     }
 
-    // Fantasy-draft leagues get a not_scheduled draft session alongside their unassigned pool.
-    if (input.leagueType === "fantasy_draft") {
+    // Fantasy-draft leagues (and RTI, which runs its own 3-round rookie draft through the same
+    // pick-clock system after franchises are assigned) get a not_started draft session up front.
+    if (input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE) {
       await ensureFantasyDraftSession(league.data.id).catch((err) => {
         console.error("[ERROR] Failed to create fantasy draft session for new league (non-fatal):", err);
       });

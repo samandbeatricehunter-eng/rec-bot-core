@@ -61,6 +61,10 @@ const isCfb = (game: string) => game === "cfb_27";
 export const SETTINGS_CATEGORIES: SettingsCategory[] = [
   { key: "channels", label: "Channels", group: "discord", fields: [] },
   { key: "integrations", label: "Integrations", group: "discord", fields: [] },
+  // Only shown when the league is Rise to Immortality (SettingsHome.tsx filters this in
+  // addition to isSettingsCategoryVisible, which only knows about `game`) -- intro video URL
+  // + rookie draft scheduling, the only Origins-facing commissioner controls RTI still needs.
+  { key: "rise", label: "Rise to Immortality", group: "league", fields: [] },
   {
     key: "purchases",
     label: "Economy",

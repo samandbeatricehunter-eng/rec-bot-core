@@ -5,6 +5,7 @@ import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import {
   endFantasyDraft,
   getFantasyDraftState,
+  scheduleFantasyDraft,
   setFantasyDraftPickOrder,
   setFantasyDraftTimer,
   skipFantasyDraftPick,
@@ -33,12 +34,20 @@ export async function fantasyDraftRoutes(app: FastifyInstance) {
     try {
       const body = z.object({
         guildId: z.string().min(1),
-        draftType: z.enum(["fantasy", "offseason"]),
+        draftType: z.enum(["fantasy", "offseason", "rookie"]),
         pickTimerSeconds: z.number().int().positive().nullable(),
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new Error("Starting a draft requires a website session.");
       return reply.send(await startFantasyDraft(body.guildId, auth.discordId, { draftType: body.draftType, pickTimerSeconds: body.pickTimerSeconds }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/fantasy-draft/schedule", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), scheduledAt: z.string().datetime().nullable() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await scheduleFantasyDraft(body.guildId, body.scheduledAt));
     } catch (error) { return sendError(reply, error); }
   });
 

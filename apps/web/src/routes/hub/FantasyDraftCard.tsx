@@ -13,6 +13,15 @@ import { SectionFrame } from "../../components/design-system/SectionFrame.js";
 // is purely a turn-order/pick-clock companion to the real in-Madden draft: whose turn it is,
 // an optional per-pick timer, and five commissioner-only controls.
 
+// <input type="datetime-local"> takes/returns a value with no timezone info, in local wall-clock
+// time -- these two just cross that boundary against a real Date so the UI can round-trip an ISO
+// timestamp without silently shifting it.
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function formatTimeRemaining(seconds: number): string {
   const clamped = Math.max(0, Math.round(seconds));
   const minutes = Math.floor(clamped / 60);
@@ -43,6 +52,9 @@ export function FantasyDraftCard({ guildId, leagueId, compact = false }: { guild
   const [timerMinutes, setTimerMinutes] = useState(2);
   const [pickOrderOpen, setPickOrderOpen] = useState(false);
   const [skipToOpen, setSkipToOpen] = useState(false);
+  const [scheduleValue, setScheduleValue] = useState("");
+  const [scheduleBusy, setScheduleBusy] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     recApi.getFantasyDraftState(guildId)
@@ -58,6 +70,10 @@ export function FantasyDraftCard({ guildId, leagueId, compact = false }: { guild
       if (event.kind === "refresh") load();
     });
   }, [guildId, leagueId, load]);
+
+  useEffect(() => {
+    setScheduleValue(state?.session?.scheduledAt ? toDatetimeLocalValue(state.session.scheduledAt) : "");
+  }, [state?.session?.scheduledAt]);
 
   async function runAction<T>(action: () => Promise<T>): Promise<T | undefined> {
     setBusy(true);
@@ -97,7 +113,7 @@ export function FantasyDraftCard({ guildId, leagueId, compact = false }: { guild
   }
 
   return (
-    <SectionFrame className={`fantasy-draft-card${compact ? " compact" : ""}`} eyebrow={session?.draftType === "offseason" ? "Offseason Draft" : "Fantasy Draft"} title={status === "live" ? "Draft In Progress" : "Draft Not Started"}>
+    <SectionFrame className={`fantasy-draft-card${compact ? " compact" : ""}`} eyebrow={session?.draftType === "offseason" ? "Offseason Draft" : session?.draftType === "rookie" ? "Rookie Draft" : "Fantasy Draft"} title={status === "live" ? "Draft In Progress" : "Draft Not Started"}>
       {actionError && <ErrorState message={actionError} />}
 
       {status === "live" && (
@@ -116,7 +132,10 @@ export function FantasyDraftCard({ guildId, leagueId, compact = false }: { guild
       )}
 
       {status === "not_started" && (
-        <div className="fantasy-draft-empty">The draft hasn't started yet.</div>
+        <div className="fantasy-draft-empty">
+          The draft hasn't started yet.
+          {session?.scheduledAt && <> Scheduled for {new Date(session.scheduledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.</>}
+        </div>
       )}
 
       {caller.isCommissioner && (
@@ -130,6 +149,7 @@ export function FantasyDraftCard({ guildId, leagueId, compact = false }: { guild
                 <select id="fantasy-draft-type" className="form-input" value={draftType} onChange={(e) => setDraftType(e.target.value as FantasyDraftType)}>
                   <option value="fantasy">Fantasy Draft (standard or snake, unlimited rounds)</option>
                   <option value="offseason">Offseason Draft (standard order, 7 rounds)</option>
+                  <option value="rookie">Rookie Draft (3 rounds, rest simulated)</option>
                 </select>
               </div>
               <div className="fantasy-draft-form-row">
@@ -147,6 +167,39 @@ export function FantasyDraftCard({ guildId, leagueId, compact = false }: { guild
                 <Button variant="primary" size="compact" disabled={busy} onClick={() => runAction(() => recApi.startFantasyDraft({ guildId, draftType, pickTimerSeconds: timerEnabled ? timerMinutes * 60 : null }))}>
                   <Trophy size={16} /> Start Draft
                 </Button>
+              </div>
+
+              <div className="fantasy-draft-form-row">
+                <label htmlFor="fantasy-draft-schedule">Scheduled for</label>
+                <input id="fantasy-draft-schedule" className="form-input" type="datetime-local" value={scheduleValue} onChange={(e) => setScheduleValue(e.target.value)} />
+              </div>
+              {scheduleError && <ErrorState message={scheduleError} />}
+              <div className="fantasy-draft-actions">
+                <Button variant="secondary" size="compact" disabled={scheduleBusy || !scheduleValue} onClick={async () => {
+                  setScheduleBusy(true); setScheduleError(null);
+                  try {
+                    await recApi.scheduleFantasyDraft({ guildId, scheduledAt: new Date(scheduleValue).toISOString() });
+                    load();
+                  } catch (err) {
+                    setScheduleError(err instanceof Error ? err.message : "We couldn't schedule the draft. Please try again.");
+                  } finally { setScheduleBusy(false); }
+                }}>
+                  <Clock size={16} /> Announce Draft Date
+                </Button>
+                {state.session?.scheduledAt && (
+                  <Button variant="ghost" size="compact" disabled={scheduleBusy} onClick={async () => {
+                    setScheduleBusy(true); setScheduleError(null);
+                    try {
+                      await recApi.scheduleFantasyDraft({ guildId, scheduledAt: null });
+                      setScheduleValue("");
+                      load();
+                    } catch (err) {
+                      setScheduleError(err instanceof Error ? err.message : "We couldn't clear the schedule. Please try again.");
+                    } finally { setScheduleBusy(false); }
+                  }}>
+                    Clear
+                  </Button>
+                )}
               </div>
             </>
           )}

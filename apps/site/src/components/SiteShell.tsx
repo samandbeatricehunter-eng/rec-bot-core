@@ -7,11 +7,14 @@ import { SiteTicker } from "./SiteTicker.js";
 import { GoingLiveModal } from "./GoingLiveModal.js";
 import { useHub } from "../lib/hub-context.js";
 
-// Which of the four background images (site.css's .site-shell[data-bg=...]) applies here.
-// Tournaments is a cross-league site feature (not tied to hub.selectedLeague), so it's
-// resolved from the route rather than league scope; everything else falls back to "general".
-function resolveBackground(pathname: string, game: string | undefined): "madden" | "cfb" | "tournaments" | "general" {
+// Which background image (site.css's .site-shell[data-bg=...]) applies here. Tournaments is a
+// cross-league site feature (not tied to hub.selectedLeague), so it's resolved from the route
+// rather than league scope; Rise to Immortality leagues get their own regardless of game
+// (checked before the game-based branches, since RTI's game is madden_27); everything else
+// falls back to "general".
+function resolveBackground(pathname: string, game: string | undefined, rosterType: string | null | undefined): "madden" | "cfb" | "tournaments" | "rise" | "general" {
   if (pathname.startsWith("/tournaments")) return "tournaments";
+  if (rosterType === "rise_to_immortality") return "rise";
   if (game === "cfb_27") return "cfb";
   if (game?.startsWith("madden")) return "madden";
   return "general";
@@ -26,7 +29,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
   // agree, or the footer gets hidden and .is-league-scope gets applied on what's really the
   // main-chrome home page).
   const isLeague = hub.scope.kind === "league" && Boolean(hub.selectedLeague);
-  const background = resolveBackground(location.pathname, hub.selectedLeague?.game);
+  const background = resolveBackground(location.pathname, hub.selectedLeague?.game, hub.selectedLeague?.rosterType);
 
   return (
     <div

@@ -3619,6 +3619,7 @@ button.poty:disabled {
 }
 .hub-page[data-bg="madden"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/madden-background.webp"); }
 .hub-page[data-bg="cfb"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/cfb-background.webp"); }
+.hub-page[data-bg="rise"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/rise-background.jpg"); }
 .hub-section,
 .hub-hero,
 .hub-story-card,

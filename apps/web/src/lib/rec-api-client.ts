@@ -1173,11 +1173,20 @@ export const recApi = {
   getWeeklyH2hGames: (guildId: string) =>
     recApiFetch<WeeklyH2hGamesResponse>(REC_API_ROUTES.weeklyH2hGames, { method: "POST", body: JSON.stringify({ guildId }) }),
 
+  // Rise to Immortality — League Mgmt commissioner settings (RiseSettings.tsx). The full hub
+  // payload has far more than this, but League Mgmt only needs the intro video's current URL.
+  getImmortalityIntroVideo: (guildId: string) =>
+    recApiFetch<{ introVideo?: { url: string | null } | null }>("/v1/immortality/hub", { method: "POST", body: JSON.stringify({ guildId }) }),
+  setImmortalityIntroVideo: (input: { guildId: string; url: string | null }) =>
+    recApiFetch<{ introVideoUrl: string | null }>("/v1/immortality/intro-video/set", { method: "POST", body: JSON.stringify(input) }),
+
   // Fantasy/offseason draft turn-order coordinator — all actions require a website session.
   getFantasyDraftState: (guildId: string) =>
     recApiFetch<FantasyDraftState>("/v1/fantasy-draft/state", { method: "POST", body: JSON.stringify({ guildId }) }),
   startFantasyDraft: (input: { guildId: string; draftType: FantasyDraftType; pickTimerSeconds: number | null }) =>
     recApiFetch<{ ok: true }>("/v1/fantasy-draft/start", { method: "POST", body: JSON.stringify(input) }),
+  scheduleFantasyDraft: (input: { guildId: string; scheduledAt: string | null }) =>
+    recApiFetch<{ ok: true; scheduledAt: string | null }>("/v1/fantasy-draft/schedule", { method: "POST", body: JSON.stringify(input) }),
   endFantasyDraft: (guildId: string) =>
     recApiFetch<{ ok: true }>("/v1/fantasy-draft/end", { method: "POST", body: JSON.stringify({ guildId }) }),
   setFantasyDraftPickOrder: (input: { guildId: string; orderMode: FantasyDraftOrderMode; picks: Array<{ pickInRound: number; teamId: string }> }) =>

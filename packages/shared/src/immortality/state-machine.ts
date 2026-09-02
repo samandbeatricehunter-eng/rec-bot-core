@@ -59,7 +59,10 @@ export function assertTransition(from: ImmortalityState, to: ImmortalityState): 
 }
 
 export function originsOpen(state: ImmortalityState): boolean {
-  return state === "ORIGINS";
+  // upsertProspectIdentity already special-cases REGISTRATION as open (nothing gates the
+  // rest of the Origins flow on chapter state at all) -- there is no meaningful manual
+  // "Open ORIGINS" step, so this informational flag should agree with that from day one.
+  return state === "ORIGINS" || state === "REGISTRATION";
 }
 
 export function draftDestinationHidden(state: ImmortalityState): boolean {

@@ -21,6 +21,7 @@ import { RetireSettings } from "./RetireSettings.js";
 import { SliderSettingsPanel } from "./SliderSettingsPanel.js";
 import { MaddenCompanionSettings } from "./MaddenCompanionSettings.js";
 import { DataModeSettings } from "./DataModeSettings.js";
+import { RiseSettings } from "./RiseSettings.js";
 
 const EOS_PAYOUTS_KEY = "eos-payouts";
 const RETIRE_KEY = "retire";
@@ -116,7 +117,8 @@ export function SettingsHome() {
   if (!draft) return <LoadingState />;
 
   const game = String(draft.game ?? "");
-  const visibleNavCategories = SETTINGS_CATEGORIES.filter((c) => isSettingsCategoryVisible(c, game));
+  const isRise = draft.leagueType === "rise_to_immortality";
+  const visibleNavCategories = SETTINGS_CATEGORIES.filter((c) => isSettingsCategoryVisible(c, game) && (c.key !== "rise" || isRise));
   const category = visibleNavCategories.find((c) => c.key === activeCategory) ?? visibleNavCategories[0] ?? SETTINGS_CATEGORIES[0];
   const playCallFields = SETTINGS_CATEGORIES.find((c) => c.key === "play_call")?.fields ?? [];
   const visibleFields = [...category.fields, ...(category.key === "rules" ? playCallFields : [])].filter((f) => !f.gameFilter || f.gameFilter(game));
@@ -181,7 +183,7 @@ export function SettingsHome() {
         })}
       </nav>
 
-      {category.key === "channels" ? <ChannelSettings /> : category.key === "integrations" ? (
+      {category.key === "channels" ? <ChannelSettings /> : category.key === "rise" ? <RiseSettings /> : category.key === "integrations" ? (
         <>
           <DataModeSettings game={game} dataMode={String(draft.dataMode ?? "box_scores")} onChange={(next) => setField("dataMode", next)} />
           <div style={{ margin: "var(--space-3) 0 var(--space-4)" }}>

@@ -12,6 +12,7 @@ import {
 
 type Side = "offense" | "defense";
 type Stage = "identity" | "iq" | "persona" | "playstyle" | "persona_dna" | "player_traits" | "characteristics" | "creation" | "owner" | "franchise";
+type TransitionPhase = "idle" | "out" | "in";
 
 const STAGES: { id: Stage; label: string }[] = [
   { id: "identity", label: "Identity" },
@@ -36,13 +37,17 @@ export function RiseOriginsPage() {
   const selected = hubCtx.selectedLeague;
   const isRise = selected?.rosterType === "rise_to_immortality";
   const guildId = selected?.guildId ?? "";
-  const isCommissioner = Boolean(selected?.isCommissioner);
 
   const [hub, setHub] = useState<ImmortalityHubResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [side, setSide] = useState<Side>("offense");
+  const [side, setSide] = useState<Side | null>(null);
   const [stage, setStage] = useState<Stage>("identity");
+  const [transitionPhase, setTransitionPhase] = useState<TransitionPhase>("idle");
+  // Bumped whenever marking the video watched fails, forcing IntroVideoGate to remount --
+  // otherwise a failed save leaves the gate showing an already-ended video with no way to
+  // replay it (the gate stays up since hub.introVideo.watched never actually flipped).
+  const [videoResetKey, setVideoResetKey] = useState(0);
 
   const reload = useCallback(async () => {
     if (!guildId) return;
@@ -73,6 +78,27 @@ export function RiseOriginsPage() {
     return () => window.clearInterval(id);
   }, [guildId, isRise, hub?.league.riseHubUnlocked, reload]);
 
+  // Fades the whole page to black, marks the intro video watched (which flips the gate off
+  // server-side and reloads the hub), then fades back in on the split prospect-side chooser.
+  const finishIntroVideo = useCallback(() => {
+    setTransitionPhase("out");
+    window.setTimeout(() => {
+      void (async () => {
+        try {
+          await siteApi.immortalityMarkIntroVideoWatched(guildId);
+          await reload();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Could not record the video as watched. Please try again.");
+          // hub.introVideo.watched is still false, so the gate stays up -- force a fresh
+          // instance so its "play" state resets instead of showing an already-ended video.
+          setVideoResetKey((key) => key + 1);
+        }
+        setTransitionPhase("in");
+        window.setTimeout(() => setTransitionPhase("idle"), 400);
+      })();
+    }, 400);
+  }, [guildId, reload]);
+
   if (selected && !isRise) {
     return <Navigate replace to={`/l/${leagueId}/buzz`} />;
   }
@@ -81,111 +107,105 @@ export function RiseOriginsPage() {
     return <div className="site-page site-loading">Loading Rise to Immortality…</div>;
   }
 
-  const position = side === "offense" ? hub?.league.offensePosition : hub?.league.defensePosition;
-  const nextStates = hub ? nextCommissionerStates(hub.league.chapterState) : [];
+  const introVideoUrl = hub?.introVideo?.url ?? null;
+  const showVideoGate = Boolean(introVideoUrl && !hub?.introVideo?.watched);
+  // The split-card chooser is meant to be a one-time "which one first" moment right after the
+  // video, not a splash a returning member has to click past every visit -- once either
+  // prospect exists, skip straight back into the stage nav for that side.
+  const effectiveSide: Side | null = side ?? (hub
+    ? (prospectFor(hub, "offense") ? "offense" : prospectFor(hub, "defense") ? "defense" : null)
+    : null);
+  const position = effectiveSide === "offense" ? hub?.league.offensePosition : hub?.league.defensePosition;
 
   return (
     <div className="site-page rise-page">
-      <header className="rise-hero">
-        <p className="site-muted">Rise to Immortality</p>
-        <h1>{hub?.league.chapter.replaceAll("_", " ") ?? "Origins"}</h1>
-        <p className="site-muted">
-          Chapter state: {hub?.league.chapterState ?? "…"}. League positions: {hub?.league.offensePosition ?? "—"} / {hub?.league.defensePosition ?? "—"}.
-          Store purchases are off — Player XP upgrades ratings. Coins pay 2 highlights/week at 150, GOTW, and interviews.
-          {hub?.league.riseHubUnlocked
-            ? " Franchises are assigned — the usual league hub is unlocked."
-            : ` You are in the registration pool${hub?.pool ? ` (${hub.pool.registeredCount} registered)` : ""}. Once your players and owner are finished, your owner picks a franchise and your players join that team directly — there's no draft in Rise to Immortality.`}
-        </p>
-      </header>
-
+      <div className={`rise-fade-overlay ${transitionPhase === "out" ? "is-out" : ""}`} aria-hidden="true" />
       {error ? <p className="site-auth-error">{error}</p> : null}
 
-      {isCommissioner && hub ? (
-        <section className="rise-card">
-          <h2>Commissioner</h2>
-          <p className="site-muted">
-            There's no draft in Rise to Immortality — each member's owner is offered 4 random franchises to choose
-            from once their players and owner are finished, and their players join that team directly.
-          </p>
-          <div className="rise-actions">
-            {nextStates.map((state) => (
-              <button key={state} type="button" className="site-btn site-btn-primary" disabled={busy}
-                onClick={async () => {
-                  setBusy(true); setError(null);
-                  try { await siteApi.immortalityTransitionState({ guildId, toState: state }); await reload(); await hubCtx.refreshLeagues(); }
-                  catch (err) { setError(err instanceof Error ? err.message : "Could not advance."); }
-                  finally { setBusy(false); }
-                }}>Open {state.replaceAll("_", " ")}</button>
-            ))}
-          </div>
-          <IntroVideoSetting guildId={guildId} currentUrl={hub.introVideo?.url ?? null} onSaved={reload} setError={setError} />
-        </section>
-      ) : null}
-
-      {hub && hub.introVideo?.url && !hub.introVideo.watched ? (
-        <IntroVideoGate guildId={guildId} url={hub.introVideo.url} onWatched={reload} />
+      {showVideoGate ? (
+        <div className="rise-origins-cinema">
+          <h1 className="rise-origins-title">Rise to Immortality: Origins</h1>
+          <IntroVideoGate key={videoResetKey} url={introVideoUrl!} onFinished={finishIntroVideo} />
+        </div>
+      ) : !hub ? (
+        <p className="site-muted">Loading your class…</p>
+      ) : effectiveSide === null ? (
+        <div className="rise-origins-cinema">
+          <SideChooser
+            offensePosition={hub.league.offensePosition ?? "Offense"}
+            defensePosition={hub.league.defensePosition ?? "Defense"}
+            onChoose={(value) => { setSide(value); setStage("identity"); }}
+          />
+        </div>
       ) : (
         <>
-      <div className="rise-side-tabs">
-        {(["offense", "defense"] as const).map((value) => (
-          <button key={value} type="button"
-            className={`wizard-game-card ${side === value ? "wizard-game-card-active" : ""}`}
-            onClick={() => { setSide(value); setStage("identity"); }}>
-            {value === "offense" ? `Offense (${hub?.league.offensePosition ?? "—"})` : `Defense (${hub?.league.defensePosition ?? "—"})`}
-          </button>
-        ))}
-      </div>
+          <header className="rise-hero">
+            <p className="site-muted">Rise to Immortality</p>
+            <h1>{hub.league.chapter.replaceAll("_", " ")}</h1>
+            <p className="site-muted">
+              League positions: {hub.league.offensePosition ?? "—"} / {hub.league.defensePosition ?? "—"}.
+              Store purchases are off — Player XP upgrades ratings. Coins pay 2 highlights/week at 150, GOTW, and interviews.
+            </p>
+          </header>
 
-      <nav className="rise-stage-nav" aria-label="Origins steps">
-        {STAGES.map((item) => (
-          <button key={item.id} type="button" className={stage === item.id ? "is-active" : ""}
-            onClick={() => setStage(item.id)}>{item.label}</button>
-        ))}
-      </nav>
+          <div className="rise-side-tabs">
+            {(["offense", "defense"] as const).map((value) => (
+              <button key={value} type="button"
+                className={`wizard-game-card ${effectiveSide === value ? "wizard-game-card-active" : ""}`}
+                onClick={() => { setSide(value); setStage("identity"); }}>
+                {value === "offense" ? `Offense (${hub.league.offensePosition ?? "—"})` : `Defense (${hub.league.defensePosition ?? "—"})`}
+              </button>
+            ))}
+          </div>
 
-      {!hub ? <p className="site-muted">Loading your class…</p> : (
-        <>
+          <nav className="rise-stage-nav" aria-label="Origins steps">
+            {STAGES.map((item) => (
+              <button key={item.id} type="button" className={stage === item.id ? "is-active" : ""}
+                onClick={() => setStage(item.id)}>{item.label}</button>
+            ))}
+          </nav>
+
           {stage === "identity" ? (
-            <IdentityForm key={side} guildId={guildId} side={side} position={position ?? ""} prospect={prospectFor(hub, side)}
+            <IdentityForm key={effectiveSide} guildId={guildId} side={effectiveSide} position={position ?? ""} prospect={prospectFor(hub, effectiveSide)}
               onSaved={reload} setError={setError} setBusy={setBusy} busy={busy} />
           ) : null}
           {stage === "iq" ? (
-            <IqPanel key={side} guildId={guildId} side={side} setError={setError} onSaved={reload} />
+            <IqPanel key={effectiveSide} guildId={guildId} side={effectiveSide} setError={setError} onSaved={reload} />
           ) : null}
           {stage === "persona" ? (
-            <InterviewPanel key={`${side}-persona`} title="Persona interview" questions={hub.catalogs.persona[side]}
+            <InterviewPanel key={`${effectiveSide}-persona`} title="Persona interview" questions={hub.catalogs.persona[effectiveSide]}
               onSubmit={async (answers) => {
-                const result = await siteApi.immortalitySubmitPersona({ guildId, side, answers });
+                const result = await siteApi.immortalitySubmitPersona({ guildId, side: effectiveSide, answers });
                 await reload();
                 return `${result.label} (${result.primary} / ${result.secondary})`;
               }} setError={setError} />
           ) : null}
           {stage === "playstyle" ? (
-            hub.catalogs.playstyleBranching[side] ? (
-              <BranchingPlaystylePanel key={`${side}-playstyle-branching`} guildId={guildId} side={side}
-                group={hub.catalogs.playstyleBranching[side]!} onSaved={reload} setError={setError} />
+            hub.catalogs.playstyleBranching[effectiveSide] ? (
+              <BranchingPlaystylePanel key={`${effectiveSide}-playstyle-branching`} guildId={guildId} side={effectiveSide}
+                group={hub.catalogs.playstyleBranching[effectiveSide]!} onSaved={reload} setError={setError} />
             ) : (
-              <InterviewPanel key={`${side}-playstyle`} title="Playstyle interview" questions={hub.catalogs.playstyle[side]}
+              <InterviewPanel key={`${effectiveSide}-playstyle`} title="Playstyle interview" questions={hub.catalogs.playstyle[effectiveSide]}
                 onSubmit={async (answers) => {
-                  const result = await siteApi.immortalitySubmitPlaystyle({ guildId, side, answers });
+                  const result = await siteApi.immortalitySubmitPlaystyle({ guildId, side: effectiveSide, answers });
                   await reload();
                   return `${result.primaryArchetype} / ${result.secondaryArchetype} (${result.blend.kind})`;
                 }} setError={setError} />
             )
           ) : null}
           {stage === "persona_dna" ? (
-            <InterviewPanel key={`${side}-persona-dna`} title="Persona DNA" questions={hub.catalogs.personaDna.questions}
+            <InterviewPanel key={`${effectiveSide}-persona-dna`} title="Persona DNA" questions={hub.catalogs.personaDna.questions}
               onSubmit={async (answers) => {
-                const result = await siteApi.immortalitySubmitPersonaDna({ guildId, side, answers });
+                const result = await siteApi.immortalitySubmitPersonaDna({ guildId, side: effectiveSide, answers });
                 await reload();
                 return `Equipped: ${result.equippedTraitKeys.join(", ") || "none"}`;
               }} setError={setError} />
           ) : null}
           {stage === "player_traits" ? (
-            hub.catalogs.playerTraits[side] ? (
-              <InterviewPanel key={`${side}-player-traits`} title="Player Traits" questions={hub.catalogs.playerTraits[side]!.questions}
+            hub.catalogs.playerTraits[effectiveSide] ? (
+              <InterviewPanel key={`${effectiveSide}-player-traits`} title="Player Traits" questions={hub.catalogs.playerTraits[effectiveSide]!.questions}
                 onSubmit={async (answers) => {
-                  const result = await siteApi.immortalitySubmitPlayerTraits({ guildId, side, answers });
+                  const result = await siteApi.immortalitySubmitPlayerTraits({ guildId, side: effectiveSide, answers });
                   await reload();
                   return `Equipped: ${result.equippedTraitKeys.join(", ") || "none"}`;
                 }} setError={setError} />
@@ -197,11 +217,11 @@ export function RiseOriginsPage() {
             )
           ) : null}
           {stage === "characteristics" ? (
-            <CharacteristicsPanel key={side} guildId={guildId} side={side} catalog={hub.catalogs.characteristics[side]}
+            <CharacteristicsPanel key={effectiveSide} guildId={guildId} side={effectiveSide} catalog={hub.catalogs.characteristics[effectiveSide]}
               onSaved={reload} setError={setError} />
           ) : null}
           {stage === "creation" ? (
-            <CreationPanel key={side} guildId={guildId} side={side} budget={hub.league.creationPointBudget}
+            <CreationPanel key={effectiveSide} guildId={guildId} side={effectiveSide} budget={hub.league.creationPointBudget}
               setError={setError} onSaved={reload} />
           ) : null}
           {stage === "owner" ? (
@@ -213,26 +233,34 @@ export function RiseOriginsPage() {
           ) : null}
         </>
       )}
-        </>
-      )}
 
-      <p className="site-muted"><Link to={`/l/${leagueId}/buzz`}>Back to league overview</Link></p>
+      {!showVideoGate ? <p className="site-muted"><Link to={`/l/${leagueId}/buzz`}>Back to league overview</Link></p> : null}
     </div>
   );
 }
 
-function nextCommissionerStates(from: string): string[] {
-  const map: Record<string, string[]> = {
-    SETUP: ["REGISTRATION"],
-    REGISTRATION: ["ORIGINS"],
-    ORIGINS: ["ORIGINS_COMPLETE"],
-    ORIGINS_COMPLETE: ["ROOKIE_DRAFT_PREP"],
-    ROOKIE_DRAFT_PREP: ["ROOKIE_DRAFT_LIVE"],
-    ROOKIE_DRAFT_LIVE: ["ROOKIE_DRAFT_COMPLETE"],
-    ROOKIE_DRAFT_COMPLETE: ["TEAM_DRAFT"],
-    TEAM_DRAFT: ["FRANCHISE_ACTIVE"],
-  };
-  return map[from] ?? [];
+function SideChooser({
+  offensePosition, defensePosition, onChoose,
+}: {
+  offensePosition: string;
+  defensePosition: string;
+  onChoose: (side: Side) => void;
+}) {
+  return (
+    <section className="rise-split-card">
+      <button type="button" className="rise-split-half" onClick={() => onChoose("offense")}>
+        <span className="rise-split-eyebrow">Offense</span>
+        <strong>Create Offensive Prospect</strong>
+        <span className="site-muted">{offensePosition}</span>
+      </button>
+      <div className="rise-split-divider" aria-hidden="true" />
+      <button type="button" className="rise-split-half" onClick={() => onChoose("defense")}>
+        <span className="rise-split-eyebrow">Defense</span>
+        <strong>Create Defensive Prospect</strong>
+        <span className="site-muted">{defensePosition}</span>
+      </button>
+    </section>
+  );
 }
 
 function IdentityForm({
@@ -576,74 +604,32 @@ function CreationPanel({
   );
 }
 
-function IntroVideoSetting({
-  guildId, currentUrl, onSaved, setError,
-}: {
-  guildId: string;
-  currentUrl: string | null;
-  onSaved: () => Promise<void>;
-  setError: (value: string | null) => void;
-}) {
-  const [url, setUrl] = useState(currentUrl ?? "");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => { setUrl(currentUrl ?? ""); }, [currentUrl]);
-
-  return (
-    <div className="rise-field-row" style={{ marginTop: 12 }}>
-      <label className="site-field"><span>Intro video URL (members must watch before Origins unlocks; blank disables the gate)</span>
-        <input className="site-input" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" /></label>
-      <button type="button" className="site-btn site-btn-secondary" disabled={busy}
-        onClick={async () => {
-          setBusy(true); setError(null);
-          try { await siteApi.immortalitySetIntroVideo({ guildId, url: url.trim() || null }); await onSaved(); }
-          catch (err) { setError(err instanceof Error ? err.message : "Could not save the intro video."); }
-          finally { setBusy(false); }
-        }}>Save intro video</button>
-    </div>
-  );
-}
-
 /** Blocks Origins until the member watches the commissioner's intro video to the end. Native
  * controls are hidden and seeking past the furthest point actually reached is reverted, so
  * scrubbing ahead can't skip the requirement -- pausing and rewinding are still fine. */
-function IntroVideoGate({ guildId, url, onWatched }: { guildId: string; url: string; onWatched: () => Promise<void> }) {
+function IntroVideoGate({ url, onFinished }: { url: string; onFinished: () => void }) {
   const [started, setStarted] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const maxReached = useRef(0);
 
   return (
-    <section className="rise-card">
-      <h2>Welcome to Rise to Immortality</h2>
-      <p className="site-muted">Watch this before you begin — you can't create your players until it finishes.</p>
-      {error ? <p className="site-auth-error">{error}</p> : null}
-      <div style={{ position: "relative", maxWidth: 720 }}>
-        <video src={url} controls={false} playsInline style={{ width: "100%", borderRadius: 10, background: "#000" }}
-          onTimeUpdate={(e) => {
-            const t = e.currentTarget.currentTime;
-            if (t > maxReached.current) maxReached.current = t;
-          }}
-          onSeeking={(e) => {
-            if (e.currentTarget.currentTime > maxReached.current + 0.5) e.currentTarget.currentTime = maxReached.current;
-          }}
-          onEnded={async () => {
-            setBusy(true); setError(null);
-            try { await siteApi.immortalityMarkIntroVideoWatched(guildId); await onWatched(); }
-            catch (err) { setError(err instanceof Error ? err.message : "Could not record the video as watched."); }
-            finally { setBusy(false); }
-          }}
-          ref={(node) => {
-            if (node && started) void node.play().catch(() => {});
-          }} />
-        {!started ? (
-          <button type="button" className="site-btn site-btn-primary"
-            style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
-            onClick={() => setStarted(true)}>▶ Play intro video</button>
-        ) : null}
-      </div>
-      {busy ? <p className="site-muted">Saving…</p> : null}
-    </section>
+    <div className="rise-origins-video-frame">
+      <video src={url} controls={false} playsInline
+        onTimeUpdate={(e) => {
+          const t = e.currentTarget.currentTime;
+          if (t > maxReached.current) maxReached.current = t;
+        }}
+        onSeeking={(e) => {
+          if (e.currentTarget.currentTime > maxReached.current + 0.5) e.currentTarget.currentTime = maxReached.current;
+        }}
+        onEnded={onFinished}
+        ref={(node) => {
+          if (node && started) void node.play().catch(() => {});
+        }} />
+      {!started ? (
+        <button type="button" className="site-btn site-btn-primary rise-origins-play"
+          onClick={() => setStarted(true)}>▶ Play intro video</button>
+      ) : null}
+    </div>
   );
 }
 

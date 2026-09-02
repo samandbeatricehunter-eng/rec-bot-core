@@ -90,7 +90,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { applyLeagueTeamIdentityOverrides, type LeagueTeamIdentityOverride } from "../team-identities/team-identities.service.js";
-import { postDiscordChannelMessageWithFile } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessageWithFile, setGuildMemberNickname } from "../../lib/discord-guild.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { renderProspectCardPng } from "../../lib/prospect-card-render.js";
 
@@ -182,7 +182,6 @@ export function immortalityCreateOverrides(input: Record<string, unknown>): Reco
   return applyRiseToImmortalityLockedSettings({
     ...input,
     leagueType: RISE_TO_IMMORTALITY_LEAGUE_TYPE,
-    fantasyDraftStatus: "not_applicable",
   });
 }
 
@@ -1436,6 +1435,15 @@ export async function chooseImmortalityTeam(input: { guildId: string; discordId:
     const discordId = await discordIdForRecUser(userId);
     const membership = await supabase.from("rec_league_memberships").select("role").eq("league_id", context.leagueId).eq("user_id", userId).maybeSingle();
     await linkUserToTeam({ guildId: input.guildId, discordId, teamId: input.teamId, authority: membershipAuthority(membership.data?.role) });
+
+    // linkUserToTeam already sets a nickname, but its shortTeamNickname() helper is deliberately
+    // terse (mascot only, e.g. "Cowboys") for normal leagues -- RTI wants the full "City Nickname"
+    // form (e.g. "Raleigh Reapers") since this is the member's one and only franchise identity.
+    const team = await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", input.teamId).maybeSingle();
+    if (team.data) {
+      await setGuildMemberNickname(input.guildId, discordId, formatTeamDisplayName(team.data) ?? team.data.name ?? "Team", "RTI franchise assigned")
+        .catch((error) => console.error(`[WARN] Failed to set RTI nickname for ${discordId} in guild ${input.guildId} (non-fatal):`, error));
+    }
   } catch (error) {
     console.error(`[WARN] Rise team choice could not link user ${userId} to team ${input.teamId}:`, error);
   }

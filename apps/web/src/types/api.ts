@@ -1134,7 +1134,7 @@ export type MentionableList = { members: MentionableCommissioner[]; roles: Menti
 // draft. REC doesn't track which player each team picks -- see fantasy-draft.service.ts.
 export type FantasyDraftStatus = "not_started" | "live" | "concluded";
 export type FantasyDraftOrderMode = "standard" | "snake";
-export type FantasyDraftType = "fantasy" | "offseason";
+export type FantasyDraftType = "fantasy" | "offseason" | "rookie";
 
 export type FantasyDraftSession = {
   id: string;
@@ -1148,6 +1148,7 @@ export type FantasyDraftSession = {
   currentPickInRound: number;
   totalRounds: number | null;
   pickTimerSeconds: number | null;
+  scheduledAt: string | null;
   turnStartedAt: string | null;
   commencedByUserId: string | null;
   commencedAt: string | null;

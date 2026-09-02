@@ -294,6 +294,7 @@ export function LeagueHubPage() {
   const [loading, setLoading] = useState(() => !(leagueId && readCachedHubOpen(leagueId)));
   const gameTheme = hub.selectedLeague?.game ?? null;
   const isRise = hub.selectedLeague?.rosterType === "rise_to_immortality";
+  const riseHubUnlocked = hub.selectedLeague?.riseHubUnlocked === true;
 
   useEffect(() => {
     if (!leagueId) return;
@@ -372,6 +373,10 @@ export function LeagueHubPage() {
 
   if (loading || siteAuth.status === "loading") {
     return <div className="site-page site-loading">Loading league hub…</div>;
+  }
+
+  if (isRise && !riseHubUnlocked && view !== "mgmt") {
+    return <Navigate replace to={`/l/${leagueId}/rise`} />;
   }
 
   if (isRise && (view === "store" || view === "trades")) {

@@ -21,11 +21,13 @@ import {
 
 export type FantasyDraftStatus = "not_started" | "live" | "concluded";
 export type FantasyDraftOrderMode = "standard" | "snake";
-export type FantasyDraftType = "fantasy" | "offseason";
+export type FantasyDraftType = "fantasy" | "offseason" | "rookie";
 
-// Offseason drafts are fixed-length (rosters just need a top-up, not a full rebuild);
-// fantasy drafts have no fixed length -- the commissioner ends it manually with End Draft.
+// Offseason drafts are fixed-length (rosters just need a top-up, not a full rebuild); rookie
+// drafts (Rise to Immortality) track exactly 3 rounds in-app and the rest is simulated for
+// balance; fantasy drafts have no fixed length -- the commissioner ends it manually with End Draft.
 const OFFSEASON_TOTAL_ROUNDS = 7;
+const ROOKIE_TOTAL_ROUNDS = 3;
 const WARNING_THRESHOLD_MS = 15_000;
 const ON_THE_CLOCK_COLOR = 0xd9a521;
 
@@ -39,6 +41,7 @@ type SessionRow = {
   current_pick_in_round: number;
   total_rounds: number | null;
   pick_timer_seconds: number | null;
+  scheduled_at: string | null;
   turn_started_at: string | null;
   warning_sent: boolean;
   commenced_by_user_id: string | null;
@@ -96,6 +99,7 @@ function serializeSession(row: SessionRow) {
     currentPickInRound: row.current_pick_in_round,
     totalRounds: row.total_rounds,
     pickTimerSeconds: row.pick_timer_seconds,
+    scheduledAt: row.scheduled_at,
     turnStartedAt: row.turn_started_at,
     commencedByUserId: row.commenced_by_user_id,
     commencedAt: row.commenced_at,
@@ -339,12 +343,62 @@ export async function ensureFantasyDraftSession(leagueId: string): Promise<void>
   if (error) throw new ApiError(500, "We couldn't create the draft session. Please try again.", error);
 }
 
+/** Sets (or clears) a target date/time for the draft and, when setting one, immediately posts
+ * one Discord announcement using self-localizing `<t:...>` tags -- no reminder sweep, this is
+ * a one-shot "here's when" post, not the old scheduled-notifications system. Callable any time
+ * before the draft actually starts; calling it again just re-announces the new time. */
+export async function scheduleFantasyDraft(guildId: string, scheduledAt: string | null) {
+  const context = await getCurrentLeagueContext(guildId);
+  const { leagueId } = context;
+  await ensureFantasyDraftSession(leagueId);
+  let session = await requireActiveSession(leagueId);
+  // Mirrors startFantasyDraft's own "concluded -> fresh session" handling -- a league that
+  // already ran one draft (e.g. offseason) can still schedule its next one, same as it can
+  // still Start one, instead of getting stuck on the old concluded row.
+  if (session.status === "concluded") {
+    const created = await supabase.from("rec_fantasy_draft_sessions").insert({
+      league_id: leagueId, draft_kind: "fantasy", status: "not_started",
+    }).select("*").single();
+    if (created.error) throw new ApiError(500, "We couldn't create a new draft session. Please try again.", created.error);
+    session = created.data as SessionRow;
+  } else {
+    requireSessionStatus(session, ["not_started"]);
+  }
+
+  const { error } = await supabase.from("rec_fantasy_draft_sessions").update({
+    scheduled_at: scheduledAt,
+    updated_at: new Date().toISOString(),
+  }).eq("id", session.id);
+  if (error) throw new ApiError(500, "We couldn't save the draft schedule. Please try again.", error);
+
+  if (scheduledAt) {
+    const announcementsChannelId = await announcementsChannelIdForLeague(leagueId);
+    if (announcementsChannelId) {
+      const unix = Math.floor(new Date(scheduledAt).getTime() / 1000);
+      await bestEffort("discord.draft_schedule_announcement", () => postDiscordChannelMessage(announcementsChannelId, {
+        content: "@everyone",
+        embeds: [{
+          title: "Draft Scheduled",
+          color: ON_THE_CLOCK_COLOR,
+          description: `The draft is scheduled for <t:${unix}:F> (<t:${unix}:R>) -- that timestamp shows in your own local time on every device.`,
+        }],
+        allowed_mentions: { parse: ["everyone"] },
+      }), { leagueId, entityId: session.id });
+    }
+  }
+
+  broadcastChatEvent("fantasy_draft", leagueId, { kind: "refresh" });
+  return { ok: true as const, scheduledAt };
+}
+
 export async function startFantasyDraft(guildId: string, discordId: string, input: { draftType: FantasyDraftType; pickTimerSeconds: number | null }) {
   const context = await getCurrentLeagueContext(guildId);
   const { leagueId } = context;
   const userId = await resolveRecUserId(discordId);
   let session = await getActiveSession(leagueId);
-  const totalRounds = input.draftType === "offseason" ? OFFSEASON_TOTAL_ROUNDS : null;
+  const totalRounds = input.draftType === "offseason" ? OFFSEASON_TOTAL_ROUNDS
+    : input.draftType === "rookie" ? ROOKIE_TOTAL_ROUNDS
+    : null;
 
   if (!session || session.status === "concluded") {
     const { data, error } = await supabase.from("rec_fantasy_draft_sessions").insert({
@@ -390,7 +444,7 @@ export async function startFantasyDraft(guildId: string, discordId: string, inpu
   await setLeagueFantasyDraftStatus(leagueId, "live");
 
   const announcementsChannelId = await announcementsChannelIdForLeague(leagueId);
-  const draftLabel = input.draftType === "offseason" ? "OFFSEASON DRAFT" : "FANTASY DRAFT";
+  const draftLabel = input.draftType === "offseason" ? "OFFSEASON DRAFT" : input.draftType === "rookie" ? "ROOKIE DRAFT" : "FANTASY DRAFT";
   if (announcementsChannelId) {
     await bestEffort("discord.draft_start_announcement", () => postDiscordChannelMessage(announcementsChannelId, {
       content: "@everyone",
@@ -399,7 +453,9 @@ export async function startFantasyDraft(guildId: string, discordId: string, inpu
         color: ON_THE_CLOCK_COLOR,
         description: input.draftType === "offseason"
           ? "The offseason draft has started -- 7 rounds, standard order."
-          : "The fantasy draft has started. Follow along in the league hub.",
+          : input.draftType === "rookie"
+            ? "The rookie draft has started -- 3 rounds, then the rest is simulated. Follow along in the league hub."
+            : "The fantasy draft has started. Follow along in the league hub.",
       }],
       allowed_mentions: { parse: ["everyone"] },
     }), { leagueId, entityId: session.id });

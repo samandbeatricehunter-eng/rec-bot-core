@@ -84,9 +84,12 @@ function buildAdPayload(
     return { name: `**${conference}**`, value: lines.join("\n").trim().slice(0, 1024) || "—", inline: true };
   });
 
+  const isRise = rosterInfo.rosterType === "rise_to_immortality";
   // "Regs" (roster carries over / default catalog teams) vs "Fantasy Draft" (roster built via
-  // a scheduled draft night) — the single biggest thing a recruit wants to know up front.
-  const rosterTypeLabel = rosterInfo.rosterType === "fantasy_draft" ? "Fantasy Draft" : "Regs";
+  // a scheduled draft night) vs "Rise to Immortality" (no team requests — members register,
+  // build a created-player class through Origins, and link to a franchise from there) — the
+  // single biggest thing a recruit wants to know up front.
+  const rosterTypeLabel = isRise ? "Rise to Immortality" : rosterInfo.rosterType === "fantasy_draft" ? "Fantasy Draft" : "Regs";
   const templateName = templateDisplayName(league.game, league.template_id);
   const descriptionLines = [
     `${GAME_LABELS[league.game] ?? league.game} — **${openCount}** of **${allTeams.length}** teams open.`,
@@ -94,10 +97,12 @@ function buildAdPayload(
   ];
   // Discord's <t:UNIX:R> timestamp renders as a live, self-updating "in X hours" countdown on
   // every client with zero further edits from us — far more reliable than trying to keep an
-  // embed synced with a setInterval-style re-post loop.
-  if (rosterInfo.rosterType === "fantasy_draft" && rosterInfo.draftScheduledAt) {
+  // embed synced with a setInterval-style re-post loop. Shown for any league with a scheduled
+  // draft session (fantasy-draft leagues and RTI's rookie draft alike) — the roster-fill method
+  // label above is a separate, orthogonal setting from whether a draft session is scheduled.
+  if (rosterInfo.draftScheduledAt) {
     const unix = Math.floor(new Date(rosterInfo.draftScheduledAt).getTime() / 1000);
-    descriptionLines.push(`🗓️ Fantasy Draft: <t:${unix}:F> (<t:${unix}:R>)`);
+    descriptionLines.push(`🗓️ Draft: <t:${unix}:F> (<t:${unix}:R>)`);
   }
   const baseDescription = descriptionLines.join("\n");
   // Discord rejects an embed outright once title+description+all field name/value text
@@ -111,21 +116,25 @@ function buildAdPayload(
     title: league.name,
     description: fitsEmbedLimit
       ? baseDescription
-      : `${baseDescription}\n\nThis league has too many teams to list here — tap **Request Team** for the full conference/division breakdown.`,
+      : isRise
+        ? `${baseDescription}\n\nThis league has too many teams to list here — tap **League Settings** for the full conference/division breakdown.`
+        : `${baseDescription}\n\nThis league has too many teams to list here — tap **Request Team** for the full conference/division breakdown.`,
     color: 0x2ecc71,
     fields: fitsEmbedLimit ? fields : [],
-    footer: { text: "League Settings for a full rundown · Request Team to claim an open team." },
+    footer: { text: isRise ? "League Settings for a full rundown · Register on the REC site to build your class." : "League Settings for a full rundown · Request Team to claim an open team." },
   };
   // Both League Settings and Request Team open a paginated ephemeral browser (Discord modals
   // can't hold buttons/select menus or scrollable content — only up to 5 text-input fields —
   // so a real "browse this, then pick one" flow has to be an ephemeral message with Prev/Next
-  // buttons, not a modal).
+  // buttons, not a modal). Rise to Immortality has no team-request flow at all — members
+  // register and build a class through Origins, then link to a franchise from there — so the
+  // Request Team button never appears on an RTI ad regardless of open-team count.
   const components: any[] = [
     {
       type: 1,
       components: [
         { type: 2, style: 2, label: "League Settings", custom_id: `rec:board:settings:${league.id}:0` },
-        ...(openCount > 0 ? [{ type: 2, style: 1, label: "Request Team", custom_id: `rec:board:reqpage:${league.id}:0` }] : []),
+        ...(!isRise && openCount > 0 ? [{ type: 2, style: 1, label: "Request Team", custom_id: `rec:board:reqpage:${league.id}:0` }] : []),
       ],
     },
   ];
@@ -155,7 +164,10 @@ export async function syncLeagueRecruitingAd(leagueId: string): Promise<void> {
     ]);
     const rosterInfo = {
       rosterType: configResult.data?.roster_type ?? null,
-      draftScheduledAt: draftResult.data?.status === "scheduled" ? draftResult.data.scheduled_at : null,
+      // "scheduled" hasn't been a real session status since the Sept 26 simplification
+      // (current values are not_started/live/concluded) -- a schedule is now just a
+      // scheduled_at timestamp on an otherwise not_started session, set independently of status.
+      draftScheduledAt: draftResult.data?.status === "not_started" && draftResult.data.scheduled_at ? draftResult.data.scheduled_at : null,
     };
 
     const payload = buildAdPayload(league, allTeams, openTeamIds, rosterInfo);
@@ -216,6 +228,12 @@ export type RecruitingBoardGroup = {
 export async function getRecruitingBoardGroupedTeams(leagueId: string): Promise<{ leagueName: string; groups: RecruitingBoardGroup[] }> {
   const league = await loadLeagueForAd(leagueId);
   if (!league) throw new ApiError(404, "League not found.");
+  // Defensive: a not-yet-resynced ad from before Rise to Immortality lost its Request Team
+  // button could still carry a stale one until its next syncLeagueRecruitingAd pass.
+  const config = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", leagueId).maybeSingle();
+  if (config.data?.roster_type === "rise_to_immortality") {
+    throw new ApiError(400, "Rise to Immortality leagues don't use team requests — register and build your class through Origins on the REC site instead.");
+  }
   const { openTeams, allTeams } = await listOpenTeamsForLeagueId(leagueId);
   const openTeamIds = new Set<string>(openTeams.map((team: any) => String(team.id)));
   const isCfb = league.game === "cfb_27";
@@ -315,6 +333,11 @@ export async function getRecruitingBoardLeagueSettings(leagueId: string): Promis
 export async function createRecruitingBoardTeamRequest(input: { leagueId: string; discordId: string; teamId: string }) {
   const league = await loadLeagueForAd(input.leagueId);
   if (!league) throw new ApiError(404, "League not found.");
+
+  const config = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", input.leagueId).maybeSingle();
+  if (config.data?.roster_type === "rise_to_immortality") {
+    throw new ApiError(400, "Rise to Immortality leagues don't use team requests — register and build your class through Origins on the REC site instead.");
+  }
 
   const link = await checkLeagueLinked(input.leagueId);
   const guildIdForRequest = link.linked && link.guildId ? link.guildId : `site:${input.leagueId}`;
