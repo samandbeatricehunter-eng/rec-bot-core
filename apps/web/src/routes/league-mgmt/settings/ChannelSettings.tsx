@@ -23,7 +23,8 @@ export function ChannelSettings() {
 
   const CONFIGURABLE_ROUTES = ALL_ROUTES.filter(([, route]) =>
     !("madden_only" in route && route.madden_only && isCfb) &&
-    !("rti_only" in route && route.rti_only && !isRise));
+    !("rti_only" in route && route.rti_only && !isRise) &&
+    !("hidden_for_rti" in route && route.hidden_for_rti && isRise));
 
   const load = () => Promise.all([
     recApi.getServerChannels(guildId),

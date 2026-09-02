@@ -39,6 +39,8 @@ export const REC_ROUTE_CHANNELS = {
     defaultParentRoute: "game_channels_category",
     inputField: "boxScoresChannelId",
     dbField: "box_scores_channel_id",
+    // RTI leagues use Player XP/ratings progression, never box-score stat entry.
+    hidden_for_rti: true,
   },
   rec_guide: {
     label: "REC Guide",

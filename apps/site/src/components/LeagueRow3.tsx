@@ -41,6 +41,17 @@ export function LeagueRow3({ leagueId, isCommissioner, rosterType, riseHubUnlock
   const base = `/l/${leagueId}`;
   const isRise = rosterType === "rise_to_immortality";
   const hubUnlocked = !isRise || riseHubUnlocked === true;
+  const risePreLaunch = isRise && !hubUnlocked;
+
+  if (risePreLaunch) {
+    return (
+      <nav className="site-header-row3" aria-label="League">
+        <NavLink to={`${base}/rise`} className={["site-header-row3-btn", isActive(path, `${base}/rise`) ? "is-active" : ""].filter(Boolean).join(" ")}>
+          <IconTeam /><span>Origins</span>
+        </NavLink>
+      </nav>
+    );
+  }
 
   return (
     <nav className="site-header-row3" aria-label="League">
@@ -57,9 +68,11 @@ export function LeagueRow3({ leagueId, isCommissioner, rosterType, riseHubUnlock
       <Dropdown label="News" icon={<IconHeadlines />} active={isActive(path, `${base}/news`)}>
         {(close) => <>
           <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/news`); }}>News Room</button>
-          <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(openModalHref(leagueId, "interview")); }}>Submit an Interview</button>
           {isRise ? null : (
-            <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(openModalHref(leagueId, "article")); }}>Post an Article</button>
+            <>
+              <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(openModalHref(leagueId, "interview")); }}>Submit an Interview</button>
+              <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(openModalHref(leagueId, "article")); }}>Post an Article</button>
+            </>
           )}
         </>}
       </Dropdown>
