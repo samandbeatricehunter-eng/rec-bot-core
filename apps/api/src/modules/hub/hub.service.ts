@@ -653,18 +653,24 @@ async function refreshDiscordMediaUrl(highlight: any) {
   } catch { return current; }
 }
 
-async function loadHubHeadlines(input: { leagueId: string; seasonNumber: number; currentWeek: number; seasonStage: string | null }) {
+function withinCurrentWeekWindow(story: { week: number | null }, currentWeek: number): boolean {
+  // publishTransitionStory (RTI contract signings, franchise assignments, Media Day roundups,
+  // etc.) stores week: null for any non-gameplay stage (preseason, training camp, offseason --
+  // see its own comment), same as story-publishing's other non-gameplay writers. A SQL
+  // `week <= currentWeek` filter never matches NULL, so those stories were silently invisible to
+  // this query even after removing the old blanket "preseason = no headlines" short-circuit below.
+  return story.week == null || Number(story.week) <= currentWeek;
+}
+
+async function loadHubHeadlines(input: { leagueId: string; seasonNumber: number; currentWeek: number }) {
   const richSelect = "id,season,week,season_stage,headline,body,image_url,media_kind,author_discord_id,primary_angle,notes,story_type,roundtable,created_at";
   const baseSelect = "id,season,week,season_stage,headline,body,primary_angle,notes,story_type,roundtable,created_at";
-  const stage = String(input.seasonStage ?? "preseason").toLowerCase();
-  if (stage === "preseason" || stage === "preseason_training_camp") return { data: [], error: null };
 
   const applyCurrentWindow = (select: string) => supabase
     .from("rec_game_stories")
     .select(select)
     .eq("league_id", input.leagueId)
     .eq("season", input.seasonNumber)
-    .lte("week", input.currentWeek)
     .order("week", { ascending: false })
     .order("created_at", { ascending: false })
     // The News tab's week-by-week paging (headlineWeekGroups in HubHome.tsx) groups this whole
@@ -678,19 +684,21 @@ async function loadHubHeadlines(input: { leagueId: string; seasonNumber: number;
     .limit(60);
 
   const rich = await applyCurrentWindow(richSelect);
-  if (!rich.error) return rich;
+  if (!rich.error) return { ...rich, data: (rich.data ?? []).filter((story: any) => withinCurrentWeekWindow(story, input.currentWeek)) };
   const message = JSON.stringify(rich.error);
   if (!message.includes("image_url") && !message.includes("media_kind") && !message.includes("author_discord_id")) return rich;
   const fallback = await applyCurrentWindow(baseSelect);
   if (fallback.error) return fallback;
   return {
     ...fallback,
-    data: (fallback.data ?? []).map((story: any) => ({
-      ...story,
-      image_url: null,
-      media_kind: null,
-      author_discord_id: null,
-    })),
+    data: (fallback.data ?? [])
+      .filter((story: any) => withinCurrentWeekWindow(story, input.currentWeek))
+      .map((story: any) => ({
+        ...story,
+        image_url: null,
+        media_kind: null,
+        author_discord_id: null,
+      })),
   };
 }
 
@@ -719,7 +727,7 @@ export async function getHub(guildId: string, discordId: string) {
     // 60 covers a full season's worth of weekly announcements (even with several posts some
     // weeks) so the hub carousel's week-by-week paging has real history to page back through.
     supabase.from("rec_hub_announcements").select("id,title,body,season_number,week_number,published_at").eq("league_id", context.leagueId).eq("season_number", seasonNumber).order("published_at", { ascending: false }).limit(60),
-    loadHubHeadlines({ leagueId: context.leagueId, seasonNumber, currentWeek, seasonStage }),
+    loadHubHeadlines({ leagueId: context.leagueId, seasonNumber, currentWeek }),
     // Order by the game's own week first (falling back to created_at within a week) so a
     // highlight submitted late for an earlier week slots back into that week's place in the
     // rotation instead of jumping to the front just because it was uploaded recently.
