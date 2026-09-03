@@ -20,10 +20,15 @@ export type IssuedChallenge = {
   complete: boolean;
 };
 
+// Each season/career tier slot is either a single label (the original 6 positions, unchanged)
+// or an array of interchangeable variant labels (QB/MIKE's tripled pools) -- one variant gets
+// picked per (position, prospect, season|career) via the same seeded pickIndex weekly already
+// uses, so the shown label stays stable across repeated grading passes within that scope instead
+// of reshuffling every advance.
 type MilestonePosition = {
   weekly: { bronze: string[]; silver: string[]; gold: string[] };
-  season: string[];
-  career: string[];
+  season: Array<string | string[]>;
+  career: Array<string | string[]>;
 };
 
 function milestoneFor(position: string): MilestonePosition | null {
@@ -98,7 +103,7 @@ function clauseComplete(clause: string, stats: Record<string, number>, full: str
   if (/sacks?/.test(clause)) return num(stats, "sacks") >= value;
   if (/takeaways?/.test(clause)) return takeaways(stats) >= value;
   if (/forced turnovers|forced fumble|\bff\b/.test(clause)) return num(stats, "forced_fumbles") >= value;
-  if (/pass deflection/.test(clause)) return num(stats, "passes_defended") >= value || takeaways(stats) >= value;
+  if (/pass deflection/.test(clause)) return num(stats, "pass_deflections") >= value || takeaways(stats) >= value;
   if (/defensive td|def td/.test(clause)) return num(stats, "defensive_tds") >= value;
   if (/\bint\b|interceptions?/.test(clause) && !/thrown/.test(clause)) return num(stats, "interceptions") >= value;
   if (/impact play/.test(clause)) return takeaways(stats) >= 1 || num(stats, "sacks") >= 1;
@@ -133,30 +138,41 @@ export function issuedWeeklyChallenges(input: {
   });
 }
 
-export function issuedSeasonChallenges(position: string, stats: Record<string, number>): IssuedChallenge[] {
-  const row = milestoneFor(position);
-  if (!row) return [];
-  const tiers = ["tier1", "tier2", "tier3"] as const;
-  return row.season.map((label, index) => ({
-    id: `season:${tiers[index] ?? "tier1"}`,
-    scope: "season" as const,
-    tier: tiers[index] ?? "tier1",
-    label,
-    complete: challengeComplete(label, stats),
-  }));
+function resolveLabel(entry: string | string[], seed: string, salt: number): string {
+  if (typeof entry === "string") return entry;
+  return entry[pickIndex(seed, entry.length, salt)] ?? entry[0] ?? "";
 }
 
-export function issuedCareerChallenges(position: string, stats: Record<string, number>): IssuedChallenge[] {
+export function issuedSeasonChallenges(position: string, stats: Record<string, number>, seed = position): IssuedChallenge[] {
   const row = milestoneFor(position);
   if (!row) return [];
   const tiers = ["tier1", "tier2", "tier3"] as const;
-  return row.career.map((label, index) => ({
-    id: `career:${tiers[index] ?? "tier1"}`,
-    scope: "career" as const,
-    tier: tiers[index] ?? "tier1",
-    label,
-    complete: challengeComplete(label, stats),
-  }));
+  return row.season.map((entry, index) => {
+    const label = resolveLabel(entry, seed, index + 1);
+    return {
+      id: `season:${tiers[index] ?? "tier1"}`,
+      scope: "season" as const,
+      tier: tiers[index] ?? "tier1",
+      label,
+      complete: label ? challengeComplete(label, stats) : false,
+    };
+  });
+}
+
+export function issuedCareerChallenges(position: string, stats: Record<string, number>, seed = position): IssuedChallenge[] {
+  const row = milestoneFor(position);
+  if (!row) return [];
+  const tiers = ["tier1", "tier2", "tier3"] as const;
+  return row.career.map((entry, index) => {
+    const label = resolveLabel(entry, seed, index + 1);
+    return {
+      id: `career:${tiers[index] ?? "tier1"}`,
+      scope: "career" as const,
+      tier: tiers[index] ?? "tier1",
+      label,
+      complete: label ? challengeComplete(label, stats) : false,
+    };
+  });
 }
 
 export function pointsForWeeklyTier(tier: ChallengeTier): number {

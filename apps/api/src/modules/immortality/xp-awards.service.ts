@@ -255,7 +255,8 @@ export async function awardImmortalityChallengesAfterAdvance(input: {
       playerId: String(prospect.player_id),
       seasonNumber: input.seasonNumber,
     });
-    for (const challenge of issuedSeasonChallenges(String(prospect.position), seasonStats)) {
+    const seasonSeed = `${immortality.id}:${input.seasonNumber}:${prospect.id}:season`;
+    for (const challenge of issuedSeasonChallenges(String(prospect.position), seasonStats, seasonSeed)) {
       if (!challenge.complete) continue;
       const tier = (challenge.tier === "tier2" || challenge.tier === "tier3" ? challenge.tier : "tier1") as "tier1" | "tier2" | "tier3";
       await creditXpPoints({
@@ -277,7 +278,8 @@ export async function awardImmortalityChallengesAfterAdvance(input: {
       leagueId: input.leagueId,
       playerId: String(prospect.player_id),
     });
-    for (const challenge of issuedCareerChallenges(String(prospect.position), careerStats)) {
+    const careerSeed = `${immortality.id}:${prospect.id}:career`;
+    for (const challenge of issuedCareerChallenges(String(prospect.position), careerStats, careerSeed)) {
       if (!challenge.complete) continue;
       const tier = (challenge.tier === "tier2" || challenge.tier === "tier3" ? challenge.tier : "tier1") as "tier1" | "tier2" | "tier3";
       await creditXpPoints({

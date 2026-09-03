@@ -14,6 +14,8 @@ import {
   hubUnlockStateFrom,
   challengeComplete,
   issuedWeeklyChallenges,
+  issuedSeasonChallenges,
+  issuedCareerChallenges,
   rookieContractPayout,
   performanceContractPayout,
   MAX_EQUIPPED_CHARACTERISTICS,
@@ -444,6 +446,35 @@ test("weekly challenge strings evaluate against canonical stat keys", () => {
   const weekly = issuedWeeklyChallenges({ position: "QB", seed: "league:week:prospect", stats: { pass_yards: 400, pass_tds: 4, pass_attempts: 30, completion_pct: 70 } });
   assert.equal(weekly.length, 3);
   assert.deepEqual(weekly.map((row) => row.tier), ["bronze", "silver", "gold"]);
+});
+
+test("pass deflection challenges read the canonical pass_deflections stat", () => {
+  assert.equal(challengeComplete("1 pass deflection", { pass_deflections: 1 }), true);
+  assert.equal(challengeComplete("1 pass deflection", { pass_deflections: 0 }), false);
+  // The takeaway fallback still applies for a player who didn't log a PD but did make a play.
+  assert.equal(challengeComplete("1 pass deflection", { interceptions: 1 }), true);
+});
+
+test("QB and MIKE weekly/season/career pools tripled to 54 challenges each, still 3-tiered", () => {
+  for (const position of ["QB", "MIKE"]) {
+    const weekly = issuedWeeklyChallenges({ position, seed: `${position}:seed`, stats: {} });
+    const season = issuedSeasonChallenges(position, {}, `${position}:season`);
+    const career = issuedCareerChallenges(position, {}, `${position}:career`);
+    assert.equal(weekly.length, 3, `${position} weekly still issues exactly 3`);
+    assert.equal(season.length, 3, `${position} season still has exactly 3 tiers`);
+    assert.equal(career.length, 3, `${position} career still has exactly 3 tiers`);
+    for (const row of [...season, ...career]) assert.ok(row.label.length > 0, `${position} ${row.id} resolved a non-empty label`);
+  }
+});
+
+test("season/career variant selection is stable for the same seed and position-only-seeded for legacy positions", () => {
+  const a = issuedSeasonChallenges("QB", {}, "league:season:prospectA");
+  const b = issuedSeasonChallenges("QB", {}, "league:season:prospectA");
+  assert.deepEqual(a.map((row) => row.label), b.map((row) => row.label));
+  // A legacy (non-tripled) position's season labels are plain strings, unaffected by seed.
+  const hbFirst = issuedSeasonChallenges("HB", {}, "seed-one");
+  const hbSecond = issuedSeasonChallenges("HB", {}, "seed-two");
+  assert.deepEqual(hbFirst.map((row) => row.label), hbSecond.map((row) => row.label));
 });
 
 test("rookie contract payouts are one-time ranges seeded by prospect id", () => {

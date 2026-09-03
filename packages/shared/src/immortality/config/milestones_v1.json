@@ -23,30 +23,78 @@
         "250 passing yards",
         "2 passing TD",
         "65% completion on 20+ attempts",
-        "25 rushing yards"
+        "25 rushing yards",
+        "200 passing yards + 1 TD",
+        "3 total TD",
+        "60% completion on 15+ attempts",
+        "1 rushing TD",
+        "225 passing yards",
+        "2 total TD + 200 passing yards",
+        "50 rushing yards",
+        "275 passing yards with 0 INT"
       ],
       "silver": [
         "300 passing yards + 2 TD",
         "3 total TD",
         "70% completion on 20+ attempts",
-        "0 turnovers on 20+ attempts"
+        "0 turnovers on 20+ attempts",
+        "275 passing yards + 3 TD",
+        "4 total TD",
+        "65% completion on 25+ attempts",
+        "2 rushing TD",
+        "325 passing yards",
+        "100 rushing yards",
+        "90+ passer rating with 2 TD",
+        "3 total TD + 0 turnovers"
       ],
       "gold": [
         "350 passing yards + 3 TD",
         "4 total TD",
         "300+ passing yards with 0 INT",
-        "100+ passer rating with 3 TD"
+        "100+ passer rating with 3 TD",
+        "400 passing yards",
+        "5 total TD",
+        "75% completion on 25+ attempts",
+        "3 rushing TD",
+        "350 passing yards + 0 turnovers",
+        "150 rushing yards",
+        "4 total TD + 0 turnovers",
+        "120+ passer rating with 4 TD"
       ]
     },
     "season": [
-      "3,500 pass yds / 25 pass TD",
-      "4,000 pass yds / 35 pass TD / 65% completion",
-      "4,500 pass yds / 45 pass TD / 40 total TD with <=10 turnovers"
+      [
+        "3,500 pass yds / 25 pass TD",
+        "3,200 pass yds / 28 pass TD",
+        "3,000 pass yds / 20 pass TD / 500 rush yds"
+      ],
+      [
+        "4,000 pass yds / 35 pass TD / 65% completion",
+        "3,800 pass yds / 32 pass TD / 8 rush TD",
+        "4,200 pass yds / 30 pass TD / 700 rush yds"
+      ],
+      [
+        "4,500 pass yds / 45 pass TD / 40 total TD with <=10 turnovers",
+        "5,000 pass yds / 40 pass TD / 70% completion",
+        "4,200 pass yds / 35 pass TD / 1,000 rush yds / 12 rush TD"
+      ]
     ],
     "career": [
-      "20,000 pass yds / 150 pass TD",
-      "30,000 pass yds / 250 pass TD",
-      "40,000 pass yds / 350 pass TD / 4,000 rush yds"
+      [
+        "20,000 pass yds / 150 pass TD",
+        "18,000 pass yds / 160 pass TD",
+        "15,000 pass yds / 120 pass TD / 2,000 rush yds"
+      ],
+      [
+        "30,000 pass yds / 250 pass TD",
+        "27,000 pass yds / 240 pass TD / 3,000 rush yds",
+        "32,000 pass yds / 220 pass TD / 40 rush TD"
+      ],
+      [
+        "40,000 pass yds / 350 pass TD / 4,000 rush yds",
+        "45,000 pass yds / 320 pass TD / 60 rush TD",
+        "38,000 pass yds / 300 pass TD / 6,000 rush yds / 50 rush TD"
+      ]
     ]
   },
   "HB": {
@@ -247,30 +295,78 @@
         "7 tackles",
         "1 TFL",
         "1 pass deflection",
-        "0.5-1 sack"
+        "0.5-1 sack",
+        "5 tackles + 1 TFL",
+        "1 sack",
+        "6 tackles + 1 pass deflection",
+        "1 takeaway",
+        "8 tackles",
+        "2 TFL",
+        "1 forced fumble",
+        "6 tackles + 1 sack"
       ],
       "silver": [
         "10 tackles",
         "2 TFL",
         "1 sack",
-        "1 takeaway"
+        "1 takeaway",
+        "8 tackles + 1 TFL",
+        "1.5 sacks",
+        "2 pass deflections",
+        "2 takeaways",
+        "12 tackles",
+        "3 TFL",
+        "1 forced fumble + 1 sack",
+        "9 tackles + 1 takeaway"
       ],
       "gold": [
         "15 tackles",
         "3 TFL",
         "2 sacks",
-        "10 tackles + sack + takeaway"
+        "10 tackles + sack + takeaway",
+        "12 tackles + 2 TFL",
+        "3 sacks",
+        "3 pass deflections",
+        "2 takeaways + 1 sack",
+        "18 tackles",
+        "4 TFL",
+        "2 forced fumbles",
+        "12 tackles + 2 sacks"
       ]
     },
     "season": [
-      "100 tackles / 10 TFL",
-      "120 tackles / 15 TFL / 6 sacks",
-      "140 tackles / 20 TFL / 10 sacks / 5 forced turnovers"
+      [
+        "100 tackles / 10 TFL",
+        "90 tackles / 8 sacks",
+        "80 tackles / 12 TFL / 4 forced turnovers"
+      ],
+      [
+        "120 tackles / 15 TFL / 6 sacks",
+        "110 tackles / 10 sacks / 3 forced turnovers",
+        "130 tackles / 18 TFL / 10 pass deflections"
+      ],
+      [
+        "140 tackles / 20 TFL / 10 sacks / 5 forced turnovers",
+        "150 tackles / 15 sacks / 8 forced turnovers",
+        "135 tackles / 25 TFL / 15 pass deflections / 6 sacks"
+      ]
     ],
     "career": [
-      "600 tackles / 50 TFL",
-      "900 tackles / 80 TFL / 30 sacks",
-      "1,200 tackles / 120 TFL / 50 sacks / 20 forced turnovers"
+      [
+        "600 tackles / 50 TFL",
+        "550 tackles / 40 sacks",
+        "500 tackles / 60 TFL / 20 forced turnovers"
+      ],
+      [
+        "900 tackles / 80 TFL / 30 sacks",
+        "850 tackles / 60 sacks / 15 forced turnovers",
+        "950 tackles / 100 TFL / 50 pass deflections"
+      ],
+      [
+        "1,200 tackles / 120 TFL / 50 sacks / 20 forced turnovers",
+        "1,300 tackles / 90 sacks / 30 forced turnovers",
+        "1,150 tackles / 150 TFL / 80 pass deflections / 60 sacks"
+      ]
     ]
   }
 }
