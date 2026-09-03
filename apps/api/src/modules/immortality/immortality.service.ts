@@ -1566,7 +1566,7 @@ async function submitProspectForReview(input: {
 }): Promise<void> {
   const { prospect } = input;
   const [personaResult, branchingPlaystyle, flatPlaystyle, personaDnaTraits, playerTraits, characteristics, discordId] = await Promise.all([
-    supabase.from("rec_immortality_persona_results").select("label,primary_type,secondary_type").eq("prospect_id", prospect.id).maybeSingle(),
+    supabase.from("rec_immortality_persona_results").select("label,primary_dimension,secondary_dimension").eq("prospect_id", prospect.id).maybeSingle(),
     supabase.from("rec_immortality_branching_playstyle_results").select("primary_archetype,secondary_archetype").eq("prospect_id", prospect.id).maybeSingle(),
     supabase.from("rec_immortality_playstyle_results").select("primary_archetype,secondary_archetype").eq("prospect_id", prospect.id).maybeSingle(),
     supabase.from("rec_immortality_prospect_persona_dna").select("trait_key").eq("prospect_id", prospect.id),
@@ -1614,7 +1614,25 @@ async function submitProspectForReview(input: {
     attributeLines.map((attr) => `${attr.code} ${attr.name}: ${attr.value}`).join("\n") || "—",
   ].filter((line): line is string => line != null).join("\n");
 
-  const inboxUpsert = await supabase.from("rec_commissioners_inbox").upsert({
+  // rec_commissioners_inbox_source_unique_idx (guild_id, queue_type, source_table, source_id)
+  // is a PARTIAL unique index (WHERE source_table/source_id IS NOT NULL) -- the query builder's
+  // .upsert() emits a bare `ON CONFLICT (columns) DO UPDATE` with no WHERE clause, which Postgres
+  // refuses to match against a partial index ("no unique or exclusion constraint matching the ON
+  // CONFLICT specification"), so this upsert has silently thrown on every single call since the
+  // review gate shipped -- every prospect that reached Creation Points got stuck at
+  // review_status='pending_review' with no inbox row ever created for a commissioner to act on.
+  // Select-then-insert/update sidesteps the query builder's ON CONFLICT limitation entirely.
+  const existingInboxRow = await supabase
+    .from("rec_commissioners_inbox")
+    .select("id")
+    .eq("guild_id", input.guildId)
+    .eq("queue_type", "immortality_prospect")
+    .eq("source_table", "rec_immortality_prospects")
+    .eq("source_id", prospect.id)
+    .maybeSingle();
+  if (existingInboxRow.error) throw new ApiError(500, "Failed to submit prospect for review.", existingInboxRow.error);
+
+  const inboxPayload = {
     guild_id: input.guildId,
     league_id: input.leagueId,
     queue_type: "immortality_prospect",
@@ -1640,7 +1658,10 @@ async function submitProspectForReview(input: {
       attributes: attributeLines,
     },
     updated_at: new Date().toISOString(),
-  }, { onConflict: "guild_id,queue_type,source_table,source_id" });
+  };
+  const inboxUpsert = existingInboxRow.data
+    ? await supabase.from("rec_commissioners_inbox").update(inboxPayload).eq("id", existingInboxRow.data.id)
+    : await supabase.from("rec_commissioners_inbox").insert(inboxPayload);
   if (inboxUpsert.error) throw new ApiError(500, "Failed to submit prospect for review.", inboxUpsert.error);
 
   // A build submitted (or re-submitted) always needs a fresh look, even if the commissioner
