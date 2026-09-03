@@ -9,9 +9,10 @@ import { ApiError } from "../../lib/errors.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
-import { loadImmortalityLeague } from "./immortality.service.js";
+import { loadImmortalityLeague, prospectAvatarUrlForHandle } from "./immortality.service.js";
+import { ensurePlayerPersonasForLeague, playerPersonaFor, playerPersonaAvatarForHandle } from "./player-personas.service.js";
 import {
-  GENERIC_HANDLES, MANUAL_TWEET_GENERIC_HANDLES, PLAYER_CHATTER_TEMPLATES, TWEET_HOSTS, TWEET_TEMPLATES,
+  GENERIC_HANDLES, MANUAL_TWEET_GENERIC_HANDLES, PLAYER_CHATTER_TEMPLATES, TWEET_HOSTS, TWEET_TEMPLATES, staticAvatarUrlForHandle,
   type TweetAuthor, type TweetCategory, type TweetHostKey, type TweetSlots, type TweetTemplate,
 } from "./tweet-bank.js";
 
@@ -217,6 +218,8 @@ export async function queueImmortalityTweetsAfterAdvance(input: { leagueId: stri
   const immortalityLeague = await loadImmortalityLeague(input.leagueId);
   if (!immortalityLeague) return;
   await generateAndQueueImmortalityTweets(input.leagueId, input.seasonNumber, input.weekNumber);
+  await ensurePlayerPersonasForLeague(input.leagueId).catch((err) =>
+    console.error(`[ERROR] Player persona generation failed for league ${input.leagueId} (non-fatal):`, err));
   await queuePlayerChatterAfterImport(input.leagueId, input.seasonNumber, input.weekNumber).catch((err) =>
     console.error(`[ERROR] Player chatter tweets failed for league ${input.leagueId} (non-fatal):`, err));
 }
@@ -306,10 +309,11 @@ export async function postManualImmortalityTweet(input: {
 
   let handle: string;
   let displayName: string;
+  let avatarUrl: string | undefined;
   let authorKind: "host" | "generic" | "custom";
   if (input.persona in TWEET_HOSTS) {
     const host = TWEET_HOSTS[input.persona as TweetHostKey];
-    handle = host.handle; displayName = host.displayName; authorKind = "host";
+    handle = host.handle; displayName = host.displayName; avatarUrl = host.avatarUrl; authorKind = "host";
   } else if (input.persona === "custom") {
     const rawHandle = input.customHandle?.trim();
     if (!rawHandle) throw new ApiError(400, "A custom handle is required.");
@@ -320,12 +324,12 @@ export async function postManualImmortalityTweet(input: {
     const index = MANUAL_GENERIC_PERSONA_KEYS.indexOf(input.persona as (typeof MANUAL_GENERIC_PERSONA_KEYS)[number]);
     const account = index === -1 ? null : MANUAL_TWEET_GENERIC_HANDLES[index];
     if (!account) throw new ApiError(400, "Unknown tweet persona.");
-    handle = account.handle; displayName = account.displayName; authorKind = "generic";
+    handle = account.handle; displayName = account.displayName; avatarUrl = account.avatarUrl; authorKind = "generic";
   }
 
   const posted = await postDiscordChannelMessage(channelId, {
     content: input.mentionContent?.trim() || undefined,
-    embeds: [{ author: { name: `${displayName} (${handle})` }, description: input.tweetText, color: 0x1d9bf0 }],
+    embeds: [{ author: { name: `${displayName} (${handle})`, icon_url: avatarUrl }, description: input.tweetText, color: 0x1d9bf0 }],
   });
   if (!posted) throw new ApiError(502, "Discord rejected the tweet -- check the tweets channel still exists and the bot can post there.");
 
@@ -453,7 +457,13 @@ async function queueOnePlayerChatterTweet(
   const author = authorCandidates[Math.floor(Math.random() * authorCandidates.length)]!;
   const line = statLine(author.stats as Record<string, unknown>);
   const authorTeamId = author.player.team?.id ? String(author.player.team.id) : null;
-  const { handle, displayName } = handleForPlayerName(author.player.fullName);
+  // A curated top-5-per-team player gets their persisted voice/tone (player-personas.service.ts)
+  // instead of ad-hoc synthesis + a flat random split -- consistent personality across weeks.
+  const persona = await playerPersonaFor(leagueId, author.player_id);
+  const { handle, displayName } = persona
+    ? { handle: persona.handle, displayName: persona.displayName }
+    : handleForPlayerName(author.player.fullName);
+  const tonePraiseWeight = persona?.tonePraiseWeight ?? null;
   const authorTeamName = teamLabel(author.player.team);
 
   const modeRoll = Math.random();
@@ -469,7 +479,7 @@ async function queueOnePlayerChatterTweet(
     const list = ((rows.data ?? []) as Array<{ full_name: string | null }>).filter((r) => r.full_name);
     if (list.length) {
       targetPlayer = list[Math.floor(Math.random() * list.length)]!.full_name;
-      tone = Math.random() < 0.7 ? "praise" : "instigate";
+      tone = Math.random() < (tonePraiseWeight ?? 0.7) ? "praise" : "instigate";
     }
   }
   // Rival mode, or teammate mode that found no eligible teammate (e.g. a solo roster slot) --
@@ -486,7 +496,7 @@ async function queueOnePlayerChatterTweet(
       targetPlayer = picked.full_name;
       const teamRow = await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", picked.team_id!).maybeSingle();
       targetTeamName = teamLabel(teamRow.data);
-      tone = Math.random() < 0.6 ? "instigate" : "praise";
+      tone = Math.random() < (tonePraiseWeight != null ? 1 - tonePraiseWeight : 0.6) ? "instigate" : "praise";
     }
   }
 
@@ -560,9 +570,14 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
         .eq("id", String(next.data.id)).eq("status", "pending").select("id").maybeSingle();
       if (!claimed.data) continue; // another tick already claimed this row
       try {
+        const handle = String(next.data.author_handle);
+        const iconUrl = staticAvatarUrlForHandle(handle)
+          ?? await playerPersonaAvatarForHandle(leagueId, handle)
+          ?? await prospectAvatarUrlForHandle(leagueId, handle)
+          ?? undefined;
         await postDiscordChannelMessage(channelId, {
           embeds: [{
-            author: { name: `${next.data.author_display_name} (${next.data.author_handle})` },
+            author: { name: `${next.data.author_display_name} (${next.data.author_handle})`, icon_url: iconUrl },
             description: next.data.body,
             color: 0x1d9bf0,
           }],

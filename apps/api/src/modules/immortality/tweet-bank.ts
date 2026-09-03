@@ -9,71 +9,93 @@
 export type TweetHostKey = "marcus" | "jalen" | "elliot" | "darius";
 export type TweetAuthor = TweetHostKey | "generic";
 
-export const TWEET_HOSTS: Record<TweetHostKey, { handle: string; displayName: string }> = {
-  marcus: { handle: "@MarcusValeREC", displayName: "Marcus Vale" },
-  jalen: { handle: "@JalenCrossREC", displayName: "Jalen Cross" },
-  elliot: { handle: "@ElliotMercerREC", displayName: "Elliot Mercer" },
-  darius: { handle: "@DariusKingREC", displayName: "Darius King" },
+// Cloudflare Images account hash is a public identifier baked into every delivery URL (not a
+// secret, unlike the API token used to upload) -- see apps/api/scripts/upload-tweet-avatars.ts,
+// which uploaded every id referenced below under this same account.
+const AVATAR_DELIVERY_BASE = "https://imagedelivery.net/QAGFLBPDqDrzG1Yqj0cQIA";
+function avatarUrlFor(imageId: string): string {
+  return `${AVATAR_DELIVERY_BASE}/${imageId}/public`;
+}
+
+export const TWEET_HOSTS: Record<TweetHostKey, { handle: string; displayName: string; avatarUrl: string }> = {
+  marcus: { handle: "@MarcusValeREC", displayName: "Marcus Vale", avatarUrl: avatarUrlFor("rti-tweet-host-marcus") },
+  jalen: { handle: "@JalenCrossREC", displayName: "Jalen Cross", avatarUrl: avatarUrlFor("rti-tweet-host-jalen") },
+  elliot: { handle: "@ElliotMercerREC", displayName: "Elliot Mercer", avatarUrl: avatarUrlFor("rti-tweet-host-elliot") },
+  darius: { handle: "@DariusKingREC", displayName: "Darius King", avatarUrl: avatarUrlFor("rti-tweet-host-darius") },
 };
 
-// A crowd of fake fan/hater handles a "generic" tweet gets randomly attributed to, so the feed
-// reads like a real timeline instead of the same four hosts talking to themselves.
-export const GENERIC_HANDLES: Array<{ handle: string; displayName: string }> = [
-  { handle: "@GridironGospel", displayName: "Gridiron Gospel" },
-  { handle: "@ColdTakesOnly", displayName: "Cold Takes Only" },
-  { handle: "@BleacherBarry", displayName: "Barry from the Bleachers" },
-  { handle: "@RecLeagueLurker", displayName: "REC League Lurker" },
-  { handle: "@FantasyFraud88", displayName: "Fantasy Fraud Detector" },
-  { handle: "@SundayScaries_", displayName: "Sunday Scaries" },
-  { handle: "@TapeDontLie", displayName: "The Tape Don't Lie" },
-  { handle: "@ThirdAndLong", displayName: "Third & Long Pod" },
-  { handle: "@RookieWallWatch", displayName: "Rookie Wall Watch" },
-  { handle: "@BoxScoreBandit", displayName: "Box Score Bandit" },
-  { handle: "@NoHuddleNate", displayName: "No-Huddle Nate" },
-  { handle: "@ClipboardCritic", displayName: "The Clipboard Critic" },
-  { handle: "@PrimeTimeOrBust", displayName: "Prime Time or Bust" },
-  { handle: "@RedZoneRuiner", displayName: "Red Zone Ruiner" },
-  { handle: "@SackDanceDaily", displayName: "Sack Dance Daily" },
-  { handle: "@FranchiseFatigue", displayName: "Franchise Fatigue" },
-  { handle: "@TrenchWarfareHQ", displayName: "Trench Warfare HQ" },
-  { handle: "@OverreactionOwl", displayName: "The Overreaction Owl" },
-  { handle: "@DraftBustAlert", displayName: "Draft Bust Alert" },
-  { handle: "@CoinCounterRec", displayName: "The Coin Counter" },
-  { handle: "@GameballGrandma", displayName: "Gameball Grandma" },
-  { handle: "@LeagueOfficeMole", displayName: "League Office Mole" },
-  { handle: "@ChainGangChad", displayName: "Chain Gang Chad" },
-  { handle: "@WaiverWireWitch", displayName: "Waiver Wire Witch" },
-  { handle: "@ImmortalityIntel", displayName: "Immortality Intel" },
-  { handle: "@PylonCam", displayName: "Pylon Cam" },
-  { handle: "@FilmRoomFanatic", displayName: "Film Room Fanatic" },
-  { handle: "@HatersHuddle", displayName: "The Haters' Huddle" },
-  { handle: "@StatSheetStan", displayName: "Stat Sheet Stan" },
-  { handle: "@BackupQBTruther", displayName: "Backup QB Truther" },
-  { handle: "@GoalLineGossip", displayName: "Goal Line Gossip" },
-  { handle: "@RTIRecapRadio", displayName: "RTI Recap Radio" },
-  { handle: "@CutdayCassie", displayName: "Cutday Cassie" },
-  { handle: "@FourthQuarterFred", displayName: "Fourth Quarter Fred" },
-  { handle: "@ScoutingScrolls", displayName: "Scouting Scrolls" },
-  { handle: "@BlitzPickupBetty", displayName: "Blitz Pickup Betty" },
-  { handle: "@RingChaserReport", displayName: "Ring Chaser Report" },
-  { handle: "@PracticeSquadPete", displayName: "Practice Squad Pete" },
-  { handle: "@EndZoneEcho", displayName: "End Zone Echo" },
-  { handle: "@TrophyCaseTalk", displayName: "Trophy Case Talk" },
-  { handle: "@ImmortalityIndex", displayName: "The Immortality Index" },
-  { handle: "@SnapCountSleuth", displayName: "Snap Count Sleuth" },
-  { handle: "@TwoMinuteTruth", displayName: "Two-Minute Truth" },
-  { handle: "@RedshirtRadar", displayName: "Redshirt Radar" },
-  { handle: "@GhostOfTrainingCamp", displayName: "Ghost of Training Camp" },
-  { handle: "@PylonToPylon", displayName: "Pylon to Pylon" },
-  { handle: "@HotRouteHotTakes", displayName: "Hot Route, Hot Takes" },
-  { handle: "@FieldGoalFairy", displayName: "The Field Goal Fairy" },
-  { handle: "@MiddleLinebackerMike", displayName: "Middle Linebacker Mike" },
-  { handle: "@ThePressBoxPigeon", displayName: "The Press Box Pigeon" },
+// Cycles through the 20 uploaded generic headshots (rti-tweet-generic-001..020) across the 46
+// media/analyst/fan accounts below -- more accounts than unique photos, so a handful of accounts
+// share a face, same as any stock-photo-backed account pool.
+function genericAvatarUrl(index: number): string {
+  const n = ((index % 20) + 20) % 20;
+  return avatarUrlFor(`rti-tweet-generic-${String(n + 1).padStart(3, "0")}`);
+}
+
+// Curated 50-account identity catalog (the 4 TWEET_HOSTS above + the 46 below): 15 fictional
+// media outlets, 6 parody-named analyst archetypes (deliberately NOT the real broadcasters they
+// riff on -- generating ongoing fabricated quotes under a real, identifiable person's actual name
+// is a different and worse thing than an original parody persona with the same energy), and 25
+// fan/hater accounts with consistent personalities. Replaces the old catalog of bare flavor names
+// with real avatar-having identities and a `kind` tag.
+export type GenericAccountKind = "media" | "analyst" | "fan";
+export const GENERIC_HANDLES: Array<{ handle: string; displayName: string; avatarUrl: string; kind: GenericAccountKind }> = [
+  // ================= media outlets (15) =================
+  { handle: "@GridironGospel", displayName: "Gridiron Gospel", kind: "media", avatarUrl: genericAvatarUrl(0) },
+  { handle: "@RTIRecapRadio", displayName: "RTI Recap Radio", kind: "media", avatarUrl: genericAvatarUrl(1) },
+  { handle: "@TheFilmRoomNet", displayName: "The Film Room Network", kind: "media", avatarUrl: genericAvatarUrl(2) },
+  { handle: "@ThirdAndLongPod", displayName: "Third & Long Pod", kind: "media", avatarUrl: genericAvatarUrl(3) },
+  { handle: "@PylonCamMedia", displayName: "Pylon Cam Media", kind: "media", avatarUrl: genericAvatarUrl(4) },
+  { handle: "@RecLeagueWire", displayName: "REC League Wire", kind: "media", avatarUrl: genericAvatarUrl(5) },
+  { handle: "@EndZoneEchoNet", displayName: "End Zone Echo", kind: "media", avatarUrl: genericAvatarUrl(6) },
+  { handle: "@TwoMinuteTruth", displayName: "Two-Minute Truth", kind: "media", avatarUrl: genericAvatarUrl(7) },
+  { handle: "@TrenchWarfareHQ", displayName: "Trench Warfare HQ", kind: "media", avatarUrl: genericAvatarUrl(8) },
+  { handle: "@SundayScariesNet", displayName: "Sunday Scaries Network", kind: "media", avatarUrl: genericAvatarUrl(9) },
+  { handle: "@NoHuddleNews", displayName: "No-Huddle News", kind: "media", avatarUrl: genericAvatarUrl(10) },
+  { handle: "@RedZoneRadioHQ", displayName: "Red Zone Radio", kind: "media", avatarUrl: genericAvatarUrl(11) },
+  { handle: "@ImmortalityIndex", displayName: "The Immortality Index", kind: "media", avatarUrl: genericAvatarUrl(12) },
+  { handle: "@ChainGangDaily", displayName: "Chain Gang Daily", kind: "media", avatarUrl: genericAvatarUrl(13) },
+  { handle: "@BoxScoreBulletin", displayName: "Box Score Bulletin", kind: "media", avatarUrl: genericAvatarUrl(14) },
+
+  // ================= analyst archetypes (6, original parody personas) =================
+  { handle: "@PrimeCoverageHQ", displayName: "Prime Coverage", kind: "analyst", avatarUrl: genericAvatarUrl(15) },
+  { handle: "@MaxSterlingTalks", displayName: "Maxwell Sterling", kind: "analyst", avatarUrl: genericAvatarUrl(16) },
+  { handle: "@CoachCallahanHQ", displayName: "Duke Callahan", kind: "analyst", avatarUrl: genericAvatarUrl(17) },
+  { handle: "@ColtonVanceQB", displayName: "Colton Vance", kind: "analyst", avatarUrl: genericAvatarUrl(18) },
+  { handle: "@DeuceCarnivalHQ", displayName: "Deuce Carnival", kind: "analyst", avatarUrl: genericAvatarUrl(19) },
+  { handle: "@TankReynoldsHQ", displayName: "Tank Reynolds", kind: "analyst", avatarUrl: genericAvatarUrl(0) },
+
+  // ================= fan/hater accounts (25) =================
+  { handle: "@ColdTakesOnly", displayName: "Cold Takes Only", kind: "fan", avatarUrl: genericAvatarUrl(1) },
+  { handle: "@BleacherBarry", displayName: "Barry from the Bleachers", kind: "fan", avatarUrl: genericAvatarUrl(2) },
+  { handle: "@FantasyFraud88", displayName: "Fantasy Fraud Detector", kind: "fan", avatarUrl: genericAvatarUrl(3) },
+  { handle: "@TapeDontLie", displayName: "The Tape Don't Lie", kind: "fan", avatarUrl: genericAvatarUrl(4) },
+  { handle: "@RookieWallWatch", displayName: "Rookie Wall Watch", kind: "fan", avatarUrl: genericAvatarUrl(5) },
+  { handle: "@BoxScoreBandit", displayName: "Box Score Bandit", kind: "fan", avatarUrl: genericAvatarUrl(6) },
+  { handle: "@ClipboardCritic", displayName: "The Clipboard Critic", kind: "fan", avatarUrl: genericAvatarUrl(7) },
+  { handle: "@PrimeTimeOrBust", displayName: "Prime Time or Bust", kind: "fan", avatarUrl: genericAvatarUrl(8) },
+  { handle: "@RedZoneRuiner", displayName: "Red Zone Ruiner", kind: "fan", avatarUrl: genericAvatarUrl(9) },
+  { handle: "@SackDanceDaily", displayName: "Sack Dance Daily", kind: "fan", avatarUrl: genericAvatarUrl(10) },
+  { handle: "@FranchiseFatigue", displayName: "Franchise Fatigue", kind: "fan", avatarUrl: genericAvatarUrl(11) },
+  { handle: "@OverreactionOwl", displayName: "The Overreaction Owl", kind: "fan", avatarUrl: genericAvatarUrl(12) },
+  { handle: "@DraftBustAlert", displayName: "Draft Bust Alert", kind: "fan", avatarUrl: genericAvatarUrl(13) },
+  { handle: "@CoinCounterRec", displayName: "The Coin Counter", kind: "fan", avatarUrl: genericAvatarUrl(14) },
+  { handle: "@GameballGrandma", displayName: "Gameball Grandma", kind: "fan", avatarUrl: genericAvatarUrl(15) },
+  { handle: "@LeagueOfficeMole", displayName: "League Office Mole", kind: "fan", avatarUrl: genericAvatarUrl(16) },
+  { handle: "@ChainGangChad", displayName: "Chain Gang Chad", kind: "fan", avatarUrl: genericAvatarUrl(17) },
+  { handle: "@WaiverWireWitch", displayName: "Waiver Wire Witch", kind: "fan", avatarUrl: genericAvatarUrl(18) },
+  { handle: "@HatersHuddle", displayName: "The Haters' Huddle", kind: "fan", avatarUrl: genericAvatarUrl(19) },
+  { handle: "@StatSheetStan", displayName: "Stat Sheet Stan", kind: "fan", avatarUrl: genericAvatarUrl(0) },
+  { handle: "@BackupQBTruther", displayName: "Backup QB Truther", kind: "fan", avatarUrl: genericAvatarUrl(1) },
+  { handle: "@GoalLineGossip", displayName: "Goal Line Gossip", kind: "fan", avatarUrl: genericAvatarUrl(2) },
+  { handle: "@CutdayCassie", displayName: "Cutday Cassie", kind: "fan", avatarUrl: genericAvatarUrl(3) },
+  { handle: "@FourthQuarterFred", displayName: "Fourth Quarter Fred", kind: "fan", avatarUrl: genericAvatarUrl(4) },
+  { handle: "@BlitzPickupBetty", displayName: "Blitz Pickup Betty", kind: "fan", avatarUrl: genericAvatarUrl(5) },
 ];
 
 // Fixed subset of GENERIC_HANDLES surfaced by the /tweets commissioner command -- a curated
 // 4-account picker, not the full 50-account pool ambient chatter draws from at random.
-export const MANUAL_TWEET_GENERIC_HANDLES: Array<{ handle: string; displayName: string }> = [
+export const MANUAL_TWEET_GENERIC_HANDLES: Array<{ handle: string; displayName: string; avatarUrl: string; kind: GenericAccountKind }> = [
   "@GridironGospel", "@ColdTakesOnly", "@TapeDontLie", "@RTIRecapRadio",
 ].map((handle) => GENERIC_HANDLES.find((h) => h.handle === handle)!);
 
@@ -155,6 +177,15 @@ export const PLAYER_CHATTER_TEMPLATES: PlayerChatterTemplate[] = [
   { mode: "rival", tone: "praise", text: "not gonna lie, {targetPlayer} might be the real deal. see you next time though." },
   { mode: "rival", tone: "praise", text: "{targetPlayer} deserves his flowers. {targetTeam} should be proud. anyway, run it back soon." },
 ];
+
+/** Static avatar lookup for the fixed host/generic catalogs -- checked first (cheap, sync) before
+ * falling back to a DB lookup for player personas (tweet-generation.service.ts's
+ * resolveTweetAvatarUrl), since player handles are dynamic and not known at author time here. */
+export function staticAvatarUrlForHandle(handle: string): string | undefined {
+  const host = Object.values(TWEET_HOSTS).find((h) => h.handle === handle);
+  if (host) return host.avatarUrl;
+  return GENERIC_HANDLES.find((h) => h.handle === handle)?.avatarUrl;
+}
 
 export type TweetTemplate = { category: TweetCategory; voice: TweetAuthor; text: string };
 

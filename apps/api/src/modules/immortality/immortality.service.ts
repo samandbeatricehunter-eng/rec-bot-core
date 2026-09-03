@@ -2819,6 +2819,24 @@ function twitterHandleForProspect(prospect: { first_name?: string | null; last_n
   return { handle: `@${slug}`, displayName };
 }
 
+/** Third-tier avatar fallback for the tweet-queue poster (sweepImmortalityTweetQueue, after the
+ * static host/generic catalog and real-player personas both miss) -- an RTI prospect's own
+ * uploaded headshot_url, matched by recomputing twitterHandleForProspect's handle for every
+ * prospect in this league (handles aren't stored, only derived, so there's nothing to index on
+ * directly; a league's prospect list is small -- 2 per member -- so this is cheap). Safe to use
+ * a prospect's own photo here since, unlike the real-player/analyst catalogs, this is the user's
+ * own created character, not a real person. */
+export async function prospectAvatarUrlForHandle(recLeagueId: string, handle: string): Promise<string | null> {
+  const immortality = await supabase.from("rec_immortality_leagues").select("id").eq("league_id", recLeagueId).maybeSingle();
+  if (!immortality.data) return null;
+  const prospects = await supabase.from("rec_immortality_prospects")
+    .select("first_name,last_name,headshot_url").eq("immortality_league_id", immortality.data.id).not("headshot_url", "is", null);
+  for (const prospect of (prospects.data ?? []) as Array<{ first_name: string | null; last_name: string | null; headshot_url: string | null }>) {
+    if (twitterHandleForProspect(prospect).handle === handle) return prospect.headshot_url;
+  }
+  return null;
+}
+
 const STAGE_INTERVIEW_TWEET_INTROS: Array<(name: string) => string> = [
   (name) => `${name} spoke to reporters this offseason and didn't hold back.`,
   (name) => `${name} was asked about it directly, and answered just as directly.`,
