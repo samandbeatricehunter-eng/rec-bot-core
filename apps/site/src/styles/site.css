@@ -4263,6 +4263,9 @@ h1, h2, h3, .site-wordmark {
 .rise-presentation { display: flex; flex-direction: column; gap: var(--space-4); }
 .rise-presentation-header { text-align: center; }
 .rise-presentation-header h1 { margin: 4px 0 0; }
+/* Reusable link-styled button -- no border/box, underlined accent text, for inline "go back"
+   affordances that need JS (setState) rather than a real navigable href. */
+.site-button-link { display: inline-block; margin-top: var(--space-2); padding: 0; border: 0; background: none; color: var(--accent-bright); font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .rise-reveal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-2); }
 .rise-reveal-card { cursor: default; transition: opacity 0.9s ease, transform 0.9s ease, box-shadow 0.9s ease; }
 .rise-reveal-dissolved { opacity: 0; transform: scale(0.8); pointer-events: none; }

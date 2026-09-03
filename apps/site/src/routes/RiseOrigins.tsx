@@ -63,6 +63,11 @@ export function RiseOriginsPage() {
   const [busy, setBusy] = useState(false);
   const [side, setSide] = useState<Side | null>(null);
   const [stage, setStage] = useState<Stage>("identity");
+  // Once both prospects are built, the page normally hands off to PresentationSequence with no
+  // way back -- a member stuck on its "not eligible yet" message (e.g. one player's Creation
+  // Points isn't actually done) had no way to go check or fix anything. This forces the per-side
+  // tabs back into view even though bothBuilt is still true.
+  const [viewingPlayers, setViewingPlayers] = useState(false);
   const [transitionPhase, setTransitionPhase] = useState<TransitionPhase>("idle");
   // Bumped whenever marking the video watched fails, forcing IntroVideoGate to remount --
   // otherwise a failed save leaves the gate showing an already-ended video with no way to
@@ -158,8 +163,9 @@ export function RiseOriginsPage() {
         </div>
       ) : !hub ? (
         <p className="site-muted">Loading your class…</p>
-      ) : bothBuilt ? (
-        <PresentationSequence guildId={guildId} hub={hub} onSaved={reload} setError={setError} />
+      ) : bothBuilt && !viewingPlayers ? (
+        <PresentationSequence guildId={guildId} hub={hub} onSaved={reload} setError={setError}
+          onReviewPlayers={(targetSide) => { if (targetSide) { setSide(targetSide); setStage("identity"); } setViewingPlayers(true); }} />
       ) : effectiveSide === null ? (
         <div className="rise-origins-cinema">
           <SideChooser
@@ -177,6 +183,11 @@ export function RiseOriginsPage() {
               League positions: {hub.league.offensePosition ?? "—"} / {hub.league.defensePosition ?? "—"}.
               Store purchases are off — Player XP upgrades ratings. Coins pay 2 highlights/week at {hub.league.highlightPayout ?? 100}, GOTW, and interviews.
             </p>
+            {bothBuilt ? (
+              <button type="button" className="site-button-link" onClick={() => setViewingPlayers(false)}>
+                ← Back to franchise selection
+              </button>
+            ) : null}
           </header>
 
           <div className="rise-side-tabs">
@@ -190,7 +201,7 @@ export function RiseOriginsPage() {
           </div>
 
           <nav className="rise-stage-nav" aria-label="Origins steps">
-            {STAGES.map((item) => (
+            {STAGES.filter((item) => item.id !== "throwing_motion" || position === "QB").map((item) => (
               <button key={item.id} type="button" className={stage === item.id ? "is-active" : ""}
                 onClick={() => setStage(item.id)}>{item.label}</button>
             ))}
@@ -1008,12 +1019,13 @@ function OwnerPanel({
  * then the franchise reveal (TeamRevealPanel), then contract signings -- none of which are
  * per-side, so they don't belong in the per-side stage tabs anymore. */
 function PresentationSequence({
-  guildId, hub, onSaved, setError,
+  guildId, hub, onSaved, setError, onReviewPlayers,
 }: {
   guildId: string;
   hub: ImmortalityHubResponse;
   onSaved: () => Promise<void>;
   setError: (value: string | null) => void;
+  onReviewPlayers: (targetSide?: Side) => void;
 }) {
   const owner = hub.owner ?? null;
   const franchiseOptions = hub.franchiseOptions ?? null;
@@ -1061,6 +1073,9 @@ function PresentationSequence({
         <section className="rise-card">
           <h2>Choose Your Franchise</h2>
           <p className="site-muted">{franchiseOptions?.reason ?? "Almost there."}</p>
+          <button type="button" className="site-button-link" onClick={() => onReviewPlayers(franchiseOptions?.needsAttentionSide ?? undefined)}>
+            Review Your Players
+          </button>
         </section>
       ) : (
         <>

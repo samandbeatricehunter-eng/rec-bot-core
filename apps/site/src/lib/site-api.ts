@@ -499,6 +499,7 @@ export type ImmortalityHubResponse = {
   franchiseOptions?: {
     eligible: boolean;
     reason: string | null;
+    needsAttentionSide: "offense" | "defense" | null;
     chosenTeamId: string | null;
     teams: Array<{
       teamId: string; name: string | null; city: string | null; abbreviation: string | null;

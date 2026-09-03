@@ -557,12 +557,31 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
       // build is genuinely unacceptable they reject it, which removes the member from the league
       // entirely (reviewImmortalityProspect) rather than leaving them stuck here.
       let reason: string | null = null;
-      if (!offenseProspect || !defenseProspect) reason = "Finish Origins for both your offense and defense players first.";
-      else if (!buildByProspectId.has(String(offenseProspect.id)) || !buildByProspectId.has(String(defenseProspect.id))) reason = "Finish Creation Points for both players first.";
-      else if (ownerRow.data?.origins_step !== "complete") reason = "Create your owner and finish their interview first.";
+      let needsAttentionSide: "offense" | "defense" | null = null;
+      if (!offenseProspect || !defenseProspect) {
+        reason = "Finish Origins for both your offense and defense players first.";
+        needsAttentionSide = !offenseProspect ? "offense" : "defense";
+      } else {
+        const offenseMissing = !buildByProspectId.has(String(offenseProspect.id));
+        const defenseMissing = !buildByProspectId.has(String(defenseProspect.id));
+        if (offenseMissing || defenseMissing) {
+          const missingName = (side: "offense" | "defense") => {
+            const row = side === "offense" ? offenseProspect : defenseProspect;
+            const name = `${row.first_name ?? ""} ${row.last_name ?? ""}`.trim();
+            return name || `your ${side} player`;
+          };
+          reason = offenseMissing && defenseMissing
+            ? "Finish Creation Points for both players first."
+            : `Finish Creation Points for ${missingName(offenseMissing ? "offense" : "defense")} (${offenseMissing ? "offense" : "defense"}) first.`;
+          needsAttentionSide = offenseMissing ? "offense" : "defense";
+        } else if (ownerRow.data?.origins_step !== "complete") {
+          reason = "Create your owner and finish their interview first.";
+        }
+      }
       return {
         eligible: !myClaim && reason == null,
         reason: myClaim ? null : reason,
+        needsAttentionSide: myClaim ? null : needsAttentionSide,
         chosenTeamId: myClaim ? String(myClaim.team_id) : null,
         teams: (teamIdentities.data ?? []).map((row: any) => ({
           teamId: String(row.team_id),
