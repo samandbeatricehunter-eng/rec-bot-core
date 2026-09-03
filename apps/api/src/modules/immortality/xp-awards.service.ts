@@ -320,6 +320,11 @@ export async function loadRtiMemberGates(input: {
   storeUnlocked: boolean;
   teammateDevUnlocked: boolean;
   weeklyChallenges: WeeklyChallengeView[];
+  playerSnapshots: Array<{
+    playerId: string; playerName: string; position: string | null; side: string; headshotUrl: string | null;
+    teamName: string; teamAbbr: string | null; teamLogoUrl: string | null;
+    seasonLines: string[]; positionRank: number | null; positionCount: number | null; hofProgress: number;
+  }>;
   pendingContracts: number;
 }> {
   const storeUnlocked = gameplaySeasonStages(input.game).has(input.seasonStage);
@@ -334,13 +339,14 @@ export async function loadRtiMemberGates(input: {
     storeUnlocked,
     teammateDevUnlocked: false,
     weeklyChallenges: [] as WeeklyChallengeView[],
+    playerSnapshots: [],
     pendingContracts: 0,
   };
   if (!input.userId) return empty;
   const immortality = await loadImmortalityLeague(input.leagueId);
   if (!immortality) return empty;
   const prospects = await supabase.from("rec_immortality_prospects")
-    .select("id,position")
+    .select("id,side,position,player_id,headshot_url")
     .eq("immortality_league_id", immortality.id)
     .eq("user_id", input.userId);
   let tradesUnlocked = false;
@@ -355,18 +361,40 @@ export async function loadRtiMemberGates(input: {
     ? await supabase.from("rec_immortality_contracts").select("id", { count: "exact", head: true }).in("prospect_id", prospectIds).eq("offer_status", "offered")
     : { count: 0 };
   const league = await supabase.from("rec_leagues").select("season_number,current_week").eq("id", input.leagueId).maybeSingle();
-  const weeklyChallenges = await weeklyChallengesForUser({
-    leagueId: input.leagueId,
-    userId: input.userId,
-    seasonNumber: Number(league.data?.season_number ?? 1),
-    weekNumber: Number(league.data?.current_week ?? 1),
-  });
+  const seasonNumber = Number(league.data?.season_number ?? 1);
+  const weekNumber = Number(league.data?.current_week ?? 1);
+  const playerIds = (prospects.data ?? []).map((row: any) => row.player_id).filter(Boolean).map(String);
+  const playerTeams = playerIds.length
+    ? await supabase.from("rec_players").select("id,team_id").in("id", playerIds)
+    : { data: [] };
+  const teamIds = new Set((playerTeams.data ?? []).map((row: any) => String(row.team_id ?? "")).filter(Boolean));
+  const games = await supabase.from("rec_games").select("home_team_id,away_team_id")
+    .eq("league_id", input.leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber);
+  const hasGameThisWeek = (games.data ?? []).some((game: any) => teamIds.has(String(game.home_team_id)) || teamIds.has(String(game.away_team_id)));
+  const weeklyChallenges = hasGameThisWeek ? await weeklyChallengesForUser({
+    leagueId: input.leagueId, userId: input.userId, seasonNumber, weekNumber,
+  }) : [];
+  const prospectByPlayer = new Map<string, any>((prospects.data ?? []).filter((row: any) => row.player_id)
+    .map((row: any) => [String(row.player_id), row]));
+  const careerScores = prospectIds.length
+    ? await supabase.from("rec_immortality_career_scores").select("prospect_id,career_score").in("prospect_id", prospectIds)
+    : { data: [] };
+  const scoreByProspect = new Map<string, number>((careerScores.data ?? []).map((row: any) => [String(row.prospect_id), Number(row.career_score ?? 0)]));
+  const playerSnapshots = await Promise.all(playerIds.map((playerId) => import("../league-week/pro-tracker.service.js")
+    .then(({ computePlayerLine }) => computePlayerLine({ leagueId: input.leagueId, playerId, seasonNumber, weekNumber }))
+    .then((snapshot) => snapshot ? ({
+      ...snapshot,
+      side: String(prospectByPlayer.get(playerId)?.side ?? ""),
+      headshotUrl: snapshot.headshotUrl ?? prospectByPlayer.get(playerId)?.headshot_url ?? null,
+      hofProgress: Math.max(0, Math.min(100, scoreByProspect.get(String(prospectByPlayer.get(playerId)?.id)) ?? 0)),
+    }) : null)));
   return {
     rostersUnlocked,
     tradesUnlocked,
     storeUnlocked,
     teammateDevUnlocked,
     weeklyChallenges,
+    playerSnapshots: playerSnapshots.filter((row): row is NonNullable<typeof row> => Boolean(row)),
     pendingContracts: Number(pending.count ?? 0),
   };
 }

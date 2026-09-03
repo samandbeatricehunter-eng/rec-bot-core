@@ -1769,29 +1769,33 @@ export function HubHome() {
                   ))}
                 </div>
               ) : null}
-            </div> : <div className="hub-hero-no-matchup"><strong>No matchup this week</strong><span>Your next game will appear here when the league schedule is ready.</span>
-              {isRise && rtiGates?.weeklyChallenges?.length ? (
-                <div className="hub-rti-challenges" style={{ marginTop: 12, textAlign: "left" }}>
-                  {rtiGates.weeklyChallenges.map((player) => (
-                    <article key={player.prospectId}>
-                      <strong>{player.name || player.position} · {player.position}</strong>
-                      <ul>
-                        {player.challenges.map((challenge) => (
-                          <li key={challenge.id} className={challenge.complete ? "is-complete" : undefined}>
-                            <span>{challenge.tier}</span> {challenge.label}
-                          </li>
-                        ))}
-                      </ul>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-            </div>}
+            </div> : <div className="hub-hero-no-matchup"><strong>No matchup this week</strong><span>Your next game will appear here when the league schedule is ready.</span></div>}
 
             <section className="hub-season-snapshot">
               <header><span>Season Snapshot</span><small>{coachName} · {heroTeam}</small></header>
-              <div className="hub-season-snapshot-grid">
-                <article><span>User Score &amp; League Ranking</span><strong>{heroUserScore}</strong><small>{heroUserMeta}</small></article>
+              {isRise && rtiGates?.playerSnapshots?.length ? <div className="hub-rti-player-snapshot-grid">
+                {rtiGates.playerSnapshots.map((player) => <article key={player.playerId} className="hub-rti-player-snapshot-card">
+                  <div className="hub-rti-player-portrait">
+                    {player.headshotUrl ? <img src={player.headshotUrl} alt={`${player.playerName} headshot`} /> : <span>{player.playerName.slice(0, 1)}</span>}
+                    {player.teamLogoUrl ? <img className="hub-rti-player-team-logo" src={player.teamLogoUrl} alt="" /> : null}
+                  </div>
+                  <div className="hub-rti-player-copy">
+                    <p>{player.teamAbbr ?? player.teamName} · {player.position ?? "Player"}</p>
+                    <h3>{player.playerName}</h3>
+                    <div className="hub-rti-player-rank"><strong>{player.positionRank ? `#${player.positionRank}` : "—"}</strong><span>{player.position ?? "POS"} league rank{player.positionCount ? ` · ${player.positionCount} ranked` : ""}</span></div>
+                    <ul>{player.seasonLines.map((line, index) => <li key={`${player.playerId}-${index}`}>{line}</li>)}</ul>
+                  </div>
+                </article>)}
+              </div> : null}
+              {isRise && rtiGates?.playerSnapshots?.length ? <div className="hub-rti-hof-progress-grid">
+                {rtiGates.playerSnapshots.map((player) => <article key={`hof-${player.playerId}`}>
+                  <div><span>{player.side === "offense" ? "Offensive" : "Defensive"} HOF Progress</span><strong>{player.hofProgress.toFixed(1)}%</strong></div>
+                  <p>{player.playerName} · {player.position}</p>
+                  <div className="hub-rti-hof-meter" role="progressbar" aria-label={`${player.playerName} Hall of Fame progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={player.hofProgress}><i style={{ width: `${player.hofProgress}%` }} /></div>
+                </article>)}
+              </div> : null}
+              <div className={`hub-season-snapshot-grid${isRise ? " is-rti" : ""}`}>
+                {!isRise ? <article><span>User Score &amp; League Ranking</span><strong>{heroUserScore}</strong><small>{heroUserMeta}</small></article> : null}
                 <article><span>Wallet Balance</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong><small>Available funds</small></article>
                 <article><span>Savings Balance</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong><small>Banked funds</small></article>
               </div>
@@ -1802,15 +1806,10 @@ export function HubHome() {
               <div className="hub-gameday-actions hub-quick-actions-row">
                 {isRise ? (
                   <>
-                    <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rise`)}><strong>Origins</strong><span>Class &amp; builds</span></button>
                     <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/team/upgrades`)}><strong>Player XP</strong><span>Attribute upgrades</span></button>
                     {rtiGates?.pendingContracts ? <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rise`)}><strong>Contracts</strong><span>{rtiGates.pendingContracts} waiting to sign</span></button> : null}
-                    <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview</strong><span>Media desk</span></button>
                     {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button> : null}
                     <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>
-                    <button type="button" className={`hub-my-team-btn${rtiGates?.rostersUnlocked === false ? " is-locked" : ""}`} disabled={rtiGates?.rostersUnlocked === false} title={rtiGates?.rostersUnlocked === false ? "Rosters unlock after the fantasy draft import." : undefined} onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button>
-                    <button type="button" className={`hub-my-team-btn${rtiGates?.tradesUnlocked ? "" : " is-locked"}`} disabled={!rtiGates?.tradesUnlocked} title={rtiGates?.tradesUnlocked ? undefined : "Unlock Trade Center from the Progression Tree."} onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>
-                    <button type="button" className={`hub-my-team-btn${rtiGates?.storeUnlocked ? "" : " is-locked"}`} disabled={!rtiGates?.storeUnlocked} title={rtiGates?.storeUnlocked ? undefined : "The XP store unlocks in Week 1 of the regular season."} onClick={() => navigate(`/l/${hub.league.id}/store`)}><strong>Store</strong><span>XP marketplace</span></button>
                     {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => setManageFundsOpen(true)}><strong>Manage Funds</strong><span>Transfer &amp; transactions</span></button> : null}
                   </>
                 ) : (

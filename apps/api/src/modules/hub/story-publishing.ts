@@ -33,7 +33,7 @@ function splitBodyIntoChunks(body: string, maxLen = EMBED_DESC_LIMIT): string[] 
   return chunks;
 }
 
-export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string; image_url?: string; channelKey?: "headlines" | "interviews"; mentionDiscordId?: string }): Promise<void> {
+export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string; image_url?: string; channelKey?: "headlines" | "interviews"; mentionDiscordId?: string; embeds?: any[] }): Promise<void> {
   try {
     const linked = await findServerRoutesForLeague(input.leagueId);
     const headlinesChannelId = linked?.routes?.headlines_channel_id as string | null | undefined;
@@ -47,7 +47,7 @@ export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; 
       : (headlinesChannelId ?? announcementsChannelId);
     if (!channelId) return;
     const chunks = splitBodyIntoChunks(input.body);
-    const embeds = chunks.slice(0, EMBED_MAX_PER_MESSAGE).map((chunk, i) => {
+    const embeds = input.embeds ?? chunks.slice(0, EMBED_MAX_PER_MESSAGE).map((chunk, i) => {
       const embed: any = {
         title: i === 0 ? input.headline : `${input.headline} (${i + 1}/${chunks.length})`,
         color: 0xd9a521,

@@ -4025,7 +4025,7 @@ button.poty:disabled {
 .hub-hero-action-modal-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .hub-hero-score-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
-.hub-season-snapshot { width: min(100%, 980px); margin: clamp(24px, 4vw, 38px) auto 0; }
+.hub-season-snapshot { width: min(100%, 980px); margin: clamp(24px, 4vw, 38px) auto 0; text-align: center; }
 .hub-season-snapshot > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .hub-season-snapshot > header span { font-family: var(--font-display); font-size: var(--text-lg); font-weight: 900; letter-spacing: .04em; text-transform: uppercase; }
 .hub-season-snapshot > header small { color: var(--text-muted); }
@@ -4034,6 +4034,30 @@ button.poty:disabled {
 .hub-season-snapshot-grid article > span { min-height: 28px; color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .hub-season-snapshot-grid article > strong { margin: 3px 0; font-family: var(--font-display); font-size: clamp(18px, 2.3vw, 25px); }
 .hub-season-snapshot-grid article > small { overflow: hidden; color: var(--text-secondary); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.hub-season-snapshot-grid.is-rti { width: min(100%, 660px); grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 10px auto 0; }
+.hub-rti-player-snapshot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.hub-rti-player-snapshot-card { position: relative; display: grid; grid-template-columns: 138px minmax(0, 1fr); min-height: 210px; overflow: hidden; border: 1px solid rgba(217,165,33,.35); border-radius: 12px; background: radial-gradient(circle at 10% 15%, rgba(217,165,33,.15), transparent 34%), repeating-linear-gradient(125deg, rgba(255,255,255,.018) 0 2px, transparent 2px 7px), #090c12; box-shadow: 0 18px 45px rgba(0,0,0,.28); }
+.hub-rti-player-snapshot-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: linear-gradient(90deg, #d9a521, #fff0a8, #d9a521); }
+.hub-rti-player-portrait { position: relative; min-height: 210px; background: linear-gradient(180deg, #18202c, #080a0f); }
+.hub-rti-player-portrait > img:first-child { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+.hub-rti-player-portrait > span { display: grid; width: 100%; height: 100%; place-items: center; font-family: var(--font-display); font-size: 64px; color: rgba(255,255,255,.3); }
+.hub-rti-player-team-logo { position: absolute; right: 8px; bottom: 8px; width: 42px !important; height: 42px !important; padding: 5px; object-fit: contain !important; border: 1px solid rgba(255,255,255,.2); border-radius: 9px; background: rgba(5,7,10,.82); }
+.hub-rti-player-copy { display: flex; flex-direction: column; padding: 22px 18px 16px; min-width: 0; }
+.hub-rti-player-copy > p { margin: 0; color: #d9a521; font-size: 10px; font-weight: 900; letter-spacing: .15em; text-transform: uppercase; }
+.hub-rti-player-copy h3 { margin: 4px 0 12px; font-family: var(--font-display); font-size: clamp(22px, 2.6vw, 32px); line-height: .95; text-transform: uppercase; }
+.hub-rti-player-rank { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-block: 1px solid rgba(255,255,255,.09); }
+.hub-rti-player-rank strong { color: #f3c84b; font-family: var(--font-display); font-size: 27px; }
+.hub-rti-player-rank span { color: var(--text-secondary); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.hub-rti-player-copy ul { display: flex; flex-wrap: wrap; gap: 5px 12px; margin: 11px 0 0; padding: 0; list-style: none; }
+.hub-rti-player-copy li { color: #e7ebf1; font-size: 11px; font-weight: 800; }
+.hub-rti-hof-progress-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px auto 0; }
+.hub-rti-hof-progress-grid article { padding: 14px 16px; border: 1px solid rgba(217,165,33,.28); border-radius: 10px; background: rgba(5,7,10,.58); text-align: left; }
+.hub-rti-hof-progress-grid article > div:first-child { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.hub-rti-hof-progress-grid span { color: #d9a521; font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.hub-rti-hof-progress-grid strong { font-family: var(--font-display); font-size: 23px; }
+.hub-rti-hof-progress-grid p { margin: 2px 0 9px; color: var(--text-secondary); font-size: 11px; }
+.hub-rti-hof-meter { height: 9px; overflow: hidden; border: 1px solid rgba(255,255,255,.08); border-radius: 999px; background: #171b22; }
+.hub-rti-hof-meter i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #9f1b1b, #d9a521, #6fcd45); box-shadow: 0 0 14px rgba(217,165,33,.35); }
 .hub-hero-quick-actions { width: min(100%, 980px); margin: 14px auto 0; }
 .hub-hero-quick-actions .hub-quick-actions-row { grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); }
 
@@ -4059,6 +4083,10 @@ button.poty:disabled {
   .hub-hero-comparison-row > div strong { font-size: 18px; }
   .hub-season-snapshot > header { align-items: flex-start; flex-direction: column; gap: 2px; }
   .hub-season-snapshot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hub-rti-player-snapshot-grid { grid-template-columns: 1fr; }
+  .hub-rti-player-snapshot-card { grid-template-columns: 112px minmax(0, 1fr); }
+  .hub-season-snapshot-grid.is-rti { grid-template-columns: 1fr; }
+  .hub-rti-hof-progress-grid { grid-template-columns: 1fr; }
   .hub-hero-action-pills { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hub-hero-action-pills button:first-child:last-child { grid-column: 1 / -1; }
   .hub-hero-score-inputs { grid-template-columns: 1fr; }

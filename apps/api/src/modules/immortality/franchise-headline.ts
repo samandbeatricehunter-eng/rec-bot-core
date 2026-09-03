@@ -80,7 +80,7 @@ export async function postFranchiseSelectionHeadline(input: {
       supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated,logo_url").eq("id", input.teamId).maybeSingle(),
     ]);
 
-    const ownerRow = await supabase.from("rec_immortality_owners").select("id,first_name,last_name")
+    const ownerRow = await supabase.from("rec_immortality_owners").select("id,first_name,last_name,headshot_url")
       .eq("immortality_league_id", input.immortalityLeagueId).eq("user_id", input.userId).maybeSingle();
     const ownerPersona = ownerRow.data?.id
       ? await supabase.from("rec_immortality_owner_persona_results").select("primary_dimension").eq("owner_id", ownerRow.data.id).maybeSingle()
@@ -144,9 +144,23 @@ export async function postFranchiseSelectionHeadline(input: {
     }).select("id").single();
     if (result.error) { console.error("[ERROR] Could not publish RTI franchise headline story:", result.error); return; }
 
+    const teamBrand = team.data?.logo_url ? { name: teamFullName, icon_url: team.data.logo_url } : { name: teamFullName };
+    const personEmbed = (title: string, description: string, headshotUrl: string | null | undefined) => ({
+      author: teamBrand,
+      title,
+      color: 0xd9a521,
+      description,
+      ...(headshotUrl ? { thumbnail: { url: headshotUrl } } : {}),
+      footer: team.data?.logo_url ? { text: "Rise to Immortality", icon_url: team.data.logo_url } : { text: "Rise to Immortality" },
+    });
     await postGeneratedHeadlineToDiscord({
       leagueId: input.recLeagueId, storyId: result.data.id, headline, body,
       image_url: team.data?.logo_url ?? undefined, mentionDiscordId: input.discordId,
+      embeds: [
+        personEmbed(`${ownerFull} · Club Owner`, `${ownerFull} has officially taken the reins of the ${teamFullName}. ${ownerIntroLine}`, ownerRow.data?.headshot_url),
+        personEmbed(`${offenseCard.firstName} ${offenseCard.lastName} · ${offenseCard.position}`, offenseParagraph, (offenseCard as any).headshotUrl),
+        personEmbed(`${defenseCard.firstName} ${defenseCard.lastName} · ${defenseCard.position}`, defenseParagraph, (defenseCard as any).headshotUrl),
+      ],
     });
   } catch (err) {
     console.error("[ERROR] Failed to post RTI franchise selection headline (non-fatal):", err);

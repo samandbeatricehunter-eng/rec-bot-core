@@ -68,7 +68,7 @@ export type ProTrackerPlayerLine = {
   positionRank: number | null; positionCount: number | null;
 };
 
-async function computePlayerLine(input: { leagueId: string; playerId: string; seasonNumber: number; weekNumber: number }): Promise<ProTrackerPlayerLine | null> {
+export async function computePlayerLine(input: { leagueId: string; playerId: string; seasonNumber: number; weekNumber: number }): Promise<ProTrackerPlayerLine | null> {
   const player = await supabase.from("rec_players").select("id,full_name,position,team_id,photo_url").eq("id", input.playerId).maybeSingle();
   if (player.error || !player.data) return null;
 
