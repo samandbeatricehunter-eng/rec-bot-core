@@ -1801,7 +1801,7 @@ export function HubHome() {
               </div> : null}
               {isRise && rtiGates?.playerSnapshots?.length ? <div className="hub-rti-hof-progress-grid">
                 {rtiGates.playerSnapshots.map((player) => <article key={`hof-${player.playerId}`}>
-                  <div className="hub-rti-progress-row"><span>Player XP Progress</span><strong>{player.xpProgressPct.toFixed(1)}%</strong></div>
+                  <div className="hub-rti-progress-row"><span>Player XP Progress</span><strong>{player.playerXpTotal.toLocaleString("en-US")} XP · {player.xpProgressPct.toFixed(1)}%</strong></div>
                   <p>{player.playerName} · {player.position} · to next Player XP point</p>
                   <div className="hub-rti-xp-meter" role="progressbar" aria-label={`${player.playerName} progress to next Player XP point`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={player.xpProgressPct}><i style={{ width: `${player.xpProgressPct}%` }} /></div>
                   <div className="hub-rti-progress-row"><span>{player.side === "offense" ? "Offensive" : "Defensive"} HOF Progress</span><strong>{player.hofProgress.toFixed(1)}%</strong></div>

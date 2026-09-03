@@ -119,7 +119,12 @@ async function resyncDiscordNicknames(guildId: string, leagueId: string, teamId:
   if (linked.error || !linked.data?.length) return;
   const userIds = linked.data.map((row) => row.user_id).filter(Boolean);
   const accounts = await supabase.from("rec_discord_accounts").select("discord_id").in("user_id", userIds);
-  const nick = shortNick(team, isCfb);
+  // Rise to Immortality nicknames the full "City Mascot" (set at franchise assignment via
+  // formatTeamDisplayName) -- falling back to the short mascot-only convention here would
+  // silently strip the city part the next time this team's identity changes.
+  const { loadImmortalityLeague } = await import("../immortality/immortality.service.js");
+  const immortality = await loadImmortalityLeague(leagueId).catch(() => null);
+  const nick = immortality ? (formatTeamDisplayName(team as any) ?? shortNick(team, isCfb)) : shortNick(team, isCfb);
   for (const account of accounts.data ?? []) {
     if (!account.discord_id) continue;
     await setGuildMemberNickname(guildId, account.discord_id, nick, "REC team relocated — nickname updated")

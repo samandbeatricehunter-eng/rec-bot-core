@@ -101,6 +101,12 @@ export async function computePlayerLine(input: { leagueId: string; playerId: str
   const positionRank = ranked.length ? ranked.findIndex((r) => r.playerId === input.playerId) + 1 || null : null;
 
   const teamData = team.data as Record<string, unknown> | null;
+  if (!teamData && player.data.team_id) {
+    // Diagnostic for a reported bug: the DB confirms team_id resolves fine via direct SQL, but
+    // this shows "Free Agent" live. Log whenever that exact contradiction happens so the next
+    // occurrence is caught with the actual runtime values instead of more static guessing.
+    console.error(`[DIAG] computePlayerLine: player ${input.playerId} has team_id ${player.data.team_id} but the rec_teams lookup came back empty`, { teamError: (team as any).error ?? null });
+  }
   const seasonPlayerRow = (seasonStats.players as Array<Record<string, unknown>>).find((row) => String(row.id) === String(input.playerId));
   const seasonTotals = (seasonPlayerRow?.stats as Record<string, unknown>) ?? {};
   return {

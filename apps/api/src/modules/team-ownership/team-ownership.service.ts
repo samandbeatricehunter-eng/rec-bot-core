@@ -807,9 +807,14 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
   const { league } = await getCurrentLeagueForGuild(guildId);
   const isCfb = league.game === "cfb_27";
   const ownerUserId = typeof league.owner_user_id === "string" ? league.owner_user_id : null;
+  // Rise to Immortality nicknames the full "City Mascot" at franchise assignment
+  // (formatTeamDisplayName), not the short mascot-only convention every other league uses --
+  // resyncing with the short form was silently stripping the city part off every nickname.
+  const { loadImmortalityLeague } = await import("../immortality/immortality.service.js");
+  const immortality = await loadImmortalityLeague(league.id).catch(() => null);
   const assignments = await supabase
     .from("rec_team_assignments")
-    .select("user_id,notes,team:rec_teams(name,display_nick,is_relocated)")
+    .select("user_id,notes,team:rec_teams(name,display_city,display_nick,is_relocated)")
     .eq("league_id", league.id)
     .eq("assignment_status", "active")
     .is("ended_at", null);

@@ -84,14 +84,20 @@ export function selectMatchupInterviewQuestion(input: {
   if (pool.length === 0) throw new Error("Matchup interview pool is empty.");
   const contextTags = new Set(contextTagsFor(context));
 
-  // post_win/post_loss/prior-meeting/debut-only tags are hard requirements, not just a weighting
-  // bias -- a question that presupposes a specific fact (a past result, a prior head-to-head
-  // meeting, a rookie's very first week on the roster) makes no sense to ask when that fact isn't
-  // actually true, no matter how the random weighting falls, since down-weighting still leaves it
-  // eligible to be picked. Exclude anything tagged for a fact that hasn't actually happened.
+  // post_win/post_loss/weather/prior-meeting/debut-only are hard requirements, not just a
+  // weighting bias -- a question that presupposes a specific fact (a past result, weather during
+  // a game that already happened, a prior head-to-head meeting, a rookie's very first week on the
+  // roster) makes no sense to ask when that fact isn't actually true, no matter how the random
+  // weighting falls, since down-weighting still leaves it eligible to be picked. post_win/
+  // post_loss/weather are identified by CATEGORY in the pool data (their tags array is empty), not
+  // by a tag -- checking only tags here let every one of them slip through ungated. Exclude
+  // anything for a fact that hasn't actually happened.
   const eligiblePool = pool.filter((question) => {
-    if (question.tags.includes("post_win") && context.lastResult !== "win") return false;
-    if (question.tags.includes("post_loss") && context.lastResult !== "loss") return false;
+    if ((question.category === "post_win" || question.tags.includes("post_win")) && context.lastResult !== "win") return false;
+    if ((question.category === "post_loss" || question.tags.includes("post_loss")) && context.lastResult !== "loss") return false;
+    // "Tough conditions out there today" etc. describe the most recently completed game, same as
+    // post_win/post_loss -- meaningless with zero games played yet (preseason/week 1).
+    if (question.category === "weather" && context.hasPlayedThisSeason !== true) return false;
     if (question.tags.includes("requires_prior_meeting_loss") && context.priorMeetingResult !== "loss") return false;
     if (question.tags.includes("requires_prior_meeting_blowout_win")
       && !(context.priorMeetingResult === "win" && context.priorMeetingMargin === "blowout")) return false;

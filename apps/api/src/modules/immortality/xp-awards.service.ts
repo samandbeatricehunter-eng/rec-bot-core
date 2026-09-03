@@ -389,6 +389,17 @@ export async function loadRtiMemberGates(input: {
     ? await supabase.from("rec_immortality_career_scores").select("prospect_id,career_score").in("prospect_id", prospectIds)
     : { data: [] };
   const scoreByProspect = new Map<string, number>((careerScores.data ?? []).map((row: any) => [String(row.prospect_id), Number(row.career_score ?? 0)]));
+  // rec_immortality_prospects.xp_points_balance only holds the remainder toward the *next*
+  // Player XP point (see creditXpPoints) -- there's no running total column, so the career total
+  // shown on the card is summed from every ledger entry's already-granted whole points.
+  const xpLedger = prospectIds.length
+    ? await supabase.from("rec_immortality_xp_ledger").select("prospect_id,player_xp_delta").in("prospect_id", prospectIds)
+    : { data: [] };
+  const xpTotalByProspect = new Map<string, number>();
+  for (const row of (xpLedger.data ?? []) as Array<{ prospect_id: string; player_xp_delta: number | null }>) {
+    const key = String(row.prospect_id);
+    xpTotalByProspect.set(key, (xpTotalByProspect.get(key) ?? 0) + Number(row.player_xp_delta ?? 0));
+  }
   const playerSnapshots = await Promise.all(playerIds.map((playerId) => import("../league-week/pro-tracker.service.js")
     .then(({ computePlayerLine }) => computePlayerLine({ leagueId: input.leagueId, playerId, seasonNumber, weekNumber }))
     .then((snapshot) => snapshot ? ({
@@ -396,6 +407,7 @@ export async function loadRtiMemberGates(input: {
       side: String(prospectByPlayer.get(playerId)?.side ?? ""),
       headshotUrl: snapshot.headshotUrl ?? prospectByPlayer.get(playerId)?.headshot_url ?? null,
       hofProgress: Math.max(0, Math.min(100, scoreByProspect.get(String(prospectByPlayer.get(playerId)?.id)) ?? 0)),
+      playerXpTotal: xpTotalByProspect.get(String(prospectByPlayer.get(playerId)?.id)) ?? 0,
       // xp_points_balance already holds the remainder toward the next Player XP point (see
       // creditXpPoints -- it stores pointsTowardNextLevel, not the raw running total).
       xpProgressPct: Math.max(0, Math.min(100, (Number(prospectByPlayer.get(playerId)?.xp_points_balance ?? 0) / XP_POINTS_PER_LEVEL) * 100)),
