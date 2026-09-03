@@ -133,7 +133,7 @@ export function SiteHeader() {
     <header className="site-header">
       <HeaderRow1 />
       <HeaderRow2 />
-      {isLeague && hub.selectedLeague ? <LeagueRow3 leagueId={hub.selectedLeague.id} isCommissioner={hub.selectedLeague.isCommissioner} rosterType={hub.selectedLeague.rosterType} riseHubUnlocked={hub.selectedLeague.riseHubUnlocked} rtiRostersUnlocked={hub.selectedLeague.rtiRostersUnlocked} rtiTradesUnlocked={hub.selectedLeague.rtiTradesUnlocked} rtiStoreUnlocked={hub.selectedLeague.rtiStoreUnlocked} /> : <HomeRow3 />}
+      {isLeague && hub.selectedLeague ? <LeagueRow3 leagueId={hub.selectedLeague.id} isCommissioner={hub.selectedLeague.isCommissioner} rosterType={hub.selectedLeague.rosterType} riseHubUnlocked={hub.selectedLeague.riseHubUnlocked} rtiOriginsComplete={hub.selectedLeague.rtiOriginsComplete} rtiRostersUnlocked={hub.selectedLeague.rtiRostersUnlocked} rtiTradesUnlocked={hub.selectedLeague.rtiTradesUnlocked} rtiStoreUnlocked={hub.selectedLeague.rtiStoreUnlocked} /> : <HomeRow3 />}
     </header>
   );
 }

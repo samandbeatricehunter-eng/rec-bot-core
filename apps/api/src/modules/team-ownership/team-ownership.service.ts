@@ -601,10 +601,15 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
   // bot/index-timeout.ts's guildMemberAdd handler catches that case up once they do join. Any
   // other failure (role hierarchy, missing MANAGE_NICKNAMES, etc.) is logged rather than
   // silently eaten, since that used to leave "nicknames just don't work" undebuggable.
+  const leagueConfiguration = await supabase.from("rec_league_configuration").select("roster_type")
+    .eq("league_id", league.id).maybeSingle();
+  const linkedNickname = leagueConfiguration.data?.roster_type === "rise_to_immortality"
+    ? (formatTeamDisplayName(team.data) ?? team.data.name ?? "Team")
+    : shortTeamNickname(team.data, league.game === "cfb_27");
   await setGuildMemberNickname(
     input.guildId,
     input.discordId,
-    shortTeamNickname(team.data, league.game === "cfb_27"),
+    linkedNickname,
     "REC team linked — nickname set to team",
   ).catch((error) => console.error(`[WARN] Failed to set nickname for ${input.discordId} in guild ${input.guildId} (non-fatal):`, error));
 

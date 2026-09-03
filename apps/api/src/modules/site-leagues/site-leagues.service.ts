@@ -70,6 +70,7 @@ export type SiteLeagueSummary = {
   rosterType: string | null;
   riseChapterState: string | null;
   riseHubUnlocked: boolean;
+  rtiOriginsComplete?: boolean;
   rtiRostersUnlocked?: boolean;
   rtiTradesUnlocked?: boolean;
   rtiStoreUnlocked?: boolean;
@@ -194,6 +195,7 @@ export async function listMySiteLeagues(input: {
       rosterType: null,
       riseChapterState: null,
       riseHubUnlocked: true,
+      rtiOriginsComplete: false,
       rtiRostersUnlocked: true,
       rtiTradesUnlocked: true,
       rtiStoreUnlocked: true,
@@ -229,6 +231,16 @@ export async function listMySiteLeagues(input: {
             where i.league_id = l.id
             limit 1
           ) as rise_chapter_state,
+          exists (
+            select 1
+            from rec_immortality_leagues il
+            join rec_immortality_prospects ip on ip.immortality_league_id = il.id and ip.user_id = $2
+            join rec_immortality_contracts ic on ic.prospect_id = ip.id
+            where il.league_id = l.id
+            group by il.id
+            having count(distinct ip.id) = 2
+              and count(*) filter (where ic.contract_number = 1 and ic.offer_status = 'signed') = 2
+          ) as rti_origins_complete,
           (
             select count(distinct user_id)::int
             from (
@@ -311,12 +323,14 @@ export async function listMySiteLeagues(input: {
         const chapter = row.rise_chapter_state ? String(row.rise_chapter_state) as ImmortalityState : "REGISTRATION";
         league.riseChapterState = chapter;
         league.riseHubUnlocked = riseHubUnlocked(chapter);
+        league.rtiOriginsComplete = Boolean(row.rti_origins_complete);
         league.rtiStoreUnlocked = gameplaySeasonStages(game).has(stage);
         league.rtiRostersUnlocked = String(row.fantasy_draft_status ?? "") === "concluded" && Boolean(row.rti_rosters_imported);
         league.rtiTradesUnlocked = false;
       } else {
         league.riseChapterState = null;
         league.riseHubUnlocked = true;
+        league.rtiOriginsComplete = false;
         league.rtiRostersUnlocked = true;
         league.rtiTradesUnlocked = true;
         league.rtiStoreUnlocked = true;

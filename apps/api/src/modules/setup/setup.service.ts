@@ -1199,7 +1199,7 @@ export async function completeWizard(input: {
     // Update Discord nickname if guild + discord ID provided
     if (input.guildId && input.discordId) {
       const teamName = team.data.name ?? team.data.abbreviation ?? "";
-      const nickname = `${teamName} (Commish)`;
+      const nickname = `${team.data.display_city && !teamName.toLowerCase().startsWith(String(team.data.display_city).toLowerCase()) ? `${team.data.display_city} ` : ""}${teamName}`.trim();
       const guildId = input.guildId;
       const discordId = input.discordId;
       const { setGuildMemberNickname } = await import("../../lib/discord-guild.js");

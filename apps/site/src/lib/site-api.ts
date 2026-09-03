@@ -359,6 +359,7 @@ export type SiteLeagueSummary = {
   rosterType?: string | null;
   riseChapterState?: string | null;
   riseHubUnlocked?: boolean;
+  rtiOriginsComplete?: boolean;
   rtiRostersUnlocked?: boolean;
   rtiTradesUnlocked?: boolean;
   rtiStoreUnlocked?: boolean;

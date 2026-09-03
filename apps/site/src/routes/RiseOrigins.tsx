@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { CFB_27_TEAMS, cardBuildsForPosition, citiesForState, HEIGHT_OVERAGE_CP_COST_PER_INCH, IMMORTALITY_OWNER_HEADSHOTS, IMMORTALITY_POSITION_MAX_HEIGHT_INCHES, IQ_QUESTION_COUNT, MADDEN_ATTRIBUTE_DEFINITIONS, MAX_EQUIPPED_CHARACTERISTICS, REC_FIRST_NAMES, REC_LAST_NAMES, spendCreationPoints, THROWING_MOTIONS, US_STATES, immortalityPlayerHeadshots, type ImmortalityHeadshot } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import { RiseContractSigning } from "../components/RiseContractSigning.js";
@@ -59,6 +59,7 @@ function prospectFor(hub: ImmortalityHubResponse | null, side: Side) {
 
 export function RiseOriginsPage() {
   const { leagueId = "" } = useParams();
+  const navigate = useNavigate();
   const hubCtx = useHub();
   const selected = hubCtx.leagues.find((league) => league.id === leagueId) ?? (hubCtx.selectedLeague?.id === leagueId ? hubCtx.selectedLeague : null);
   const isRise = selected?.rosterType === "rise_to_immortality";
@@ -79,6 +80,7 @@ export function RiseOriginsPage() {
   // otherwise a failed save leaves the gate showing an already-ended video with no way to
   // replay it (the gate stays up since hub.introVideo.watched never actually flipped).
   const [videoResetKey, setVideoResetKey] = useState(0);
+  const originsExitStarted = useRef(false);
 
   const reload = useCallback(async () => {
     if (!guildId) return;
@@ -129,6 +131,19 @@ export function RiseOriginsPage() {
       })();
     }, 400);
   }, [guildId, reload]);
+
+  const allContractsSigned = Boolean(hub?.contracts?.length && hub.contracts.every((contract) => contract.status === "signed"));
+  useEffect(() => {
+    if (!allContractsSigned || originsExitStarted.current) return;
+    originsExitStarted.current = true;
+    setTransitionPhase("out");
+    window.setTimeout(() => {
+      void (async () => {
+        await hubCtx.refreshLeagues();
+        navigate(`/l/${leagueId}/buzz`, { replace: true });
+      })();
+    }, 400);
+  }, [allContractsSigned, hubCtx, leagueId, navigate]);
 
   if (selected && !isRise) {
     return <Navigate replace to={`/l/${leagueId}/buzz`} />;

@@ -218,6 +218,50 @@ export async function queueImmortalityTweetsAfterAdvance(input: { leagueId: stri
   await generateAndQueueImmortalityTweets(input.leagueId, input.seasonNumber, input.weekNumber);
 }
 
+/** Adds two fan-account reactions after an RTI contract is executed. They use the existing
+ * four-hour tweet drip instead of posting simultaneously, keeping the channel timeline natural. */
+export async function queueContractSigningTweets(input: {
+  leagueId: string;
+  seasonNumber: number;
+  weekNumber: number;
+  contractId: string;
+  playerName: string;
+  position: string;
+  teamName: string;
+  contractNumber: number;
+  startSeason: number;
+  endSeason: number;
+  playerXp: number;
+  coins: number;
+}): Promise<void> {
+  const seed = [...input.contractId].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const first = GENERIC_HANDLES[seed % GENERIC_HANDLES.length]!;
+  const second = GENERIC_HANDLES[(seed + 17) % GENERIC_HANDLES.length]!;
+  const label = input.contractNumber === 1 ? "rookie deal" : input.contractNumber === 2 ? "second contract" : "final contract";
+  await supabase.from("rec_immortality_tweet_queue").insert([
+    {
+      league_id: input.leagueId,
+      season_number: input.seasonNumber,
+      week_number: input.weekNumber,
+      author_kind: "generic",
+      author_handle: first.handle,
+      author_display_name: first.displayName,
+      body: `${input.teamName} locked in ${input.playerName} (${input.position}) on a Seasons ${input.startSeason}–${input.endSeason} ${label}. The franchise has its cornerstone.`,
+      status: "pending",
+    },
+    {
+      league_id: input.leagueId,
+      season_number: input.seasonNumber,
+      week_number: input.weekNumber,
+      author_kind: "generic",
+      author_handle: second.handle,
+      author_display_name: second.displayName,
+      body: `${input.playerName} just signed for ${input.coins.toLocaleString("en-US")} REC Coins and ${input.playerXp} Player XP. Now the pressure shifts to making that ${input.position} investment pay off.`,
+      status: "pending",
+    },
+  ]);
+}
+
 /** Clears whatever is still pending from the previous Advance and queues a fresh batch of up to
  * 10 tweets for this one. Safe no-op if the league has nothing tweet-worthy this week. */
 async function generateAndQueueImmortalityTweets(leagueId: string, seasonNumber: number, weekNumber: number): Promise<void> {

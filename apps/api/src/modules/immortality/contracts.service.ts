@@ -13,6 +13,8 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { publishTransitionStory } from "../hub/story-publishing.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { creditXpPoints } from "./xp-awards.service.js";
 import { loadImmortalityLeague, recUserIdFromDiscordId } from "./immortality.service.js";
 
@@ -213,7 +215,7 @@ export async function signImmortalityContract(input: { guildId: string; discordI
   const userId = await recUserIdFromDiscordId(input.discordId);
   const contract = await supabase.from("rec_immortality_contracts").select("*").eq("id", input.contractId).maybeSingle();
   if (!contract.data) throw new ApiError(404, "Contract not found.");
-  const prospect = await supabase.from("rec_immortality_prospects").select("id,user_id,position").eq("id", contract.data.prospect_id).maybeSingle();
+  const prospect = await supabase.from("rec_immortality_prospects").select("id,user_id,position,first_name,last_name,player_id").eq("id", contract.data.prospect_id).maybeSingle();
   if (!prospect.data || String(prospect.data.user_id) !== userId) throw new ApiError(403, "That contract is not yours to sign.");
   if (String(contract.data.offer_status) === "signed") return { ok: true, alreadySigned: true };
 
@@ -246,5 +248,35 @@ export async function signImmortalityContract(input: { guildId: string; discordI
     signed_at: new Date().toISOString(),
   }).eq("id", input.contractId).eq("offer_status", "offered").select("id").maybeSingle();
   if (!signed.data) return { ok: true, alreadySigned: true };
+
+  const playerName = `${prospect.data.first_name ?? ""} ${prospect.data.last_name ?? ""}`.trim() || "A franchise player";
+  const player = prospect.data.player_id
+    ? await supabase.from("rec_players").select("team_id").eq("id", prospect.data.player_id).maybeSingle()
+    : { data: null };
+  const team = player.data?.team_id
+    ? await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", player.data.team_id).maybeSingle()
+    : { data: null };
+  const teamName = formatTeamDisplayName(team.data) ?? "the franchise";
+  const contractLabel = Number(contract.data.contract_number) === 1 ? "rookie contract" : Number(contract.data.contract_number) === 2 ? "second contract" : "final contract";
+  await publishTransitionStory({
+    guildId: input.guildId,
+    primaryAngle: "rti_contract_signing",
+    headline: `${teamName} Sign ${playerName} to ${contractLabel}`,
+    body: `${playerName} (${prospect.data.position}) has signed a Seasons ${contract.data.start_season}–${contract.data.end_season} contract with the ${teamName}. The one-time signing package awards ${coins.toLocaleString("en-US")} REC Coins and ${playerXp} Player XP.`,
+  }).catch((error) => console.error("[WARN] Could not publish RTI contract-signing headline (non-fatal):", error));
+  await import("./tweet-generation.service.js").then(({ queueContractSigningTweets }) => queueContractSigningTweets({
+    leagueId: context.leagueId,
+    seasonNumber: Number(context.rec_leagues.season_number ?? 1),
+    weekNumber: Number(context.rec_leagues.current_week ?? 1),
+    contractId: String(contract.data.id),
+    playerName,
+    position: String(prospect.data.position),
+    teamName,
+    contractNumber: Number(contract.data.contract_number),
+    startSeason: Number(contract.data.start_season),
+    endSeason: Number(contract.data.end_season),
+    playerXp,
+    coins,
+  })).catch((error) => console.error("[WARN] Could not queue RTI contract-signing tweets (non-fatal):", error));
   return { ok: true, alreadySigned: false, playerXp, coins };
 }

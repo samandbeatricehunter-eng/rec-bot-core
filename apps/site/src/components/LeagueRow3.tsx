@@ -34,7 +34,7 @@ function Dropdown({ label, ariaLabel, icon, active, children }: { label: string;
   );
 }
 
-export function LeagueRow3({ leagueId, isCommissioner, rosterType, riseHubUnlocked, rtiRostersUnlocked, rtiTradesUnlocked, rtiStoreUnlocked }: { leagueId: string; isCommissioner: boolean; rosterType?: string | null; riseHubUnlocked?: boolean; rtiRostersUnlocked?: boolean; rtiTradesUnlocked?: boolean; rtiStoreUnlocked?: boolean }) {
+export function LeagueRow3({ leagueId, isCommissioner, rosterType, riseHubUnlocked, rtiOriginsComplete, rtiRostersUnlocked, rtiTradesUnlocked, rtiStoreUnlocked }: { leagueId: string; isCommissioner: boolean; rosterType?: string | null; riseHubUnlocked?: boolean; rtiOriginsComplete?: boolean; rtiRostersUnlocked?: boolean; rtiTradesUnlocked?: boolean; rtiStoreUnlocked?: boolean }) {
   const location = useLocation();
   const navigate = useNavigate();
   const path = location.pathname;
@@ -60,7 +60,7 @@ export function LeagueRow3({ leagueId, isCommissioner, rosterType, riseHubUnlock
 
   return (
     <nav className="site-header-row3" aria-label="League">
-      {isRise ? (
+      {isRise && !rtiOriginsComplete ? (
         <NavLink to={`${base}/rise`} className={["site-header-row3-btn", isActive(path, `${base}/rise`) ? "is-active" : ""].filter(Boolean).join(" ")}>
           <IconTeam /><span>Rise</span>
         </NavLink>
@@ -115,7 +115,7 @@ export function LeagueRow3({ leagueId, isCommissioner, rosterType, riseHubUnlock
           ) : null}
           {isRise ? (
             <>
-              <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/rise`); }}>Origins / Class</button>
+              {!rtiOriginsComplete ? <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/rise`); }}>Origins / Class</button> : null}
               <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/team/upgrades`); }}>Player XP</button>
               <button type="button" role="menuitem" className="site-account-menu-item" disabled={rtiTradesUnlocked !== true} title={rtiTradesUnlocked === true ? undefined : "Unlock Trade Center from the Progression Tree (Personnel Chief)."} onClick={() => { if (rtiTradesUnlocked !== true) return; close(); navigate(`${base}/trades`); }}>Trade Center</button>
               <button type="button" role="menuitem" className="site-account-menu-item" disabled={rtiStoreUnlocked !== true} title={rtiStoreUnlocked === true ? undefined : "The XP store unlocks in Week 1 of the regular season."} onClick={() => { if (rtiStoreUnlocked !== true) return; close(); navigate(`${base}/store`); }}>Store</button>

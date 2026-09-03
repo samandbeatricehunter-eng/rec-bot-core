@@ -462,9 +462,12 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
   const franchiseTeam = myFranchiseClaim
     ? (teamIdentities.data ?? []).find((row) => String(row.team_id) === String(myFranchiseClaim.team_id))
     : null;
-  const franchiseTeamName = franchiseTeam
-    ? `${franchiseTeam.display_city ?? franchiseTeam.default_city ?? ""} ${franchiseTeam.display_team_name ?? franchiseTeam.default_team_name ?? ""}`.trim()
-    : null;
+  const franchiseTeamName = (() => {
+    if (!franchiseTeam) return null;
+    const city = String(franchiseTeam.display_city ?? franchiseTeam.default_city ?? "").trim();
+    const name = String(franchiseTeam.display_team_name ?? franchiseTeam.default_team_name ?? "").trim();
+    return city && !name.toLowerCase().startsWith(city.toLowerCase()) ? `${city} ${name}`.trim() : name || city || null;
+  })();
   const ownerDisplayName = ownerRow.data
     ? `${ownerRow.data.first_name ?? ""} ${ownerRow.data.last_name ?? ""}`.trim() || null
     : null;
