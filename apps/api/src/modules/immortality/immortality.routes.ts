@@ -44,6 +44,7 @@ import {
   submitThrowingMotion,
 } from "./immortality.service.js";
 import { signImmortalityContract } from "./contracts.service.js";
+import { postManualImmortalityTweet } from "./tweet-generation.service.js";
 import { IMMORTALITY_STATES, IQ_QUESTION_COUNT } from "@rec/shared";
 
 const GuildBody = z.object({ guildId: z.string().min(1) });
@@ -324,6 +325,25 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "XP purchase review requires a website session.");
       return reply.send(await reviewImmortalityXpRequest({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Bot-only: the /tweets slash command already gates on commissioner/co-commissioner Discord
+  // roles before calling this -- see requireBotOrUserSession's "bot" mode, which skips the
+  // permission assertion entirely and trusts the caller (same trust model as the Commish Tools
+  // actions in scheduling.routes.ts).
+  app.post("/v1/immortality/tweets/manual", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({
+        persona: z.string().min(1),
+        customHandle: z.string().trim().max(50).optional(),
+        customDisplayName: z.string().trim().max(50).optional(),
+        tweetText: z.string().trim().min(1).max(1000),
+        mentionContent: z.string().trim().max(200).optional(),
+      }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      await postManualImmortalityTweet(body);
+      return reply.send({ posted: true });
     } catch (error) { return sendError(reply, error); }
   });
 

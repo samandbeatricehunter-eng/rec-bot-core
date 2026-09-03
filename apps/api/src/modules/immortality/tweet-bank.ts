@@ -71,10 +71,16 @@ export const GENERIC_HANDLES: Array<{ handle: string; displayName: string }> = [
   { handle: "@ThePressBoxPigeon", displayName: "The Press Box Pigeon" },
 ];
 
+// Fixed subset of GENERIC_HANDLES surfaced by the /tweets commissioner command -- a curated
+// 4-account picker, not the full 50-account pool ambient chatter draws from at random.
+export const MANUAL_TWEET_GENERIC_HANDLES: Array<{ handle: string; displayName: string }> = [
+  "@GridironGospel", "@ColdTakesOnly", "@TapeDontLie", "@RTIRecapRadio",
+].map((handle) => GENERIC_HANDLES.find((h) => h.handle === handle)!);
+
 export type TweetCategory =
   | "big_pass" | "big_rush" | "big_receiving" | "multi_td" | "turnover_heavy"
   | "def_takeover" | "playmaker" | "quiet_game" | "milestone" | "blowout_win"
-  | "close_game" | "bad_loss" | "hype" | "taunt" | "praise";
+  | "close_game" | "bad_loss" | "hype" | "taunt" | "praise" | "camp_buzz";
 
 export type TweetSlots = {
   player?: string;
@@ -479,4 +485,22 @@ export const TWEET_TEMPLATES: TweetTemplate[] = [
 
   t("big_pass", "darius", "{player} was throwing with real anticipation all game -- {value} {statLabel} against {opponent} is what trusting your reads looks like."),
   t("big_pass", "generic", "{player} really out here averaging a small city's population in passing yards. {value} against {opponent}."),
+
+  // ================= camp_buzz =================
+  // No game has been played yet in this stretch (preseason/training camp, or the wider
+  // offseason pipeline between seasons) -- these never reference {opponent}/{score}/{week}/
+  // {margin} or imply any result, unlike praise/taunt which assume a season already in progress.
+  t("camp_buzz", "marcus", "Nobody's played a snap that counts yet, but {player} is exactly the kind of {team} storyline I'll be tracking once the season actually starts."),
+  t("camp_buzz", "marcus", "Too early to grade anybody off camp buzz alone, but {player}'s name keeps coming up around {team} and that's worth watching."),
+  t("camp_buzz", "marcus", "I don't put much stock in camp hype, but {player} has earned a real look from {team}'s coaching staff heading into the season."),
+  t("camp_buzz", "jalen", "{player} pulling up to {team} camp with that main character energy already. Season hasn't even started and I'm already invested."),
+  t("camp_buzz", "jalen", "I don't even care that nothing's official yet -- {player} is must-watch the second {team} kicks off."),
+  t("camp_buzz", "elliot", "No stats to pull yet, but I'm already setting up the tracker for {player} once {team}'s season opens."),
+  t("camp_buzz", "elliot", "Preseason noise is preseason noise -- I'll have real numbers on {player} once games actually count. For now, just watching the buzz."),
+  t("camp_buzz", "darius", "You can see it in how {player} carries himself in camp before a single game's been played. That's not hype, that's readiness."),
+  t("camp_buzz", "darius", "{player} looks like a guy who's been putting in the work this offseason. We'll find out for real once {team} kicks off."),
+  t("camp_buzz", "generic", "{player} allegedly looking DIFFERENT in camp this year. we'll see when {team} actually plays somebody."),
+  t("camp_buzz", "generic", "{team} fans already talking about {player} like the season started. I respect the confidence."),
+  t("camp_buzz", "generic", "not a single game played yet and {player} is already the {team} storyline everybody's watching."),
+  t("camp_buzz", "generic", "kickoff can't get here fast enough, {player} and {team} have me way too hyped for a season that hasn't started."),
 ];

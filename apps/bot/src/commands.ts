@@ -48,6 +48,30 @@ export const commands = [
     .setName("commishtools")
     .setDescription("Commissioner tools: Force Win, Fair Sim, AutoPilot, Suspend, Boot, Reset Scheduling, Game Day Audit.")
     .toJSON(),
+  new SlashCommandBuilder()
+    .setName("tweets")
+    .setDescription("Commissioner: post a tweet to the RTI tweets feed as a persona, a generic account, or a custom handle.")
+    .addStringOption((opt) => opt
+      .setName("persona")
+      .setDescription("Who's posting this tweet?")
+      .setRequired(true)
+      .addChoices(
+        { name: "Marcus Vale", value: "marcus" },
+        { name: "Jalen Cross", value: "jalen" },
+        { name: "Elliot Mercer", value: "elliot" },
+        { name: "Darius King", value: "darius" },
+        { name: "Gridiron Gospel", value: "generic1" },
+        { name: "Cold Takes Only", value: "generic2" },
+        { name: "The Tape Don't Lie", value: "generic3" },
+        { name: "RTI Recap Radio", value: "generic4" },
+        { name: "Custom handle", value: "custom" },
+      ))
+    .addStringOption((opt) => opt.setName("tweet").setDescription("The tweet text.").setRequired(true).setMaxLength(1000))
+    .addStringOption((opt) => opt.setName("custom_handle").setDescription("Handle to post as (only used when persona is Custom handle).").setRequired(false).setMaxLength(50))
+    .addStringOption((opt) => opt.setName("custom_display_name").setDescription("Display name for the custom handle (defaults to the handle).").setRequired(false).setMaxLength(50))
+    .addMentionableOption((opt) => opt.setName("tag").setDescription("Tag a specific user or role above the tweet (optional).").setRequired(false))
+    .addBooleanOption((opt) => opt.setName("tag_everyone").setDescription("Tag @everyone above the tweet (optional).").setRequired(false))
+    .toJSON(),
 ];
 
 function discordRest() {

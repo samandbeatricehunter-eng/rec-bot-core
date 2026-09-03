@@ -5,13 +5,14 @@
 // separate 4-hour drip -- see sweepImmortalityTweetQueue below -- not done here.
 import { gameplaySeasonStages, type LeagueGame } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
+import { ApiError } from "../../lib/errors.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
-import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
+import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { loadImmortalityLeague } from "./immortality.service.js";
 import {
-  GENERIC_HANDLES, TWEET_HOSTS, TWEET_TEMPLATES,
-  type TweetAuthor, type TweetCategory, type TweetSlots, type TweetTemplate,
+  GENERIC_HANDLES, MANUAL_TWEET_GENERIC_HANDLES, TWEET_HOSTS, TWEET_TEMPLATES,
+  type TweetAuthor, type TweetCategory, type TweetHostKey, type TweetSlots, type TweetTemplate,
 } from "./tweet-bank.js";
 
 const QUEUE_SIZE = 10;
@@ -282,6 +283,65 @@ export async function queueContractSigningTweets(input: {
   ]);
 }
 
+const MANUAL_GENERIC_PERSONA_KEYS = ["generic1", "generic2", "generic3", "generic4"] as const;
+
+/** Commissioner-authored tweet from the bot's /tweets command (immortality.routes.ts's
+ * /v1/immortality/tweets/manual) -- posts immediately rather than joining the drip queue, and
+ * logs a "posted" row in the same table (source: "manual") so it shows up alongside the
+ * generated feed in any history view. */
+export async function postManualImmortalityTweet(input: {
+  guildId: string;
+  persona: string;
+  customHandle?: string;
+  customDisplayName?: string;
+  tweetText: string;
+  mentionContent?: string;
+}): Promise<void> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const routes = await findServerRoutesForLeague(context.leagueId);
+  const channelId = (routes?.routes as any)?.tweets_channel_id as string | null | undefined;
+  if (!channelId) throw new ApiError(400, "This server has no tweets channel configured yet.");
+
+  let handle: string;
+  let displayName: string;
+  let authorKind: "host" | "generic" | "custom";
+  if (input.persona in TWEET_HOSTS) {
+    const host = TWEET_HOSTS[input.persona as TweetHostKey];
+    handle = host.handle; displayName = host.displayName; authorKind = "host";
+  } else if (input.persona === "custom") {
+    const rawHandle = input.customHandle?.trim();
+    if (!rawHandle) throw new ApiError(400, "A custom handle is required.");
+    handle = rawHandle.startsWith("@") ? rawHandle : `@${rawHandle}`;
+    displayName = input.customDisplayName?.trim() || handle;
+    authorKind = "custom";
+  } else {
+    const index = MANUAL_GENERIC_PERSONA_KEYS.indexOf(input.persona as (typeof MANUAL_GENERIC_PERSONA_KEYS)[number]);
+    const account = index === -1 ? null : MANUAL_TWEET_GENERIC_HANDLES[index];
+    if (!account) throw new ApiError(400, "Unknown tweet persona.");
+    handle = account.handle; displayName = account.displayName; authorKind = "generic";
+  }
+
+  const posted = await postDiscordChannelMessage(channelId, {
+    content: input.mentionContent?.trim() || undefined,
+    embeds: [{ author: { name: `${displayName} (${handle})` }, description: input.tweetText, color: 0x1d9bf0 }],
+  });
+  if (!posted) throw new ApiError(502, "Discord rejected the tweet -- check the tweets channel still exists and the bot can post there.");
+
+  const league = await supabase.from("rec_leagues").select("season_number,current_week").eq("id", context.leagueId).maybeSingle();
+  await supabase.from("rec_immortality_tweet_queue").insert({
+    league_id: context.leagueId,
+    season_number: Number(league.data?.season_number ?? 1),
+    week_number: Number(league.data?.current_week ?? 1),
+    author_kind: authorKind,
+    author_handle: handle,
+    author_display_name: displayName,
+    body: input.tweetText,
+    status: "posted",
+    posted_at: new Date().toISOString(),
+    source: "manual",
+  });
+}
+
 /** Clears whatever this generator left pending from its previous run and queues a fresh batch of
  * up to 10 tweets for this one. Safe no-op if the league has nothing tweet-worthy this week.
  * Scoped to source: "weekly_recap" only -- this used to clear every pending row for the league
@@ -393,8 +453,11 @@ const AMBIENT_CHATTER_COOLDOWN_MS = 90 * 60 * 1000;
 /** Fan/hater chatter about a random active prospect that doesn't depend on any game result --
  * reuses the existing "praise"/"taunt" template categories (already written generically enough to
  * not require a real stat line), filtered down to the variants that don't reference a game
- * ({opponent}/{score}/{week}). Gives the feed something happening even with zero games played
- * yet (preseason, a bye week, between imports), which stat-driven tweets can't do on their own. */
+ * ({opponent}/{score}/{week}). Gives the feed something happening even between games (a bye week,
+ * between imports). Outside gameplaySeasonStages entirely -- true preseason/training camp or the
+ * wider offseason pipeline, where literally zero games have been played this season -- falls back
+ * to "camp_buzz" instead: praise/taunt's "been good all season" framing presupposes a season
+ * already in progress, which reads as nonsense before Week 1. */
 async function queueAmbientFanChatterIfDue(recLeagueId: string, immortalityLeagueId: string): Promise<void> {
   const last = await supabase.from("rec_immortality_tweet_queue")
     .select("created_at").eq("league_id", recLeagueId).eq("source", "ambient")
@@ -404,6 +467,11 @@ async function queueAmbientFanChatterIfDue(recLeagueId: string, immortalityLeagu
   // Only fires on a fraction of the sweep ticks that clear the cooldown, so it reads as
   // occasional chatter rather than a metronome going off exactly every 90 minutes.
   if (Math.random() > 0.4) return;
+
+  const league = await supabase.from("rec_leagues")
+    .select("season_number,current_week,season_stage,game").eq("id", recLeagueId).maybeSingle();
+  if (!league.data) return;
+  const inGameplayStage = gameplaySeasonStages(league.data.game as LeagueGame).has(String(league.data.season_stage ?? ""));
 
   const prospects = await supabase.from("rec_immortality_prospects")
     .select("first_name,last_name,player_id").eq("immortality_league_id", immortalityLeagueId).not("player_id", "is", null);
@@ -418,7 +486,7 @@ async function queueAmbientFanChatterIfDue(recLeagueId: string, immortalityLeagu
     : { data: null };
   const teamName = formatTeamDisplayName(team.data) ?? "their team";
 
-  const category: TweetCategory = Math.random() < 0.5 ? "praise" : "taunt";
+  const category: TweetCategory = inGameplayStage ? (Math.random() < 0.5 ? "praise" : "taunt") : "camp_buzz";
   const templates = TWEET_TEMPLATES.filter((tmpl) => tmpl.category === category
     && !tmpl.text.includes("{opponent}") && !tmpl.text.includes("{score}") && !tmpl.text.includes("{week}") && !tmpl.text.includes("{margin}"));
   const template = pick(templates) as TweetTemplate | null;
@@ -427,11 +495,10 @@ async function queueAmbientFanChatterIfDue(recLeagueId: string, immortalityLeagu
   if (!body) return;
   const author = resolveAuthor(template.voice);
 
-  const league = await supabase.from("rec_leagues").select("season_number,current_week").eq("id", recLeagueId).maybeSingle();
   await supabase.from("rec_immortality_tweet_queue").insert({
     league_id: recLeagueId,
-    season_number: Number(league.data?.season_number ?? 1),
-    week_number: Number(league.data?.current_week ?? 1),
+    season_number: Number(league.data.season_number ?? 1),
+    week_number: Number(league.data.current_week ?? 1),
     author_kind: author.authorKind, author_handle: author.handle, author_display_name: author.displayName,
     body, status: "pending", source: "ambient",
   });
