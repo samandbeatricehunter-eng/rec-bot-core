@@ -1286,11 +1286,17 @@ export const siteApi = {
   immortalityTransitionState(input: { guildId: string; toState: string }) {
     return request<{ league: { chapter_state?: string }; chapter?: string }>("/v1/immortality/state", input);
   },
-  // Both Player XP spends and Team XP conversions now go to the commissioner's Pending Items
-  // inbox for review rather than applying immediately -- see reviewImmortalityXpRequest in
-  // immortality.service.ts. The response is just a submission receipt, not an applied result.
-  immortalitySpendXp(input: { guildId: string; side: "offense" | "defense"; attributeCode: string }) {
-    return request<{ status: "pending_review"; requestId: string }>("/v1/immortality/xp/spend", input);
+  // Applies immediately -- Player XP is deducted and ratings change right away. The pending item
+  // it creates is a commissioner record to confirm ("Applied in game") or reverse ("Refunded"),
+  // not an approval gate. See submitImmortalityUpgrades in immortality.service.ts.
+  immortalitySubmitUpgrades(input: { guildId: string; side: "offense" | "defense"; targets: Record<string, number> }) {
+    return request<{
+      applied: true;
+      upgrades: Array<{ attributeCode: string; attributeName: string; previousRating: number; newRating: number; xpCost: number }>;
+      totalXpCost: number;
+      remainingXp: number;
+      requestId: string;
+    }>("/v1/immortality/upgrades/submit", input);
   },
   immortalityConvertXp(input: { guildId: string; side: "offense" | "defense"; playerXp: number }) {
     return request<{ status: "pending_review"; requestId: string }>("/v1/immortality/xp/convert", input);

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   allCharacteristicCatalogs,
   attributeCodesFor,
@@ -1357,7 +1358,7 @@ export async function evaluateCreationBuild(input: {
   // No OVR estimate for RTI, at creation or ever after -- estimateRecPlayerOverall's weights are
   // wrong for this system by design decision, not an oversight. The class board's draft value
   // is IQ + class-rank only until a real EA import gives this player a true OVR (see
-  // spendPlayerXp/convertXp/ability-gating, which all read rec_players.overall_rating instead).
+  // submitImmortalityUpgrades/convertXp/ability-gating, which all read rec_players.overall_rating instead).
   const saved = await supabase.from("rec_immortality_creation_builds").upsert({
     prospect_id: prospect.id,
     baseline_attributes: baseline,
@@ -3287,124 +3288,28 @@ export async function convertXp(input: { guildId: string; discordId: string; sid
   return { status: "pending_review" as const, requestId: inboxInsert.data.id };
 }
 
-/** The actual Player XP attribute spend, only ever run once a commissioner approves the pending
- * request -- see reviewImmortalityXpRequest. Re-derives everything from fresh data rather than
- * trusting whatever was true at request time. */
-async function applyPlayerXpSpend(prospect: Record<string, any>, attributeCode: string) {
-  const code = attributeCode.toUpperCase();
-  const rosterKey = MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY[code as keyof typeof MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY];
-  if (!rosterKey) throw new ApiError(400, "Unknown attribute.");
-  if (!prospect.player_id) throw new ApiError(400, "Player XP unlocks once this player is on a roster with real game data imported.");
-  const [traits, build, ledger, player] = await Promise.all([
-    supabase.from("rec_immortality_prospect_characteristics").select("characteristic_key").eq("prospect_id", prospect.id),
-    supabase.from("rec_immortality_creation_builds").select("final_attributes").eq("prospect_id", prospect.id).maybeSingle(),
-    supabase.from("rec_immortality_xp_ledger").select("player_xp_delta,team_xp_delta").eq("prospect_id", prospect.id),
-    supabase.from("rec_players").select("attributes,overall_rating").eq("id", prospect.player_id).maybeSingle(),
-  ]);
-  if (!build.data) throw new ApiError(400, "Finish Creation Points before spending Player XP.");
-  // Real OVR from the latest EA import, not a Creation Points estimate. No import yet means no
-  // dev-trait ceiling to check against -- Player XP spend has to wait for real game data.
-  if (player.data?.overall_rating == null) throw new ApiError(400, "Player XP unlocks once this player's first real game data is imported.");
-  const currentOvr = Number(player.data.overall_rating);
-  const catalog = characteristicCatalog(positionGroupFor(prospect.position as ImmortalityPosition));
-  const selected = catalog.filter((item) => (traits.data ?? []).some((row) => row.characteristic_key === item.key));
-  const modifiers = combinedModifiers(selected);
-  const attributes = { ...((build.data.final_attributes ?? {}) as Record<string, number>) };
-  const currentValue = Number(attributes[code] ?? 0);
-  const available = ledgerXpBalance(ledger.data ?? []).playerXp;
-  const result = spendAttributePlusOne({
-    currentValue,
-    discount: modifiers.xpDiscounts[code] ?? 0,
-    currentOvr,
-    ceiling: DEV_OVR_CEILING[startingDevTrait(modifiers)],
-    availableXp: available,
-  });
-  if (!result.ok) throw new ApiError(400, result.error);
-  attributes[code] = result.nextValue;
-  const sourceId = `attr:${code}:${currentValue}`;
-  const inserted = await supabase.rpc("rec_immortality_spend_xp", {
-    p_prospect_id: prospect.id,
-    p_event_type: "attribute_upgrade",
-    p_source_id: sourceId,
-    p_player_xp_delta: -result.cost,
-    p_team_xp_delta: 0,
-    p_formula_version: FORMULA_VERSIONS.xp,
-  });
-  if (inserted.error?.code === "23505") throw new ApiError(409, "That upgrade was already applied.");
-  if (inserted.error) throw new ApiError(500, "Could not spend Player XP.", inserted.error);
-  if (!inserted.data) throw new ApiError(400, "Not enough Player XP for that upgrade.");
-  await supabase.from("rec_immortality_creation_builds").update({
-    final_attributes: attributes,
-    updated_at: new Date().toISOString(),
-  }).eq("prospect_id", prospect.id);
-  // Only the purchased attribute changes here -- overall_rating is never written from our side;
-  // it only ever comes from the next real EA roster import reading this player's true in-game rating.
-  const nextAttrs = { ...((player.data?.attributes ?? {}) as Record<string, unknown>), [rosterKey]: result.nextValue };
-  await supabase.from("rec_players").update({ attributes: nextAttrs, updated_at: new Date().toISOString() }).eq("id", prospect.player_id);
-  return { attributeCode: code, nextValue: result.nextValue, cost: result.cost, currentOvr, playerXp: available - result.cost };
-}
-
-/** Submits a Player XP attribute-upgrade request for commissioner review -- mirrors how every
- * other league's coin-store purchases go into rec_commissioners_inbox pending, rather than
- * applying immediately. Light structural validation only; XP-balance/OVR-ceiling sufficiency is
- * re-checked for real at approval time in applyPlayerXpSpend. */
-export async function spendPlayerXp(input: {
-  guildId: string;
-  discordId: string;
-  side: "offense" | "defense";
-  attributeCode: string;
-}) {
-  const context = await getCurrentLeagueContext(input.guildId);
-  const league = await requireImmortalityLeague(context.leagueId);
-  const userId = await recUserIdFromDiscordId(input.discordId);
-  const prospect = await loadProspectForUser(league.id, userId, input.side);
-  if (!prospect) throw new ApiError(400, "Prospect not found.");
-  const code = input.attributeCode.toUpperCase();
-  const rosterKey = MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY[code as keyof typeof MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY];
-  if (!rosterKey) throw new ApiError(400, "Unknown attribute.");
-  if (!prospect.player_id) throw new ApiError(400, "Player XP unlocks once this player is on a roster with real game data imported.");
-
-  const discordId = await discordIdForRecUser(userId).catch(() => null);
-  const name = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Unnamed Prospect";
-  const attrName = MADDEN_ATTRIBUTE_BY_CODE.get(code as MaddenAttributeCode)?.name ?? code;
-  const inboxInsert = await supabase.from("rec_commissioners_inbox").insert({
-    guild_id: input.guildId, league_id: context.leagueId, queue_type: "immortality_xp_spend",
-    status: "pending", priority: 0,
-    header: `Player XP Spend: ${name} (${prospect.position}) — ${attrName}`,
-    summary: `Requesting a +1 Player XP upgrade to ${attrName} (${code}).`,
-    requester_user_id: userId, requester_discord_id: discordId,
-    source_table: "rec_immortality_prospects", source_id: prospect.id,
-    payload: { prospectId: prospect.id, side: prospect.side, name, position: prospect.position, attributeCode: code, attributeName: attrName },
-  }).select("id").single();
-  if (inboxInsert.error) throw new ApiError(500, "Could not submit that upgrade for review.", inboxInsert.error);
-  await notifyLeagueCommissionersOfPendingItem(context.leagueId);
-  return { status: "pending_review" as const, requestId: inboxInsert.data.id };
-}
-
-/** Approve/reject a pending Player XP spend or Team XP conversion request. Approving actually
- * runs the spend/conversion now (re-validated against current state, see
- * applyPlayerXpSpend/applyXpConversion) -- if it fails (e.g. the balance no longer covers it),
- * the request is left pending so the commissioner can see why and follow up, rather than being
- * silently marked approved with no effect. */
+/** Approve/reject a pending Team XP conversion request. Approving actually runs the conversion
+ * now (re-validated against current state, see applyXpConversion) -- if it fails (e.g. the
+ * balance no longer covers it), the request is left pending so the commissioner can see why and
+ * follow up, rather than being silently marked approved with no effect. Player XP attribute
+ * upgrades are a separate, immediate-apply flow -- see submitImmortalityUpgrades/
+ * resolveImmortalityUpgradeBatch below. */
 export async function reviewImmortalityXpRequest(input: {
   guildId: string; requestId: string; action: "approve" | "reject"; reviewerDiscordId: string; note?: string;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
-  const league = await requireImmortalityLeague(context.leagueId);
   const request = await supabase.from("rec_commissioners_inbox").select("*").eq("id", input.requestId).eq("league_id", context.leagueId).maybeSingle();
   if (request.error || !request.data) throw new ApiError(404, "Request not found in this league.");
-  if (!["immortality_xp_spend", "immortality_xp_conversion"].includes(String(request.data.queue_type))) throw new ApiError(400, "That request isn't an XP purchase.");
+  if (String(request.data.queue_type) !== "immortality_xp_conversion") throw new ApiError(400, "That request isn't a Team XP conversion.");
   if (request.data.status !== "pending") throw new ApiError(409, `Request is already ${request.data.status}.`);
   if (input.action === "reject" && !input.note?.trim()) throw new ApiError(400, "A rejection reason is required.");
 
   const payload = (request.data.payload ?? {}) as Record<string, any>;
   let result: unknown = null;
   if (input.action === "approve") {
-    const prospect = await supabase.from("rec_immortality_prospects").select("*").eq("id", payload.prospectId).eq("immortality_league_id", league.id).maybeSingle();
+    const prospect = await supabase.from("rec_immortality_prospects").select("*").eq("id", payload.prospectId).eq("immortality_league_id", context.leagueId).maybeSingle();
     if (!prospect.data) throw new ApiError(404, "This prospect no longer exists.");
-    result = request.data.queue_type === "immortality_xp_spend"
-      ? await applyPlayerXpSpend(prospect.data, String(payload.attributeCode))
-      : await applyXpConversion(prospect.data, Number(payload.playerXp));
+    result = await applyXpConversion(prospect.data, Number(payload.playerXp));
   }
 
   const updated = await supabase.from("rec_commissioners_inbox").update({
@@ -3414,6 +3319,157 @@ export async function reviewImmortalityXpRequest(input: {
   }).eq("id", input.requestId).select("*").single();
   if (updated.error) throw new ApiError(500, "Could not save that review decision.", updated.error);
   return { request: updated.data, result };
+}
+
+export type UpgradeBatchRow = { attributeCode: string; attributeName: string; previousRating: number; newRating: number; xpCost: number };
+
+/** The Upgrades page ("My Team" -> Upgrades, formerly "Player XP"): drag any number of attribute
+ * sliders, then submit the whole batch at once. Unlike the old single-attribute request flow,
+ * this applies immediately -- Player XP is deducted and the rating actually changes right away,
+ * same moment the commissioner sees the pending item. The pending item is a record for the
+ * commissioner to confirm they replicated the change in their own Madden save ("Applied in
+ * game") or reverse it ("Refunded" -- see resolveImmortalityUpgradeBatch), not a gate the player
+ * waits behind. Reuses spendAttributePlusOne per +1 step (same cost ramp/discount/ceiling rules
+ * the old single-attribute flow used), applied repeatedly per attribute to reach each target. */
+export async function submitImmortalityUpgrades(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  targets: Record<string, number>;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Prospect not found.");
+  if (!prospect.player_id) throw new ApiError(400, "Upgrades unlock once this player is on a roster with real game data imported.");
+
+  const [traits, build, ledger, player] = await Promise.all([
+    supabase.from("rec_immortality_prospect_characteristics").select("characteristic_key").eq("prospect_id", prospect.id),
+    supabase.from("rec_immortality_creation_builds").select("final_attributes").eq("prospect_id", prospect.id).maybeSingle(),
+    supabase.from("rec_immortality_xp_ledger").select("player_xp_delta,team_xp_delta").eq("prospect_id", prospect.id),
+    supabase.from("rec_players").select("attributes,overall_rating").eq("id", prospect.player_id).maybeSingle(),
+  ]);
+  if (!build.data) throw new ApiError(400, "Finish Creation Points before spending Player XP.");
+  if (player.data?.overall_rating == null) throw new ApiError(400, "Upgrades unlock once this player's first real game data is imported.");
+  const currentOvr = Number(player.data.overall_rating);
+  const catalog = characteristicCatalog(positionGroupFor(prospect.position as ImmortalityPosition));
+  const selected = catalog.filter((item) => (traits.data ?? []).some((row) => row.characteristic_key === item.key));
+  const modifiers = combinedModifiers(selected);
+  const ceiling = DEV_OVR_CEILING[startingDevTrait(modifiers)];
+  const attributes = { ...((build.data.final_attributes ?? {}) as Record<string, number>) };
+  let remainingXp = ledgerXpBalance(ledger.data ?? []).playerXp;
+
+  const entries = Object.entries(input.targets);
+  if (!entries.length) throw new ApiError(400, "No changes to submit.");
+  const upgrades: UpgradeBatchRow[] = [];
+  const nextAttrs = { ...((player.data?.attributes ?? {}) as Record<string, unknown>) };
+
+  for (const [rawCode, targetRating] of entries) {
+    const code = rawCode.toUpperCase();
+    const rosterKey = MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY[code as keyof typeof MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY];
+    if (!rosterKey) throw new ApiError(400, `Unknown attribute: ${rawCode}.`);
+    if (!Number.isInteger(targetRating)) throw new ApiError(400, `${code}'s target rating must be a whole number.`);
+    const previousRating = Number(attributes[code] ?? 0);
+    if (targetRating <= previousRating) continue;
+    const attrName = MADDEN_ATTRIBUTE_BY_CODE.get(code as MaddenAttributeCode)?.name ?? code;
+    let currentValue = previousRating;
+    let xpCost = 0;
+    while (currentValue < targetRating) {
+      const step = spendAttributePlusOne({
+        currentValue, discount: modifiers.xpDiscounts[code] ?? 0, currentOvr, ceiling, availableXp: remainingXp,
+      });
+      if (!step.ok) throw new ApiError(400, `${attrName}: ${step.error}`);
+      remainingXp -= step.cost;
+      xpCost += step.cost;
+      currentValue = step.nextValue;
+    }
+    attributes[code] = currentValue;
+    nextAttrs[rosterKey] = currentValue;
+    upgrades.push({ attributeCode: code, attributeName: attrName, previousRating, newRating: currentValue, xpCost });
+  }
+  if (!upgrades.length) throw new ApiError(400, "No changes to submit -- every target is at or below its current rating.");
+
+  const totalXpCost = upgrades.reduce((sum, row) => sum + row.xpCost, 0);
+  const batchId = randomUUID();
+  const spent = await supabase.rpc("rec_immortality_spend_xp", {
+    p_prospect_id: prospect.id,
+    p_event_type: "attribute_upgrade_batch",
+    p_source_id: `batch:${batchId}`,
+    p_player_xp_delta: -totalXpCost,
+    p_team_xp_delta: 0,
+    p_formula_version: FORMULA_VERSIONS.xp,
+  });
+  if (spent.error) throw new ApiError(500, "Could not spend Player XP.", spent.error);
+  if (!spent.data) throw new ApiError(400, "Not enough Player XP for that submission.");
+
+  await supabase.from("rec_immortality_creation_builds").update({ final_attributes: attributes, updated_at: new Date().toISOString() }).eq("prospect_id", prospect.id);
+  await supabase.from("rec_players").update({ attributes: nextAttrs, updated_at: new Date().toISOString() }).eq("id", prospect.player_id);
+
+  const discordId = await discordIdForRecUser(userId).catch(() => null);
+  const name = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Unnamed Prospect";
+  const inboxInsert = await supabase.from("rec_commissioners_inbox").insert({
+    guild_id: input.guildId, league_id: context.leagueId, queue_type: "immortality_upgrade_batch",
+    status: "pending", priority: 0,
+    header: `Upgrades: ${name} (${prospect.position})`,
+    summary: `${upgrades.length} attribute upgrade${upgrades.length === 1 ? "" : "s"}, ${totalXpCost} Player XP already spent.`,
+    requester_user_id: userId, requester_discord_id: discordId,
+    source_table: "rec_immortality_prospects", source_id: prospect.id,
+    payload: { prospectId: prospect.id, side: prospect.side, name, position: prospect.position, batchId, upgrades, totalXpCost },
+  }).select("id").single();
+  if (inboxInsert.error) throw new ApiError(500, "Upgrades were applied, but the commissioner record failed to save -- tell your commissioner directly.", inboxInsert.error);
+  await notifyLeagueCommissionersOfPendingItem(context.leagueId);
+
+  return { applied: true as const, upgrades, totalXpCost, remainingXp, requestId: inboxInsert.data.id };
+}
+
+/** Commissioner resolves a pending upgrade batch -- "applied" just confirms/logs it (the XP and
+ * rating changes already happened at submit time), "refunded" reverses both: credits the XP back
+ * and reverts every attribute in the batch to its previousRating. */
+export async function resolveImmortalityUpgradeBatch(input: {
+  guildId: string; requestId: string; action: "applied" | "refunded"; reviewerDiscordId: string; note?: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const request = await supabase.from("rec_commissioners_inbox").select("*").eq("id", input.requestId).eq("league_id", context.leagueId).maybeSingle();
+  if (request.error || !request.data) throw new ApiError(404, "Request not found in this league.");
+  if (String(request.data.queue_type) !== "immortality_upgrade_batch") throw new ApiError(400, "That request isn't an upgrade batch.");
+  if (request.data.status !== "pending") throw new ApiError(409, `Request is already ${request.data.status}.`);
+
+  const payload = (request.data.payload ?? {}) as { prospectId: string; batchId: string; upgrades: UpgradeBatchRow[]; totalXpCost: number };
+  if (input.action === "refunded") {
+    const prospect = await supabase.from("rec_immortality_prospects").select("id,player_id").eq("id", payload.prospectId).maybeSingle();
+    if (!prospect.data) throw new ApiError(404, "This prospect no longer exists.");
+    const refunded = await supabase.rpc("rec_immortality_spend_xp", {
+      p_prospect_id: payload.prospectId,
+      p_event_type: "attribute_upgrade_batch_refund",
+      p_source_id: `refund:${payload.batchId}`,
+      p_player_xp_delta: payload.totalXpCost,
+      p_team_xp_delta: 0,
+      p_formula_version: FORMULA_VERSIONS.xp,
+    });
+    if (refunded.error) throw new ApiError(500, "Could not refund that upgrade batch.", refunded.error);
+    const build = await supabase.from("rec_immortality_creation_builds").select("final_attributes").eq("prospect_id", payload.prospectId).maybeSingle();
+    const attributes = { ...((build.data?.final_attributes ?? {}) as Record<string, number>) };
+    for (const row of payload.upgrades) attributes[row.attributeCode] = row.previousRating;
+    await supabase.from("rec_immortality_creation_builds").update({ final_attributes: attributes, updated_at: new Date().toISOString() }).eq("prospect_id", payload.prospectId);
+    if (prospect.data.player_id) {
+      const playerRow = await supabase.from("rec_players").select("attributes").eq("id", prospect.data.player_id).maybeSingle();
+      const nextAttrs = { ...((playerRow.data?.attributes ?? {}) as Record<string, unknown>) };
+      for (const row of payload.upgrades) {
+        const rosterKey = MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY[row.attributeCode as keyof typeof MADDEN_ATTRIBUTE_CODE_TO_ROSTER_KEY];
+        if (rosterKey) nextAttrs[rosterKey] = row.previousRating;
+      }
+      await supabase.from("rec_players").update({ attributes: nextAttrs, updated_at: new Date().toISOString() }).eq("id", prospect.data.player_id);
+    }
+  }
+
+  const updated = await supabase.from("rec_commissioners_inbox").update({
+    status: input.action === "applied" ? "approved" : "denied",
+    reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString(),
+    review_reason: input.note?.trim() ?? null,
+  }).eq("id", input.requestId).select("*").single();
+  if (updated.error) throw new ApiError(500, "Could not save that review decision.", updated.error);
+  return { request: updated.data };
 }
 
 export type ImmortalityCustomTeamSlot = LeagueTeamIdentityOverride;

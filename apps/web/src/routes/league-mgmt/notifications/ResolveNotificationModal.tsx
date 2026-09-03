@@ -331,9 +331,12 @@ function resolveModeFor(type: string): ResolveMode {
       return { kind: "info", message: "This award poll is missing its poll reference — resolve it from Discord instead." };
     case "force_win_request":
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve Force Win", denyLabel: "Deny" };
-    case "immortality_xp_spend":
     case "immortality_xp_conversion":
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve", denyLabel: "Deny" };
+    case "immortality_upgrade_batch":
+      // Already applied at submit time (XP spent, ratings changed) -- this just confirms the
+      // commissioner replicated it in their own Madden save, or reverses it if they can't/won't.
+      return { kind: "approve_deny", reasonField: false, approveLabel: "Applied in game", denyLabel: "Refunded" };
     case "autopilot_request":
     case "matchup_issue_report":
     case "ea_auto_import":
@@ -388,9 +391,10 @@ async function resolveAction(
       return recApi.reviewTrade({ guildId, tradeId: sourceId, action: action === "approve" ? "approve" : "reject" });
     case "force_win_request":
       return recApi.reviewForceWinRequest({ guildId, inboxId: notification.id, decision: action, reason: reason || undefined });
-    case "immortality_xp_spend":
     case "immortality_xp_conversion":
       return recApi.reviewImmortalityXpRequest({ guildId, requestId: notification.id, action: action === "approve" ? "approve" : "reject", note: reason || undefined });
+    case "immortality_upgrade_batch":
+      return recApi.resolveImmortalityUpgradeBatch({ guildId, requestId: notification.id, action: action === "approve" ? "applied" : "refunded", note: reason || undefined });
     case "custom_team":
       return recApi.reviewCustomTeamIdentity({ guildId, inboxId: notification.id, action, deniedReason: reason || undefined });
     case "autopilot_request":
@@ -538,6 +542,20 @@ export function ResolveNotificationModal({
           )}
         </div>
       )}
+      {notification.type === "immortality_upgrade_batch" && Array.isArray(notification.payload?.upgrades) && (
+        <table style={{ width: "100%", fontSize: "var(--text-sm)", marginTop: "var(--space-2)" }}>
+          <tbody>
+            {(notification.payload!.upgrades as Array<{ attributeCode: string; previousRating: number; newRating: number; xpCost: number }>).map((row) => (
+              <tr key={row.attributeCode}>
+                <td style={{ color: "var(--text-secondary)", padding: "2px 0" }}>{row.attributeCode}</td>
+                <td style={{ textAlign: "right", padding: "2px 0" }}>{row.previousRating} → {row.newRating}</td>
+                <td style={{ textAlign: "right", padding: "2px 0", color: "var(--text-secondary)" }}>{row.xpCost} XP</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
       {notification.amount != null && (
         <p style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>${notification.amount}</p>
       )}

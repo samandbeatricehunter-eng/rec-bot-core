@@ -1162,6 +1162,8 @@ export const recApi = {
     recApiFetch<any>("/v1/immortality/prospect/review", { method: "POST", body: JSON.stringify(input) }),
   reviewImmortalityXpRequest: (input: { guildId: string; requestId: string; action: "approve" | "reject"; note?: string }) =>
     recApiFetch<any>("/v1/immortality/xp/review", { method: "POST", body: JSON.stringify(input) }),
+  resolveImmortalityUpgradeBatch: (input: { guildId: string; requestId: string; action: "applied" | "refunded"; note?: string }) =>
+    recApiFetch<any>("/v1/immortality/upgrades/resolve", { method: "POST", body: JSON.stringify(input) }),
   listCustomReplacementCandidates: (input: { guildId: string; buildId: string }) =>
     recApiFetch<{
       isMadden: boolean;

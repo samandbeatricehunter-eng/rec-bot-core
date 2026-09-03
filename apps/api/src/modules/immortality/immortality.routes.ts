@@ -31,7 +31,8 @@ import {
   submitPersonaDna,
   submitPlayerTraits,
   submitPlaystyle,
-  spendPlayerXp,
+  submitImmortalityUpgrades,
+  resolveImmortalityUpgradeBatch,
   transitionImmortalityState,
   uploadOwnerHeadshot,
   uploadProspectHeadshot,
@@ -226,12 +227,21 @@ export async function immortalityRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
-  app.post("/v1/immortality/xp/spend", async (request, reply) => {
+  app.post("/v1/immortality/upgrades/submit", async (request, reply) => {
     try {
-      const body = SideBody.extend({ attributeCode: z.string().trim().min(3).max(3) }).parse(request.body);
+      const body = SideBody.extend({ targets: z.record(z.string(), z.number().int()) }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      if (auth.mode !== "user") throw new ApiError(400, "Player XP upgrades are website-only.");
-      return reply.send(await spendPlayerXp({ ...body, discordId: auth.discordId }));
+      if (auth.mode !== "user") throw new ApiError(400, "Upgrades are website-only.");
+      return reply.send(await submitImmortalityUpgrades({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/upgrades/resolve", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ requestId: z.string().uuid(), action: z.enum(["applied", "refunded"]), note: z.string().max(1000).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Resolving upgrade batches requires a website session.");
+      return reply.send(await resolveImmortalityUpgradeBatch({ ...body, reviewerDiscordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

@@ -25,7 +25,7 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   custom_player: "Custom Player",
   custom_team: "Custom Team",
   immortality_prospect: "Prospect Review",
-  immortality_xp_spend: "Player XP Spend",
+  immortality_upgrade_batch: "Upgrades",
   immortality_xp_conversion: "Team XP Conversion",
   ea_auto_import: "EA Import",
   force_win_request: "Force Win Request", autopilot_request: "AutoPilot Request",

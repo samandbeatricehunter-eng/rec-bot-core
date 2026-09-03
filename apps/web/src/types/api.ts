@@ -257,7 +257,7 @@ export type CommissionerNotificationType =
   | "matchup_issue_report"
   | "trade"
   | "immortality_prospect"
-  | "immortality_xp_spend"
+  | "immortality_upgrade_batch"
   | "immortality_xp_conversion";
 
 export type CommissionerNotification = {

@@ -1,10 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { MADDEN_ATTRIBUTE_DEFINITIONS } from "@rec/shared";
+import { MADDEN_ATTRIBUTE_DEFINITIONS, xpCostForPlusOne } from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi, type ImmortalityAbilityCard, type ImmortalityAbilityState, type ImmortalityHubResponse } from "../lib/site-api.js";
 
 type Side = "offense" | "defense";
+
+/** Client-side preview only (undiscounted ramp) -- equipped-characteristic discounts and the
+ * dev-trait OVR ceiling are re-checked server-side at submit time, which is authoritative on the
+ * real amount charged. Close enough for a live running total while dragging. */
+function previewCost(current: number, target: number): number {
+  let cost = 0;
+  let value = current;
+  while (value < target) { cost += xpCostForPlusOne(value); value += 1; }
+  return cost;
+}
 
 export function RiseXpPage() {
   const { leagueId = "" } = useParams();
@@ -18,7 +28,7 @@ export function RiseXpPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [side, setSide] = useState<Side>("offense");
-  const [attributeCode, setAttributeCode] = useState("SPD");
+  const [targets, setTargets] = useState<Record<string, number>>({});
   const [result, setResult] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -34,14 +44,9 @@ export function RiseXpPage() {
 
   useEffect(() => {
     if (!guildId || !isRise) return;
-    let cancelled = false;
     setError(null);
-    siteApi.immortalityHub(guildId).then((next) => {
-      if (!cancelled) setHub(next);
-    }).catch((err) => {
-      if (!cancelled) setError(err instanceof Error ? err.message : "Could not load Player XP.");
-    });
-    return () => { cancelled = true; };
+    reload().catch((err) => setError(err instanceof Error ? err.message : "Could not load Upgrades."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guildId, isRise]);
 
   const prospect = hub?.prospects.find((row) => String(row.side ?? "") === side) ?? null;
@@ -50,28 +55,39 @@ export function RiseXpPage() {
   const build = hub?.builds?.find((row) => String(row.prospect_id ?? "") === prospectId) ?? null;
   const attributes = (build?.final_attributes ?? {}) as Record<string, number>;
   const position = side === "offense" ? hub?.league.offensePosition : hub?.league.defensePosition;
+  const sideCategory = side === "offense" ? "offensive" : "defensive";
 
-  if (selected && !isRise) {
-    return <Navigate replace to={`/l/${leagueId}/buzz`} />;
-  }
+  useEffect(() => { setTargets({}); setResult(null); }, [side, prospectId]);
 
-  if (selected && !unlocked) {
-    return <Navigate replace to={`/l/${leagueId}/rise`} />;
-  }
+  const availableAttributes = useMemo(
+    () => MADDEN_ATTRIBUTE_DEFINITIONS.filter((def) => def.category === "physical" || def.category === sideCategory),
+    [sideCategory],
+  );
 
-  if (!selected || !guildId) {
-    return <div className="site-page site-loading">Loading Player XP…</div>;
-  }
+  const rows = availableAttributes.map((def) => {
+    const base = attributes[def.code] ?? 0;
+    const target = targets[def.code] ?? base;
+    const cost = previewCost(base, target);
+    return { def, base, target, cost };
+  });
+  const totalCost = rows.reduce((sum, row) => sum + row.cost, 0);
+  const playerXp = xp?.playerXp ?? 0;
+  const overBudget = totalCost > playerXp;
+  const changedCount = rows.filter((row) => row.target > row.base).length;
+
+  if (selected && !isRise) return <Navigate replace to={`/l/${leagueId}/buzz`} />;
+  if (selected && !unlocked) return <Navigate replace to={`/l/${leagueId}/rise`} />;
+  if (!selected || !guildId) return <div className="site-page site-loading">Loading Upgrades…</div>;
 
   return (
     <div className="site-page rise-page">
       <header className="rise-hero">
         <p className="site-muted">My Team</p>
-        <h1>Player XP</h1>
+        <h1>Upgrades</h1>
         <p className="site-muted">
-          Store purchases stay off. Spend Player XP to raise one rating at a time on your {position ?? "cornerstone"}.
+          Store purchases stay off. Drag a rating up to spend Player XP on your {position ?? "cornerstone"}, then submit
+          the whole batch at once — it applies right away and your commissioner gets a record to confirm.
           Madden 27 abilities are a performance bonus — Gold weeks, season milestones, and awards grant slots.
-          The ability only applies in-game once the rating floor is met (Bronze/Silver/Gold).
         </p>
       </header>
 
@@ -92,34 +108,63 @@ export function RiseXpPage() {
       </div>
 
       <section className="rise-card">
-        <h2>{prospect ? `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Prospect" : "No prospect yet"}</h2>
-        <p>Player XP: <strong>{xp?.playerXp ?? 0}</strong> · Team XP: <strong>{xp?.teamXp ?? 0}</strong> · Estimated OVR: <strong>{String(build?.estimated_ovr ?? "—")}</strong></p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+          <h2 style={{ margin: 0 }}>{prospect ? `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Prospect" : "No prospect yet"}</h2>
+          <span style={{ fontSize: 24, fontWeight: 500 }}>{playerXp} XP</span>
+        </div>
+        <p className="site-muted">Team XP: <strong>{xp?.teamXp ?? 0}</strong> · Estimated OVR: <strong>{String(build?.estimated_ovr ?? "—")}</strong></p>
         {!prospect ? (
           <p className="site-muted">Finish Origins before spending Player XP.</p>
         ) : (
           <>
-            <label className="site-field">
-              <span>Attribute</span>
-              <select className="site-select" value={attributeCode} onChange={(event) => setAttributeCode(event.target.value)}>
-                {MADDEN_ATTRIBUTE_DEFINITIONS.map((def) => (
-                  <option key={def.code} value={def.code}>
-                    {def.code} — {def.name} ({attributes[def.code] ?? "—"})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="button" className="site-btn site-btn-primary" disabled={busy}
-              onClick={async () => {
-                setBusy(true); setError(null); setResult(null);
-                try {
-                  await siteApi.immortalitySpendXp({ guildId, side, attributeCode });
-                  setResult(`Submitted a +1 upgrade request for ${attributeCode} to your commissioner for review.`);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : "Could not submit that upgrade request.");
-                } finally { setBusy(false); }
-              }}>
-              {busy ? "Submitting…" : `Request XP Spend on ${attributeCode}`}
-            </button>
+            <div className="rise-attribute-list">
+              {rows.map(({ def, base, target, cost }) => {
+                const fillPct = Math.max(0, Math.min(100, (target / 99) * 100));
+                return (
+                  <div key={def.code} className="rise-attr-row">
+                    <span className="rise-attr-label"><span className="rise-attr-code">{def.code}</span> {def.name}</span>
+                    <div className="rise-attr-slider-wrap">
+                      <div className="rise-attr-track-gradient" />
+                      <div className="rise-attr-track-mask" style={{ width: `${100 - fillPct}%` }} />
+                      <input
+                        type="range" className="rise-attr-range"
+                        min={base} max={99} step={1} value={target}
+                        aria-label={`${def.name}, currently ${base}, target ${target}`}
+                        onChange={(e) => {
+                          const next = Number(e.target.value);
+                          setTargets((prev) => next === base
+                            ? Object.fromEntries(Object.entries(prev).filter(([code]) => code !== def.code))
+                            : { ...prev, [def.code]: next });
+                        }}
+                      />
+                    </div>
+                    <span className="rise-attr-value">{target > base ? `${base} → ${target}` : base}</span>
+                    <span className="site-muted" style={{ fontSize: 12, minWidth: 48, textAlign: "right" }}>{cost > 0 ? `~${cost} XP` : "—"}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "0.5px solid var(--border)", paddingTop: 12, marginTop: 12 }}>
+              <span className="site-muted" style={{ color: overBudget ? "var(--error, #c0392b)" : undefined }}>
+                ~{totalCost} XP of {playerXp} available{overBudget ? " — over budget, lower a rating first" : ""}
+              </span>
+              <button type="button" className="site-btn site-btn-primary" disabled={busy || !changedCount || overBudget}
+                onClick={async () => {
+                  setBusy(true); setError(null); setResult(null);
+                  try {
+                    const cleaned = Object.fromEntries(rows.filter((row) => row.target > row.base).map((row) => [row.def.code, row.target]));
+                    const response = await siteApi.immortalitySubmitUpgrades({ guildId, side, targets: cleaned });
+                    setResult(`Applied ${response.upgrades.length} upgrade${response.upgrades.length === 1 ? "" : "s"} for ${response.totalXpCost} Player XP. Your commissioner has a pending record to confirm it's in Madden.`);
+                    setTargets({});
+                    await reload();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Could not submit those upgrades.");
+                  } finally { setBusy(false); }
+                }}>
+                {busy ? "Submitting…" : `Submit upgrades${changedCount ? ` (${changedCount})` : ""}`}
+              </button>
+            </div>
             {result ? <p className="site-muted">{result}</p> : null}
           </>
         )}

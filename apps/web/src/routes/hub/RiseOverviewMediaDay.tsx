@@ -1,5 +1,5 @@
 // Rise to Immortality "Media Day" feature card for the main Overview page (moved off the
-// Player XP page per direction -- it's a season-long narrative feature, not an XP-spend
+// Upgrades page per direction -- it's a season-long narrative feature, not an XP-spend
 // control). Shows both of the member's prospects side by side; each answers its own weekly
 // slate of 3 questions independently.
 //
