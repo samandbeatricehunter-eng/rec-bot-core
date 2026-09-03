@@ -4308,6 +4308,11 @@ h1, h2, h3, .site-wordmark {
 .rise-attr-range::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid rgba(0,0,0,.5); cursor: pointer; }
 .rise-attr-value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 800; font-size: 16px; }
 .rise-question { display: flex; flex-direction: column; gap: var(--space-2); }
+.rise-rivals-rules { padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: rgba(255, 255, 255, 0.03); }
+.rise-rivals-side-block { display: flex; flex-direction: column; gap: var(--space-3); padding-bottom: var(--space-3); border-bottom: 1px solid var(--border-subtle); }
+.rise-rivals-side-block:last-of-type { border-bottom: 0; padding-bottom: 0; }
+.rise-rivals-side-block h3 { margin: 0; font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.rise-rivals-locked { font-style: italic; }
 .rise-stock-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .rise-grade-card { display: flex; flex-direction: column; gap: 6px; padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); }
 .rise-grade-mark { font-size: 2rem; font-weight: 700; line-height: 1; }

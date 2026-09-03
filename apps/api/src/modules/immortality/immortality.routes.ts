@@ -445,9 +445,11 @@ export async function immortalityRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
+  const RivalSlot = z.union([z.literal(1), z.literal(2)]);
+
   app.post("/v1/immortality/rivals/set", async (request, reply) => {
     try {
-      const body = SideBody.extend({ rivalTeamId: z.string().uuid() }).parse(request.body);
+      const body = SideBody.extend({ rivalTeamId: z.string().uuid(), slot: RivalSlot }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
       return reply.send(await setImmortalityRival({ ...body, discordId: auth.discordId }));
@@ -465,7 +467,7 @@ export async function immortalityRoutes(app: FastifyInstance) {
 
   app.post("/v1/immortality/rivals/history", async (request, reply) => {
     try {
-      const body = SideBody.parse(request.body);
+      const body = SideBody.extend({ slot: RivalSlot }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
       return reply.send(await getImmortalityRivalHistory({ ...body, discordId: auth.discordId }));

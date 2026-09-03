@@ -499,6 +499,17 @@ export type ImmortalityAbilityState = {
   eligible: ImmortalityAbilityCard[];
 };
 
+export type RivalSlotInfo = {
+  slot: 1 | 2;
+  teamId: string | null;
+  name: string | null;
+  city: string | null;
+  abbreviation: string | null;
+  streakSeasons: number;
+  canChange: boolean;
+  lockedReason: string | null;
+};
+
 export type ImmortalityHubResponse = {
   league: {
     id: string;
@@ -1291,14 +1302,15 @@ export const siteApi = {
   },
   immortalityGetRivals(guildId: string) {
     return request<{
-      offense: { teamId: string; name: string | null; city: string | null; abbreviation: string | null } | null;
-      defense: { teamId: string; name: string | null; city: string | null; abbreviation: string | null } | null;
+      seasonNumber: number; currentWeek: number; changeWindowWeeks: number;
+      offense: RivalSlotInfo[];
+      defense: RivalSlotInfo[];
     }>("/v1/immortality/rivals", { guildId });
   },
-  immortalitySetRival(input: { guildId: string; side: "offense" | "defense"; rivalTeamId: string }) {
-    return request<{ side: string; rivalTeamId: string }>("/v1/immortality/rivals/set", input);
+  immortalitySetRival(input: { guildId: string; side: "offense" | "defense"; slot: 1 | 2; rivalTeamId: string }) {
+    return request<{ side: string; slot: number; rivalTeamId: string }>("/v1/immortality/rivals/set", input);
   },
-  immortalityGetRivalHistory(input: { guildId: string; side: "offense" | "defense" }) {
+  immortalityGetRivalHistory(input: { guildId: string; side: "offense" | "defense"; slot: 1 | 2 }) {
     return request<{
       rivalTeamId: string | null;
       games: Array<{ weekNumber: number | null; opponentName: string; myScore: number | null; opponentScore: number | null; statLine: Record<string, unknown> | null }>;

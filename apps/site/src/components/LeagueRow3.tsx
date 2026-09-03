@@ -105,7 +105,7 @@ export function LeagueRow3({ leagueId, isCommissioner, rosterType, riseHubUnlock
         </Dropdown>
       ) : null}
 
-      <Dropdown label="My Team" icon={<IconTeam />} active={isActive(path, `${base}/team`) || isActive(path, `${base}/roster`) || isActive(path, `${base}/trades`) || isActive(path, `${base}/store`) || isActive(path, `${base}/rise`) || isActive(path, `${base}/team/upgrades`) || isActive(path, `${base}/team/progression`)}>
+      <Dropdown label="My Team" icon={<IconTeam />} active={isActive(path, `${base}/team`) || isActive(path, `${base}/roster`) || isActive(path, `${base}/trades`) || isActive(path, `${base}/store`) || isActive(path, `${base}/rise`) || isActive(path, `${base}/team/upgrades`) || isActive(path, `${base}/team/progression`) || isActive(path, `${base}/team/rivals`)}>
         {(close) => <>
           {hubUnlocked ? (
             <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(openModalHref(leagueId, "schedule")); }}>Schedule</button>
@@ -129,6 +129,9 @@ export function LeagueRow3({ leagueId, isCommissioner, rosterType, riseHubUnlock
           )}
           {hubUnlocked ? (
             <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(openModalHref(leagueId, "financials")); }}>Financials</button>
+          ) : null}
+          {isRise ? (
+            <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/team/rivals`); }}>Rivals</button>
           ) : null}
         </>}
       </Dropdown>
