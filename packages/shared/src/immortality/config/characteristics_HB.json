@@ -151,7 +151,7 @@
       "slot_cost": 3,
       "effect": "Earn +15% Player XP from all eligible sources. Dev-trait promotion challenge checks occur 50% more often until the player reaches X-Factor. Does not guarantee promotion; the challenge still must be completed.",
       "why_it_costs_that": "Directly accelerates both ratings growth and access to development promotions, so it consumes half the build.",
-      "tags": "progression",
+      "tags": "xp",
       "synergy": []
     },
     {
@@ -215,12 +215,72 @@
     {
       "name": "Development Staff",
       "slot_cost": 2,
-      "effect": "Unlocks Player-XP purchases that promote a teammate's development trait.",
-      "why_it_costs_that": "Lets the created player invest in the roster around him; Progression Tree Tier 3.",
+      "effect": "Unlocks Player-XP purchases that promote a teammate's development trait. The commissioner still replicates the trait in Madden.",
+      "why_it_costs_that": "Lets the created player invest in the roster around him; Progression Tree Tier 3, requires any Tier 2 perk first.",
       "tags": "progression",
       "synergy": [],
       "tier": 3,
       "xp_cost": 90
+    },
+    {
+      "name": "Workhorse Frame",
+      "slot_cost": 2,
+      "effect": "CAR, BTK and TRK each cost 8% less Player XP.",
+      "why_it_costs_that": "Between-the-tackles identity; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "Home-Run Burst",
+      "slot_cost": 2,
+      "effect": "SPD and ACC each cost 10% less Player XP.",
+      "why_it_costs_that": "Breakaway speed package; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "Pass-Catching Back",
+      "slot_cost": 2,
+      "effect": "CTH, CIT and SRR each cost 8% less Player XP.",
+      "why_it_costs_that": "Third-down receiving identity; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "Spotlight",
+      "slot_cost": 2,
+      "effect": "Earn +10% Player XP from all eligible sources.",
+      "why_it_costs_that": "Permanent earn-rate bump on top of Origins perks; Progression Tree Tier 3.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 90
+    },
+    {
+      "name": "Between the Tackles",
+      "slot_cost": 2,
+      "effect": "TRK, BTK and CAR each cost 10% less Player XP.",
+      "why_it_costs_that": "Power-back capstone discounts; Progression Tree Tier 3.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 90
+    },
+    {
+      "name": "Feature Back",
+      "slot_cost": 3,
+      "effect": "SPD, ACC, BCV and TRK each cost 8% less Player XP.",
+      "why_it_costs_that": "Every-down feature back suite; Progression Tree Tier 4, requires a Tier 3 perk first.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 4,
+      "xp_cost": 120
     }
   ]
 }

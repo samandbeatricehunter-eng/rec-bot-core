@@ -302,7 +302,7 @@ function MaddenMyTeamGrid({
           {isRise && !riseHubUnlocked ? (
             <Link className="hub-my-team-btn" to={`/l/${leagueId}/rise`}><strong>Origins</strong><span>Class &amp; builds</span></Link>
           ) : isRise && riseHubUnlocked ? (
-            <Link className="hub-my-team-btn" to={`/l/${leagueId}/team/trust`}><strong>Trust Tree</strong><span>Coming soon</span></Link>
+            <Link className="hub-my-team-btn" to={`/l/${leagueId}/team/progression`}><strong>Progression Tree</strong><span>Perks &amp; promotions</span></Link>
           ) : !isRise ? (
             <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>
           ) : null}
@@ -323,7 +323,12 @@ function MaddenMyTeamGrid({
         <p className="hub-eyebrow">Finance</p>
         <div className="hub-my-team-card-buttons">
           {isRise ? (
-            riseHubUnlocked ? <Link className="hub-my-team-btn" to={`/l/${leagueId}/team/upgrades`}><strong>Upgrades</strong><span>Attribute upgrades</span></Link> : null
+            riseHubUnlocked ? (
+              <>
+                <Link className="hub-my-team-btn" to={`/l/${leagueId}/team/upgrades`}><strong>Upgrades</strong><span>Attribute upgrades</span></Link>
+                <Link className="hub-my-team-btn" to={`/l/${leagueId}/team/progression`}><strong>Progression Tree</strong><span>Perks &amp; promotions</span></Link>
+              </>
+            ) : null
           ) : (
             <button type="button" className="hub-my-team-btn" onClick={() => selectSection("store")}><strong>Store</strong><span>Franchise marketplace</span></button>
           )}
@@ -1525,7 +1530,7 @@ export function HubHome() {
           <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
         )}
       </Modal>}
-      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" && isRise ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> XP marketplace</p><h2>Rise Store</h2></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>{!rtiGates?.storeUnlocked ? <p className="hub-empty">The XP store unlocks in Week 1 of the regular season. Player XP upgrades are available now from My Team.</p> : <p className="hub-empty">{rtiGates.teammateDevUnlocked ? "Teammate development-trait purchases are unlocked. Self-dev, legends, age resets, and custom players stay off in Rise to Immortality." : "Spend Player XP on the Upgrades page. Teammate development purchases unlock from the Progression Tree. Self-dev, legends, age resets, and custom players are not in this mode."}</p>}</section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>
+      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" && isRise ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> XP marketplace</p><h2>Rise Store</h2></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>{!rtiGates?.storeUnlocked ? <p className="hub-empty">The XP store unlocks in Week 1 of the regular season. Player XP upgrades are available now from My Team.</p> : <p className="hub-empty">{rtiGates.teammateDevUnlocked ? "Teammate development-trait purchases are unlocked from the Progression Tree. Legends, age resets, and custom players stay off in Rise to Immortality." : "Spend Player XP on Upgrades and the Progression Tree. Teammate and self development purchases unlock from tree perks. Legends, age resets, and custom players are not in this mode."}</p>}</section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>
       {!hub.store.enabled ? <p className="hub-empty">The coin economy is not enabled for this league.</p> : <>
         {hub.store.cfbSeasonOneLocked && <div className="hub-store-lock"><strong>CFB Season 1 roster lock</strong><span>Custom recruits, Campus Legends, development upgrades, attributes, and traits unlock automatically when Season 2 starts.</span></div>}
         <div className="hub-store-products">{hub.store.products.map((product) => {
@@ -1828,6 +1833,7 @@ export function HubHome() {
                 {isRise ? (
                   <>
                     <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/team/upgrades`)}><strong>Upgrades</strong><span>Attribute upgrades</span></button>
+                    <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/team/progression`)}><strong>Progression Tree</strong><span>Perks &amp; promotions</span></button>
                     {rtiGates?.pendingContracts ? <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rise`)}><strong>Contracts</strong><span>{rtiGates.pendingContracts} waiting to sign</span></button> : null}
                     {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button> : null}
                     <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>

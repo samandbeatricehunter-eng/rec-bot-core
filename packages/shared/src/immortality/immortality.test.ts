@@ -41,6 +41,8 @@ import {
   matchingAbilityGate,
   rtiAbilitiesForPosition,
   validateCharacteristicSelection,
+  purchaseCharacteristic,
+  isProgressionTreePerk,
   personaDnaCatalog,
   personaDnaQuestions,
   playerTraitCatalog,
@@ -51,6 +53,12 @@ import {
   scoreMatchupInterviewAnswer,
   isCareerRecordBroken,
   NFL_CAREER_RECORDS,
+  evaluateSeasonTrend,
+  effectiveTrendWindow,
+  highestMedalForWeek,
+  effectiveDevTrait,
+  purchaseDevTraitPromotion,
+  purchaseTeammateDevTraitPromotion,
 } from "./index.js";
 
 test("Rise to Immortality is a Madden 27 template that disables store purchases", () => {
@@ -486,5 +494,98 @@ test("rookie contract payouts are one-time ranges seeded by prospect id", () => 
   const floor = performanceContractPayout({ contractNumber: 2, percentile: 0, negotiatorMultiplier: 1, knownCommodityFloor: true });
   assert.ok(floor.playerXp >= 4);
   assert.ok(floor.coins >= 5000);
+});
+
+test("Origins cannot pick Progression Tree perks", () => {
+  const catalog = characteristicCatalog("QB");
+  const tree = validateCharacteristicSelection({
+    positionGroup: "QB",
+    catalog,
+    keys: ["personnel_chief"],
+  });
+  assert.equal(tree.ok, false);
+  if (!tree.ok) assert.equal(tree.error, "progression_tree_only");
+});
+
+test("Self-Made unlocks self promotion; Development Staff unlocks teammate promotion", () => {
+  const qb = characteristicCatalog("QB").find((item) => item.key === "self_made");
+  const hb = characteristicCatalog("HB").find((item) => item.key === "development_staff");
+  assert.ok(qb && hb);
+  assert.equal(qb!.modifiers.devTraitPurchaseUnlocked, true);
+  assert.equal(qb!.modifiers.teammateDevPurchaseUnlocked, false);
+  assert.equal(hb!.modifiers.teammateDevPurchaseUnlocked, true);
+  assert.equal(hb!.modifiers.devTraitPurchaseUnlocked, false);
+  const self = purchaseDevTraitPromotion({ currentDevTrait: "normal", availableXp: 10, devTraitPurchaseUnlocked: true });
+  assert.equal(self.ok, true);
+  const blockedSelf = purchaseDevTraitPromotion({ currentDevTrait: "normal", availableXp: 10, devTraitPurchaseUnlocked: false });
+  assert.equal(blockedSelf.ok, false);
+  const teammate = purchaseTeammateDevTraitPromotion({ currentDevTrait: "star", availableXp: 30, teammateDevPurchaseUnlocked: true });
+  assert.equal(teammate.ok, true);
+});
+
+test("Progression Tree purchases are additive, gated by tier, and never Origins-only perks", () => {
+  const catalog = characteristicCatalog("QB");
+  const t1 = ["born_with_quick_feet", "faster_developer"];
+  const originsOnly = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: t1, key: "known_commodity", availableXp: 999 });
+  assert.equal(originsOnly.ok, false);
+  if (!originsOnly.ok) assert.equal(originsOnly.error, "origins_only");
+  const locked = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: ["born_with_quick_feet"], key: "personnel_chief", availableXp: 999 });
+  assert.equal(locked.ok, false);
+  if (!locked.ok) assert.equal(locked.error, "tier_locked");
+  const t2 = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: t1, key: "personnel_chief", availableXp: 50 });
+  assert.equal(t2.ok, true);
+  if (t2.ok) assert.equal(t2.xpCost, 50);
+  const t3locked = purchaseCharacteristic({
+    positionGroup: "QB", catalog, ownedKeys: t1, key: "self_made", availableXp: 999,
+  });
+  assert.equal(t3locked.ok, false);
+  const t3 = purchaseCharacteristic({
+    positionGroup: "QB", catalog, ownedKeys: [...t1, "personnel_chief"], key: "self_made", availableXp: 90,
+  });
+  assert.equal(t3.ok, true);
+  const t4locked = purchaseCharacteristic({
+    positionGroup: "QB", catalog, ownedKeys: [...t1, "personnel_chief"], key: "immortal_arm", availableXp: 999,
+  });
+  assert.equal(t4locked.ok, false);
+  const t4 = purchaseCharacteristic({
+    positionGroup: "QB", catalog, ownedKeys: [...t1, "personnel_chief", "self_made"], key: "immortal_arm", availableXp: 120,
+  });
+  assert.equal(t4.ok, true);
+  assert.equal(isProgressionTreePerk(catalog.find((item) => item.key === "personnel_chief")!), true);
+  assert.equal(isProgressionTreePerk(catalog.find((item) => item.key === "faster_developer")!), false);
+});
+
+test("every position group has a deeper Progression Tree than the original 2-3 nodes", () => {
+  for (const group of ["QB", "HB", "WR_TE", "DB", "LB"] as const) {
+    const tree = characteristicCatalog(group).filter((item) => isProgressionTreePerk(item));
+    const tiers = new Set(tree.map((item) => item.tier));
+    assert.ok(tree.length >= 7, `${group} tree is too thin (${tree.length})`);
+    assert.ok(tiers.has(2) && tiers.has(3) && tiers.has(4), `${group} is missing a tree tier`);
+  }
+});
+
+test("season-trend promotions need a real hot streak, not a single gold week", () => {
+  const early = evaluateSeasonTrend({ currentDevTrait: "normal", medals: ["gold", "gold", "gold"] });
+  assert.equal(early.promote, false);
+  const ready = evaluateSeasonTrend({
+    currentDevTrait: "normal",
+    medals: ["bronze", "silver", "gold", "silver"],
+  });
+  assert.equal(ready.promote, true);
+  if (ready.promote) assert.equal(ready.nextDevTrait, "star");
+  const xf = evaluateSeasonTrend({
+    currentDevTrait: "superstar",
+    medals: ["gold", "gold", "gold", "gold", "gold", "gold", "gold", "gold"],
+  });
+  assert.equal(xf.promote, true);
+  const cold = evaluateSeasonTrend({
+    currentDevTrait: "star",
+    medals: ["bronze", "bronze", "none", "bronze", "silver", "bronze"],
+  });
+  assert.equal(cold.promote, false);
+  assert.equal(highestMedalForWeek(["bronze", "gold"]), "gold");
+  assert.equal(effectiveTrendWindow(6, 0.5), 4);
+  assert.equal(effectiveDevTrait("normal", 2), "superstar");
+  assert.equal(effectiveDevTrait("star", 0), "star");
 });
 

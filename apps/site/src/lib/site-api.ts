@@ -379,6 +379,53 @@ export type ImmortalityCharacteristic = {
   effect: string;
   tags: string[];
   attributeCodes: string[];
+  tier?: number;
+  xpCost?: number;
+};
+
+export type ImmortalityProgressionNode = {
+  key: string;
+  displayName: string;
+  effect: string;
+  tier: number;
+  xpCost: number;
+  owned: boolean;
+  source: string | null;
+  canPurchase: boolean;
+  blockedReason: string | null;
+};
+
+export type ImmortalityProgressionState = {
+  prospectId: string;
+  name: string;
+  position: string;
+  playerXp: number;
+  startingDevTrait: string;
+  currentDevTrait: string;
+  nextDevTrait: string | null;
+  selfPurchaseUnlocked: boolean;
+  teammatePurchaseUnlocked: boolean;
+  selfPurchaseCost: number;
+  tradeAccess: boolean;
+  trend: {
+    medals: Array<"none" | "bronze" | "silver" | "gold">;
+    promote: boolean;
+    reason: string;
+    window: number;
+    score: number;
+    golds: number;
+    nextDevTrait: string | null;
+  };
+  nodes: ImmortalityProgressionNode[];
+  teammates: Array<{
+    playerId: string;
+    name: string;
+    position: string;
+    currentDevTrait: string;
+    nextDevTrait: string | null;
+    cost: number;
+  }>;
+  origins: Array<{ key: string; displayName: string; effect: string }>;
 };
 
 export type ImmortalityTraitDefinition = {
@@ -1297,6 +1344,22 @@ export const siteApi = {
       remainingXp: number;
       requestId: string;
     }>("/v1/immortality/upgrades/submit", input);
+  },
+  immortalityProgression(input: { guildId: string; side: "offense" | "defense" }) {
+    return request<ImmortalityProgressionState>("/v1/immortality/progression", input);
+  },
+  immortalityPurchasePerk(input: { guildId: string; side: "offense" | "defense"; key: string }) {
+    return request<{ applied: true; key: string; displayName: string; xpCost: number; requestId: string }>("/v1/immortality/progression/purchase", input);
+  },
+  immortalityPurchaseDevPromotion(input: { guildId: string; side: "offense" | "defense"; teammatePlayerId?: string }) {
+    return request<{
+      applied: true;
+      fromTrait: string;
+      toTrait: string;
+      xpCost: number;
+      targetName: string;
+      requestId: string;
+    }>("/v1/immortality/progression/dev-promotion", input);
   },
   immortalityConvertXp(input: { guildId: string; side: "offense" | "defense"; playerXp: number }) {
     return request<{ status: "pending_review"; requestId: string }>("/v1/immortality/xp/convert", input);

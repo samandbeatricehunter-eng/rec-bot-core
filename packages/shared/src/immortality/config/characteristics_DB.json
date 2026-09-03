@@ -151,7 +151,7 @@
       "slot_cost": 3,
       "effect": "Earn +15% Player XP from all eligible sources. Dev-trait promotion challenge checks occur 50% more often until the player reaches X-Factor. Does not guarantee promotion; the challenge still must be completed.",
       "why_it_costs_that": "Directly accelerates both ratings growth and access to development promotions, so it consumes half the build.",
-      "tags": "progression",
+      "tags": "xp",
       "synergy": []
     },
     {
@@ -215,12 +215,72 @@
     {
       "name": "Development Staff",
       "slot_cost": 2,
-      "effect": "Unlocks Player-XP purchases that promote a teammate's development trait.",
-      "why_it_costs_that": "Lets the created player invest in the roster around him; Progression Tree Tier 3.",
+      "effect": "Unlocks Player-XP purchases that promote a teammate's development trait. The commissioner still replicates the trait in Madden.",
+      "why_it_costs_that": "Lets the created player invest in the roster around him; Progression Tree Tier 3, requires any Tier 2 perk first.",
       "tags": "progression",
       "synergy": [],
       "tier": 3,
       "xp_cost": 90
+    },
+    {
+      "name": "Ball Hawk",
+      "slot_cost": 2,
+      "effect": "PRC, MCV and ZCV each cost 8% less Player XP.",
+      "why_it_costs_that": "Coverage processor identity; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "Shutdown Cover",
+      "slot_cost": 2,
+      "effect": "MCV, PRS and CTH each cost 8% less Player XP.",
+      "why_it_costs_that": "Press-man identity; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "Range Finder",
+      "slot_cost": 2,
+      "effect": "SPD, ACC and JMP each cost 8% less Player XP.",
+      "why_it_costs_that": "Sideline-to-sideline athleticism; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "Spotlight",
+      "slot_cost": 2,
+      "effect": "Earn +10% Player XP from all eligible sources.",
+      "why_it_costs_that": "Permanent earn-rate bump on top of Origins perks; Progression Tree Tier 3.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 90
+    },
+    {
+      "name": "Interceptor Instinct",
+      "slot_cost": 2,
+      "effect": "CTH and PRC cost 12% less Player XP.",
+      "why_it_costs_that": "Takeaway package; Progression Tree Tier 3.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 90
+    },
+    {
+      "name": "Defensive Captain",
+      "slot_cost": 3,
+      "effect": "MCV, ZCV, PRC and SPD each cost 8% less Player XP.",
+      "why_it_costs_that": "Every-down DB suite; Progression Tree Tier 4, requires a Tier 3 perk first.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 4,
+      "xp_cost": 120
     }
   ]
 }

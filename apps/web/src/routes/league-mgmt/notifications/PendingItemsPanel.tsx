@@ -26,6 +26,8 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   custom_team: "Custom Team",
   immortality_prospect: "Prospect Review",
   immortality_upgrade_batch: "Upgrades",
+  immortality_tree_purchase: "Progression Tree",
+  immortality_dev_promotion: "Dev Trait",
   immortality_xp_conversion: "Team XP Conversion",
   ea_auto_import: "EA Import",
   force_win_request: "Force Win Request", autopilot_request: "AutoPilot Request",

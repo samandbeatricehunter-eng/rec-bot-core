@@ -153,7 +153,7 @@
       "slot_cost": 3,
       "effect": "Earn +15% Player XP from all eligible sources. Dev-trait promotion challenge checks occur 50% more often until the player reaches X-Factor. Does not guarantee promotion; the challenge still must be completed.",
       "why_it_costs_that": "Directly accelerates both ratings growth and access to development promotions, so it consumes half the build.",
-      "tags": "progression",
+      "tags": "xp",
       "synergy": []
     },
     {
@@ -217,12 +217,72 @@
     {
       "name": "Development Staff",
       "slot_cost": 2,
-      "effect": "Unlocks Player-XP purchases that promote a teammate's development trait.",
-      "why_it_costs_that": "Lets the created player invest in the roster around him; Progression Tree Tier 3.",
+      "effect": "Unlocks Player-XP purchases that promote a teammate's development trait. The commissioner still replicates the trait in Madden.",
+      "why_it_costs_that": "Lets the created player invest in the roster around him; Progression Tree Tier 3, requires any Tier 2 perk first.",
       "tags": "progression",
       "synergy": [],
       "tier": 3,
       "xp_cost": 90
+    },
+    {
+      "name": "Route Technician",
+      "slot_cost": 2,
+      "effect": "REL, SRR, MRR and DRR each cost 8% less Player XP.",
+      "why_it_costs_that": "Full route tree identity; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "Contested Catcher",
+      "slot_cost": 2,
+      "effect": "CTH, CIT and SPC each cost 8% less Player XP.",
+      "why_it_costs_that": "Jump-ball identity; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "YAC Artist",
+      "slot_cost": 2,
+      "effect": "BCV, JKM and SFA each cost 8% less Player XP.",
+      "why_it_costs_that": "After-the-catch identity; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "Spotlight",
+      "slot_cost": 2,
+      "effect": "Earn +10% Player XP from all eligible sources.",
+      "why_it_costs_that": "Permanent earn-rate bump on top of Origins perks; Progression Tree Tier 3.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 90
+    },
+    {
+      "name": "Separation Artist",
+      "slot_cost": 2,
+      "effect": "REL and SPD cost 12% less Player XP.",
+      "why_it_costs_that": "Get-open package; Progression Tree Tier 3.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 90
+    },
+    {
+      "name": "Alpha Target",
+      "slot_cost": 3,
+      "effect": "CTH, CIT, SPC and REL each cost 8% less Player XP.",
+      "why_it_costs_that": "Number-one receiver suite; Progression Tree Tier 4, requires a Tier 3 perk first.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 4,
+      "xp_cost": 120
     }
   ]
 }

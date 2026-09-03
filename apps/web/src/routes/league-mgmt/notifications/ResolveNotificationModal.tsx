@@ -337,6 +337,9 @@ function resolveModeFor(type: string): ResolveMode {
       // Already applied at submit time (XP spent, ratings changed) -- this just confirms the
       // commissioner replicated it in their own Madden save, or reverses it if they can't/won't.
       return { kind: "approve_deny", reasonField: false, approveLabel: "Applied in game", denyLabel: "Refunded" };
+    case "immortality_tree_purchase":
+    case "immortality_dev_promotion":
+      return { kind: "approve_deny", reasonField: false, approveLabel: "Applied in game", denyLabel: "Refunded" };
     case "autopilot_request":
     case "matchup_issue_report":
     case "ea_auto_import":
@@ -395,6 +398,10 @@ async function resolveAction(
       return recApi.reviewImmortalityXpRequest({ guildId, requestId: notification.id, action: action === "approve" ? "approve" : "reject", note: reason || undefined });
     case "immortality_upgrade_batch":
       return recApi.resolveImmortalityUpgradeBatch({ guildId, requestId: notification.id, action: action === "approve" ? "applied" : "refunded", note: reason || undefined });
+    case "immortality_tree_purchase":
+      return recApi.resolveImmortalityTreePurchase({ guildId, requestId: notification.id, action: action === "approve" ? "applied" : "refunded", note: reason || undefined });
+    case "immortality_dev_promotion":
+      return recApi.resolveImmortalityDevPromotion({ guildId, requestId: notification.id, action: action === "approve" ? "applied" : "refunded", note: reason || undefined });
     case "custom_team":
       return recApi.reviewCustomTeamIdentity({ guildId, inboxId: notification.id, action, deniedReason: reason || undefined });
     case "autopilot_request":
@@ -555,6 +562,13 @@ export function ResolveNotificationModal({
           </tbody>
         </table>
       )}
+      {notification.type === "immortality_dev_promotion" && notification.payload ? (
+        <p style={{ marginTop: "var(--space-2)" }}>
+          Set <strong>{String(notification.payload.targetName ?? "this player")}</strong> from{" "}
+          {String(notification.payload.fromTrait ?? "")} to {String(notification.payload.toTrait ?? "")} in Madden.
+          {Number(notification.payload.xpCost ?? 0) > 0 ? ` ${Number(notification.payload.xpCost)} Player XP already spent.` : " No Player XP was spent (season-trend promotion)."}
+        </p>
+      ) : null}
 
       {notification.amount != null && (
         <p style={{ fontWeight: 700, fontSize: "var(--text-lg)" }}>${notification.amount}</p>

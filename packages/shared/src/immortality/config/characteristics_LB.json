@@ -151,7 +151,7 @@
       "slot_cost": 3,
       "effect": "Earn +15% Player XP from all eligible sources. Dev-trait promotion challenge checks occur 50% more often until the player reaches X-Factor. Does not guarantee promotion; the challenge still must be completed.",
       "why_it_costs_that": "Directly accelerates both ratings growth and access to development promotions, so it consumes half the build.",
-      "tags": "progression",
+      "tags": "xp",
       "synergy": []
     },
     {
@@ -215,8 +215,8 @@
     {
       "name": "Self-Made",
       "slot_cost": 2,
-      "effect": "Unlocks a direct Player-XP purchase that forces the next development-trait promotion, bypassing the usual performance challenge check.",
-      "why_it_costs_that": "The single biggest lever in the career economy; Progression Tree Tier 3, requires owning Complete Package first.",
+      "effect": "Unlocks a direct Player-XP purchase that forces YOUR next development-trait promotion. The commissioner still replicates the trait in Madden.",
+      "why_it_costs_that": "The single biggest lever in the career economy; Progression Tree Tier 3, requires any Tier 2 perk first.",
       "tags": "progression",
       "synergy": [],
       "tier": 3,
@@ -231,6 +231,66 @@
       "synergy": [],
       "tier": 2,
       "xp_cost": 50
+    },
+    {
+      "name": "Sideline to Sideline",
+      "slot_cost": 2,
+      "effect": "SPD, ACC and AGI each cost 8% less Player XP.",
+      "why_it_costs_that": "Coverage LB athleticism; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "Run Stuffer",
+      "slot_cost": 2,
+      "effect": "BSH, TAK and PUR each cost 8% less Player XP.",
+      "why_it_costs_that": "Box LB identity; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "Coverage Linebacker",
+      "slot_cost": 2,
+      "effect": "ZCV, MCV and PRC each cost 8% less Player XP.",
+      "why_it_costs_that": "Passing-down coverage identity; Progression Tree Tier 2.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50
+    },
+    {
+      "name": "Spotlight",
+      "slot_cost": 2,
+      "effect": "Earn +10% Player XP from all eligible sources.",
+      "why_it_costs_that": "Permanent earn-rate bump on top of Origins perks; Progression Tree Tier 3.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 90
+    },
+    {
+      "name": "Tone Setter",
+      "slot_cost": 2,
+      "effect": "TAK, BSH and PRC each cost 10% less Player XP.",
+      "why_it_costs_that": "Defensive identity package; Progression Tree Tier 3.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 90
+    },
+    {
+      "name": "Heart of the Defense",
+      "slot_cost": 3,
+      "effect": "TAK, BSH, PRC and SPD each cost 8% less Player XP.",
+      "why_it_costs_that": "MIKE capstone suite; Progression Tree Tier 4, requires a Tier 3 perk first.",
+      "tags": "progression",
+      "synergy": [],
+      "tier": 4,
+      "xp_cost": 120
     }
   ]
 }

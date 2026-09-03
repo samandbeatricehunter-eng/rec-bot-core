@@ -119,11 +119,37 @@ export function purchaseDevTraitPromotion(input: {
   devTraitPurchaseUnlocked: boolean;
 }): { ok: true; nextDevTrait: ImmortalityDevTrait; cost: number } | { ok: false; error: string } {
   if (!input.devTraitPurchaseUnlocked) return { ok: false, error: "Purchase the Self-Made Progression Tree perk before buying a dev-trait promotion." };
+  return resolveDevTraitPromotionCost(input);
+}
+
+export function purchaseTeammateDevTraitPromotion(input: {
+  currentDevTrait: ImmortalityDevTrait;
+  availableXp: number;
+  teammateDevPurchaseUnlocked: boolean;
+}): { ok: true; nextDevTrait: ImmortalityDevTrait; cost: number } | { ok: false; error: string } {
+  if (!input.teammateDevPurchaseUnlocked) return { ok: false, error: "Purchase the Development Staff Progression Tree perk before buying a teammate promotion." };
+  return resolveDevTraitPromotionCost(input);
+}
+
+function resolveDevTraitPromotionCost(input: {
+  currentDevTrait: ImmortalityDevTrait;
+  availableXp: number;
+}): { ok: true; nextDevTrait: ImmortalityDevTrait; cost: number } | { ok: false; error: string } {
   const nextDevTrait = promotionPath(input.currentDevTrait);
   if (!nextDevTrait) return { ok: false, error: "Already at X-Factor — nothing left to promote." };
   const cost = DEV_TRAIT_PROMOTION_XP_COST[input.currentDevTrait];
   if (input.availableXp < cost) return { ok: false, error: `Need ${cost} Player XP.` };
   return { ok: true, nextDevTrait, cost };
+}
+
+const DEV_TRAIT_ORDER: ImmortalityDevTrait[] = ["normal", "star", "superstar", "xfactor"];
+
+/** Starting Origins trait plus one-step promotions REC has already recorded (pending or applied).
+ * EA roster sync overwrites rec_players.dev_trait, so this is the source of truth in-app. */
+export function effectiveDevTrait(starting: ImmortalityDevTrait, promotionSteps: number): ImmortalityDevTrait {
+  const index = DEV_TRAIT_ORDER.indexOf(starting);
+  const next = Math.min(DEV_TRAIT_ORDER.length - 1, Math.max(0, index + Math.max(0, promotionSteps)));
+  return DEV_TRAIT_ORDER[next] ?? starting;
 }
 
 export const XP_FORMULA_VERSION = FORMULA_VERSIONS.xp;

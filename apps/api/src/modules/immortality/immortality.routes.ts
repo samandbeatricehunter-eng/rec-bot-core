@@ -49,6 +49,13 @@ import {
 } from "./immortality.service.js";
 import { signImmortalityContract } from "./contracts.service.js";
 import { postManualImmortalityTweet } from "./tweet-generation.service.js";
+import {
+  getProgressionState,
+  purchaseProgressionPerk,
+  resolveProgressionPerk,
+  purchaseDevPromotion,
+  resolveDevPromotion,
+} from "./progression.service.js";
 import { IMMORTALITY_STATES, IQ_QUESTION_COUNT } from "@rec/shared";
 
 const GuildBody = z.object({ guildId: z.string().min(1) });
@@ -242,6 +249,51 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "Resolving upgrade batches requires a website session.");
       return reply.send(await resolveImmortalityUpgradeBatch({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/progression", async (request, reply) => {
+    try {
+      const body = SideBody.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "The Progression Tree is website-only.");
+      return reply.send(await getProgressionState({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/progression/purchase", async (request, reply) => {
+    try {
+      const body = SideBody.extend({ key: z.string().trim().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Progression Tree purchases are website-only.");
+      return reply.send(await purchaseProgressionPerk({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/progression/resolve", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ requestId: z.string().uuid(), action: z.enum(["applied", "refunded"]), note: z.string().max(1000).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Resolving Progression Tree purchases requires a website session.");
+      return reply.send(await resolveProgressionPerk({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/progression/dev-promotion", async (request, reply) => {
+    try {
+      const body = SideBody.extend({ teammatePlayerId: z.string().uuid().optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Dev-trait promotions are website-only.");
+      return reply.send(await purchaseDevPromotion({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/progression/dev-promotion/resolve", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ requestId: z.string().uuid(), action: z.enum(["applied", "refunded"]), note: z.string().max(1000).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Resolving promotions requires a website session.");
+      return reply.send(await resolveDevPromotion({ ...body, reviewerDiscordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

@@ -296,6 +296,12 @@ export async function awardImmortalityChallengesAfterAdvance(input: {
       });
     }
   }
+  const { evaluateSeasonTrendPromotionsAfterAdvance } = await import("./progression.service.js");
+  await evaluateSeasonTrendPromotionsAfterAdvance({
+    leagueId: input.leagueId,
+    seasonNumber: input.seasonNumber,
+    weekNumber: input.weekNumber,
+  });
 }
 
 export async function grantAbilitySlotForPlayerOfWeek(playerId: string, sourceId: string): Promise<void> {

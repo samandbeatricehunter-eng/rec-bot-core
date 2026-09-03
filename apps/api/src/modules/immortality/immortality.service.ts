@@ -719,10 +719,14 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
         offense: characteristicCatalog(positionGroupFor(league.offense_position as ImmortalityPosition)).map((item) => ({
           key: item.key, displayName: item.displayName, positionGroup: item.positionGroup, slotCost: item.slotCost, effect: item.effect, tags: item.tags,
           attributeCodes: attributeCodesFor(item),
+          tier: item.tier,
+          xpCost: item.xpCost,
         })),
         defense: characteristicCatalog(positionGroupFor(league.defense_position as ImmortalityPosition)).map((item) => ({
           key: item.key, displayName: item.displayName, positionGroup: item.positionGroup, slotCost: item.slotCost, effect: item.effect, tags: item.tags,
           attributeCodes: attributeCodesFor(item),
+          tier: item.tier,
+          xpCost: item.xpCost,
         })),
       },
       persona: {
@@ -1191,13 +1195,18 @@ export async function selectCharacteristics(input: {
   const catalog = characteristicCatalog(group);
   const validated = validateCharacteristicSelection({ positionGroup: group, catalog, keys: input.keys });
   if (!validated.ok) throw new ApiError(400, `Invalid natural characteristics: ${validated.error.replaceAll("_", " ")}.`);
-  await supabase.from("rec_immortality_prospect_characteristics").delete().eq("prospect_id", prospect.id);
+  await supabase.from("rec_immortality_prospect_characteristics")
+    .delete()
+    .eq("prospect_id", prospect.id)
+    .eq("source", "creation");
   if (validated.selected.length) {
     const inserted = await supabase.from("rec_immortality_prospect_characteristics").insert(
       validated.selected.map((item) => ({
         prospect_id: prospect.id,
         characteristic_key: item.key,
         slot_cost: item.slotCost,
+        source: "creation",
+        xp_spent: 0,
       })),
     );
     if (inserted.error) throw new ApiError(500, "Could not save characteristics.", inserted.error);
@@ -3259,7 +3268,9 @@ async function applyXpConversion(prospect: Record<string, any>, playerXp: number
   const player = await supabase.from("rec_players").select("overall_rating").eq("id", prospect.player_id).maybeSingle();
   if (player.data?.overall_rating == null) throw new ApiError(400, "Team XP unlocks once this player's first real game data is imported.");
   const currentOvr = Number(player.data.overall_rating);
-  const allowed = canConvertToTeamXp({ currentOvr, devTrait: startingDevTrait(modifiers), teamPlayer: modifiers.teamXpFromSeason1 });
+  const { recDevTraitForProspect } = await import("./progression.service.js");
+  const currentDev = await recDevTraitForProspect(String(prospect.id), startingDevTrait(modifiers));
+  const allowed = canConvertToTeamXp({ currentOvr, devTrait: currentDev, teamPlayer: modifiers.teamXpFromSeason1 });
   if (!allowed) throw new ApiError(400, "Team XP unlocks after this player reaches his current development ceiling.");
   const converted = convertPlayerXpToTeamXp(playerXp);
   if ("error" in converted) throw new ApiError(400, converted.error);
@@ -3374,7 +3385,9 @@ export async function submitImmortalityUpgrades(input: {
   const catalog = characteristicCatalog(positionGroupFor(prospect.position as ImmortalityPosition));
   const selected = catalog.filter((item) => (traits.data ?? []).some((row) => row.characteristic_key === item.key));
   const modifiers = combinedModifiers(selected);
-  const ceiling = DEV_OVR_CEILING[startingDevTrait(modifiers)];
+  const { recDevTraitForProspect } = await import("./progression.service.js");
+  const currentDev = await recDevTraitForProspect(String(prospect.id), startingDevTrait(modifiers));
+  const ceiling = DEV_OVR_CEILING[currentDev];
   const attributes = { ...((build.data.final_attributes ?? {}) as Record<string, number>) };
   let remainingXp = ledgerXpBalance(ledger.data ?? []).playerXp;
 
@@ -3604,8 +3617,8 @@ export async function reopenImmortalityOriginsIfPrematurelyAdvanced(guildId: str
 }
 
 export function publicCharacteristicCatalog() {
-  return allCharacteristicCatalogs().map(({ key, displayName, positionGroup, slotCost, effect, tags }) => ({
-    key, displayName, positionGroup, slotCost, effect, tags,
+  return allCharacteristicCatalogs().map(({ key, displayName, positionGroup, slotCost, effect, tags, tier, xpCost }) => ({
+    key, displayName, positionGroup, slotCost, effect, tags, tier, xpCost,
   }));
 }
 

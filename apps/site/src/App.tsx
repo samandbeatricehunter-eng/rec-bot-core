@@ -18,6 +18,7 @@ const LeaguesPage = lazy(() => import("./routes/Leagues.js").then((m) => ({ defa
 const LeagueHubPage = lazy(() => import("./routes/LeagueHub.js").then((m) => ({ default: m.LeagueHubPage })));
 const RiseOriginsPage = lazy(() => import("./routes/RiseOrigins.js").then((m) => ({ default: m.RiseOriginsPage })));
 const RiseXpPage = lazy(() => import("./routes/RiseXp.js").then((m) => ({ default: m.RiseXpPage })));
+const RiseProgressionPage = lazy(() => import("./routes/RiseProgression.js").then((m) => ({ default: m.RiseProgressionPage })));
 const RiseRivalsPage = lazy(() => import("./routes/RiseRivals.js").then((m) => ({ default: m.RiseRivalsPage })));
 const RiseTrustTreePage = lazy(() => import("./routes/RiseTrustTree.js").then((m) => ({ default: m.RiseTrustTreePage })));
 const Pricing = lazy(() => import("./routes/Pricing.js").then((m) => ({ default: m.Pricing })));
@@ -276,6 +277,7 @@ function Routed() {
         <Route path="/l/:leagueId/buzz" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/rise" element={<RiseOriginsPage />} />
         <Route path="/l/:leagueId/team/upgrades" element={<RiseXpPage />} />
+        <Route path="/l/:leagueId/team/progression" element={<RiseProgressionPage />} />
         <Route path="/l/:leagueId/team/rivals" element={<RiseRivalsPage />} />
         <Route path="/l/:leagueId/team/trust" element={<RiseTrustTreePage />} />
         <Route path="/l/:leagueId/news" element={<LeagueHubPage />} />

@@ -789,10 +789,10 @@ function CharacteristicsPanel({
   return (
     <section className="rise-card">
       <h2>Natural characteristics</h2>
-      <p className="site-muted">Pick before Creation Points. Max {MAX_EQUIPPED_CHARACTERISTICS} — traits that touch the same rating can't be combined.</p>
+      <p className="site-muted">Pick before Creation Points. Max {MAX_EQUIPPED_CHARACTERISTICS} — traits that touch the same rating can't be combined. Later-career Progression Tree perks are bought with Player XP after Origins, not here.</p>
       <p>Used {keys.length} / {MAX_EQUIPPED_CHARACTERISTICS}</p>
       <div className="rise-trait-list">
-        {catalog.map((item) => {
+        {catalog.filter((item) => (item.tier ?? 1) === 1).map((item) => {
           const selected = keys.includes(item.key);
           const overlaps = !selected && item.attributeCodes.some((code) => selectedAttributeCodes.has(code));
           const atCap = !selected && keys.length >= MAX_EQUIPPED_CHARACTERISTICS;

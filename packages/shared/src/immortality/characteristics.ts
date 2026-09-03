@@ -9,7 +9,7 @@ export const MAX_ATTRIBUTE_DISCOUNT = 0.3;
 export const SECOND_OVERLAP_EFFECTIVENESS = 0.5;
 export const THIRD_OVERLAP_EFFECTIVENESS = 0.25;
 
-export type CharacteristicTier = 1 | 2 | 3;
+export type CharacteristicTier = 1 | 2 | 3 | 4;
 
 export const DEFAULT_XP_COST_BY_SLOT: Record<number, number> = { 1: 15, 2: 25, 3: 40 };
 export const ALL_ATTRIBUTES_DISCOUNT_CODE = "ALL";
@@ -47,15 +47,21 @@ export type CharacteristicSelectionError =
   | "overlapping_attribute"
   | "unknown_characteristic"
   | "duplicate_characteristic"
-  | "wrong_position_group";
+  | "wrong_position_group"
+  | "progression_tree_only";
 
 export type CharacteristicPurchaseError =
   | "unknown_characteristic"
   | "wrong_position_group"
   | "already_owned"
   | "tier_locked"
-  | "count_exceeded"
+  | "origins_only"
   | "insufficient_xp";
+
+/** Origins is free Tier 1 only. Tier 2+ is purchased later from the Progression Tree. */
+export function isProgressionTreePerk(definition: Pick<CharacteristicDefinition, "tier">): boolean {
+  return definition.tier >= 2;
+}
 
 export function characteristicKey(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
@@ -124,10 +130,13 @@ export function modifiersFromDefinition(input: {
       modifiers.weeklySweepBonusXp = 2;
       break;
     case "self_made":
-      modifiers.teammateDevPurchaseUnlocked = true;
+      modifiers.devTraitPurchaseUnlocked = true;
       break;
     case "development_staff":
       modifiers.teammateDevPurchaseUnlocked = true;
+      break;
+    case "spotlight":
+      modifiers.xpEarnBonus = 0.1;
       break;
     case "personnel_chief":
       modifiers.tradeAccess = true;
@@ -211,6 +220,7 @@ export function validateCharacteristicSelection(input: {
     const definition = input.catalog.find((item) => item.key === key);
     if (!definition) return { ok: false, error: "unknown_characteristic" };
     if (definition.positionGroup !== input.positionGroup) return { ok: false, error: "wrong_position_group" };
+    if (isProgressionTreePerk(definition)) return { ok: false, error: "progression_tree_only" };
     for (const code of attributeCodesFor(definition)) {
       if (seenAttributeCodes.has(code)) return { ok: false, error: "overlapping_attribute" };
       seenAttributeCodes.add(code);
@@ -233,6 +243,7 @@ export function purchaseCharacteristic(input: {
   if (!definition) return { ok: false, error: "unknown_characteristic" };
   if (definition.positionGroup !== input.positionGroup) return { ok: false, error: "wrong_position_group" };
   if (input.ownedKeys.includes(input.key)) return { ok: false, error: "already_owned" };
+  if (!isProgressionTreePerk(definition)) return { ok: false, error: "origins_only" };
 
   const owned = input.catalog.filter((item) => input.ownedKeys.includes(item.key));
   if (definition.tier === 2 && owned.filter((item) => item.tier === 1).length < 2) {
@@ -241,8 +252,10 @@ export function purchaseCharacteristic(input: {
   if (definition.tier === 3 && !owned.some((item) => item.tier === 2)) {
     return { ok: false, error: "tier_locked" };
   }
+  if (definition.tier === 4 && !owned.some((item) => item.tier === 3)) {
+    return { ok: false, error: "tier_locked" };
+  }
 
-  if (owned.length + 1 > MAX_EQUIPPED_CHARACTERISTICS) return { ok: false, error: "count_exceeded" };
   if (input.availableXp < definition.xpCost) return { ok: false, error: "insufficient_xp" };
 
   return { ok: true, xpCost: definition.xpCost, slotCost: definition.slotCost };

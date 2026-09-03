@@ -258,6 +258,8 @@ export type CommissionerNotificationType =
   | "trade"
   | "immortality_prospect"
   | "immortality_upgrade_batch"
+  | "immortality_tree_purchase"
+  | "immortality_dev_promotion"
   | "immortality_xp_conversion";
 
 export type CommissionerNotification = {
