@@ -45,6 +45,7 @@ export type IngestResult = {
   import_job_id: string;
   duplicate: boolean;
   records_stored: number;
+  records_applied: number;
 };
 
 function tokenHash(token: string) {
@@ -114,7 +115,7 @@ export async function ingestCompanionPayload(connection: CompanionConnection, en
         [connection.id],
       );
       await client.query("commit");
-      return { accepted: true, import_job_id: duplicate.rows[0].id, duplicate: true, records_stored: duplicate.rows[0].record_count };
+      return { accepted: true, import_job_id: duplicate.rows[0].id, duplicate: true, records_stored: duplicate.rows[0].record_count, records_applied: 0 };
     }
 
     const fallbackSeason = await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [connection.league_id]);
@@ -149,11 +150,17 @@ export async function ingestCompanionPayload(connection: CompanionConnection, en
     // that the version and import_records inserts just need the (possibly upserted) record id,
     // so they're combined into one round trip via chained writable CTEs; only the canonical
     // apply (which has its own per-record logic in madden-companion.canonical.ts) stays separate.
+    //
+    // After the first import, the same EA row almost always comes back byte-identical.
+    // Compare against the latest prior version checksum (not "this hash ever existed") so a
+    // later revert still re-applies. Unchanged rows skip the expensive canonical rewrite
+    // (roster/stats delete+insert). Last_seen_at still updates via the record upsert.
+    let recordsApplied = 0;
     for (const record of records) {
       const seasonKey = record.externalSeasonKey === "current" ? externalSeasonKey : record.externalSeasonKey;
       const normalizedJson = JSON.stringify(record.normalizedData);
       const rawJson = JSON.stringify(record.rawData);
-      const stored = await client.query<{ id: string }>(
+      const stored = await client.query<{ id: string; checksum_is_new: boolean }>(
         `with ins as (
            insert into rec_madden_companion_records
              (league_id, connection_id, external_league_id, external_season_key, endpoint_key, record_key,
@@ -173,16 +180,29 @@ export async function ingestCompanionPayload(connection: CompanionConnection, en
            insert into rec_madden_companion_record_versions(record_id, import_job_id, content_checksum, normalized_data, raw_data)
            select ins.id, $14, $15, $12::jsonb, $13::jsonb from ins
            on conflict (record_id, content_checksum) do nothing
+           returning record_id
          ), rec as (
            insert into rec_import_records(import_job_id, league_id, record_type, entity_key, status, trust_level, applied_at)
            select $14, $1, $5, $16, 'applied', 'trusted_automated_import', now() from ins
          )
-         select id from ins`,
+         select ins.id,
+                coalesce((
+                  select v.content_checksum
+                    from rec_madden_companion_record_versions v
+                   where v.record_id = ins.id
+                     and v.import_job_id is distinct from $14
+                   order by v.created_at desc
+                   limit 1
+                ), '') is distinct from $15 as checksum_is_new
+           from ins`,
         [connection.league_id, connection.id, record.externalLeagueId, seasonKey, endpointKey, record.recordKey,
           record.sourceTeamId, record.sourcePlayerId, record.sourceGameId, record.weekNumber, record.statCategory,
           normalizedJson, rawJson, jobId, record.contentChecksum, `${seasonKey}:${record.recordKey}`],
       );
-      await applyCompanionRecordToCanonical({ client, leagueId: connection.league_id, endpointKey, canonicalRecordId: stored.rows[0].id, seasonKey, record });
+      if (stored.rows[0].checksum_is_new) {
+        await applyCompanionRecordToCanonical({ client, leagueId: connection.league_id, endpointKey, canonicalRecordId: stored.rows[0].id, seasonKey, record });
+        recordsApplied += 1;
+      }
     }
 
     const safeHeaders = Object.fromEntries(Object.entries(requestHeaders).filter(([key]) => !/authorization|cookie|token/i.test(key)));
@@ -201,7 +221,7 @@ export async function ingestCompanionPayload(connection: CompanionConnection, en
       [connection.id, externalIds[0] ?? null, `ok:${endpointKey}:${records.length}`],
     );
     await client.query("commit");
-    return { accepted: true, import_job_id: jobId, duplicate: false, records_stored: records.length };
+    return { accepted: true, import_job_id: jobId, duplicate: false, records_stored: records.length, records_applied: recordsApplied };
   } catch (error) {
     await client.query("rollback");
     throw error;
@@ -222,7 +242,8 @@ export async function ingestCompanionBundle(connection: CompanionConnection, pay
     await syncCompanionScheduleResultsIntoGameResults(connection.league_id).catch((error) =>
       console.error("[WARN] Failed to sync Companion schedule results into rec_game_results (non-fatal):", error));
   }
-  if (importedStatsNeedFinalize(imports.map((item) => item.endpoint_key))) {
+  if (importedStatsNeedFinalize(imports.map((item) => item.endpoint_key))
+    && imports.some((item) => !item.duplicate && item.records_applied > 0)) {
     await finalizeImportedLeagueStats(connection.league_id).catch((error) =>
       console.error("[WARN] Failed to refresh league records and hub ranks after Companion import (non-fatal):", error));
   }

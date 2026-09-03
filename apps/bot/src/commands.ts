@@ -72,6 +72,18 @@ export const commands = [
     .addMentionableOption((opt) => opt.setName("tag").setDescription("Tag a specific user or role above the tweet (optional).").setRequired(false))
     .addBooleanOption((opt) => opt.setName("tag_everyone").setDescription("Tag @everyone above the tweet (optional).").setRequired(false))
     .toJSON(),
+  new SlashCommandBuilder()
+    .setName("twitter")
+    .setDescription("Post a tweet as your owner, offensive player, or defensive player.")
+    .addStringOption((opt) => opt
+      .setName("persona")
+      .setDescription("Which of your personas is posting?")
+      .setRequired(true)
+      .setAutocomplete(true))
+    .addStringOption((opt) => opt.setName("tweet").setDescription("The tweet text.").setRequired(true).setMaxLength(1000))
+    .addMentionableOption((opt) => opt.setName("tag").setDescription("Tag a user or role above the tweet (optional).").setRequired(false))
+    .addBooleanOption((opt) => opt.setName("tag_everyone").setDescription("Tag @everyone above the tweet (optional).").setRequired(false))
+    .toJSON(),
 ];
 
 function discordRest() {

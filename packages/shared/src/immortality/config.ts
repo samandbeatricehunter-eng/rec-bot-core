@@ -14,7 +14,9 @@ import synergiesJson from "./config/characteristic_synergies.json" with { type: 
 import milestonesJson from "./config/milestones_v1.json" with { type: "json" };
 import contractsJson from "./config/contracts_v1.json" with { type: "json" };
 import matchupInterviewJson from "./config/matchup_interview_pool.json" with { type: "json" };
+import matchupInterviewWave2Json from "./config/matchup_interview_wave2.json" with { type: "json" };
 import stageInterviewJson from "./config/stage_interview_pool.json" with { type: "json" };
+import stageInterviewWave2Json from "./config/stage_interview_wave2.json" with { type: "json" };
 import {
   characteristicKey,
   modifiersFromDefinition,
@@ -234,9 +236,9 @@ export function branchingPlaystyleGroup(group: BranchingPlaystylePositionGroup):
 }
 
 export function matchupInterviewPool(): MatchupInterviewQuestion[] {
-  return matchupInterviewJson.pool as MatchupInterviewQuestion[];
+  return [...(matchupInterviewJson.pool as MatchupInterviewQuestion[]), ...(matchupInterviewWave2Json as MatchupInterviewQuestion[])];
 }
 
 export function stageInterviewPool(): StageInterviewQuestion[] {
-  return stageInterviewJson.pool as StageInterviewQuestion[];
+  return [...(stageInterviewJson.pool as StageInterviewQuestion[]), ...(stageInterviewWave2Json as StageInterviewQuestion[])];
 }

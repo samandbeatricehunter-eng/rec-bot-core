@@ -9,7 +9,7 @@
 // isRegularSeasonWeek/maxSeasonWeek helpers the rest of the app uses for week-type gating —
 // there's no separate "is this week postseason" column to duplicate in SQL.
 import { getPgPool } from "../../db/client.js";
-import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
+import { invalidateLeagueComputeCaches, withComputeCache } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext, siteOnlyGuildId } from "../league-context/league-context.service.js";
@@ -149,7 +149,11 @@ export async function getLeagueRecordsForLeagueId(
 
 export async function getLeagueRecords(guildId: string, input: { scope: LeagueRecordsScope; postseason: boolean; category: StatPageCategoryKey }) {
   const context = await getCurrentLeagueContext(guildId);
-  return getLeagueRecordsForLeagueId(context.leagueId, input);
+  return withComputeCache(
+    `league-records:${guildId}:${input.scope}:${input.postseason}:${input.category}`,
+    60_000,
+    () => getLeagueRecordsForLeagueId(context.leagueId, input),
+  );
 }
 
 const ALL_STAT_KEYS = [...new Set(STAT_PAGE_CATEGORIES.flatMap((c) => statKeysForPageCategory(c.key)))];

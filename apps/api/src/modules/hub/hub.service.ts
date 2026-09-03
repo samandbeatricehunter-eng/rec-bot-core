@@ -710,6 +710,11 @@ export async function getHub(guildId: string, discordId: string) {
     console.error("[WARN] highlight prune failed during hub load (non-fatal):", error);
   });
 
+  return withComputeCache(`hub:view:${guildId}:${discordId}`, 45_000, () => loadHub(guildId, discordId));
+}
+
+async function loadHub(guildId: string, discordId: string) {
+
   const contextP = getCurrentLeagueContext(guildId);
   const userIdP = userIdForDiscord(discordId);
   const [context, userId] = await Promise.all([contextP, userIdP]);

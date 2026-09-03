@@ -133,6 +133,7 @@ const BASE_GUILD_COMMANDS_JSON = [
   { name: "wallet", description: "Check your coin balance and savings." },
   { name: "powerrankings", description: "Show current power rankings." },
   { name: "rules", description: "Browse this league's rules." },
+  { name: "twitter", description: "Post a tweet as your owner, offensive player, or defensive player." },
 ];
 /**
  * Registers this guild's full base command set.

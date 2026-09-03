@@ -396,7 +396,7 @@ test("Madden 27 abilities assign from franchise OVR gates, not REC-controlled ti
 
 test("matchup interview pool has real volume and every option is well-formed", () => {
   const pool = matchupInterviewPool();
-  assert.ok(pool.length >= 100, `expected a substantial pool, got ${pool.length}`);
+  assert.ok(pool.length >= 300, `expected a substantial pool, got ${pool.length}`);
   const ids = new Set(pool.map((q) => q.id));
   assert.equal(ids.size, pool.length, "question ids must be unique");
   for (const question of pool) {

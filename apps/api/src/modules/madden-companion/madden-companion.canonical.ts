@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg";
 import { canonicalizeStatPayload, normalizeMaddenDevTrait } from "@rec/shared";
 import type { MaddenEndpointKey } from "./madden-companion.service.js";
-import type { NormalizedCompanionRecord } from "./madden-companion.adapters.js";
+import { companionChecksum, type NormalizedCompanionRecord } from "./madden-companion.adapters.js";
 import { mapEaTeamWeeklyStats } from "./team-stats-map.js";
 import { abbreviationMatchValues, preferredRecAbbreviation } from "./team-identity.js";
 import { eaScheduleExternalId } from "../madden-ea/ea-weeks.js";
@@ -368,14 +368,19 @@ async function applyPlayerStats(client: PoolClient, leagueId: string, canonicalR
   // real in-game box score showed 10) since this whole function is a blind delete-then-insert
   // with no merge logic. Counting stats never legitimately decrease within the same game, so
   // merge by taking the max of each numeric field against whatever's already stored.
-  const existingStats = (await client.query<{ stats: Record<string, unknown> }>(
-    `select stats from rec_player_weekly_stats
+  const existingRow = (await client.query<{ stats: Record<string, unknown>; team_id: string | null }>(
+    `select stats, team_id from rec_player_weekly_stats
       where league_id=$1 and season_number=$2 and madden_player_id=$3
         and stat_category=$4 and week_number=$5`,
     [leagueId, season, record.sourcePlayerId, category, weekNumber],
-  )).rows[0]?.stats;
+  )).rows[0];
   const newStats = statPayload(record.rawData);
-  const mergedStats = mergeStatsMonotonic(existingStats, newStats);
+  const mergedStats = mergeStatsMonotonic(existingRow?.stats, newStats);
+  if (existingRow
+    && existingRow.team_id === resolvedTeamId
+    && companionChecksum(existingRow.stats) === companionChecksum(mergedStats)) {
+    return;
+  }
 
   // Key format used to omit week, so the same player+game+category from week 2 would
   // ON CONFLICT onto week 1. Drop any existing row for this player/week/category (including

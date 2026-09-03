@@ -69,7 +69,7 @@ export function invalidateComputeCache(prefix: string): void {
 // finalizeImportedLeagueStats (league-records.service.ts), which resolves Discord + site-only
 // guild ids and then this.
 export function invalidateLeagueComputeCaches(guildId: string): void {
-  for (const prefix of ["power-rankings:", "sos:", "coach-ratings:", "user-ratings:", "league-context:"]) {
+  for (const prefix of ["power-rankings:", "sos:", "coach-ratings:", "user-ratings:", "league-context:", "hub:view:", "league-history:", "league-records:"]) {
     invalidateComputeCache(`${prefix}${guildId}`);
   }
 }

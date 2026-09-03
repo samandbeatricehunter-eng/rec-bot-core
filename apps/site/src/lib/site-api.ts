@@ -106,15 +106,16 @@ function requireApiBaseUrl(): string {
 
 const siteReadCache = createReadCache();
 const READ_TTL_MS: Record<string, number> = {
-  "/v1/site-auth/me": 15_000,
-  "/v1/site-leagues/mine": 15_000,
-  "/v1/site-leagues/open-hub": 30_000,
+  "/v1/site-auth/me": 45_000,
+  "/v1/site-leagues/mine": 30_000,
+  "/v1/site-leagues/open-hub": 60_000,
   "/v1/site-leagues/ticker": 10_000,
   "/v1/site-home/card": 15_000,
   "/v1/site-home/announcements": 30_000,
   "/v1/site-home/spotlight": 20_000,
   "/v1/site-notifications/counts": 10_000,
   "/v1/subscriptions/me": 15_000,
+  "/v1/immortality/hub": 20_000,
 };
 
 let sessionCache: { token: string; expiresAt: number } | null = null;

@@ -9,7 +9,7 @@ import { ApiError } from "../../lib/errors.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
-import { loadImmortalityLeague, prospectAvatarUrlForHandle } from "./immortality.service.js";
+import { loadImmortalityLeague, prospectAvatarUrlForHandle, recUserIdFromDiscordId, requireImmortalityLeague, twitterHandleForProspect } from "./immortality.service.js";
 import { ensurePlayerPersonasForLeague, playerPersonaFor, playerPersonaAvatarForHandle } from "./player-personas.service.js";
 import {
   GENERIC_HANDLES, MANUAL_TWEET_GENERIC_HANDLES, PLAYER_CHATTER_TEMPLATES, TWEET_HOSTS, TWEET_TEMPLATES, staticAvatarUrlForHandle,
@@ -346,6 +346,116 @@ export async function postManualImmortalityTweet(input: {
     posted_at: new Date().toISOString(),
     source: "manual",
   });
+}
+
+export type PlayerTwitterPersonaKey = "owner" | "offense" | "defense";
+
+export type PlayerTwitterPersona = {
+  key: PlayerTwitterPersonaKey;
+  name: string;
+  handle: string;
+  roleLabel: string;
+};
+
+type ResolvedPlayerTwitterPersona = PlayerTwitterPersona & { avatarUrl: string | undefined };
+
+async function resolveOwnedTwitterPersonas(guildId: string, discordId: string): Promise<ResolvedPlayerTwitterPersona[]> {
+  const context = await getCurrentLeagueContext(guildId);
+  const league = await loadImmortalityLeague(context.leagueId);
+  if (!league) return [];
+  const userId = await recUserIdFromDiscordId(discordId);
+  const [owner, prospects] = await Promise.all([
+    supabase.from("rec_immortality_owners")
+      .select("first_name,last_name,headshot_url")
+      .eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle(),
+    supabase.from("rec_immortality_prospects")
+      .select("side,first_name,last_name,headshot_url,position")
+      .eq("immortality_league_id", league.id).eq("user_id", userId),
+  ]);
+  const personas: ResolvedPlayerTwitterPersona[] = [];
+  if (owner.data) {
+    const { handle, displayName } = twitterHandleForProspect(owner.data);
+    if (displayName !== "Prospect") {
+      personas.push({
+        key: "owner", name: displayName, handle, roleLabel: "Owner",
+        avatarUrl: owner.data.headshot_url ? String(owner.data.headshot_url) : undefined,
+      });
+    }
+  }
+  for (const side of ["offense", "defense"] as const) {
+    const prospect = ((prospects.data ?? []) as Array<{
+      side: string; first_name: string | null; last_name: string | null; headshot_url: string | null; position: string | null;
+    }>).find((row) => row.side === side);
+    if (!prospect) continue;
+    const { handle, displayName } = twitterHandleForProspect(prospect);
+    if (displayName === "Prospect") continue;
+    const position = prospect.position ? ` (${prospect.position})` : "";
+    personas.push({
+      key: side, name: displayName, handle,
+      roleLabel: `${side === "offense" ? "Offense" : "Defense"}${position}`,
+      avatarUrl: prospect.headshot_url ? String(prospect.headshot_url) : undefined,
+    });
+  }
+  return personas;
+}
+
+/** Autocomplete source for the player /twitter slash command -- at most the caller's owner plus
+ * their offensive and defensive cornerstone, never another member's personas. */
+export async function listPlayerTwitterPersonas(input: {
+  guildId: string;
+  discordId: string;
+}): Promise<{ personas: PlayerTwitterPersona[] }> {
+  const personas = await resolveOwnedTwitterPersonas(input.guildId, input.discordId);
+  return { personas: personas.map(({ key, name, handle, roleLabel }) => ({ key, name, handle, roleLabel })) };
+}
+
+/** Member-authored tweet from /twitter -- posts immediately as one of the caller's own RTI
+ * personas (owner / offense / defense). Persona is re-resolved server-side so a typed value
+ * that isn't theirs cannot post as someone else. */
+export async function postPlayerTwitterTweet(input: {
+  guildId: string;
+  discordId: string;
+  persona: string;
+  tweetText: string;
+  mentionContent?: string;
+}): Promise<{ postedAs: string }> {
+  await requireImmortalityLeague((await getCurrentLeagueContext(input.guildId)).leagueId);
+  const personas = await resolveOwnedTwitterPersonas(input.guildId, input.discordId);
+  const chosen = personas.find((row) => row.key === input.persona);
+  if (!chosen) {
+    if (!personas.length) throw new ApiError(400, "Create your owner and players in Origins before posting to Twitter.");
+    throw new ApiError(400, `Pick one of your personas: ${personas.map((row) => row.roleLabel).join(", ")}.`);
+  }
+
+  const context = await getCurrentLeagueContext(input.guildId);
+  const routes = await findServerRoutesForLeague(context.leagueId);
+  const channelId = (routes?.routes as any)?.tweets_channel_id as string | null | undefined;
+  if (!channelId) throw new ApiError(400, "This server has no tweets channel configured yet.");
+
+  const posted = await postDiscordChannelMessage(channelId, {
+    content: input.mentionContent?.trim() || undefined,
+    embeds: [{
+      author: { name: `${chosen.name} (${chosen.handle})`, icon_url: chosen.avatarUrl },
+      description: input.tweetText,
+      color: 0x1d9bf0,
+    }],
+  });
+  if (!posted) throw new ApiError(502, "Discord rejected the tweet -- check the tweets channel still exists and the bot can post there.");
+
+  const league = await supabase.from("rec_leagues").select("season_number,current_week").eq("id", context.leagueId).maybeSingle();
+  await supabase.from("rec_immortality_tweet_queue").insert({
+    league_id: context.leagueId,
+    season_number: Number(league.data?.season_number ?? 1),
+    week_number: Number(league.data?.current_week ?? 1),
+    author_kind: "player",
+    author_handle: chosen.handle,
+    author_display_name: chosen.name,
+    body: input.tweetText,
+    status: "posted",
+    posted_at: new Date().toISOString(),
+    source: "player_twitter",
+  });
+  return { postedAs: `${chosen.name} (${chosen.handle})` };
 }
 
 /** Clears whatever this generator left pending from its previous run and queues a fresh batch of

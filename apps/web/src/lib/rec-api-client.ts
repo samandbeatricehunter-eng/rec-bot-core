@@ -371,12 +371,12 @@ export const recApi = {
       positions: string[];
       players: Array<{ id: string; fullName: string; position: string | null; jerseyNumber: number | null; photoUrl: string | null; devTrait: string | null; teamId: string | null; teamName: string | null; teamAbbreviation: string | null; stats: Record<string, number> }>;
       leaders: Record<string, Array<{ playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; value: number; rank: number }>>;
-    }>("/v1/hub/league-stats", { method: "POST", body: JSON.stringify(input) }),
+    }>("/v1/hub/league-stats", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 45_000 }),
   getLeagueTeamStats: (guildId: string) =>
     recApiFetch<{
       league: { id: string; name: string; game: string; season_number: number };
       teams: Array<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null; stats: Record<string, number> }>;
-    }>("/v1/hub/league-team-stats", { method: "POST", body: JSON.stringify({ guildId }) }),
+    }>("/v1/hub/league-team-stats", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 45_000 }),
   getLeagueRecords: (input: { guildId: string; scope: "game" | "season" | "career"; postseason: boolean; category: string }) =>
     recApiFetch<{
       league: { id: string; name: string; game: string; season_number: number };
@@ -386,9 +386,9 @@ export const recApi = {
         label: string;
         leaders: Array<{ playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; value: number; weekNumber: number | null; seasonNumber: number | null; rank: number }>;
       }>;
-    }>("/v1/hub/league-records", { method: "POST", body: JSON.stringify(input) }),
+    }>("/v1/hub/league-records", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 45_000 }),
   getHub: (guildId: string) =>
-    recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 8_000 }),
+    recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 45_000 }),
   getHubBootstrapStatus: (guildId: string) =>
     recApiFetch<{ leagueExists: boolean; canSetup: boolean }>("/v1/hub/bootstrap-status", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 10_000 }),
   retireFromHub: (guildId: string) =>
@@ -496,7 +496,7 @@ export const recApi = {
   reviewCustomTeamIdentity: (input: { guildId: string; inboxId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<{ reviewed: true; decision: "approve" | "deny" }>("/v1/hub/relocation/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   getHubMatchupSchedule: (input: { guildId: string; weekNumber?: number | null }) =>
-    recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 8_000 }),
+    recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 45_000 }),
   getHubMatchupDetail: (input: { guildId: string; gameId: string }) =>
     recApiFetch<import("../types/api.js").HubMatchupDetail>("/v1/hub/matchups/detail", { method: "POST", body: JSON.stringify(input) }),
   getMatchupPreview: (input: { guildId: string; gameId: string }) =>
@@ -740,7 +740,7 @@ export const recApi = {
   getCfpPostseason: (guildId: string) =>
     recApiFetch<import("../types/api.js").CfpPostseasonState>("/v1/schedule/cfp/state", { method: "POST", body: JSON.stringify({ guildId }) }),
   getNflPlayoffPicture: (guildId: string) =>
-    recApiFetch<import("../types/api.js").NflPlayoffPicture>("/v1/standings/nfl-playoff-picture", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<import("../types/api.js").NflPlayoffPicture>("/v1/standings/nfl-playoff-picture", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 45_000 }),
   getNflPlayoffBracketSnapshot: (guildId: string) =>
     recApiFetch<{ seasonNumber: number; picture: import("../types/api.js").NflPlayoffPicture } | null>("/v1/standings/nfl-playoff-bracket-snapshot", { method: "POST", body: JSON.stringify({ guildId }) }),
   saveCfpTop25: (input: { guildId: string; rankings: Array<{ rank: number; teamId: string; conferenceChampion: boolean }> }) =>
@@ -764,7 +764,7 @@ export const recApi = {
 
   // League header (AppShell)
   getLeagueHeaderSummary: (guildId: string) =>
-    recApiFetch<LeagueHeaderSummary>(REC_API_ROUTES.leagueHeaderSummary, { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<LeagueHeaderSummary>(REC_API_ROUTES.leagueHeaderSummary, { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 30_000 }),
 
   // Team ownership
   listLinkedUsersTeams: (guildId: string) => recApiFetch<LinkedTeamsResponse>(REC_API_ROUTES.linkedUsersTeams(guildId)),
@@ -808,7 +808,7 @@ export const recApi = {
   sendWalletCoins: (input: { guildId: string; recipientUserId: string; amount: number; note?: string | null }) =>
     recApiFetch<{ sent: number; recipientUserId: string; wallet_balance: number; savings_balance: number }>("/v1/users/me/wallet/send", { method: "POST", body: JSON.stringify(input) }),
   getLeagueHistory: (guildId: string) =>
-    recApiFetch<import("../types/api.js").LeagueHistoryResponse>("/v1/hub/league-history", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<import("../types/api.js").LeagueHistoryResponse>("/v1/hub/league-history", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 60_000 }),
   createMyPurchase: (input: { guildId: string; purchaseType: string; details: Record<string, unknown>; idempotencyKey?: string }) =>
     recApiFetch<any>("/v1/purchases/create", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   getStorePurchaseContext: (guildId: string) =>

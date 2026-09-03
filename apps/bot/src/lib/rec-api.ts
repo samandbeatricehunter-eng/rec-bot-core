@@ -57,6 +57,13 @@ export const recApi = {
   refreshRecGuide: (guildId: string) => recFetch<{ posted: number; channelId: string } | null>("/v1/server-config/rec-guide/refresh", { method: "POST", body: JSON.stringify({ guildId }) }),
   postManualTweet: (input: { guildId: string; persona: string; customHandle?: string; customDisplayName?: string; tweetText: string; mentionContent?: string }) =>
     recFetch<{ posted: true }>("/v1/immortality/tweets/manual", { method: "POST", body: JSON.stringify(input) }),
+  listPlayerTwitterPersonas: (input: { guildId: string; discordId: string }) =>
+    recFetch<{ personas: Array<{ key: "owner" | "offense" | "defense"; name: string; handle: string; roleLabel: string }> }>(
+      "/v1/immortality/tweets/personas",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  postPlayerTwitterTweet: (input: { guildId: string; discordId: string; persona: "owner" | "offense" | "defense"; tweetText: string; mentionContent?: string }) =>
+    recFetch<{ postedAs: string }>("/v1/immortality/tweets/player", { method: "POST", body: JSON.stringify(input) }),
   grantImmortalityCommissionerBonus: (input: { guildId: string; targetDiscordId: string }) =>
     recFetch<{ granted: true; teamName: string }>("/v1/immortality/commissioner-bonus/grant", { method: "POST", body: JSON.stringify(input) }),
   health: () => recFetch<{ ok: boolean; service: string }>(REC_API_ROUTES.health),

@@ -154,6 +154,7 @@ import {
 } from "./flows/availability-wizard.js";
 import { handleRulesSlash, handleRulesCategorySelect, handleRulesPost, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
 import { handleTweetsSlash } from "./flows/tweets-slash.js";
+import { handleTwitterSlash, handleTwitterPersonaAutocomplete } from "./flows/twitter-slash.js";
 import {
   AVAILABILITY_BOARD_CUSTOM_IDS,
   handleBoardSetAvailability, handleBoardSetTimezone, handleBoardThisWeek,
@@ -679,6 +680,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
+    if (interaction.isAutocomplete() && interaction.commandName === "twitter") {
+      await handleTwitterPersonaAutocomplete(interaction);
+      return;
+    }
+
     if (interaction.isChatInputCommand() && interaction.commandName === "openteams") {
       await handleOpenTeamsSlash(interaction);
       return;
@@ -755,6 +761,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     }
     if (interaction.isChatInputCommand() && interaction.commandName === "tweets") {
       await handleTweetsSlash(interaction);
+      return;
+    }
+    if (interaction.isChatInputCommand() && interaction.commandName === "twitter") {
+      await handleTwitterSlash(interaction);
       return;
     }
     if (interaction.isStringSelectMenu() && interaction.customId === COMMISH_TOOLS_CUSTOM_IDS.matchupSelect) return handleCommishToolsMatchupSelect(interaction);

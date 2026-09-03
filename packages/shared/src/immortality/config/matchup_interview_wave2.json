@@ -1,0 +1,2882 @@
+[
+  {
+    "id": 121,
+    "category": "preseason",
+    "tags": [],
+    "question": "Training's done and the real games are close. What still has to show up in Week 1?",
+    "options": [
+      { "text": "A standard from me that the rest of the room can copy.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "An edge. I don't want us looking like a team that's still stretching.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Trust. We've talked about it all summer — now it has to be real.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Clean football. No extra emotion just because it's the opener.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 122,
+    "category": "preseason",
+    "tags": [],
+    "question": "How do you want this team to feel on the plane to the opener?",
+    "options": [
+      { "text": "Locked in. I don't want a party in the aisle.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Restless. Everybody should want to get there already.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Together. Same jokes, same focus, same group.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Normal. It's Week 1, not a movie premiere.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 123,
+    "category": "preseason",
+    "tags": [],
+    "question": "What's one thing from the summer you don't want people to forget once the games start?",
+    "options": [
+      { "text": "How hard this room worked when nobody was keeping score.", "dnaPoints": { "Team First": 2 } },
+      { "text": "That we competed in every period like jobs were still open.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The process. Summer habits are the season if you let them be.", "dnaPoints": { "Composure": 2 } },
+      { "text": "That this was the summer we decided we weren't a background team.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 124,
+    "category": "preseason",
+    "tags": [],
+    "question": "A lot of openers are sloppy. How do you keep yours from looking like that?",
+    "options": [
+      { "text": "I over-communicate. Week 1 mistakes are usually people guessing.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I play fast anyway. I'd rather be aggressive than careful and late.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We stay assignment-sound for each other. Sloppy is selfish.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same pre-snap process as week twelve. I don't do opener jitters.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 125,
+    "category": "preseason",
+    "tags": [],
+    "question": "Prediction season is loud right now. Are you reading any of it?",
+    "options": [
+      { "text": "Enough to know what people don't believe about this team.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "If they picked us last, good. I like starting from behind.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "No. Predictions don't block or tackle.", "dnaPoints": { "Composure": 2 } },
+      { "text": "I hope they put cameras on us. I didn't come here to be a sleeper forever.", "dnaPoints": { "Showmanship": 2 } }
+    ]
+  },
+  {
+    "id": 126,
+    "category": "preseason",
+    "tags": [],
+    "question": "What's your personal opener goal that isn't a stat line?",
+    "options": [
+      { "text": "Leave the huddle knowing they trusted me when it got loud.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Set a tone so the other sideline doesn't want round two.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "Make the guys next to me look right for buying in all summer.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Be the same player after the first series that I am after the last.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 127,
+    "category": "preseason",
+    "tags": [],
+    "question": "New season, same questions about this roster. Tired of answering them?",
+    "options": [
+      { "text": "No. I'll answer until the tape makes the questions look silly.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "A little. I'd rather they ask the group, not just me.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Questions don't bother me. I don't owe anyone a debate.", "dnaPoints": { "Composure": 2 } },
+      { "text": "Keep asking. I want this year loud enough that they have to.", "dnaPoints": { "Showmanship": 2 } }
+    ]
+  },
+  {
+    "id": 128,
+    "category": "preseason",
+    "tags": [],
+    "question": "How do you want the first drive of the year to look?",
+    "options": [
+      { "text": "Organized. First drive is where you find out if summer stuck.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Physical. I want to hit somebody and let them think about it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Connected. Eleven guys, one picture.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Patient. We don't need a statement play in the first three snaps.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 129,
+    "category": "preseason",
+    "tags": [],
+    "question": "What would make you walk off the opener disappointed even in a win?",
+    "options": [
+      { "text": "If I didn't lead when it got messy.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "If we left plays out there. Winning messy still bothers me.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "If we won as individuals instead of as a group.", "dnaPoints": { "Team First": 2 } },
+      { "text": "If we got sloppy because the scoreboard was friendly.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 130,
+    "category": "preseason",
+    "tags": [],
+    "question": "Fans have waited all offseason. Any promise you actually feel comfortable making?",
+    "options": [
+      { "text": "We'll be prepared. That's the one thing I can guarantee.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "We'll compete every snap. Record comes after that.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We'll play for this city, not just in it.", "dnaPoints": { "Team First": 2 } },
+      { "text": "No promises. Watch the work.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 131,
+    "category": "preseason",
+    "tags": [],
+    "question": "Is this a prove-it year for you, or a build-on-it year?",
+    "options": [
+      { "text": "Prove-it. I don't need another year of potential talk.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Build-on-it. The room is still becoming what it can be.", "dnaPoints": { "Team First": 2 } },
+      { "text": "It's a year. I don't label them in August.", "dnaPoints": { "Composure": 2 } },
+      { "text": "It's a foundation year for something people will still mention later.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 132,
+    "category": "preseason",
+    "tags": [],
+    "question": "National folks still aren't sure what this team is. Fair?",
+    "options": [
+      { "text": "Fair until we make it unfair. That's on us.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "They can stay unsure. I know what we are.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "They're looking at names. They should look at how this room works.", "dnaPoints": { "Team First": 2 } },
+      { "text": "By December I want that conversation to sound dated.", "dnaPoints": { "Legacy Drive": 2 }, "contentTrigger": "headline" }
+    ]
+  },
+  {
+    "id": 133,
+    "category": "preseason",
+    "tags": [],
+    "question": "What's your relationship with the opener crowd going to be?",
+    "options": [
+      { "text": "I want them loud because we earned it, not because it's tradition.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Feed me. I'll give them a reason to stay that way.", "dnaPoints": { "Showmanship": 2 } },
+      { "text": "They're part of this team. I don't separate the building from the stands.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I hear them, I don't perform for them. There's a difference.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 134,
+    "category": "preseason",
+    "tags": [],
+    "question": "How do you handle the last practice before it actually counts?",
+    "options": [
+      { "text": "I make sure the young guys aren't spinning. That's my job that day.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I still compete. Last practice isn't a handshake period.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I keep it light enough that we're together, sharp enough that we're ready.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same as Tuesday. I don't do countdown energy.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 135,
+    "category": "preseason",
+    "tags": [],
+    "question": "If Week 1 is a measuring stick, what are you trying to measure?",
+    "options": [
+      { "text": "Whether this room actually follows when it gets loud.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Whether we like the fight more than the highlight.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Whether we still look like a team after the first punch.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Whether we can stay ourselves when the script goes out the window.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 136,
+    "category": "preseason",
+    "tags": [],
+    "question": "Any personal superstition before the first game of the year?",
+    "options": [
+      { "text": "I check on people before I check on myself. That's the habit.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I want the first hit. Superstition, maybe. I still want it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Same playlist, same walk. I don't invent new rituals in September.", "dnaPoints": { "Composure": 2 } },
+      { "text": "I want a moment that feels like the start of something people remember.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 137,
+    "category": "post_win",
+    "tags": [],
+    "question": "You found a way today. What actually won it?",
+    "options": [
+      { "text": "The huddle stayed together when it got loud.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "We wanted it more in the last ten minutes. Simple.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Eleven guys doing unselfish work that doesn't show up in one box.", "dnaPoints": { "Team First": 2 } },
+      { "text": "We didn't panic after the ugly series. That's usually the game.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 138,
+    "category": "post_win",
+    "tags": [],
+    "question": "That one got chippy. Did you enjoy that part?",
+    "options": [
+      { "text": "I enjoy winning through it. The chippy is just noise.", "dnaPoints": { "Composure": 2 } },
+      { "text": "Yeah. I like games where nobody's pretending it's friendly.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "I enjoy that this room didn't take the bait and lose itself.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I enjoy being the one they have to talk about after a game like that.", "dnaPoints": { "Showmanship": 2 } }
+    ]
+  },
+  {
+    "id": 139,
+    "category": "post_win",
+    "tags": [],
+    "question": "You left some plays out there even in a win. Does that sit with you?",
+    "options": [
+      { "text": "Yes. I'll own those in the meeting. Wins don't erase tape.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It sits. I don't like leaving meat on the bone.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We'll clean it up as a group. Nobody's celebrating sloppy.", "dnaPoints": { "Team First": 2 } },
+      { "text": "A little. Then I close it and get ready for the next one.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 140,
+    "category": "post_win",
+    "tags": [],
+    "question": "The other sideline hung around longer than people expected. What'd you take from that?",
+    "options": [
+      { "text": "That we still have to lead when the script isn't pretty.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That I like games that make you earn the last stop.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That this room doesn't fold just because it gets uncomfortable.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Expected. Good teams make you play a full sixty.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 141,
+    "category": "post_win",
+    "tags": [],
+    "question": "Who in this locker room doesn't get enough credit for today?",
+    "options": [
+      { "text": "The guys who settled everybody down when it got loud.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Whoever did the dirty work that never makes the graphic.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The ones who kept competing after their own mistakes.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The unflashy snaps. That's usually the real game.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 142,
+    "category": "post_win",
+    "tags": [],
+    "question": "You made a play that swung the building. Walk us through your head in that moment.",
+    "options": [
+      { "text": "I wanted the responsibility. That's the job.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I wanted the moment more than they did. That's all it was.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I trusted the look we'd practiced. It wasn't hero ball.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Quiet. See it, do it, next play.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 143,
+    "category": "post_win",
+    "tags": [],
+    "question": "Does a win like this change how you see this team?",
+    "options": [
+      { "text": "It confirms we can handle ugly. That's a real identity piece.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It confirms we're not soft. I needed to see that from us.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It confirms we actually like playing for each other.", "dnaPoints": { "Team First": 2 } },
+      { "text": "One win doesn't rewrite us. It just keeps us moving.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 144,
+    "category": "post_win",
+    "tags": [],
+    "question": "People are going to clip that finish all week. You good with that?",
+    "options": [
+      { "text": "If they clip the group, yes. If they clip just me, they missed the play.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Clip it. I want the league watching how we close.", "dnaPoints": { "Showmanship": 2 }, "contentTrigger": "headline" },
+      { "text": "They can clip whatever they want. Monday's still film day.", "dnaPoints": { "Composure": 2 } },
+      { "text": "That's the kind of ending I want attached to this year.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 145,
+    "category": "post_win",
+    "tags": [],
+    "question": "You were quiet early and loud late. On purpose?",
+    "options": [
+      { "text": "The game asked for patience, then it asked for a decision. I try to hear that.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I hunt the finish. Early is setup.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The guys around me were eating. I wasn't going to force my number.", "dnaPoints": { "Team First": 2 } },
+      { "text": "That's just how I play. I don't need to start hot to finish right.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 146,
+    "category": "post_win",
+    "tags": [],
+    "question": "How do you keep this locker room from getting satisfied after a result like that?",
+    "options": [
+      { "text": "I bring the mistakes in with the win. Celebration without tape is how you drop the next one.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I remind them the next opponent doesn't care what we just did.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We enjoy it together for a night, then it's gone. That's the deal.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same Monday. Wins don't get a different process.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 147,
+    "category": "post_win",
+    "tags": [],
+    "question": "Their best player had a say in this one. Any respect you want on the record?",
+    "options": [
+      { "text": "They made us earn it. That's a real player.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Respect, and I'm still glad we were the ones walking out with it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "They competed. Our room competed harder as a group.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Good player. Next.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 148,
+    "category": "post_win",
+    "tags": [],
+    "question": "The crowd was in it late. Did that help or was it just noise?",
+    "options": [
+      { "text": "It helped the sideline. Energy is real when the building's with you.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I like feeding off it. That's part of why you play here.", "dnaPoints": { "Showmanship": 2 } },
+      { "text": "I heard it. I didn't need it to finish the play.", "dnaPoints": { "Composure": 2 } },
+      { "text": "That's the kind of night this place should be known for.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 149,
+    "category": "post_win",
+    "tags": [],
+    "question": "Was there a moment you thought this one was slipping?",
+    "options": [
+      { "text": "For a second, and then I made sure the huddle didn't think that.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "No. I don't grant that thought.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Maybe, and that's when we started playing for each other instead of the scoreboard.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Games swing. I don't narrate them while they're happening.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 150,
+    "category": "post_win",
+    "tags": [],
+    "question": "If this win had a headline, what would you want it to be?",
+    "options": [
+      { "text": "That this team finishes.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That nobody in that room played for themselves.", "dnaPoints": { "Team First": 2 } },
+      { "text": "That we handled business and went home. That's enough.", "dnaPoints": { "Composure": 2 } },
+      { "text": "That this was the night people start taking this group seriously.", "dnaPoints": { "Legacy Drive": 2 }, "contentTrigger": "headline" }
+    ]
+  },
+  {
+    "id": 151,
+    "category": "post_win",
+    "tags": [],
+    "question": "You got the last word today. Need to say anything else?",
+    "options": [
+      { "text": "Just that the standard doesn't move because we won.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "We're not done. One Sunday isn't a personality.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Proud of the guys. That's the whole quote.", "dnaPoints": { "Team First": 2 } },
+      { "text": "No. The tape will talk Monday.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 152,
+    "category": "post_win",
+    "tags": [],
+    "question": "How quickly do you flip the page after a win like that?",
+    "options": [
+      { "text": "After I make sure the young guys know what we actually did well.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Tonight. Tomorrow I want the next opponent's tape already on.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We enjoy it as a room for a few hours. That's allowed.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same as a loss, just with better sleep. Process doesn't change.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 153,
+    "category": "post_loss",
+    "tags": [],
+    "question": "That one got away. Where do you start the autopsy?",
+    "options": [
+      { "text": "With me. If the room needed a steadier voice, that's on me.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "With the snaps we didn't finish. Those are the ones I hate.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "With whether we still looked like a team when it got sideways.", "dnaPoints": { "Team First": 2 } },
+      { "text": "With the details. Emotion's cheap. Assignments aren't.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 154,
+    "category": "post_loss",
+    "tags": [],
+    "question": "Locker room after a loss can get quiet or get loud. Which was it, and is that good?",
+    "options": [
+      { "text": "Quiet, and I wanted it that way. We needed to think, not perform anger.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It was angry. Good. I don't want comfortable losers.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It was together. Nobody hid. That's the only version I accept.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Professional. We'll save the noise for the correction.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 155,
+    "category": "post_loss",
+    "tags": [],
+    "question": "Did you feel the game slip in real time, or only after the clock hit zero?",
+    "options": [
+      { "text": "In real time, and I should have grabbed it sooner.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I felt it, and I still thought we'd take it back. That's the problem.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I felt us get separated. That's worse than one missed play.", "dnaPoints": { "Team First": 2 } },
+      { "text": "After. I don't narrate collapse while I'm still in it.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 156,
+    "category": "post_loss",
+    "tags": [],
+    "question": "Fans are going to be loud about this one. Anything you want them to hear tonight?",
+    "options": [
+      { "text": "That we hear them, and we'll be better because of it.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Be mad. I'm mad. Just don't confuse mad with done.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "Stick with this group. The easy weeks aren't the ones that tell you who we are.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Nothing tonight. We'll talk with the next game.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 157,
+    "category": "post_loss",
+    "tags": [],
+    "question": "Was that a talent loss or a toughness loss?",
+    "options": [
+      { "text": "A standard loss. We didn't look like the team we claim to be.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Toughness. They wanted the ugly parts more than we did.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "A togetherness loss. We got into our own islands.", "dnaPoints": { "Team First": 2 } },
+      { "text": "An execution loss. I don't need a bigger word than that.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 158,
+    "category": "post_loss",
+    "tags": [],
+    "question": "Somebody has to take this one home tonight. Is that you?",
+    "options": [
+      { "text": "Yes. That's what the role is for.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I'll take the snaps I lost. I'm not collecting everybody else's.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We all take it. I won't let one guy become the story.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I'll take my part, then I'll sleep. Carrying it all week doesn't help.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 159,
+    "category": "post_loss",
+    "tags": [],
+    "question": "The other team celebrated like they'd been waiting on this. Fair?",
+    "options": [
+      { "text": "Fair. We gave them a night. That's on us.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Let them. I don't like how that felt, and I won't forget it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "They earned it. Our job is to make sure this room answers together.", "dnaPoints": { "Team First": 2 } },
+      { "text": "They can celebrate. We have a correction to make.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 160,
+    "category": "post_loss",
+    "tags": [],
+    "question": "Is there a version of this loss that actually helps you later?",
+    "options": [
+      { "text": "If we tell the truth in the meetings, yes.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Only if it makes us meaner. Otherwise it's just a loss.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "If it pulls this room tighter instead of pulling it apart.", "dnaPoints": { "Team First": 2 } },
+      { "text": "If we stay even and fix the real things, not the feelings.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 161,
+    "category": "post_loss",
+    "tags": [],
+    "question": "You had a chance late and didn't convert. How do you live with that tonight?",
+    "options": [
+      { "text": "I live with it by owning it before anybody else has to say it.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I don't. That snap is coming with me until I cash one like it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I live with knowing the guys still trusted me with it. That matters.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I review it, then I stop replaying it. That's the only way you last.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 162,
+    "category": "post_loss",
+    "tags": [],
+    "question": "Media's going to hunt a villain clip from this one. You offering one?",
+    "options": [
+      { "text": "They can use me. Leave the rest of the room out of it.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "They can hunt. I'll answer on the field, not in a soundbite.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "No villains. We lost as a group.", "dnaPoints": { "Team First": 2 } },
+      { "text": "No clip. I'm not performing a funeral.", "dnaPoints": { "Composure": 2 }, "contentTrigger": "headline" }
+    ]
+  },
+  {
+    "id": 163,
+    "category": "post_loss",
+    "tags": [],
+    "question": "What's the first thing you want to see on the practice field after this?",
+    "options": [
+      { "text": "People coaching each other, not waiting on the staff to do it.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Tempo and meanness. I don't want a sorry practice.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The same group still together. Losses expose rooms fast.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Clean, quiet work. No extra speeches.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 164,
+    "category": "post_loss",
+    "tags": [],
+    "question": "Does this result change the week, or do you refuse to let it?",
+    "options": [
+      { "text": "It changes the conversations. It shouldn't change who we are.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It changes my temperature. I want that.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It changes how tightly we stay together. That's the only shift I'll allow.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I refuse the spiral. One Sunday is one Sunday.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 165,
+    "category": "post_loss",
+    "tags": [],
+    "question": "Anybody in that huddle you need to go see before you leave the building?",
+    "options": [
+      { "text": "The younger guys. They shouldn't go home thinking one game defines them.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Whoever thinks they lost it alone. That's not how I let rooms work.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I'll see the guys who still wanted to fight after it was gone. Those are my people.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I'll see who I need to see. I'm not turning it into a tour.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 166,
+    "category": "post_loss",
+    "tags": [],
+    "question": "Is there a narrative from this loss you already know is wrong?",
+    "options": [
+      { "text": "That this team quit. We didn't. We just weren't good enough today.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That we're done. That's lazy. Watch the next one.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That one guy lost it. That's not this room.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Most of them. I don't rent out my week to narratives.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 167,
+    "category": "post_loss",
+    "tags": [],
+    "question": "How do you want this loss remembered by the time the season's over?",
+    "options": [
+      { "text": "As the night we got honest.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "As the night that made us impossible to play the rest of the way.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "As the night this room decided it was still one room.", "dnaPoints": { "Team First": 2 } },
+      { "text": "As a footnote, because we handled what came after.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 168,
+    "category": "post_loss",
+    "tags": [],
+    "question": "Last question tonight — are you okay?",
+    "options": [
+      { "text": "I'm responsible. Okay comes after we fix it.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I'm angry. That's the useful version of okay.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "I'm with my guys. That's enough for tonight.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I'll be fine. I don't let one Sunday own me.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 169,
+    "category": "rivalry",
+    "tags": [],
+    "question": "This week always feels different in this building. Why?",
+    "options": [
+      { "text": "Because the standard gets tested in public, and that's when leadership shows.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Because I like games where nobody needs extra motivation.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Because this whole locker room has history with these colors.", "dnaPoints": { "Team First": 2 } },
+      { "text": "It feels different to fans. I try to keep my week the same.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 170,
+    "category": "rivalry",
+    "tags": [],
+    "question": "Their fans are going to be in full voice. How do you use that?",
+    "options": [
+      { "text": "I tell the young guys it's a gift if you stay on assignment.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I use it. Hostile buildings are where I like to work.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We use each other. Crowd noise is easier when the huddle is tight.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I don't use it. I don't need a soundtrack.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 171,
+    "category": "rivalry",
+    "tags": [],
+    "question": "There's always extra physicality in this one. You looking for that?",
+    "options": [
+      { "text": "I'm looking for disciplined physical. Dumb physical loses rivalries.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Yes. I want it to feel like a real football game.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I want us physical as a unit, not as eleven separate fights.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I'll match it. I won't chase it.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 172,
+    "category": "rivalry",
+    "tags": [],
+    "question": "Do you keep souvenirs from this matchup, or is that not you?",
+    "options": [
+      { "text": "I keep the lessons. The rest is clutter.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I keep the feeling of beating them. That's enough.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I keep the guys who went through it with me.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I want this series to be part of how this place is remembered.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 173,
+    "category": "rivalry",
+    "tags": [],
+    "question": "Their sideline likes to talk during this game. What's your policy?",
+    "options": [
+      { "text": "I talk to my huddle, not theirs.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "They can talk. I'll answer in the drive after.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I don't do that dance. It's a waste of a snap.", "dnaPoints": { "Composure": 2 } },
+      { "text": "If they want a show, I can give them one.", "dnaPoints": { "Showmanship": 2 } }
+    ]
+  },
+  {
+    "id": 174,
+    "category": "rivalry",
+    "tags": [],
+    "question": "What does this rivalry mean to you that a regular week doesn't?",
+    "options": [
+      { "text": "It means the whole city is watching how we carry ourselves.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It means I get to compete against people who actually hate losing to us.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "It means this locker room has a shared enemy for a week, and that can be useful.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Not as much as people want it to. It's still eleven on eleven.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 175,
+    "category": "rivalry",
+    "tags": [],
+    "question": "If you lose this one, how long does it follow you?",
+    "options": [
+      { "text": "Until we fix whatever we showed. I don't let it become a personality.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "All year. I'm not going to pretend otherwise.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "As long as this room still feels it. That's the honest answer.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Until the next snap that matters. I don't collect grudges as identity.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 176,
+    "category": "rivalry",
+    "tags": [],
+    "question": "Old clips from this series always come out this week. Do you watch them?",
+    "options": [
+      { "text": "Enough to teach from. Not enough to live in.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "The ones where we got embarrassed. Those are fuel.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I watch how the group looked, not the highlights.", "dnaPoints": { "Team First": 2 } },
+      { "text": "No. This week's game isn't in the archive.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 177,
+    "category": "rivalry",
+    "tags": [],
+    "question": "Their star has history in this series. Does that change your week?",
+    "options": [
+      { "text": "It changes the scouting, not my emotion.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It makes me want the matchup even more.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We gameplan the team. I'm not turning it into a one-on-one movie.", "dnaPoints": { "Team First": 2 } },
+      { "text": "History's theirs. Sunday's ours to play.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 178,
+    "category": "rivalry",
+    "tags": [],
+    "question": "How do you want the first collision of this game to feel?",
+    "options": [
+      { "text": "Like we came with a plan, not just adrenaline.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Like we missed them. In a football way.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Like eleven guys showed up with the same intention.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Like any other first snap. I don't script theatrics.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 179,
+    "category": "rivalry",
+    "tags": [],
+    "question": "This game gets used in recruiting, in bars, in arguments. Do you care about that layer?",
+    "options": [
+      { "text": "I care that we represent the building the right way.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I care about winning the argument on the field.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I care that our people get to feel good about this team.", "dnaPoints": { "Team First": 2 } },
+      { "text": "That's the layer I actually like. This should feel like an event.", "dnaPoints": { "Showmanship": 2 } }
+    ]
+  },
+  {
+    "id": 180,
+    "category": "rivalry",
+    "tags": [],
+    "question": "Any quote you want sitting on their board this week?",
+    "options": [
+      { "text": "None. That's not how I lead a week.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "They already know. I don't need to decorate it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Just that we respect the game and we're coming to take it.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Tell them to enjoy the pregame. The game's ours.", "dnaPoints": { "Showmanship": 2 }, "contentTrigger": "headline" }
+    ]
+  },
+  {
+    "id": 181,
+    "category": "rivalry",
+    "tags": [],
+    "question": "When this series is over years from now, what do you hope people say about your part in it?",
+    "options": [
+      { "text": "That I showed up as a pro every time it came around.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That I never hid from this game.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That I made my teammates better in the weeks it mattered most.", "dnaPoints": { "Team First": 2 } },
+      { "text": "That my name belongs in the history of this thing.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 182,
+    "category": "rivalry",
+    "tags": [],
+    "question": "Do you let this week get bigger in meetings, or do you shrink it on purpose?",
+    "options": [
+      { "text": "I name it, then I shrink the details. Ignore it and it bites you.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I let it get bigger. I want the room hot.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I keep it about us. Their logo doesn't run our meetings.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I shrink it. Big weeks still come down to the same fundamentals.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 183,
+    "category": "rivalry",
+    "tags": [],
+    "question": "Their coach always has something extra to say this week. Does that reach you?",
+    "options": [
+      { "text": "It reaches the tape, not my temperature.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "A little. I like knowing they feel the need to talk.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I care more about what our coaches are saying to us.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Coaches talk. I play.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 184,
+    "category": "rivalry",
+    "tags": [],
+    "question": "If this rivalry skipped a year, would you miss it?",
+    "options": [
+      { "text": "I'd miss what it does for this locker room's focus.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Yes. I want that game on the calendar every time.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The fans would miss it more, and that matters to me.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I'd miss the stage. This is supposed to feel like an event.", "dnaPoints": { "Showmanship": 2 } }
+    ]
+  },
+  {
+    "id": 185,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "This week's the kind that ends seasons. How are you carrying that?",
+    "options": [
+      { "text": "By making sure the room stays on the details, not the obituaries.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I like the weight. I don't want a quiet week.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We carry it together. One guy can't hold an elimination week.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same week as always, with cleaner focus. Panic is a choice.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 186,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "If it comes down to one possession, what's your job in that huddle?",
+    "options": [
+      { "text": "Keep the voices down and the picture clear.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Want the ball and the responsibility.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "Make sure nobody's playing for themselves in the biggest snap.", "dnaPoints": { "Team First": 2 } },
+      { "text": "See the play, not the stadium.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 187,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "Do you want this game to feel enormous, or do you try to make it small?",
+    "options": [
+      { "text": "I name the stakes once, then I make the work small.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Enormous. I came here for weeks like this.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I make it about the group. That's how you keep it playable.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Small. The snap doesn't know it's famous.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 188,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "What's the one thing this team cannot do this week?",
+    "options": [
+      { "text": "Get cute. This is a truth week, not a trick week.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Play scared. I'd rather go down swinging than hoping.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Split. If we start protecting ourselves, it's already over.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Overthink. We've run this process all year.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 189,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "Sleep been normal with a game like this sitting there?",
+    "options": [
+      { "text": "Normal enough. The room needs me rested, not heroic and tired.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Not really. I like being a little restless before a hunt.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I've been checking on guys more than I've been staring at the ceiling.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same bedtime. I don't negotiate with big weeks.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 190,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "If this is the last game of the year, how do you want to leave it?",
+    "options": [
+      { "text": "Knowing I emptied the tank for this group.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Knowing I didn't leave a compete snap in my pocket.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Knowing I was the same player from snap one to the last whistle.", "dnaPoints": { "Composure": 2 } },
+      { "text": "Knowing it was a game people would still describe later.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 191,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "The margin for error is basically gone. Does that free you up or tighten you?",
+    "options": [
+      { "text": "It focuses me. Tight is for people who didn't prepare.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It frees me. No tomorrow means no saving anything.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It pulls us closer. Shared danger is still shared.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Neither. I don't let the standings rewrite my technique.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 192,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "People call this a career game. Too much?",
+    "options": [
+      { "text": "It's a team game that happens to be huge. I won't make it a personal commercial.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Not too much. I want those attached to my name.", "dnaPoints": { "Legacy Drive": 2 }, "contentTrigger": "headline" },
+      { "text": "I want it. Call it whatever you want.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Labels are for after. Right now it's still a script and a kickoff.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 193,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "How do you talk to a teammate who's clearly feeling this one?",
+    "options": [
+      { "text": "I give them a job. Nervous energy needs an assignment.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I tell them to point it at the other sideline, not at themselves.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I stay close. Nobody should feel this week alone.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I remind them we've already done the hard work. Trust it.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 194,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "Is there a version of this week where you play not to lose?",
+    "options": [
+      { "text": "No. Not-to-lose is how you lose these.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We play to our identities. Protecting a season is how seasons end.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "We play for each other. That's more aggressive than it sounds.", "dnaPoints": { "Team First": 2 } },
+      { "text": "We play our game. I don't add a new personality for the standings.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 195,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "The building's going to be shaking. You a shaking-building player?",
+    "options": [
+      { "text": "I'm a keep-the-huddle-calm player, even if the building's shaking.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Yes. Give me the noise.", "dnaPoints": { "Showmanship": 2 } },
+      { "text": "I like what it does for the group if we feed it the right way.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Buildings shake. My feet don't have to.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 196,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "What's the first play of this game supposed to tell the other side?",
+    "options": [
+      { "text": "That we're organized. Chaos is what they want from us.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That we came to take something, not survive something.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That we're connected. First play is a tone for the room.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Nothing theatrical. Just a clean snap.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 197,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "If you win this, how long do you let yourselves feel it?",
+    "options": [
+      { "text": "Long enough to thank the room, short enough to stay professionals.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "A night. Then I want the next mountain.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We feel it together. These weeks are why you play with people.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Until the next meeting. Feelings don't get a week.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 198,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "This is the kind of week people write books about. Too dramatic?",
+    "options": [
+      { "text": "A little. We still have to block and tackle.", "dnaPoints": { "Composure": 2 } },
+      { "text": "I want the chapter. I'm not allergic to history.", "dnaPoints": { "Legacy Drive": 2 }, "contentTrigger": "headline" },
+      { "text": "Write about the group, not the myth.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Dramatic is fine if we back it up.", "dnaPoints": { "Showmanship": 2 } }
+    ]
+  },
+  {
+    "id": 199,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "Who do you want next to you if this thing goes to overtime?",
+    "options": [
+      { "text": "Whoever's been the steadiest voice all year, not just the hottest hand.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Whoever still wants the ball after sixty minutes.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "This whole huddle. I don't have a short list for that.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The guys who don't change faces when the clock dies.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 200,
+    "category": "high_stakes",
+    "tags": [],
+    "question": "Last word before a week like this?",
+    "options": [
+      { "text": "Do your job and look the guy next to you in the eye.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Leave it all out there. There's no saving it now.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We're walking in as one group and walking out as one group.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Trust what we've already built. Then go play.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 201,
+    "category": "legacy",
+    "tags": [],
+    "question": "When kids watch your tape in ten years, what do you hope they steal?",
+    "options": [
+      { "text": "How to run a huddle and a room, not just a highlight.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That competing is a skill you can see on every snap.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That the best players make other people look right.", "dnaPoints": { "Team First": 2 } },
+      { "text": "That you can be excellent without being chaotic.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 202,
+    "category": "legacy",
+    "tags": [],
+    "question": "Is there a statue version of your career you're chasing, or is that too much?",
+    "options": [
+      { "text": "Too much. I want respect in the rooms I played in.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I'm chasing being impossible to leave out of the conversation.", "dnaPoints": { "Legacy Drive": 2 } },
+      { "text": "I'm chasing wins. Bronze is somebody else's department.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I don't sculpt while I'm still playing. That's how you get distracted.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 203,
+    "category": "legacy",
+    "tags": [],
+    "question": "What part of a career actually lasts — numbers, rings, or how you treated the room?",
+    "options": [
+      { "text": "How you treated the room. People remember who you were on Wednesday.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Rings. The rest is conversation.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The room. Numbers fade if the people don't speak well of you.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The whole picture. I want a career that's hard to summarize in one column.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 204,
+    "category": "legacy",
+    "tags": [],
+    "question": "Do you think about the sentence they'll use when they introduce you later?",
+    "options": [
+      { "text": "I think about whether the guys I played with would stand next to that sentence.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Yes. I want it to sound like I mattered.", "dnaPoints": { "Legacy Drive": 2 }, "contentTrigger": "headline" },
+      { "text": "I think about winning enough that they have to keep it short.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Not really. Introductions are for other people.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 205,
+    "category": "legacy",
+    "tags": [],
+    "question": "What's a cheap version of legacy you refuse to chase?",
+    "options": [
+      { "text": "Clips without substance. I don't want to be famous for a celebration.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Empty stats on a team that didn't matter.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "A personal brand that costs the locker room.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Talking about my legacy more than doing the work.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 206,
+    "category": "legacy",
+    "tags": [],
+    "question": "If your career ended tomorrow, would you be at peace with the tape?",
+    "options": [
+      { "text": "No. I've still got a better leader in me than I've shown.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "No. There's still a version of me that hasn't hunted enough.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I'd be at peace with the people. Not fully with the results.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Peace is a strong word. I'd be honest about it and keep moving.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 207,
+    "category": "legacy",
+    "tags": [],
+    "question": "Whose career path do you study when you think about your own — without naming names?",
+    "options": [
+      { "text": "The ones who made everyone around them better for a decade.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "The ones who never got comfortable being good.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The ones whose teammates still tell stories about them.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The ones who were excellent for a long time, not just famous for a stretch.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 208,
+    "category": "legacy",
+    "tags": [],
+    "question": "Is longevity part of the legacy you're after, or would a short, blazing run be enough?",
+    "options": [
+      { "text": "Longevity. Showing up the same way for years is the real flex.", "dnaPoints": { "Composure": 2 } },
+      { "text": "I want both. I don't like choosing.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I'd rather last with the same people than burn bright and bounce.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I want a body of work, not a moment.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 209,
+    "category": "legacy",
+    "tags": [],
+    "question": "How much of your legacy do you think is already written?",
+    "options": [
+      { "text": "Some of the character part. None of the ending.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Not enough. I haven't finished competing.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The teammate part is being written every day. That's the one I control.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Less than people think. Careers look different in the rearview.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 210,
+    "category": "legacy",
+    "tags": [],
+    "question": "Would you rather be remembered as feared or respected?",
+    "options": [
+      { "text": "Respected, because that travels into the rooms after football.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Feared on Sundays. Respected is a bonus.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "Respected by the guys who shared a locker with me. That's the vote that counts.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Remembered accurately. I don't pick the adjective.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 211,
+    "category": "legacy",
+    "tags": [],
+    "question": "Is there a building you want your name attached to besides a stat sheet?",
+    "options": [
+      { "text": "This locker room. If they still talk about the standard, that's my name.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "A championship wing. I won't pretend otherwise.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Wherever the guys I played with still feel like family.", "dnaPoints": { "Team First": 2 } },
+      { "text": "This franchise, if I earn that and not just borrow it.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 212,
+    "category": "legacy",
+    "tags": [],
+    "question": "How do you want losing to look in your career story — if it has to be in there?",
+    "options": [
+      { "text": "Like I still led after it. That's the test.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Like it made me worse to play against the next time.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Like I never made a teammate feel small in a bad week.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Like I didn't unravel. Careers are long. Panic is short.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 213,
+    "category": "legacy",
+    "tags": [],
+    "question": "Do you want your prime to be loud, or is quiet greatness the goal?",
+    "options": [
+      { "text": "Quiet in the building, loud on the field. That's the mix I want.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Loud. I want people to have to watch.", "dnaPoints": { "Showmanship": 2 } },
+      { "text": "Quiet enough that the credit still lands on the group.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I want it to last. Volume is optional.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 214,
+    "category": "legacy",
+    "tags": [],
+    "question": "What's one thing you hope never shows up in a documentary about you?",
+    "options": [
+      { "text": "That I was different with cameras than I was with teammates.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That I got satisfied.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That I made it about me when the room needed something else.", "dnaPoints": { "Team First": 2 } },
+      { "text": "A meltdown. I don't want a famous bad night to be the clip.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 215,
+    "category": "legacy",
+    "tags": [],
+    "question": "If they hang something with your name on it here one day, what should it actually represent?",
+    "options": [
+      { "text": "A standard, not a souvenir.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That this place won while I was here.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The people who shared those years with me.", "dnaPoints": { "Team First": 2 } },
+      { "text": "A body of work this franchise is proud to claim.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 216,
+    "category": "legacy",
+    "tags": [],
+    "question": "Last one on this — are you playing for memory, or for Monday?",
+    "options": [
+      { "text": "Monday, so the memory has something real to stand on.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Both. I want today and the archive.", "dnaPoints": { "Legacy Drive": 2 }, "contentTrigger": "headline" },
+      { "text": "For the guys in the meeting tomorrow. Memory takes care of itself.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Monday. Always Monday.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 217,
+    "category": "locker_room",
+    "tags": [],
+    "question": "What's the unwritten rule in this locker room that actually matters?",
+    "options": [
+      { "text": "You tell the truth in the room before it becomes a problem outside it.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "You compete in everything, even the stuff with no scoreboard.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "You don't let a guy sit in a bad day alone.", "dnaPoints": { "Team First": 2 } },
+      { "text": "You keep the noise down. We work here.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 218,
+    "category": "locker_room",
+    "tags": [],
+    "question": "Who sets the music, and does that tell you anything about this team?",
+    "options": [
+      { "text": "Whoever earned the week. That's a culture tell if you pay attention.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Whoever competed the day before. I like that vote.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It's a group argument and that's healthy. Means people are alive in here.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I don't fight over aux. There are better hills.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 219,
+    "category": "locker_room",
+    "tags": [],
+    "question": "When a guy has a bad series, what's the first thing this room does?",
+    "options": [
+      { "text": "Somebody talks to him before the next snap. That's the standard I want.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "We get him the next chance to punch back. Sitting in it helps nobody.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We close ranks. Bad series aren't public property.", "dnaPoints": { "Team First": 2 } },
+      { "text": "We keep moving. One series isn't a funeral.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 220,
+    "category": "locker_room",
+    "tags": [],
+    "question": "Is this a loud locker room or a quiet one — and which do you prefer?",
+    "options": [
+      { "text": "Loud when it needs to be, quiet when it needs to work. I try to read that.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I like it competitive-loud. Soft rooms bother me.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I like that we can be both. That's a real family.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Quiet's fine. I don't need a nightclub to feel connected.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 221,
+    "category": "locker_room",
+    "tags": [],
+    "question": "How do you handle a teammate who thinks he's bigger than the week?",
+    "options": [
+      { "text": "Directly, in private first. Public embarrassment is a last resort.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I outwork him until the tape settles it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The room handles it. We don't let one ego become the culture.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I don't engage the theater. I keep doing my job.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 222,
+    "category": "locker_room",
+    "tags": [],
+    "question": "What's something funny about this team that would never make a broadcast?",
+    "options": [
+      { "text": "How seriously we take dumb competitions. That's actually the culture.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "How much we actually like each other when the cameras leave.", "dnaPoints": { "Team First": 2 }, "contentTrigger": "tweet" },
+      { "text": "How quiet the real leaders are. Broadcasts always miss that.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "How little we care about looking cool in here. We just work.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 223,
+    "category": "locker_room",
+    "tags": [],
+    "question": "Do you eat with the same guys every day, or do you mix it up?",
+    "options": [
+      { "text": "I mix it. That's how you actually know the roster.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I sit with whoever's talking about getting better. That's my table.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I try to make sure nobody's eating alone if they don't want to.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I don't overthink lunch. I'm here to work.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 224,
+    "category": "locker_room",
+    "tags": [],
+    "question": "If a new guy asked you who not to cross in here, what would you say?",
+    "options": [
+      { "text": "Don't cross the standard. The people will handle the rest.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Don't come in here soft and surprised when it gets competitive.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Don't come in thinking it's every man for himself. That's the fastest way to be alone.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Don't manufacture drama. This room has a long memory for that.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 225,
+    "category": "locker_room",
+    "tags": [],
+    "question": "How do you know this team is actually healthy, not just polite?",
+    "options": [
+      { "text": "When people will challenge each other without it becoming personal.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "When nobody's okay with a lazy period, including the stars.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "When guys still choose each other after a bad Sunday.", "dnaPoints": { "Team First": 2 } },
+      { "text": "When the mood doesn't swing with every headline.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 226,
+    "category": "locker_room",
+    "tags": [],
+    "question": "Practice after a long meeting — what's the vibe you try to set?",
+    "options": [
+      { "text": "Sharp. Meetings can't make us sluggish on the grass.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Competitive. I want to shake the cobwebs off people.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Connected. Long meetings can split attention if you let them.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same as always. I don't let the calendar rewrite the period.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 227,
+    "category": "locker_room",
+    "tags": [],
+    "question": "Is there a veteran ritual in here you actually believe in?",
+    "options": [
+      { "text": "The one where we talk before we leave. That's not cute, that's maintenance.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Extra work after the last period. That's the real ritual.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Making sure the young guys have a ride, a meal, a person. That's the culture.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I believe in habits more than rituals. Same thing, less superstition.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 228,
+    "category": "locker_room",
+    "tags": [],
+    "question": "Somebody in here is having a career year. How does the room handle that?",
+    "options": [
+      { "text": "We celebrate it and we still coach him. Both can be true.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "We use it. Success in here should raise the bar, not lower it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We make sure it stays a team year, not a poster year.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same jokes, same work. We don't build altars in the locker room.", "dnaPoints": { "Composure": 2 }, "contentTrigger": "headline" }
+    ]
+  },
+  {
+    "id": 229,
+    "category": "locker_room",
+    "tags": [],
+    "question": "What's the fastest way to lose respect in this room?",
+    "options": [
+      { "text": "Talking one way to coaches and another way to teammates.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Taking a play off and hoping nobody noticed.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Throwing a teammate under the bus, even quietly.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Making a scene when things don't go your way.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 230,
+    "category": "locker_room",
+    "tags": [],
+    "question": "Do you want more personality in this locker room, or less?",
+    "options": [
+      { "text": "I want more ownership. Personality without that is just noise.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I want more dogs. Personality can ride along.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I want it to stay ours. I like that this room has a real pulse.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I want it expressive on the field. That's the fun version.", "dnaPoints": { "Showmanship": 2 } }
+    ]
+  },
+  {
+    "id": 231,
+    "category": "locker_room",
+    "tags": [],
+    "question": "How do you keep a winning room from getting cliquey?",
+    "options": [
+      { "text": "You drag people across groups on purpose. That's leadership homework.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "You keep competing so status never gets comfortable.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "You eat, lift, and meet like it's still one roster.", "dnaPoints": { "Team First": 2 } },
+      { "text": "You don't feed it. Cliques need an audience.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 232,
+    "category": "locker_room",
+    "tags": [],
+    "question": "If this locker room had a nickname that never made TV, what would it deserve?",
+    "options": [
+      { "text": "Something about the standard, not a cartoon.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Something that sounds like we actually like to fight.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Something that sounds like family without being corny.", "dnaPoints": { "Team First": 2 } },
+      { "text": "We don't need a nickname. The work is the identity.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 233,
+    "category": "owner",
+    "tags": [],
+    "question": "Ownership's been more visible around the building. Helpful, or extra?",
+    "options": [
+      { "text": "Helpful if they back the standard, extra if it's just a tour.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I like that they care enough to show up. Means they want to win.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It's fine as long as the locker room still belongs to the players.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I don't mind it. I don't perform for it either.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 234,
+    "category": "owner",
+    "tags": [],
+    "question": "If ownership asked what this team still needs, what would you say?",
+    "options": [
+      { "text": "Patience with the culture we're building, and urgency with the details.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "More people who hate losing. Talent's the easy shopping list.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "Keep the room intact. Chemistry isn't a luxury item.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Let the process breathe. Panic from upstairs becomes panic downstairs.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 235,
+    "category": "owner",
+    "tags": [],
+    "question": "There's talk of a bigger financial swing this year. Does that change how you play?",
+    "options": [
+      { "text": "It changes the responsibility. If they invest, we have to look like it.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It raises the temperature, and I like that.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It means more people counting on this group. I take that seriously.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Not how I play. Money doesn't change a stance or a read.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 236,
+    "category": "owner",
+    "tags": [],
+    "question": "Would you want a sit-down with ownership, or do you keep that channel closed?",
+    "options": [
+      { "text": "I'd take it if it's about the room, not about my brand.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I'd take it to say we should be trying to win now.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Only if I can speak for more than myself.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I keep my lane. Those meetings aren't my job.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 237,
+    "category": "owner",
+    "tags": [],
+    "question": "Ownership talked about building a destination franchise. You buying that language?",
+    "options": [
+      { "text": "I'll buy it when the daily standard matches the brochure.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I buy winning. Destination is what happens after that.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I buy it if it means people actually want to stay here.", "dnaPoints": { "Team First": 2 } },
+      { "text": "That's the kind of vision I want my career tied to, if we earn it.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 238,
+    "category": "owner",
+    "tags": [],
+    "question": "How should players talk about ownership in public, in your opinion?",
+    "options": [
+      { "text": "Honest, not messy. You can respect the building without campaigning.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Talk about winning. Leave the business to the business.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Protect the people in the building, including the ones upstairs if they're in the fight with us.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Short. Those quotes usually help nobody.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 239,
+    "category": "owner",
+    "tags": [],
+    "question": "If the owner walked in after a tough stretch, what would you want them to say?",
+    "options": [
+      { "text": "That they still believe in the standard, not just the record.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That we're not softening the goals.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That they still have this locker room's back.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Not much. Presence without a speech is plenty.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 240,
+    "category": "owner",
+    "tags": [],
+    "question": "Does a hands-on owner make you play lighter or heavier?",
+    "options": [
+      { "text": "Heavier in a good way. Means the whole organization is watching the details.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Lighter. I like knowing the people writing checks want to win too.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Neither. I play for the guys in the room.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Doesn't change my temperature. I don't play for the suite.", "dnaPoints": { "Composure": 2 }, "contentTrigger": "headline" }
+    ]
+  },
+  {
+    "id": 241,
+    "category": "owner",
+    "tags": [],
+    "question": "There's always a rumor about the next big organizational move. Do you track that?",
+    "options": [
+      { "text": "Enough to keep the room from spinning on rumors.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Only if it means we're getting more competitive.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I care how it hits teammates, not the rumor itself.", "dnaPoints": { "Team First": 2 } },
+      { "text": "No. Rumors are a second job I didn't apply for.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 242,
+    "category": "owner",
+    "tags": [],
+    "question": "Would you want to finish your career with this ownership group?",
+    "options": [
+      { "text": "If we keep building something real here, yes.", "dnaPoints": { "Legacy Drive": 2 } },
+      { "text": "If we're winning. I don't romanticize logos over results.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "If this locker room stays a place worth staying for.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I take that year by year. That's not a press-conference vow.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 243,
+    "category": "owner",
+    "tags": [],
+    "question": "Ownership wants this team in national conversations more. You aligned with that?",
+    "options": [
+      { "text": "I'm aligned with earning it, not buying the conversation.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Yes. I didn't come here to be background noise.", "dnaPoints": { "Showmanship": 2 } },
+      { "text": "I'd rather be known for how we play together than how often we're on TV.", "dnaPoints": { "Team First": 2 } },
+      { "text": "National noise is a side effect. I don't chase it.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 244,
+    "category": "owner",
+    "tags": [],
+    "question": "Any message you'd actually want ownership to hear from the players right now?",
+    "options": [
+      { "text": "Trust the room we're building. It won't always look pretty week to week.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Keep being aggressive. We can handle the temperature.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We're in this with you if you're in it with us.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Let us work. We'll show you on Sundays.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 245,
+    "category": "adversity",
+    "tags": [],
+    "question": "Short-handed week. What's the tone you want in the building?",
+    "options": [
+      { "text": "Next-man clarity. Roles have to be obvious or the week gets sloppy.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "No sad music. Available bodies compete.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Protect the guys who are carrying extra, and the guys who are hurting.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same week. We don't rewrite the process because the depth chart changed.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 246,
+    "category": "adversity",
+    "tags": [],
+    "question": "You had a drop-off in your own production. How do you talk about that?",
+    "options": [
+      { "text": "Out loud, to the room, before it becomes a rumor.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I don't talk. I hunt the next game until the tape looks like me again.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "I ask what the group still needs from me besides the stat.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I stay even. Slumps become spirals when you narrate them.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 247,
+    "category": "adversity",
+    "tags": [],
+    "question": "The plan changed midweek because of availability. How do you handle that?",
+    "options": [
+      { "text": "I help sell the new plan so the room doesn't leak doubt.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I treat it like a chance to take more, not less.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I make sure the new pieces feel like they belong, not like replacements.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I adjust. Football is adjustments. That's the job.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 248,
+    "category": "adversity",
+    "tags": [],
+    "question": "A call went against you in a way that still bothers people. You still on that?",
+    "options": [
+      { "text": "I'll mention it once in the room so we can close it. Then it's done.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I'm on us. Officiating isn't going to become my personality.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I care that we didn't let it split us. That's the real damage.", "dnaPoints": { "Team First": 2 } },
+      { "text": "No. Dead snap. Next.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 249,
+    "category": "adversity",
+    "tags": [],
+    "question": "Travel, short rest, banged-up room — what's the non-negotiable this week?",
+    "options": [
+      { "text": "Communication. Tired teams lose when they stop talking.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Effort. Everything else can be ugly if the effort isn't.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Looking after each other. This is a survival week as a group.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Routine. We don't invent a new team because the schedule is rude.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 250,
+    "category": "adversity",
+    "tags": [],
+    "question": "You've been asked to do more with less. Resentful, or ready?",
+    "options": [
+      { "text": "Ready. That's when you find out if you're actually a leader.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Ready. More on my plate is not a complaint.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Ready if the room is with me. I don't want a one-man workaround.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Neither word. I just do the job in front of me.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 251,
+    "category": "adversity",
+    "tags": [],
+    "question": "A younger player is taking heat that maybe belongs on the group. Do you step in?",
+    "options": [
+      { "text": "Yes. That's the job. Heat should land on the right people.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I'll take the heat and raise the standard so it doesn't happen again.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We step in as a room. Nobody gets thrown to the week alone.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I'll handle it quietly. Press conferences aren't the place.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 252,
+    "category": "adversity",
+    "tags": [],
+    "question": "Is there a version of adversity that actually reveals this team?",
+    "options": [
+      { "text": "When the plan breaks and we still look organized.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "When we're tired and we still want the contact.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "When somebody goes down and the rest of us get closer, not smaller.", "dnaPoints": { "Team First": 2 } },
+      { "text": "When we don't become a different team just because it's hard.", "dnaPoints": { "Composure": 2 }, "contentTrigger": "headline" }
+    ]
+  },
+  {
+    "id": 253,
+    "category": "adversity",
+    "tags": [],
+    "question": "You're dealing with something physically that's not going to make the injury report pretty. Why keep going?",
+    "options": [
+      { "text": "Because the room is watching how I handle hard weeks.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Because sitting isn't in me unless I have to.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Because they need me, and I told them they could count on that.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Because medical said I can, and I trust that more than my ego.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 254,
+    "category": "adversity",
+    "tags": [],
+    "question": "Turnovers, penalties, noise — ugly football. How do you keep your own game from catching it?",
+    "options": [
+      { "text": "I slow the huddle down. Ugly is contagious if you let it sprint.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I try to take over a series and change the temperature.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I point people back to each other. Ugly games split rooms.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Next-play discipline. I don't collect the ugliness.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 255,
+    "category": "adversity",
+    "tags": [],
+    "question": "Outside people are already using the word spiral. Your response?",
+    "options": [
+      { "text": "That's a word for people who aren't in the meetings.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Let them. We'll make that word look cheap.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The only spiral I care about is whether we stay together.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I don't accept that framing. We have a week to play.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 256,
+    "category": "adversity",
+    "tags": [],
+    "question": "What's the smallest thing that still has to be right in a messy week?",
+    "options": [
+      { "text": "How we talk to each other. Tone is a tell.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "The first period of practice. If that's soft, the week's gone.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Whether guys still choose the group when it's inconvenient.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The routine. Small things are how you keep a week from becoming a story.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 257,
+    "category": "weather",
+    "tags": [],
+    "question": "Rain game. What actually changed for you besides the ball?",
+    "options": [
+      { "text": "Communication. Wet games get quiet and that's when assignments die.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I wanted it more. Weather is a filter.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We simplified for each other. Nobody needed to be a hero in a puddle.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Footing and patience. Same process, slower eyes.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 258,
+    "category": "weather",
+    "tags": [],
+    "question": "It was a cold one. Who in this league is actually built for that, in your opinion?",
+    "options": [
+      { "text": "The teams that stay on assignment when their hands stop working.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "The ones who smile in it. That's a different sport almost.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "The ones who keep playing for the guy next to them when it's miserable.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Anybody who prepared for it. Cold isn't a personality.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 259,
+    "category": "weather",
+    "tags": [],
+    "question": "Wind wrecked a few throws today. How do you keep that from wrecking the sideline?",
+    "options": [
+      { "text": "You tell the truth about what the air will give you, then you live with it.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "You still try to win the game, not the weather report.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "You lean on the people who can still move the chains the ugly way.", "dnaPoints": { "Team First": 2 } },
+      { "text": "You take the completions the wind allows and you don't force a story.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 260,
+    "category": "weather",
+    "tags": [],
+    "question": "Heat index was nasty. Did that become an excuse in your head at any point?",
+    "options": [
+      { "text": "No, because if I let it, the younger guys would have too.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "No. Heat is just another opponent.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I checked on people more. That's not an excuse, that's the job.", "dnaPoints": { "Team First": 2 } },
+      { "text": "No. We trained for it. The forecast wasn't a surprise.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 261,
+    "category": "weather",
+    "tags": [],
+    "question": "Snow on the yard markers — does that make it more football or less?",
+    "options": [
+      { "text": "More, if you still communicate. Less, if it becomes chaos theater.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "More. That's the version of the sport I actually love.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "More, because everybody has to need each other.", "dnaPoints": { "Team First": 2 } },
+      { "text": "It's still football. Pretty pictures don't change the rules.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 262,
+    "category": "weather",
+    "tags": [],
+    "question": "The field was a mess by the fourth. What wins those games?",
+    "options": [
+      { "text": "People still doing their jobs when it's ugly.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Whoever still wants to hit in the mud.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The group that doesn't start playing for themselves.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Patience. Messy fields punish the first guy who panics.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 263,
+    "category": "weather",
+    "tags": [],
+    "question": "Night game, elements, crowd — sensory overload. How do you narrow it?",
+    "options": [
+      { "text": "I pick one voice in the huddle and I make that the only station.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I don't narrow it. I use all of it.", "dnaPoints": { "Showmanship": 2 } },
+      { "text": "I find my guys. The rest is scenery.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Breath, alignment, assignment. Same three every week.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 264,
+    "category": "weather",
+    "tags": [],
+    "question": "People love calling these character games. Was this one?",
+    "options": [
+      { "text": "It was a communication game. Character is a TV word.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Yes. Weather asked who still wanted to compete.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It was a togetherness game. That's the real word.", "dnaPoints": { "Team First": 2 } },
+      { "text": "It was a football game in bad weather. We handled it.", "dnaPoints": { "Composure": 2 }, "contentTrigger": "headline" }
+    ]
+  },
+  {
+    "id": 265,
+    "category": "weather",
+    "tags": [],
+    "question": "Did you change shoes, gloves, anything — or is that overthinking it?",
+    "options": [
+      { "text": "We prepared as a group so nobody was guessing at kickoff.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I'll change whatever I have to if it helps me keep competing.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I followed what the guys next to me needed too, not just my preference.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I stick with what I trust. Last-minute experiments aren't my thing.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 266,
+    "category": "weather",
+    "tags": [],
+    "question": "A gusty outdoor game vs a perfect dome — which tells you more about a team?",
+    "options": [
+      { "text": "The gusty one. That's when you see who still leads.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "The ugly one. Comfort doesn't measure anything.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The one where you have to need each other.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Both, if you stay yourself. I don't need weather to prove a point.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 267,
+    "category": "weather",
+    "tags": [],
+    "question": "Kickoff was delayed for weather. How do you keep a team from going flat in that wait?",
+    "options": [
+      { "text": "You keep talking. Waiting rooms kill focus if nobody owns them.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "You stay angry in a useful way. Don't let the delay win.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "You stay together. Delays scatter people.", "dnaPoints": { "Team First": 2 } },
+      { "text": "You treat it like part of the process. Extra time, extra breath.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 268,
+    "category": "weather",
+    "tags": [],
+    "question": "Any weather you actually hope is on the forecast?",
+    "options": [
+      { "text": "Whatever makes people do their jobs instead of their dances.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "The nasty stuff. I want that game.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Whatever we prepared for as a group. Surprise weather is how you get selfish.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I don't hope for weather. I hope for a clean week.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 269,
+    "category": "season_finale",
+    "tags": [],
+    "question": "Last game on the schedule. What are you actually playing for today?",
+    "options": [
+      { "text": "The standard we said we had all year. This is the receipt.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Pride. I don't do friendly finales.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The guys who might not be in this room next year.", "dnaPoints": { "Team First": 2 } },
+      { "text": "A clean last tape. That's enough.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 270,
+    "category": "season_finale",
+    "tags": [],
+    "question": "If this is some teammates' last snap here, how do you treat that?",
+    "options": [
+      { "text": "I say it in the room so it doesn't become a secret. Then we play.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I play like I'm trying to send them out the right way.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I try to make sure they feel the year meant something besides the record.", "dnaPoints": { "Team First": 2 }, "contentTrigger": "headline" },
+      { "text": "I honor it without turning the game into a ceremony.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 271,
+    "category": "season_finale",
+    "tags": [],
+    "question": "Looking at the whole year from this last week, what would you not repeat?",
+    "options": [
+      { "text": "The stretches where I waited for somebody else to grab the room.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Any week I let us get comfortable.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Any moment we made a guy feel like he was on an island.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Overreacting to the middle of the season. That's a trap.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 272,
+    "category": "season_finale",
+    "tags": [],
+    "question": "Is there a version of a finale that's still a statement even if the standings are set?",
+    "options": [
+      { "text": "Yes. How you work when it doesn't count is still a standard.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Yes. I don't play exhibition football.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Yes. You play for the people in the room, not the bracket.", "dnaPoints": { "Team First": 2 } },
+      { "text": "A professional one. That's a statement too.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 273,
+    "category": "season_finale",
+    "tags": [],
+    "question": "What from this season are you taking into the first quiet week after it?",
+    "options": [
+      { "text": "Who actually led when it was inconvenient.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "The snaps I didn't finish. Those are coming with me.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The people. That's the inventory that matters.", "dnaPoints": { "Team First": 2 } },
+      { "text": "A clearer process. Feelings fade. Habits stay.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 274,
+    "category": "season_finale",
+    "tags": [],
+    "question": "Fans will argue about this year for months. What argument is a waste of time?",
+    "options": [
+      { "text": "Who the villain was. That's usually lazy.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That we didn't care. Watch the tape before you say that.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That it was about one guy. It wasn't.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Most of them. The year already happened.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 275,
+    "category": "season_finale",
+    "tags": [],
+    "question": "Do you want a messy, emotional last game, or a clean one?",
+    "options": [
+      { "text": "Clean enough to be proud, emotional enough that it meant something.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I want a fight. I don't want a handshake game.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I want it to feel like this locker room. That's the only style I care about.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Clean. Emotion's fine. Chaos isn't a tribute.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 276,
+    "category": "season_finale",
+    "tags": [],
+    "question": "If this year becomes a chapter title, what's the title you'd accept?",
+    "options": [
+      { "text": "The year we found out who we were.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "The year that wasn't enough — yet.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "The year this room grew up together.", "dnaPoints": { "Team First": 2 } },
+      { "text": "A chapter, not the book. I'm good with that.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 277,
+    "category": "season_finale",
+    "tags": [],
+    "question": "Last locker-room speech of the year — you giving one?",
+    "options": [
+      { "text": "If the room needs it, yes. If they don't, I won't force a moment.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "A short one. I want them hungry, not sentimental.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I'll thank people. That's the speech.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Probably not. We already know what the year was.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 278,
+    "category": "season_finale",
+    "tags": [],
+    "question": "How do you want to walk off the field today?",
+    "options": [
+      { "text": "Like somebody who still represented this building the right way.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Empty. If I have anything left, I didn't play the finale.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "With my guys. That's the picture I want.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The same way I walked on. No extra theater.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 279,
+    "category": "season_finale",
+    "tags": [],
+    "question": "Is there unfinished business, or is that just a phrase?",
+    "options": [
+      { "text": "There's a standard we didn't fully live. That's unfinished.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It's not a phrase. I'm not satisfied.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Unfinished as a group, yes. That's the only version I'll use.", "dnaPoints": { "Team First": 2 } },
+      { "text": "There's always something to clean. I don't need a slogan for it.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 280,
+    "category": "season_finale",
+    "tags": [],
+    "question": "One sentence for the people who rode with this team all year?",
+    "options": [
+      { "text": "Thank you for holding us to something. We'll try to deserve it next year.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "We're not done being a problem for this league.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "You were part of this room whether you were in the building or not.", "dnaPoints": { "Team First": 2 } },
+      { "text": "We appreciate you. Now we get back to work.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 281,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "A column said this team doesn't have a real identity. Fair hit?",
+    "options": [
+      { "text": "If they mean we haven't been consistent enough, that's on us to fix.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "They can say that until we make it expensive.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "They don't see this locker room. Identity starts in here.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Columns aren't our scouting report. We have a week to play.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 282,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "Somebody on TV said you're disappearing in the middle of games. You hear that?",
+    "options": [
+      { "text": "I hear it. If my teammates ever feel that, that's the only vote that matters.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I heard it. I'll be hard to miss next time.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "headline" },
+      { "text": "I'd rather they talk about whether we won the down than whether I was visible.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I don't do visibility tests. I do my job.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 283,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "There's a take that this locker room is too nice. Dangerous, or dumb?",
+    "options": [
+      { "text": "Dumb if they confuse professional with soft. We know the difference.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "If they think we're nice, they haven't practiced against us.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We can like each other and still be hard to play. That's the goal.", "dnaPoints": { "Team First": 2 } },
+      { "text": "It's a take. I don't reorganize a room around a take.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 284,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "A former player said your body language bothers him. Anything to that?",
+    "options": [
+      { "text": "If my body language ever costs the huddle, I'll own that. Otherwise it's TV.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "He can watch the compete snaps, not the commercials.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "My teammates know where I am. That's the audience I care about.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Everybody's a body-language coach now. I don't join that show.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 285,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "The hot take this week is that you've been figured out. Response?",
+    "options": [
+      { "text": "Then we'll be better. That's how you answer a scheme talk.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Figured out is a fun thing to say until Sunday.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "They can figure me out. They still have to deal with this whole group.", "dnaPoints": { "Team First": 2 } },
+      { "text": "People need a new theory every week. Mine doesn't change.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 286,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "Someone ranked you outside the tier you think you belong in. Does that land?",
+    "options": [
+      { "text": "It lands if my own room would agree. That's the check.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It lands as fuel. I keep those lists.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I'd rather be ranked by how much I help this team.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Rankings are content. I have practice.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 287,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "A national show used this team as a punchline. You watching that stuff?",
+    "options": [
+      { "text": "Enough to keep it from becoming a distraction in here.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I saw it. Punchlines make good bulletin boards.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I care that my teammates don't internalize somebody else's joke.", "dnaPoints": { "Team First": 2 } },
+      { "text": "No. Punchlines aren't opponents.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 288,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "They said you care more about your image than winning. That's a live wire — you touching it?",
+    "options": [
+      { "text": "I'll let this locker room answer that. If they ever feel that, I've failed.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Winning is the image. Everything else is decoration.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I like the stage. I like winning more. Both can be true.", "dnaPoints": { "Showmanship": 2 }, "contentTrigger": "tweet" },
+      { "text": "I'm not litigating my motives on television.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 289,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "There's criticism that you don't recruit enough help from teammates. Fair?",
+    "options": [
+      { "text": "If I ever look like a one-man show, that's on me to fix.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I want the ball, and I want them to want it too. That's not the same as ignoring them.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I try to. If that's not getting through, I'll be more obvious about it.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I trust the system. I don't need to make a show of sharing.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 290,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "A talking head said this season is already over for you. Calendar check?",
+    "options": [
+      { "text": "We still have games, which means we still have a standard to keep.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Over is a word for people who don't have to line up.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "This room hasn't agreed to that. That's the only vote.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The calendar disagrees. So do I.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 291,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "Do you ever use a bad article as a team-meeting prop, or is that corny?",
+    "options": [
+      { "text": "Only if it tells a truth we need. Props for emotion are corny.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I've used tape more than articles. Tape doesn't lie for clicks.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I'd rather we generate our own standard than borrow one from a column.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Corny. We don't need a villain to work.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 292,
+    "category": "media_criticism",
+    "tags": [],
+    "question": "Last word on the noise this week?",
+    "options": [
+      { "text": "We'll answer it by how we carry ourselves, not by a quote war.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Keep talking. I need the extra.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The noise isn't in this locker room unless we invite it.", "dnaPoints": { "Team First": 2 } },
+      { "text": "No last word. We have work.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 293,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "When you watch your first-year tape now, what's the first thing you wince at?",
+    "options": [
+      { "text": "How long I waited to speak up in the huddle.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "How many snaps I played not to mess up instead of to take over.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "How long it took me to trust the guys next to me.", "dnaPoints": { "Team First": 2 } },
+      { "text": "How much extra movement I had. I was playing nervous even when I looked fine.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 294,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "What did your rookie self overrate?",
+    "options": [
+      { "text": "How much talking I needed to do. Presence isn't volume.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "My own highlights. Competing every day was the real test.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Doing it alone. That's a rookie lie.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The noise. I thought every week was an emergency.", "dnaPoints": { "Composure": 2 }, "contentTrigger": "tweet" }
+    ]
+  },
+  {
+    "id": 295,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "What did your rookie self underrate?",
+    "options": [
+      { "text": "Wednesday. That's where seasons are actually built.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "How hard it is to bring the same edge when you're tired.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The value of a teammate who just sits with you after a bad one.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Recovery. I thought toughness meant ignoring it.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 296,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "If a current rookie asked you how to survive the first December, what do you tell them?",
+    "options": [
+      { "text": "Lead your own habits. December exposes people who only followed.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Don't get polite. The league gets meaner, not nicer.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Stay in the group. Isolation is how rookies disappear.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Keep the routine when the weather and the noise both change.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 297,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "Do you miss being unknown, or was that just uncomfortable?",
+    "options": [
+      { "text": "I miss how simple the job felt. I don't miss having no voice.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I don't miss it. I came here to be known for competing.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I miss how easy it was to just be one of the guys.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Unknown had less noise. I don't need that back to do my job.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 298,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "What's the biggest lie the league tells rookies?",
+    "options": [
+      { "text": "That leadership is a year-three thing. The room needs you sooner.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That you've arrived because you got drafted. You haven't.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That it's every man for himself. That's how you stay average.", "dnaPoints": { "Team First": 2 } },
+      { "text": "That you have to be someone else on camera. You don't.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 299,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "When did you first feel like you belonged on this level?",
+    "options": [
+      { "text": "When a veteran asked me what I saw, and meant it.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "When I stopped hoping I'd play well and started expecting it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "When the room started counting on me for more than my snaps.", "dnaPoints": { "Team First": 2 } },
+      { "text": "When a bad series didn't follow me into the next one.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 300,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "How do you keep from coaching rookies to be copies of you?",
+    "options": [
+      { "text": "I give them the standard, not my personality.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I make them compete. Their version of that can look different.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I ask what they need, not what I needed.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I let them have their process as long as it holds up on Sundays.", "dnaPoints": { "Composure": 2 }, "contentTrigger": "headline" }
+    ]
+  },
+  {
+    "id": 301,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "Was there a rookie mistake you still use as a teaching tool?",
+    "options": [
+      { "text": "Yes — a time I stayed quiet when the huddle needed a voice.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Yes — a time I thought talent was going to finish the play for me.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Yes — a time I made it about me in a week that wasn't.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Yes — a time I let one snap own my whole day.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 302,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "How has your definition of a good week changed since year one?",
+    "options": [
+      { "text": "It's about whether people were better because I was in the building.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It's about whether I actually took something from somebody.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It's about whether the group was closer on Friday than it was on Tuesday.", "dnaPoints": { "Team First": 2 } },
+      { "text": "It's about repeatable work, not whether I felt famous on Sunday night.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 303,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "Do you still feel like the youngest guy in some rooms?",
+    "options": [
+      { "text": "Sometimes, and I use that. New eyes can still help a huddle.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Not when the ball's snapped. That's not an age thing.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I try to remember that feeling so I don't freeze out the actual young guys.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Less and less. Time does that if you stay even.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 304,
+    "category": "rookie_reflection",
+    "tags": [],
+    "question": "What do you hope this year's rookies say about you in five years?",
+    "options": [
+      { "text": "That I made the standard clear without making it cruel.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That I never let them get comfortable being just okay.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That I actually had their back when it wasn't convenient.", "dnaPoints": { "Team First": 2 } },
+      { "text": "That I showed them how to last, not just how to flash.", "dnaPoints": { "Legacy Drive": 2 } }
+    ]
+  },
+  {
+    "id": 305,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "pass defense"],
+    "question": "Their pass defense has been leaking yards. Do you go hunting that immediately?",
+    "options": [
+      { "text": "We take what's there. I'm not turning their weakness into a press conference.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "If it's there, I'm taking it early. No reason to wait.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That's a coaches' sequence. I'll run what puts this group in the best spot.", "dnaPoints": { "Team First": 2 } },
+      { "text": "We'll see it, then we'll decide. I don't pre-announce a plan.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 306,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "pass defense"],
+    "question": "People already assume you'll throw it all over them. Trap?",
+    "options": [
+      { "text": "It can be. I don't let outside assumptions call our game.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Not a trap if we actually finish drives. Assumptions aren't coverage.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "The trap is forgetting the rest of this locker room has a job too.", "dnaPoints": { "Team First": 2 } },
+      { "text": "We stay balanced until the tape tells us not to.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 307,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "run defense"],
+    "question": "Their front's been getting moved this year. Do you commit to making them tackle all day?",
+    "options": [
+      { "text": "If that's the winning math, yes. Ego doesn't pick the run-pass split.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I want them tired by the third quarter. That's the point.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We'll do whatever lets the whole group eat, not just one side of the ball.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Commit is a strong word. We'll take what they give, snap by snap.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 308,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "run defense"],
+    "question": "Is pounding a soft run defense still the grown-up way to win, or is that old thinking?",
+    "options": [
+      { "text": "It's grown-up if it helps us control the game. That's the only test.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "If they can't stop it, we should make them live in it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It's a group win if the guys up front get to be the story.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Old or new doesn't matter. Fits matter.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 309,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "third-down defense"],
+    "question": "They've been leaking on third down. What's your personal rule in those spots this week?",
+    "options": [
+      { "text": "Stay on the same page. Third down is where lone-wolf stuff dies.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Be decisive. I don't want us playing not-to-punt.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Trust the call and the guy next to me. That's how you convert.", "dnaPoints": { "Team First": 2 } },
+      { "text": "See it, don't guess it. Third down punishes heroes.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 310,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "third-down defense"],
+    "question": "If we stay on schedule, their third-down issues get louder. Is that the whole game?",
+    "options": [
+      { "text": "It's a big part of it. First down discipline is leadership, honestly.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It's a way to put our foot on them. I like that version.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It's a team game even then. Somebody still has to finish the conversion.", "dnaPoints": { "Team First": 2 } },
+      { "text": "It's one layer. I don't reduce a Sunday to one down.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 311,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "red zone defense"],
+    "question": "Inside the 20, they've been generous. Do you get greedy there?",
+    "options": [
+      { "text": "I get detailed there. Greedy is how you come away with threes.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I get aggressive. If they're leaking points, take the points.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I get unselfish. Red zone is where one guy's highlight can cost six.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I get patient. The field is smaller, not simpler.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 312,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "red zone defense"],
+    "question": "What's the difference between exploiting a red-zone weakness and forcing one?",
+    "options": [
+      { "text": "Exploiting is seeing it. Forcing is needing a moment for yourself.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I'll take my chances attacking it. That's why you study.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "headline" },
+      { "text": "The difference is whether the whole unit is in on the picture.", "dnaPoints": { "Team First": 2 } },
+      { "text": "One is football. The other is panic with better lighting.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 313,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "pass rush"],
+    "question": "Their pass rush hasn't been getting home. Does that change your protection talk, or your aggression?",
+    "options": [
+      { "text": "It changes the conversation so nobody gets casual. Casual is how rushes suddenly arrive.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "It changes my aggression. If they're not getting there, make them chase.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It changes how much we can trust the whole operation, not just one guy.", "dnaPoints": { "Team First": 2 } },
+      { "text": "It doesn't change the rules. We still protect the football.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 314,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "pass rush"],
+    "question": "Soft rush weeks can make people hold the ball. How do you keep this group from getting cute?",
+    "options": [
+      { "text": "I keep the timing talk honest. Cute is how you donate a sack.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I still want to push the ball. I just won't get stupid with it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We stay on the same clock. That's a team thing, not a hero thing.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same answers, same timing. Their rush doesn't rewrite our process.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 315,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "the secondary"],
+    "question": "Their secondary's been giving up the explosive. Do you hunt the shot, or the chain?",
+    "options": [
+      { "text": "Chain first, shot when it's earned. That's how you don't beat yourself.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "If they keep lining up like that, I'm hunting the shot.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Whatever keeps this group on schedule. Explosives are a bonus, not a personality.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I take the look if it's there. I don't manufacture one.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 316,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "the secondary"],
+    "question": "Matchups in the back end look friendly on paper. How much do you trust paper?",
+    "options": [
+      { "text": "I trust the walkthrough more than the graphic.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Paper is an invitation. Sunday is whether we accept it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I trust our guys more than their rankings.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Not much. Paper doesn't tackle.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 317,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "the linebacker corps"],
+    "question": "Their linebackers have been a step late in space. Is that a checkdown week or a mismatch week?",
+    "options": [
+      { "text": "It's a see-it week. We don't pre-label a defense in the interview.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Mismatch week if they keep showing that. I won't apologize for attacking it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It's a whoever's open week. That's how this offense is supposed to work.", "dnaPoints": { "Team First": 2 } },
+      { "text": "It's a fit week. Labels are for after the tape.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 318,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "the linebacker corps"],
+    "question": "Do you talk about attacking a linebacker group out loud, or is that bulletin-board food?",
+    "options": [
+      { "text": "I talk about our assignments, not their obituaries.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I'm not scared of the board. If it's true, it's true.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "I'd rather they hear it from our play than from my mouth.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Bulletin-board food is a choice. I usually don't cook it.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 319,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "special teams coverage"],
+    "question": "Their coverage units have been a problem. Does that belong in a player's interview, or only in special-teams meetings?",
+    "options": [
+      { "text": "It belongs in the building. Hidden yards are still leadership if you value them.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "If it's a way to win, I want us hunting it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Those guys don't get enough airtime. I'll mention them.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Meetings. I don't scout their specialists on a microphone.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 320,
+    "category": "weekly_matchup",
+    "tags": ["weak_spot", "special teams coverage"],
+    "question": "A short field because of coverage issues can change a whole afternoon. How do you stay ready for that?",
+    "options": [
+      { "text": "Stay mentally in every series, even the ones that start on a gift.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "If they hand us a short field, we should finish with points. Period.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Credit the coverage guys if it happens. Then we do our part.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same process, better starting point. I don't get greedy just because the math got easier.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 321,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "They're coming in hot. Do you try to take their temperature away early?",
+    "options": [
+      { "text": "We take away their rhythm by being cleaner than they are, not louder.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Yes. I want the first punch.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We stay on ourselves. Their streak isn't our script.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Hot teams still have to execute. So do we.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 322,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "This is a short week for everybody. What gets protected first?",
+    "options": [
+      { "text": "The details. Short weeks are where sloppy teams tell on themselves.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "The edge. Tired is not an identity.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Each other. Short weeks chew people up if the room isn't tight.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The routine. Cut the extras, keep the process.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 323,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "Primetime slot. Does the extra light change your week?",
+    "options": [
+      { "text": "It changes how I remind people to stay on assignment. Lights make some guys speed up.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I like the light. I want the biggest audience we can get.", "dnaPoints": { "Showmanship": 2 } },
+      { "text": "It's still a team game with better TV graphics.", "dnaPoints": { "Team First": 2 } },
+      { "text": "No. Kickoff is kickoff.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 324,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "They're banged up in spots people can see. Do you talk about that, or leave it alone?",
+    "options": [
+      { "text": "Leave it alone publicly. We have our own availability to manage.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "We should still try to win the game in front of us, healthy or not.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "headline" },
+      { "text": "I don't celebrate somebody else's injuries. That's not this room.", "dnaPoints": { "Team First": 2 } },
+      { "text": "We prepare for who's dressed. That's it.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 325,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "They're sitting at the bottom of the standings. Trap-game talk — you buying it?",
+    "options": [
+      { "text": "I buy that we have to set a professional tone. Records don't tackle.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I don't do traps. I do opponents.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The trap is us getting cute and forgetting this is still a locker room across from us.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Trap is a media word. We have a plan.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 326,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "Division implications this week even if the logos aren't the famous rivalry. Feel that?",
+    "options": [
+      { "text": "I feel the math. I try to keep the room on the snaps, not the standings graphic.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I feel it. Division games should feel like something.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The whole building feels it. That's useful if we stay together.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I feel the week, not the spreadsheet.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 327,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "They just changed their starting quarterback. Does that scramble your week?",
+    "options": [
+      { "text": "It changes the scouting, not our identity. We still have to be us.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "New starter or not, I want to take the game from them.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We prepare for the team. One name doesn't get to own our meetings.", "dnaPoints": { "Team First": 2 } },
+      { "text": "A little. Then we settle and play who's there.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 328,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "Long travel this week. Is that a real factor, or a ready-made excuse?",
+    "options": [
+      { "text": "It's a factor we manage, not a story we sell.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Excuse. I don't give the itinerary a vote.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It's a factor in how we look after each other on the road.", "dnaPoints": { "Team First": 2 } },
+      { "text": "We travel the same way every time. That's the point of a process.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 329,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context", "requires_prior_meeting_loss"],
+    "question": "They got us last time. What's actually different besides the calendar?",
+    "options": [
+      { "text": "We're more honest about what they did to us. That's the start.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I am. I don't like owing somebody a game.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "This room has sat with that tape together. That matters.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The plan's cleaner. Emotion isn't the adjustment.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 330,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context", "requires_prior_meeting_loss"],
+    "question": "Revenge is a word people will use because they beat you already. You using it?",
+    "options": [
+      { "text": "I use correction. Revenge is a movie.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Yes. I want that one back.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "I use it for the group, not for a personal trailer.", "dnaPoints": { "Team First": 2 } },
+      { "text": "No. We have a game. That's enough language.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 331,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context", "requires_prior_meeting_blowout_win"],
+    "question": "You handled them last time. Risk of looking past a team you already beat up?",
+    "options": [
+      { "text": "That's the exact conversation I'm having in the room. We don't get to be bored.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I'll be bored when they stop lining up. Until then, we finish.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Last time was this whole group. This time has to be too.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Previous scoreboards don't play. We start at zero.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 332,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context", "requires_prior_meeting_close"],
+    "question": "Last meeting was basically a one-possession game. Does that tape still live in your head?",
+    "options": [
+      { "text": "The parts where we almost let it get away do. Those are teaching snaps.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Yes. I wanted that one cleaner, even if we survived it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It lives as a reminder that this matchup needs everybody.", "dnaPoints": { "Team First": 2 } },
+      { "text": "It lives as information, not as a feeling.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 333,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "They're desperate, you're not — at least on paper. How do you keep that from becoming a problem?",
+    "options": [
+      { "text": "We invent our own urgency. Paper desperation is their story, not our pass.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I treat every week like we need it. That's the only safe version.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Desperate teams can punch a room that isn't together. We stay together.", "dnaPoints": { "Team First": 2 } },
+      { "text": "We don't play their situation. We play our plan.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 334,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "Odd-week rest for them, grind for you. Does the calendar get a vote?",
+    "options": [
+      { "text": "Only in how we manage bodies. Not in how we talk.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "No. I don't grant rest as an advantage until they take it.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It gets a vote in how we look after each other. That's it.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Calendars aren't opponents. Execution is.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 335,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "They're starting to get national love. Does that extra shine change anything?",
+    "options": [
+      { "text": "It changes what I tell the young guys about staying on the details.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I like playing teams people are suddenly interested in.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Their shine isn't our business. Our huddle is.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Shine fades. Sundays don't.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 336,
+    "category": "weekly_matchup",
+    "tags": ["opponent_context"],
+    "question": "Home crowd's going to be restless if this starts slow. Do you feel that in the week?",
+    "options": [
+      { "text": "I feel it enough to remind people that start-fast isn't the same as start-panicked.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I want a fast start anyway. Not because of the crowd — because I do.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "headline" },
+      { "text": "The crowd's part of this team. We owe them a connected start.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Restless crowds happen. Our process doesn't.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 337,
+    "category": "weekly_matchup",
+    "tags": [],
+    "question": "If the first drive stalls, what's the next-drive conversation you want?",
+    "options": [
+      { "text": "Short and specific. No speeches after three-and-out.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Punch back. I don't want us sitting in the stall.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "We're still one group. One drive isn't a referendum.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same calls, cleaner. Don't invent a new offense because of one series.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 338,
+    "category": "weekly_matchup",
+    "tags": [],
+    "question": "Two-minute before half — what's your personal rule?",
+    "options": [
+      { "text": "Protect the football first, points second. That's how you lead a two-minute.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "If there's a chance to take it, take it. Halftime leads matter.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Everybody has to be on the same clock. That's a team down.", "dnaPoints": { "Team First": 2 } },
+      { "text": "See the clock, see the timeouts, don't improvise a legend.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 339,
+    "category": "weekly_matchup",
+    "tags": [],
+    "question": "If they jump out early, do you want a swing play or a methodical climb?",
+    "options": [
+      { "text": "I want the room calm enough to choose correctly, not romantically.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I want a swing. I don't like living in somebody else's start.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I want whatever keeps us playing together instead of one-on-one hero ball.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Methodical. Early deficits punish the first panic shot.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 340,
+    "category": "weekly_matchup",
+    "tags": [],
+    "question": "Fourth-and-short on their side. You a send-it guy or a trust-the-chart guy?",
+    "options": [
+      { "text": "I'm a what's-right-for-this-team guy. Charts don't know the huddle's face.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Send it. I came to take things, not to punt them.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I trust the guys who have to convert it, not the graphic.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I trust the process we already agreed on. That's why you have one.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 341,
+    "category": "weekly_matchup",
+    "tags": [],
+    "question": "If this turns into a rock fight, who in you shows up?",
+    "options": [
+      { "text": "The organizer. Ugly games need a steady voice more than a highlight.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "The one who still wants the next collision.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "The teammate. Rock fights are won by eleven, not by a poster.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The same guy. I don't need a new personality for ugly.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 342,
+    "category": "weekly_matchup",
+    "tags": [],
+    "question": "What's your tell that a game is about to open up?",
+    "options": [
+      { "text": "When their communication starts slipping. That's when you stay organized and let them beat themselves.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "When I can feel them getting tired of competing. That's when you push.", "dnaPoints": { "Competitive Fire": 2 }, "contentTrigger": "tweet" },
+      { "text": "When our sideline starts playing for each other instead of the score.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I don't hunt a tell. I just keep stacking clean snaps.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 343,
+    "category": "weekly_matchup",
+    "tags": [],
+    "question": "End-of-game kneel or one more shot if you're up big — where are you?",
+    "options": [
+      { "text": "Wherever keeps this team looking like professionals.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I don't love kneeling. I also don't need to make a new enemy for fun.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Take care of their bodies and ours. That's a team call.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Kneel. The game's over. Don't write a stupid last paragraph.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 344,
+    "category": "weekly_matchup",
+    "tags": [],
+    "question": "What's the one thing you want true about this team when the clock hits zero, regardless of the score?",
+    "options": [
+      { "text": "That we still looked like we had a standard.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That we competed the whole way.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That we still looked like one locker room.", "dnaPoints": { "Team First": 2 } },
+      { "text": "That we didn't become a different team just because the script changed.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 345,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "Brand-new building, first week on the job. What have you been paying attention to?",
+    "options": [
+      { "text": "Who actually runs the room when the coaches step out.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "How hard people compete when it's still just install.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Whether this group actually wants a new guy in it.", "dnaPoints": { "Team First": 2 } },
+      { "text": "The daily rhythm. I want to learn it before I try to change it.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 346,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "You haven't played a snap here yet. What's the first impression you want to give this roster?",
+    "options": [
+      { "text": "That I came to work and to help, not to take over the microphone.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "That I'm here to compete for everything, immediately.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "That I'm on their side from day one.", "dnaPoints": { "Team First": 2 } },
+      { "text": "That I can handle a new place without making it a production.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 347,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "New city, new facility, new faces. What's been the hardest part of the landing?",
+    "options": [
+      { "text": "Learning who needs what. Every room has a different language.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Waiting to actually compete in a game. The in-between is restless.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Not knowing people well enough yet to help them the right way.", "dnaPoints": { "Team First": 2 } },
+      { "text": "There isn't one. New is just new. You do the work.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 348,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "Have you felt like an outsider this week, or did the room close that gap fast?",
+    "options": [
+      { "text": "A little outsider, which is normal. I'm earning the inside.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "They've been competitive with me, which is the welcome I wanted.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "They closed it faster than I expected. That's a good sign.", "dnaPoints": { "Team First": 2 }, "contentTrigger": "tweet" },
+      { "text": "I don't do outsider energy. I just show up.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 349,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "What's the first question you asked in the building that wasn't about the playbook?",
+    "options": [
+      { "text": "Who the young guys go to when it's not going well.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Who actually likes competing in this place.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "How people take care of each other here.", "dnaPoints": { "Team First": 2 } },
+      { "text": "What the day looks like when it's boring. That's the real culture.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 350,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "Fans here don't know your game yet. How do you want to introduce it?",
+    "options": [
+      { "text": "By being reliable before I'm memorable.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "By competing in a way they can feel from the stands.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "By making it obvious I play for the name on the front.", "dnaPoints": { "Team First": 2 } },
+      { "text": "By giving them a reason to watch every snap, not just the clips.", "dnaPoints": { "Showmanship": 2 } }
+    ]
+  },
+  {
+    "id": 351,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "New play names, new meetings, new everything. How fast do you think you'll be fluent?",
+    "options": [
+      { "text": "Fast enough to help the next guy who's also new.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Faster than people expect. That's the personal bet.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "As fast as this room can teach me. I'm not doing it in a vacuum.", "dnaPoints": { "Team First": 2 } },
+      { "text": "On the timeline it takes to do it right. Speed without clarity is just noise.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 352,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "Did you pick this place, or did this place pick you — and does that matter in week one?",
+    "options": [
+      { "text": "It matters that I show I belong either way.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I picked a chance to compete. That's the part that matters.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "It matters that I treat this roster like mine now, not like a layover.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Week one is about work, not origin stories.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 353,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "What's one thing you refuse to fake while you're still new here?",
+    "options": [
+      { "text": "Knowing the room. I'll lead when I've actually learned it.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Comfort. I'm not going to pretend I've already arrived.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Chemistry. I'll earn those relationships instead of performing them.", "dnaPoints": { "Team First": 2 } },
+      { "text": "A brand-new personality. They get the same guy, just in a new building.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 354,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "First walk through this tunnel is coming. You scripting that moment?",
+    "options": [
+      { "text": "I'm scripting my job, not the camera shot.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I just want to get out there and compete. That's the whole script.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I want to walk out with this group, not as a separate story.", "dnaPoints": { "Team First": 2 } },
+      { "text": "If there's a first-walk moment, I hope it's one this city remembers.", "dnaPoints": { "Showmanship": 2 }, "contentTrigger": "headline" }
+    ]
+  },
+  {
+    "id": 355,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "Who have you been sitting next to in meetings, and why?",
+    "options": [
+      { "text": "Whoever can help me learn this thing faster so I can pay it forward.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Whoever's going to push me. I didn't come here to sit in the easy chair.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "A mix. I don't want one pocket of the roster. I want the whole room.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Whoever's there. I don't turn seating into a strategy.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 356,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "Media Day in a new place can make you the story. Comfortable with that?",
+    "options": [
+      { "text": "Only if the story is that I came to help this team, not to be a circus.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I can handle being the story if I back it up when we actually play.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I'd rather share the story with the guys who were here before I was.", "dnaPoints": { "Team First": 2 } },
+      { "text": "A little attention is fine. I don't need to feed it.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 357,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "What's your first-week standard for yourself in a new locker room?",
+    "options": [
+      { "text": "Be useful. Ask good questions. Don't fake seniority I haven't earned.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "Win the days. Jobs don't care that I just got here.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "Make it easy for people to include me. That's on me too.", "dnaPoints": { "Team First": 2 } },
+      { "text": "Same habits I brought with me. New building, same process.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 358,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "Any nerves about the first snap in this uniform?",
+    "options": [
+      { "text": "Nerves about earning trust, not about the snap itself.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I'm more impatient than nervous. I want the snap.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I don't want to let these guys down in my first one. That's the honest version.", "dnaPoints": { "Team First": 2 } },
+      { "text": "A little, and I think that's human. It won't run the play.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 359,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "What would make this first week feel like the right landing?",
+    "options": [
+      { "text": "If I already know how I can help this room beyond my own snaps.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "If I leave the week knowing I competed for a job, not a welcome basket.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "If I already have people I can call teammates without forcing it.", "dnaPoints": { "Team First": 2 } },
+      { "text": "If the days already feel repeatable. That's how you know you can work here.", "dnaPoints": { "Composure": 2 } }
+    ]
+  },
+  {
+    "id": 360,
+    "category": "debut",
+    "tags": ["debut_only"],
+    "question": "Last one before you actually play here — anything you want on the record?",
+    "options": [
+      { "text": "I'm here to earn it. That's the whole quote.", "dnaPoints": { "Leadership": 2 } },
+      { "text": "I came here to win, starting now, not after I get comfortable.", "dnaPoints": { "Competitive Fire": 2 } },
+      { "text": "I'm grateful they took me in. I'll try to be worth it to this locker room.", "dnaPoints": { "Team First": 2 } },
+      { "text": "I'm ready to start something here that lasts longer than a welcome week.", "dnaPoints": { "Legacy Drive": 2 }, "contentTrigger": "headline" }
+    ]
+  }
+]

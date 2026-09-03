@@ -110,6 +110,7 @@ import {
 } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
+import { withComputeCache } from "../../lib/compute-cache.js";
 import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { applyLeagueTeamIdentityOverrides, type LeagueTeamIdentityOverride } from "../team-identities/team-identities.service.js";
@@ -714,7 +715,10 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
         eligible,
       }];
     })),
-    catalogs: {
+    catalogs: await withComputeCache(
+      `immortality:catalogs:${league.offense_position}:${league.defense_position}`,
+      10 * 60_000,
+      async () => ({
       characteristics: {
         offense: characteristicCatalog(positionGroupFor(league.offense_position as ImmortalityPosition)).map((item) => ({
           key: item.key, displayName: item.displayName, positionGroup: item.positionGroup, slotCost: item.slotCost, effect: item.effect, tags: item.tags,
@@ -757,7 +761,7 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
           ? { questions: publicPlayerTraitQuestions(league.defense_position as PlayerTraitPositionGroup), catalog: playerTraitCatalog(league.defense_position as PlayerTraitPositionGroup) }
           : null,
       },
-    },
+    })),
   };
 }
 
@@ -2820,7 +2824,7 @@ async function postInterviewQuoteHeadlineForAnswer(input: {
 /** A prospect's own in-fiction Twitter handle -- their player name, no spaces, "@"-prefixed --
  * per direction that Media Day should read as the player's own tweets, not a third-party
  * headline story. */
-function twitterHandleForProspect(prospect: { first_name?: string | null; last_name?: string | null }): { handle: string; displayName: string } {
+export function twitterHandleForProspect(prospect: { first_name?: string | null; last_name?: string | null }): { handle: string; displayName: string } {
   const first = (prospect.first_name ?? "").trim();
   const last = (prospect.last_name ?? "").trim();
   const displayName = `${first} ${last}`.trim() || "Prospect";
@@ -2842,6 +2846,11 @@ export async function prospectAvatarUrlForHandle(recLeagueId: string, handle: st
     .select("first_name,last_name,headshot_url").eq("immortality_league_id", immortality.data.id).not("headshot_url", "is", null);
   for (const prospect of (prospects.data ?? []) as Array<{ first_name: string | null; last_name: string | null; headshot_url: string | null }>) {
     if (twitterHandleForProspect(prospect).handle === handle) return prospect.headshot_url;
+  }
+  const owners = await supabase.from("rec_immortality_owners")
+    .select("first_name,last_name,headshot_url").eq("immortality_league_id", immortality.data.id).not("headshot_url", "is", null);
+  for (const owner of (owners.data ?? []) as Array<{ first_name: string | null; last_name: string | null; headshot_url: string | null }>) {
+    if (twitterHandleForProspect(owner).handle === handle) return owner.headshot_url;
   }
   return null;
 }

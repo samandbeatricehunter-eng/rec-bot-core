@@ -334,16 +334,25 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
       let painted = Boolean(cached);
       if (cached) {
         setLoading(false);
-      } else {
-        setLoading(true);
-        const composed = await composeHubContextFromLists(leagueId);
-        if (cancelled) return;
-        if (composed) {
-          painted = true;
-          persistCachedHubOpen(leagueId, composed);
-          setContext(composed);
-          setLoading(false);
-        }
+        void siteApi.openLeagueHub({ leagueId, view: "buzz" }).then((result) => {
+          if (cancelled) return;
+          const guildId = String(result.guildId ?? "").trim();
+          const discordId = String(result.discordId ?? "").trim();
+          if (!guildId || !discordId) return;
+          persistCachedHubOpen(leagueId, { guildId, discordId });
+          setContext({ guildId, discordId });
+        }).catch(() => undefined);
+        return;
+      }
+
+      setLoading(true);
+      const composed = await composeHubContextFromLists(leagueId);
+      if (cancelled) return;
+      if (composed) {
+        painted = true;
+        persistCachedHubOpen(leagueId, composed);
+        setContext(composed);
+        setLoading(false);
       }
 
       try {

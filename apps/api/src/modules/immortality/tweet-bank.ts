@@ -6,6 +6,8 @@
 // given week -- the same approach roundtable-take-bank.ts/interview-title-bank.ts use for takes
 // and interview prompts.
 
+import { PLAYER_CHATTER_TEMPLATES_WAVE2, TWEET_TEMPLATES_WAVE2 } from "./tweet-bank-wave2.js";
+
 export type TweetHostKey = "marcus" | "jalen" | "elliot" | "darius";
 export type TweetAuthor = TweetHostKey | "generic";
 
@@ -27,7 +29,7 @@ export const TWEET_HOSTS: Record<TweetHostKey, { handle: string; displayName: st
 // Cycles through the 20 uploaded generic headshots (rti-tweet-generic-001..020) across the 46
 // media/analyst/fan accounts below -- more accounts than unique photos, so a handful of accounts
 // share a face, same as any stock-photo-backed account pool.
-function genericAvatarUrl(index: number): string {
+export function genericAvatarUrl(index: number): string {
   const n = ((index % 20) + 20) % 20;
   return avatarUrlFor(`rti-tweet-generic-${String(n + 1).padStart(3, "0")}`);
 }
@@ -176,6 +178,7 @@ export const PLAYER_CHATTER_TEMPLATES: PlayerChatterTemplate[] = [
   { mode: "rival", tone: "praise", text: "{targetPlayer} earned that today. Doesn't mean I'm not still coming for {targetTeam} though." },
   { mode: "rival", tone: "praise", text: "not gonna lie, {targetPlayer} might be the real deal. see you next time though." },
   { mode: "rival", tone: "praise", text: "{targetPlayer} deserves his flowers. {targetTeam} should be proud. anyway, run it back soon." },
+  ...PLAYER_CHATTER_TEMPLATES_WAVE2,
 ];
 
 /** Static avatar lookup for the fixed host/generic catalogs -- checked first (cheap, sync) before
@@ -595,4 +598,5 @@ export const TWEET_TEMPLATES: TweetTemplate[] = [
   t("camp_buzz", "generic", "{team} fans already talking about {player} like the season started. I respect the confidence."),
   t("camp_buzz", "generic", "not a single game played yet and {player} is already the {team} storyline everybody's watching."),
   t("camp_buzz", "generic", "kickoff can't get here fast enough, {player} and {team} have me way too hyped for a season that hasn't started."),
+  ...TWEET_TEMPLATES_WAVE2,
 ];

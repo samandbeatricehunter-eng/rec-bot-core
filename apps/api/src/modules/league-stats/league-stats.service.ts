@@ -17,10 +17,10 @@ export type LeagueStatsResult = {
 // the Stats page's category/team/leaders pills, or per hit on the public unauthenticated demo
 // preview (see demo-league.service.ts, which calls this same function with no auth/rate limit).
 const statsCache = new Map<string, { value: LeagueStatsResult; expiresAt: number }>();
-const STATS_CACHE_MS = 15_000;
+const STATS_CACHE_MS = 60_000;
 
 /** Drop cached season/career leaderboards after an import (or any write to weekly stats)
- * so the next Stats page read isn't serving a 15s-stale snapshot. */
+ * so the next Stats page read isn't serving a stale snapshot. */
 export function invalidateLeagueStatsCache(leagueId: string): void {
   const prefix = `${leagueId}:`;
   for (const key of statsCache.keys()) {

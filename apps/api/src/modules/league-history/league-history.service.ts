@@ -4,6 +4,7 @@
 // /viewleague page — nothing here is more sensitive than what's already public on standings.
 import { isCfb, type LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
+import { withComputeCache } from "../../lib/compute-cache.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
@@ -258,6 +259,10 @@ async function buildSeasonHistory(leagueId: string, seasonNumber: number, game: 
 }
 
 export async function getLeagueHistory(guildId: string) {
+  return withComputeCache(`league-history:${guildId}`, 5 * 60_000, () => loadLeagueHistory(guildId));
+}
+
+async function loadLeagueHistory(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const leagueId = context.leagueId;
   const game = context.rec_leagues.game as LeagueGame;

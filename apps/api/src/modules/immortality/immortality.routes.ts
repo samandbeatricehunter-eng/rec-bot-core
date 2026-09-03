@@ -48,7 +48,7 @@ import {
   grantImmortalityCommissionerBonus,
 } from "./immortality.service.js";
 import { signImmortalityContract } from "./contracts.service.js";
-import { postManualImmortalityTweet } from "./tweet-generation.service.js";
+import { postManualImmortalityTweet, listPlayerTwitterPersonas, postPlayerTwitterTweet } from "./tweet-generation.service.js";
 import {
   getProgressionState,
   purchaseProgressionPerk,
@@ -409,6 +409,29 @@ export async function immortalityRoutes(app: FastifyInstance) {
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       await postManualImmortalityTweet(body);
       return reply.send({ posted: true });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Bot-only: /twitter is a member command. The bot passes the caller's discordId; we re-resolve
+  // their own owner/offense/defense personas server-side so a typed value can't post as someone else.
+  app.post("/v1/immortality/tweets/personas", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ discordId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send(await listPlayerTwitterPersonas(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/tweets/player", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({
+        discordId: z.string().min(1),
+        persona: z.enum(["owner", "offense", "defense"]),
+        tweetText: z.string().trim().min(1).max(1000),
+        mentionContent: z.string().trim().max(200).optional(),
+      }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send(await postPlayerTwitterTweet(body));
     } catch (error) { return sendError(reply, error); }
   });
 
