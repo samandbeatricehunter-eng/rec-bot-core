@@ -1963,7 +1963,6 @@ async function finalizePreassignedImmortalityOwner(input: {
 }): Promise<void> {
   const existingClaim = await supabase.from("rec_immortality_user_team_assignments").select("id")
     .eq("immortality_league_id", input.immortalityLeagueId).eq("user_id", input.userId).maybeSingle();
-  if (existingClaim.data) return;
   const owner = await supabase.from("rec_immortality_owners").select("origins_step")
     .eq("immortality_league_id", input.immortalityLeagueId).eq("user_id", input.userId).maybeSingle();
   if (owner.data?.origins_step !== "complete") return;
@@ -1979,16 +1978,18 @@ async function finalizePreassignedImmortalityOwner(input: {
     .in("prospect_id", prospects.map((prospect) => String(prospect.id)));
   if ((builds.data ?? []).length !== 2) return;
 
-  const claim = await supabase.from("rec_immortality_user_team_assignments").insert({
-    immortality_league_id: input.immortalityLeagueId,
-    user_id: input.userId,
-    team_id: teamId,
-    revealed_at: new Date().toISOString(),
-  });
-  if (claim.error) throw new ApiError(500, "Could not finalize the commissioner's franchise assignment.", claim.error);
+  if (!existingClaim.data) {
+    const claim = await supabase.from("rec_immortality_user_team_assignments").insert({
+      immortality_league_id: input.immortalityLeagueId,
+      user_id: input.userId,
+      team_id: teamId,
+      revealed_at: new Date().toISOString(),
+    });
+    if (claim.error) throw new ApiError(500, "Could not finalize the commissioner's franchise assignment.", claim.error);
+  }
 
   for (const prospect of prospects) {
-    await materializeProspectToPlayer(prospect, teamId, input.recLeagueId);
+    if (!prospect.player_id) await materializeProspectToPlayer(prospect, teamId, input.recLeagueId);
     if (!prospect.card_message_id) {
       await postProspectCardToDiscord({
         leagueId: input.recLeagueId,
@@ -1998,9 +1999,14 @@ async function finalizePreassignedImmortalityOwner(input: {
       });
     }
   }
-  await import("./contracts.service.js").then(({ offerRookieContracts }) => offerRookieContracts(
-    prospects.map((prospect) => String(prospect.id)),
-  ));
+  const existingContracts = await supabase.from("rec_immortality_contracts").select("prospect_id,contract_number")
+    .in("prospect_id", prospects.map((prospect) => String(prospect.id)))
+    .eq("contract_number", 1);
+  if ((existingContracts.data ?? []).length < 2) {
+    await import("./contracts.service.js").then(({ offerRookieContracts }) => offerRookieContracts(
+      prospects.map((prospect) => String(prospect.id)),
+    ));
+  }
   await import("./franchise-headline.js").then(({ postFranchiseSelectionHeadline }) => postFranchiseSelectionHeadline({
     guildId: input.guildId,
     recLeagueId: input.recLeagueId,

@@ -16,6 +16,12 @@ function randomFrom<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)]!;
 }
 
+function franchiseTeamLabel(team: { city?: string | null; name?: string | null; abbreviation?: string | null }): string {
+  const city = team.city?.trim() ?? "";
+  const name = team.name?.trim() || team.abbreviation?.trim() || "";
+  return city && !name.toLowerCase().startsWith(city.toLowerCase()) ? `${city} ${name}`.trim() : name || city;
+}
+
 // Alphabetical CFB 27 school catalog for the College autocomplete -- excludes the schedule-only
 // "FCS TEAM" placeholder, which isn't a real school.
 const CFB_COLLEGE_OPTIONS = CFB_27_TEAMS.filter((t) => !t.isSchedulePlaceholder).map((t) => t.name).sort();
@@ -1059,7 +1065,7 @@ function PresentationSequence({
       ) : franchiseOptions?.chosenTeamId ? (
         (() => {
           const chosen = franchiseOptions.teams.find((team) => team.teamId === franchiseOptions.chosenTeamId);
-          const label = chosen ? `${chosen.city ?? ""} ${chosen.name ?? chosen.abbreviation ?? ""}`.trim() : "your franchise";
+          const label = chosen ? franchiseTeamLabel(chosen) : "your franchise";
           return (
             <>
               <header className="rise-presentation-header">
