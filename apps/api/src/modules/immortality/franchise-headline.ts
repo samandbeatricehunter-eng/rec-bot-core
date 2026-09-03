@@ -51,12 +51,24 @@ export async function postFranchiseSelectionHeadline(input: {
   defenseProspectId: string;
 }): Promise<void> {
   try {
-    const existing = await supabase.from("rec_game_stories").select("id")
+    const existing = await supabase.from("rec_game_stories").select("id,headline,body,image_url,posted_message_id")
       .eq("league_id", input.recLeagueId)
       .eq("author_user_id", input.userId)
       .eq("primary_angle", "rti_franchise_selection")
       .limit(1);
-    if (existing.data?.length) return;
+    const existingStory = existing.data?.[0];
+    if (existingStory?.posted_message_id) return;
+    if (existingStory) {
+      await postGeneratedHeadlineToDiscord({
+        leagueId: input.recLeagueId,
+        storyId: String(existingStory.id),
+        headline: String(existingStory.headline ?? "New Franchise Ownership"),
+        body: String(existingStory.body ?? ""),
+        image_url: existingStory.image_url ? String(existingStory.image_url) : undefined,
+        mentionDiscordId: input.discordId,
+      });
+      return;
+    }
 
     const [context, offenseCard, defenseCard, iqRows, personaRows, devTraitRows, team] = await Promise.all([
       getCurrentLeagueContext(input.guildId),

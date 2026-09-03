@@ -38,10 +38,13 @@ export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; 
     const linked = await findServerRoutesForLeague(input.leagueId);
     const headlinesChannelId = linked?.routes?.headlines_channel_id as string | null | undefined;
     const interviewsChannelId = linked?.routes?.interviews_channel_id as string | null | undefined;
+    const announcementsChannelId = linked?.routes?.announcements_channel_id as string | null | undefined;
     // Interviews get their own dedicated channel when a league has one configured (RTI
     // leagues especially); everything else, and any league that hasn't set that channel up,
     // still goes to headlines.
-    const channelId: string | null | undefined = input.channelKey === "interviews" ? (interviewsChannelId ?? headlinesChannelId) : headlinesChannelId;
+    const channelId: string | null | undefined = input.channelKey === "interviews"
+      ? (interviewsChannelId ?? headlinesChannelId ?? announcementsChannelId)
+      : (headlinesChannelId ?? announcementsChannelId);
     if (!channelId) return;
     const chunks = splitBodyIntoChunks(input.body);
     const embeds = chunks.slice(0, EMBED_MAX_PER_MESSAGE).map((chunk, i) => {
