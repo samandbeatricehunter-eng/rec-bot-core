@@ -30,6 +30,10 @@ export const RISE_TO_IMMORTALITY_ARTICLE_PAYOUT = 100;
  * questions) -- distinct from RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT, which is the older, manually
  * submitted interview type, not the weekly Matchup Interview / Media Day system. */
 export const RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT = 100;
+/** Fixed amount for the commissioner-only "Grant Bonus" Commish Tools action -- a manual coin
+ * award for a member's participation in extra opportunities (not tied to any specific in-game
+ * event), so it isn't computed from anything else the way the payouts above are. */
+export const RISE_TO_IMMORTALITY_COMMISSIONER_BONUS_AMOUNT = 100;
 
 export const RISE_TO_IMMORTALITY_TEAM_POOLS = ["default_nfl", "custom_32"] as const;
 export type RiseToImmortalityTeamPool = (typeof RISE_TO_IMMORTALITY_TEAM_POOLS)[number];
@@ -56,6 +60,7 @@ export const RISE_TO_IMMORTALITY_ALLOWED_COIN_SOURCES = [
   "gotw",
   "interview",
   "media_day",
+  "commissioner_bonus",
 ] as const;
 
 export const RISE_TO_IMMORTALITY_LOCKED_SETTINGS = {

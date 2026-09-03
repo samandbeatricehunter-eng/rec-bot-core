@@ -5,6 +5,7 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonInteraction, ButtonStyle, ChatInputCommandInteraction, EmbedBuilder, MessageFlags,
   ModalBuilder, ModalSubmitInteraction, StringSelectMenuBuilder, StringSelectMenuInteraction, StringSelectMenuOptionBuilder, TextInputBuilder, TextInputStyle,
+  UserSelectMenuBuilder, type UserSelectMenuInteraction,
 } from "discord.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
@@ -35,6 +36,8 @@ export const COMMISH_TOOLS_CUSTOM_IDS = {
   reset: "rec:commish:reset:",
   resetWipeConfirm: "rec:commish:resetwipeconfirm:",
   audit: "rec:commish:audit",
+  grantBonus: "rec:commish:grantbonus",
+  grantBonusUserSelect: "rec:commish:grantbonususerselect",
 };
 
 async function replyErr(interaction: ButtonInteraction | ModalSubmitInteraction, error: unknown) {
@@ -78,13 +81,16 @@ export async function handleCommishToolsSlash(interaction: ChatInputCommandInter
 
   const week = await recApi.viewLeagueWeek(interaction.guildId).catch(() => null);
   const games = await recApi.listManualScoreGames({ guildId: interaction.guildId, weekNumber: week?.league?.current_week ?? undefined }).catch(() => null);
-  const options = (games?.games ?? []).slice(0, 24).map((g: any) =>
+  const options = (games?.games ?? []).slice(0, 23).map((g: any) =>
     new StringSelectMenuOptionBuilder().setLabel(`${g.awayName} at ${g.homeName}`.slice(0, 100)).setValue(g.gameId),
   );
   options.push(new StringSelectMenuOptionBuilder().setLabel("Game Day Audit (all active channels)").setValue("__audit__"));
+  // Not matchup-scoped like the actions above -- server-side enforces RTI-only, so this is
+  // always offered here and the API rejects with a friendly message on a non-RTI league.
+  options.push(new StringSelectMenuOptionBuilder().setLabel("Grant Bonus (Rise to Immortality)").setValue("__grantbonus__"));
 
   await interaction.reply({
-    content: "Commish Tools — pick a matchup, or run a Game Day Audit across every active game channel:",
+    content: "Commish Tools — pick a matchup, run a Game Day Audit, or grant an RTI bonus:",
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder().setCustomId(COMMISH_TOOLS_CUSTOM_IDS.matchupSelect).setPlaceholder("Select a matchup").addOptions(options),
     )],
@@ -97,7 +103,34 @@ export async function handleCommishToolsMatchupSelect(interaction: StringSelectM
   if (!isDiscordAdminInteraction(interaction)) return denyNonCommish(interaction as unknown as ButtonInteraction);
   const value = interaction.values[0] ?? "";
   if (value === "__audit__") return runGameDayAudit(interaction);
+  if (value === "__grantbonus__") return promptGrantBonus(interaction);
   await interaction.update({ content: "Commish Tools — choose an action:", components: actionMenuComponents(value) });
+}
+
+// --- Grant Bonus (RTI leagues only) -- not matchup-scoped, so it's a user picker instead of a
+// home/away side picker like the rest of Commish Tools. Server-side enforces the RTI-only gate
+// and that the picked member is linked to an active team in this league. ---
+async function promptGrantBonus(interaction: StringSelectMenuInteraction) {
+  await interaction.update({
+    content: "Grant Bonus — select the member to award 100 REC Coins to (they'll get a DM):",
+    components: [new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
+      new UserSelectMenuBuilder().setCustomId(COMMISH_TOOLS_CUSTOM_IDS.grantBonusUserSelect).setPlaceholder("Select a member").setMinValues(1).setMaxValues(1),
+    )],
+  });
+}
+
+export async function handleCommishGrantBonusUserSelect(interaction: UserSelectMenuInteraction) {
+  if (!interaction.inCachedGuild()) return;
+  if (!isDiscordAdminInteraction(interaction)) return interaction.reply({ content: "Only a commissioner or co-commissioner can use Commish Tools.", flags: MessageFlags.Ephemeral });
+  const targetDiscordId = interaction.values[0];
+  if (!targetDiscordId) return;
+  try {
+    await interaction.deferUpdate();
+    const result = await recApi.grantImmortalityCommissionerBonus({ guildId: interaction.guildId, targetDiscordId });
+    await interaction.editReply({ content: `✅ Granted 100 REC Coins to <@${targetDiscordId}> for ${result.teamName}. They've been notified by DM.`, components: [] });
+  } catch (error) {
+    await interaction.editReply({ content: userFacingError(error), components: [] }).catch(() => undefined);
+  }
 }
 
 async function runGameDayAudit(interaction: StringSelectMenuInteraction) {

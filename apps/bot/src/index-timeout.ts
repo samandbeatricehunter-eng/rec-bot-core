@@ -187,6 +187,7 @@ import {
   handleCommishBootStart,
   handleCommishGrantAutopilotSide,
   handleCommishGrantAutopilotStart,
+  handleCommishGrantBonusUserSelect,
   handleCommishGrantFs,
   handleCommishGrantFwSide,
   handleCommishGrantFwStart,
@@ -757,6 +758,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
     if (interaction.isStringSelectMenu() && interaction.customId === COMMISH_TOOLS_CUSTOM_IDS.matchupSelect) return handleCommishToolsMatchupSelect(interaction);
+    if (interaction.isUserSelectMenu() && interaction.customId === COMMISH_TOOLS_CUSTOM_IDS.grantBonusUserSelect) return handleCommishGrantBonusUserSelect(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === RULES_SLASH_CUSTOM_IDS.categorySelect) return handleRulesCategorySelect(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(RULES_SLASH_CUSTOM_IDS.postPrefix)) return handleRulesPost(interaction);
 

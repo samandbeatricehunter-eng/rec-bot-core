@@ -83,6 +83,7 @@ import {
   issuedWeeklyChallenges,
   XP_POINTS_PER_LEVEL,
   RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT,
+  RISE_TO_IMMORTALITY_COMMISSIONER_BONUS_AMOUNT,
   personaDnaQuestions,
   personaDnaCatalog,
   mindsetFocusCatalog,
@@ -111,7 +112,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { applyLeagueTeamIdentityOverrides, type LeagueTeamIdentityOverride } from "../team-identities/team-identities.service.js";
-import { postDiscordChannelMessage, postDiscordChannelMessageWithFile, editDiscordMessageWithFile, setGuildMemberNickname } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessage, postDiscordChannelMessageWithFile, editDiscordMessageWithFile, setGuildMemberNickname, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { kickLeagueUser } from "../moderation/moderation.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
@@ -2939,6 +2940,52 @@ async function payMediaDayCompletionCoins(input: {
     source: "media_day",
     sourceReference: { prospectId: input.prospect.id, week: input.week, season: input.season },
   });
+}
+
+/** Commissioner Tools' "Grant Bonus" action (RTI leagues only) -- a manual REC Coin award for a
+ * member's participation in extra opportunities, not tied to any specific in-game event. Requires
+ * the target to already be linked to an active team in this league (same standing every other
+ * Commish Tools action assumes), and DMs them the award so it isn't a silent wallet change. */
+export async function grantImmortalityCommissionerBonus(input: {
+  guildId: string; targetDiscordId: string;
+}): Promise<{ granted: true; teamName: string }> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  await requireImmortalityLeague(context.leagueId);
+
+  let targetUserId: string;
+  try {
+    targetUserId = await recUserIdFromDiscordId(input.targetDiscordId);
+  } catch {
+    throw new ApiError(400, "That member hasn't linked their REC profile yet.");
+  }
+
+  const assignment = await supabase.from("rec_team_assignments").select("team_id")
+    .eq("league_id", context.leagueId).eq("user_id", targetUserId)
+    .eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+  if (!assignment.data?.team_id) throw new ApiError(400, "That member isn't linked to a team in this league.");
+
+  const team = await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated")
+    .eq("id", assignment.data.team_id).maybeSingle();
+  const teamName = formatTeamDisplayName(team.data) ?? "your team";
+
+  const { creditOrBacklog } = await import("../economy/economy-backlog.js");
+  await creditOrBacklog({
+    leagueId: context.leagueId,
+    seasonNumber: Number(context.rec_leagues.season_number ?? 1),
+    userId: targetUserId,
+    amount: RISE_TO_IMMORTALITY_COMMISSIONER_BONUS_AMOUNT,
+    description: `Rise to Immortality — Commissioner bonus for ${teamName}`,
+    transactionType: "immortality_commissioner_bonus",
+    source: "commissioner_bonus",
+    sourceReference: { targetUserId, grantedAt: new Date().toISOString() },
+  });
+
+  await sendDiscordDirectMessage(
+    input.targetDiscordId,
+    `You've been awarded a **${RISE_TO_IMMORTALITY_COMMISSIONER_BONUS_AMOUNT} REC Coin** bonus for ${teamName} by your league commissioner — thanks for going the extra mile!`,
+  ).catch((err) => console.error(`[WARN] Could not DM commissioner bonus recipient ${input.targetDiscordId} (non-fatal):`, err));
+
+  return { granted: true, teamName };
 }
 
 const MEDIA_DAY_ROUNDUP_HANDLE_OFFSETS = [3, 11];

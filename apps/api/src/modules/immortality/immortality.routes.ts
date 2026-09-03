@@ -44,6 +44,7 @@ import {
   reviewImmortalityProspect,
   reviewImmortalityXpRequest,
   submitThrowingMotion,
+  grantImmortalityCommissionerBonus,
 } from "./immortality.service.js";
 import { signImmortalityContract } from "./contracts.service.js";
 import { postManualImmortalityTweet } from "./tweet-generation.service.js";
@@ -346,6 +347,16 @@ export async function immortalityRoutes(app: FastifyInstance) {
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       await postManualImmortalityTweet(body);
       return reply.send({ posted: true });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Bot-only: Commish Tools' "Grant Bonus" button already gates on commissioner/co-commissioner
+  // Discord roles before calling this -- same trust model as /v1/immortality/tweets/manual above.
+  app.post("/v1/immortality/commissioner-bonus/grant", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ targetDiscordId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await grantImmortalityCommissionerBonus(body));
     } catch (error) { return sendError(reply, error); }
   });
 

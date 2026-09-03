@@ -301,6 +301,8 @@ function MaddenMyTeamGrid({
         <div className="hub-my-team-card-buttons">
           {isRise && !riseHubUnlocked ? (
             <Link className="hub-my-team-btn" to={`/l/${leagueId}/rise`}><strong>Origins</strong><span>Class &amp; builds</span></Link>
+          ) : isRise && riseHubUnlocked ? (
+            <Link className="hub-my-team-btn" to={`/l/${leagueId}/team/trust`}><strong>Trust Tree</strong><span>Coming soon</span></Link>
           ) : !isRise ? (
             <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>
           ) : null}
