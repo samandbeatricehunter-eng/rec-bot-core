@@ -155,12 +155,15 @@ function runEaAutoImportSweep() {
 runEaAutoImportSweep();
 setInterval(runEaAutoImportSweep, 4 * 60 * 60_000).unref();
 
-// Rise to Immortality tweet queue: drains one pending tweet per league every 20 minutes (the
+// Rise to Immortality tweet queue: drains one pending tweet per league every few minutes (the
 // per-league cutoff lives inside the sweep itself via each league's own last posted_at, not
-// this interval), so 15-minute polling gives comfortable precision without hammering the DB.
-setInterval(() => {
+// this interval). Poll every minute so a just-queued Media Day tweet isn't stuck behind the
+// old 15-minute tick, and run once at boot so a redeploy doesn't sit idle until the first interval.
+function runImmortalityTweetQueueSweep() {
   sweepImmortalityTweetQueue().catch((error) => app.log.error({ err: error }, "Immortality tweet queue sweep failed"));
-}, 15 * 60_000).unref();
+}
+runImmortalityTweetQueueSweep();
+setInterval(runImmortalityTweetQueueSweep, 60_000).unref();
 
 // One-shot: if league-post channels are configured but no recruiting ads exist yet (e.g. channels
 // were written directly in Supabase), backfill open-league embeds once on boot.

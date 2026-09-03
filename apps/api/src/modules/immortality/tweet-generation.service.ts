@@ -638,15 +638,12 @@ async function queueOnePlayerChatterTweet(
 }
 
 /** Called on a plain interval sweep (apps/api/src/index.ts) -- posts at most one pending tweet
- * per league every 20 minutes, oldest-queued first. Cheap when idle: a single filtered query.
- * Was 4 hours (tuned for ~10 tweets/week off a single Advance); with contract signings and
- * Media Day tweets now feeding the same queue, a burst of activity (a launch night, several
- * signings in an hour) could leave a dozen-plus tweets stuck behind that gate for days once the
- * cooldown bug elsewhere in this file got fixed and actually started enforcing it. 20 minutes
- * still reads as a real feed (not an instant dump) while draining a backlog in a few hours
- * instead of a couple of days. */
+ * per league every 4 minutes, oldest-queued first. Cheap when idle: a single filtered query.
+ * Was 4 hours, then 20 minutes; Media Day and player /twitter now feed the same queue, so a
+ * 20-minute gate left a just-finished interview sitting silent for most of an hour. 4 minutes
+ * still reads as a drip, not a dump. */
 export async function sweepImmortalityTweetQueue(): Promise<void> {
-  const POST_COOLDOWN_MS = 20 * 60 * 1000;
+  const POST_COOLDOWN_MS = 4 * 60 * 1000;
 
   const leaguesWithPending = await supabase.from("rec_immortality_tweet_queue")
     .select("league_id").eq("status", "pending");
