@@ -1221,11 +1221,13 @@ export const recApi = {
       seasonStage: string;
       group: string;
       complete: boolean;
+      questions?: Array<{ id: number; group: string; question: string; options: Array<{ text: string }> }>;
+      answers?: Array<{ question_id: number; option_index: number; slot?: number }>;
       question: { id: number; group: string; question: string; options: Array<{ text: string }> } | null;
       answer: { question_id: number; option_index: number } | null;
     }>("/v1/immortality/interview/stage", { method: "POST", body: JSON.stringify(input) }),
   submitImmortalityStageInterview: (input: { guildId: string; side: "offense" | "defense"; questionId: number; optionIndex: number }) =>
-    recApiFetch<{ question: unknown; answer: Record<string, unknown>; complete: boolean }>("/v1/immortality/interview/stage/submit", { method: "POST", body: JSON.stringify(input) }),
+    recApiFetch<{ question: unknown; answer: Record<string, unknown>; slot?: number; complete: boolean }>("/v1/immortality/interview/stage/submit", { method: "POST", body: JSON.stringify(input) }),
 
   // Fantasy/offseason draft turn-order coordinator — all actions require a website session.
   getFantasyDraftState: (guildId: string) =>

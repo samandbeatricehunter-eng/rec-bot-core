@@ -104,7 +104,7 @@ import {
   type PersonaDimension,
   stageInterviewPool,
   stageInterviewGroupFor,
-  selectStageInterviewQuestion,
+  selectStageInterviewQuestions,
   scoreStageInterviewAnswer,
   type StageInterviewQuestion,
 } from "@rec/shared";
@@ -2671,10 +2671,10 @@ export async function submitWeeklyMatchupInterview(input: {
 
 /** Media Day's matchup-interview flow assumes a real scheduled game (opponent, week, bonus
  * claims) -- there's no matchup during preseason/training camp or any offseason stage. This is
- * the parallel single-question-per-advance flow for exactly those stages: one question drawn
- * from stageInterviewPool()'s bucket for the league's current season_stage (see STAGE_TO_GROUP
- * in stage-interview.ts), keyed on (prospect, season, season_stage, advance_index) so re-loading
- * doesn't reshuffle it and a new advance always gets a fresh question. */
+ * the parallel 3-question-per-advance flow for exactly those stages: questions drawn from
+ * stageInterviewPool()'s bucket for the league's current season_stage (see STAGE_TO_GROUP
+ * in stage-interview.ts), keyed on (prospect, season, season_stage, advance_index, slot) so
+ * re-loading doesn't reshuffle the remaining slate and a new advance always gets a fresh one. */
 export async function getStageInterview(input: { guildId: string; discordId: string; side: "offense" | "defense" }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const league = await requireImmortalityLeague(context.leagueId);
@@ -2692,20 +2692,39 @@ export async function getStageInterview(input: { guildId: string; discordId: str
   const advanceIndex = Number(context.rec_leagues.current_week ?? 1);
 
   const existing = await supabase.from("rec_immortality_stage_interview_answers")
-    .select("*").eq("prospect_id", prospect.id).eq("season", season).eq("season_stage", seasonStage).eq("advance_index", advanceIndex).maybeSingle();
+    .select("*").eq("prospect_id", prospect.id).eq("season", season).eq("season_stage", seasonStage)
+    .eq("advance_index", advanceIndex).order("slot", { ascending: true });
   if (existing.error) throw new ApiError(500, "Could not load this stage's interview.", existing.error);
+  const answered = existing.data ?? [];
   const pool = stageInterviewPool();
-  if (existing.data) {
-    const question = pool.find((q) => q.id === Number(existing.data.question_id)) ?? null;
-    return { season, seasonStage, group, complete: true, question, answer: existing.data };
+  const answeredQuestions = answered
+    .map((row) => pool.find((question) => question.id === Number(row.question_id)) ?? null)
+    .filter((question): question is NonNullable<typeof question> => Boolean(question));
+
+  if (answered.length >= MEDIA_DAY_SLOTS) {
+    return {
+      season, seasonStage, group, complete: true, windowClosed: false,
+      questions: answeredQuestions,
+      answers: answered,
+      question: answeredQuestions[answeredQuestions.length - 1] ?? null,
+      answer: answered[answered.length - 1] ?? null,
+    };
   }
 
-  const question = selectStageInterviewQuestion({
+  const remaining = selectStageInterviewQuestions({
     pool, group,
     seed: `${league.id}:${prospect.id}:${season}:${seasonStage}:${advanceIndex}`,
+    count: MEDIA_DAY_SLOTS - answered.length,
+    excludeIds: answered.map((row) => Number(row.question_id)),
   });
-  if (!question) throw new ApiError(400, "No stage interview is available for this season stage yet.");
-  return { season, seasonStage, group, complete: false, question, answer: null };
+  if (!remaining.length && !answered.length) throw new ApiError(400, "No stage interview is available for this season stage yet.");
+  return {
+    season, seasonStage, group, complete: false, windowClosed: false,
+    questions: [...answeredQuestions, ...remaining],
+    answers: answered,
+    question: remaining[0] ?? null,
+    answer: null,
+  };
 }
 
 export async function submitStageInterview(input: {
@@ -2726,8 +2745,19 @@ export async function submitStageInterview(input: {
   if (!group) throw new ApiError(400, "No stage interview is available for this season stage yet.");
   const advanceIndex = Number(context.rec_leagues.current_week ?? 1);
 
+  const existing = await supabase.from("rec_immortality_stage_interview_answers")
+    .select("*").eq("prospect_id", prospect.id).eq("season", season).eq("season_stage", seasonStage)
+    .eq("advance_index", advanceIndex).order("slot", { ascending: true });
+  if (existing.error) throw new ApiError(500, "Could not load this stage's interview.", existing.error);
+  const answered = existing.data ?? [];
+  if (answered.length >= MEDIA_DAY_SLOTS) throw new ApiError(409, "This stage's interview is already complete.");
+  const nextSlot = answered.length + 1;
+
   const question = stageInterviewPool().find((q) => q.id === input.questionId);
   if (!question || question.group !== group) throw new ApiError(404, "That question isn't available for this stage.");
+  if (answered.some((row) => Number(row.question_id) === question.id)) {
+    throw new ApiError(409, "That question is already answered.");
+  }
   const result = scoreStageInterviewAnswer({ question, optionIndex: input.optionIndex });
 
   const teamRow = prospect.player_id
@@ -2737,7 +2767,7 @@ export async function submitStageInterview(input: {
 
   const saved = await supabase.from("rec_immortality_stage_interview_answers").insert({
     immortality_league_id: league.id, prospect_id: prospect.id, side: input.side,
-    season, season_stage: seasonStage, advance_index: advanceIndex,
+    season, season_stage: seasonStage, advance_index: advanceIndex, slot: nextSlot,
     question_id: question.id, option_index: input.optionIndex, dna_points: result.dnaPoints,
   }).select("*").single();
   if (saved.error) {
@@ -2748,20 +2778,23 @@ export async function submitStageInterview(input: {
   await driftPersonaFromInterviewAnswer(prospect.id).catch((error) =>
     console.error(`[WARN] Persona drift failed for prospect ${prospect.id} (non-fatal):`, error));
 
-  // Unlike Media Day, nothing fires automatically here -- contentTrigger is the only thing that
-  // makes a stage-interview answer public, since there's no weekly-completion tweet to fall back on.
-  if (result.contentTrigger === "tweet") {
-    await queueStageInterviewTweet({
-      leagueId: context.leagueId, season, weekNumber: advanceIndex, prospect,
-      questionText: question.question, quoteText: result.option.text,
-    }).catch((error) => console.error(`[WARN] Could not queue stage interview tweet (non-fatal):`, error));
-  } else if (result.contentTrigger === "headline") {
+  if (result.contentTrigger === "headline") {
     await postInterviewQuoteHeadlineForAnswer({
       guildId: input.guildId, prospect, teamId, questionText: question.question, quoteText: result.option.text,
     }).catch((error) => console.error(`[WARN] Could not post interview quote headline (non-fatal):`, error));
   }
 
-  return { question, answer: saved.data, complete: true };
+  const complete = nextSlot >= MEDIA_DAY_SLOTS;
+  if (complete) {
+    const allAnswers = [...answered, saved.data];
+    await queueStageInterviewTweet({
+      leagueId: context.leagueId, season, weekNumber: advanceIndex, prospect, answers: allAnswers,
+    }).catch((error) => console.error(`[WARN] Could not queue stage interview tweet (non-fatal):`, error));
+    await payMediaDayCompletionCoins({ leagueId: context.leagueId, season, week: advanceIndex, prospect, userId })
+      .catch((error) => console.error(`[WARN] Could not pay Media Day coins for prospect ${prospect.id} (non-fatal):`, error));
+  }
+
+  return { question, answer: saved.data, slot: nextSlot, complete };
 }
 
 /** Weighted-combines the original one-time Persona interview's scores with every Media Day
@@ -2862,15 +2895,25 @@ const STAGE_INTERVIEW_TWEET_INTROS: Array<(name: string) => string> = [
   (name) => `${name} had something to say when reporters caught up with them.`,
 ];
 
-/** A single-answer version of queueMediaDayPlayerTweet for the stage-interview flow -- no
- * opponent to tag (there's no matchup during an offseason stage), and no combined multi-slot
- * quote since stage interviews are one question per advance, not three per week. */
+/** Combined tweet once all 3 camp/offseason Media Day slots are answered -- same cadence as
+ * weekly Media Day. Always queues (not just contentTrigger-tagged options) so finishing the
+ * slate always hits the tweets channel. */
 async function queueStageInterviewTweet(input: {
-  leagueId: string; season: number; weekNumber: number; prospect: Record<string, any>; questionText: string; quoteText: string;
+  leagueId: string; season: number; weekNumber: number; prospect: Record<string, any>;
+  answers: Array<{ question_id: number; option_index: number }>;
 }): Promise<void> {
   const { handle, displayName } = twitterHandleForProspect(input.prospect);
+  const pool = stageInterviewPool();
+  const quotes = input.answers.map((row) => {
+    const question = pool.find((item) => item.id === Number(row.question_id));
+    return question ? { question: question.question, answer: question.options[row.option_index]?.text ?? "" } : null;
+  }).filter((item): item is { question: string; answer: string } => Boolean(item?.answer));
+  if (!quotes.length) return;
+
+  const highlighted = quotes.length > 1 ? [quotes[0]!, quotes[quotes.length - 1]!] : quotes;
+  const quoteLines = highlighted.map((item) => `On "${item.question}" — "${item.answer}"`).join(" ");
   const intro = STAGE_INTERVIEW_TWEET_INTROS[Math.floor(Math.random() * STAGE_INTERVIEW_TWEET_INTROS.length)]!(displayName);
-  const body = `${intro} On "${input.questionText}" — "${input.quoteText}"`.replace(/\s+/g, " ").trim();
+  const body = `${intro} ${quoteLines}`.replace(/\s+/g, " ").trim();
   await supabase.from("rec_immortality_tweet_queue").insert({
     league_id: input.leagueId, season_number: input.season, week_number: input.weekNumber,
     author_kind: "player", author_handle: handle, author_display_name: displayName,

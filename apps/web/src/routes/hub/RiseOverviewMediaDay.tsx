@@ -104,22 +104,31 @@ function StageSideMediaDay({ guildId, side, label }: { guildId: string; side: Si
     load().catch(() => setData(null));
   }, [load]);
 
-  if (!data || !data.question) return null;
-  const { question } = data;
+  if (!data) return null;
+  const questions = data.questions ?? (data.question ? [data.question] : []);
+  const answers = data.answers ?? (data.answer ? [data.answer] : []);
+  const currentQuestion = questions[answers.length] ?? null;
 
   return (
     <div className="hub-media-day-side">
       <h4>{label}</h4>
-      {data.complete && data.answer ? (
-        <div className="hub-media-day-answered">
-          <p className="hub-muted">{question.question}</p>
-          <p><strong>{question.options[data.answer.option_index]?.text ?? "Answered"}</strong></p>
-        </div>
-      ) : (
+      {answers.map((answer, index) => {
+        const question = questions.find((item) => item.id === answer.question_id) ?? questions[index];
+        if (!question) return null;
+        return (
+          <div key={`${question.id}-${index}`} className="hub-media-day-answered">
+            <p className="hub-muted">{question.question}</p>
+            <p><strong>{question.options[answer.option_index]?.text ?? "Answered"}</strong></p>
+          </div>
+        );
+      })}
+      {data.complete ? (
+        <p className="hub-muted">Media Day complete for this stage — 100 coins earned.</p>
+      ) : currentQuestion ? (
         <div className="hub-media-day-question">
-          <p>{question.question}</p>
+          <p>{currentQuestion.question}</p>
           <div className="hub-media-day-options">
-            {question.options.map((option, index) => (
+            {currentQuestion.options.map((option, index) => (
               <button
                 key={index}
                 type="button"
@@ -129,7 +138,7 @@ function StageSideMediaDay({ guildId, side, label }: { guildId: string; side: Si
                   setBusy(true);
                   setError(null);
                   try {
-                    await recApi.submitImmortalityStageInterview({ guildId, side, questionId: question.id, optionIndex: index });
+                    await recApi.submitImmortalityStageInterview({ guildId, side, questionId: currentQuestion.id, optionIndex: index });
                     await load();
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Could not save that answer.");
@@ -143,7 +152,7 @@ function StageSideMediaDay({ guildId, side, label }: { guildId: string; side: Si
             ))}
           </div>
         </div>
-      )}
+      ) : null}
       {error ? <p className="hub-error">{error}</p> : null}
     </div>
   );

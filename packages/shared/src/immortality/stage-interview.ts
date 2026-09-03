@@ -1,11 +1,11 @@
 import { seededRandom, type MatchupInterviewContentTrigger, type MatchupInterviewOption } from "./matchup-interview.js";
 import { FORMULA_VERSIONS, type PersonaDimension } from "./types.js";
 
-// Media Day's matchup-interview flow (3 slots/week, opponent context, bonus claims) assumes a
-// real scheduled game -- there's no matchup, no opponent, no "week" during preseason/training
-// camp or any offseason stage (draft, free agency, transfer portal, etc.). This is a separate,
-// single-question-per-advance system for exactly those stages, gated the opposite way from Media
-// Day: !gameplaySeasonStages(game).has(seasonStage) in league-stage.ts.
+// Media Day's matchup-interview flow (opponent context, bonus claims) assumes a real scheduled
+// game -- there's no matchup, no opponent, no "week" during preseason/training camp or any
+// offseason stage (draft, free agency, transfer portal, etc.). This is the parallel 3-slot
+// slate for exactly those stages, gated the opposite way from weekly Media Day:
+// !gameplaySeasonStages(game).has(seasonStage) in league-stage.ts.
 
 export type StageInterviewGroup =
   | "training_camp" | "roster_building" | "leadership_change" | "season_reflection" | "offseason_general";
@@ -54,12 +54,40 @@ export function selectStageInterviewQuestion(input: {
   pool: StageInterviewQuestion[];
   group: StageInterviewGroup;
   seed: string;
+  excludeIds?: Iterable<number>;
 }): StageInterviewQuestion | null {
-  const eligible = input.pool.filter((question) => question.group === input.group);
+  const excluded = new Set(input.excludeIds ?? []);
+  const eligible = input.pool.filter((question) => question.group === input.group && !excluded.has(question.id));
   if (!eligible.length) return null;
   const rng = seededRandom(input.seed);
   const index = Math.min(Math.floor(rng() * eligible.length), eligible.length - 1);
   return eligible[index]!;
+}
+
+/** Fills a 3-slot camp/offseason Media Day slate without repeating a question already answered
+ * this advance. Each remaining slot gets its own seed suffix so the picks stay independent. */
+export function selectStageInterviewQuestions(input: {
+  pool: StageInterviewQuestion[];
+  group: StageInterviewGroup;
+  seed: string;
+  count?: number;
+  excludeIds?: Iterable<number>;
+}): StageInterviewQuestion[] {
+  const count = input.count ?? 3;
+  const picked: StageInterviewQuestion[] = [];
+  const usedIds = new Set(input.excludeIds ?? []);
+  for (let i = 0; i < count; i += 1) {
+    const next = selectStageInterviewQuestion({
+      pool: input.pool,
+      group: input.group,
+      seed: `${input.seed}:${i}`,
+      excludeIds: usedIds,
+    });
+    if (!next) break;
+    picked.push(next);
+    usedIds.add(next.id);
+  }
+  return picked;
 }
 
 export type StageInterviewAnswerResult = {

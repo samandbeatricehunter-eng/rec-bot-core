@@ -49,7 +49,9 @@ import {
   playerTraitQuestions,
   playerTraitKey,
   matchupInterviewPool,
+  stageInterviewPool,
   selectMatchupInterviewQuestion,
+  selectStageInterviewQuestions,
   scoreMatchupInterviewAnswer,
   isCareerRecordBroken,
   NFL_CAREER_RECORDS,
@@ -420,6 +422,28 @@ test("matchup interview selection is deterministic per seed and biases toward co
     if (picked.category === "rivalry" || picked.tags.includes("rivalry")) rivalryHits++;
   }
   assert.ok(rivalryHits > 5, `expected rivalry context to meaningfully bias selection, got ${rivalryHits}/50`);
+});
+
+test("stage interview pool fills a 3-question slate without repeats", () => {
+  const pool = stageInterviewPool();
+  assert.ok(pool.length >= 80, `expected a substantial stage pool, got ${pool.length}`);
+  const ids = new Set(pool.map((q) => q.id));
+  assert.equal(ids.size, pool.length, "stage question ids must be unique");
+  const slate = selectStageInterviewQuestions({
+    pool,
+    group: "training_camp",
+    seed: "league1:prospect1:1:preseason:1",
+    count: 3,
+  });
+  assert.equal(slate.length, 3);
+  assert.equal(new Set(slate.map((q) => q.id)).size, 3);
+  const again = selectStageInterviewQuestions({
+    pool,
+    group: "training_camp",
+    seed: "league1:prospect1:1:preseason:1",
+    count: 3,
+  });
+  assert.deepEqual(slate.map((q) => q.id), again.map((q) => q.id));
 });
 
 test("matchup interview scoring surfaces the flagged bonus opportunity", () => {
