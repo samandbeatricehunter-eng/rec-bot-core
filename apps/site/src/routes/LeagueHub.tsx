@@ -280,8 +280,20 @@ async function composeHubContextFromLists(leagueId: string): Promise<{ guildId: 
  * Renders the Discord hub panels inside the site shell (no iframe).
  * Uses the site BrowserRouter only — never nest MemoryRouter.
  */
+// Switching leagues changes the :leagueId URL param but keeps the same route pattern (e.g.
+// /l/A/buzz -> /l/B/buzz), so React Router reuses this exact component instance instead of
+// remounting it. That left this component's own context/loading state (below) holding the
+// PREVIOUS league's Discord guildId/discordId for at least one render after the param changed --
+// the header (a separate HubContext consumer, see hub-context.tsx) had already updated to the new
+// league, producing the classic "header shows league B, body still renders league A" bug. Keying
+// the actual body on leagueId forces a full remount on every league switch, so context/loading
+// always start fresh for the league actually being viewed -- no stale-carryover window at all.
 export function LeagueHubPage() {
   const { leagueId = "" } = useParams();
+  return <LeagueHubPageForLeague key={leagueId} leagueId={leagueId} />;
+}
+
+function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
   const location = useLocation();
   const view = useMemo(() => viewFromPath(location.pathname), [location.pathname]);
   const siteAuth = useSiteAuth();
