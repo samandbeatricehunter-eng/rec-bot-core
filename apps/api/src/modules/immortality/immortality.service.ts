@@ -1342,10 +1342,16 @@ export async function evaluateCreationBuild(input: {
   }).catch((error) => console.error(`[ERROR] Failed to submit prospect ${prospect.id} for commissioner review (non-fatal):`, error));
   // The commissioner already has a franchise (picked outright at league creation) before their
   // own prospects finish Origins -- everyone else's team isn't known until they choose from
-  // their post-Origins offers (chooseImmortalityTeam). Materialize immediately when a team is
-  // already resolved; chooseImmortalityTeam handles the normal (team-comes-later) ordering.
-  const resolvedTeamId = await resolveExistingTeamIdForUser(league.id, context.leagueId, userId);
-  if (resolvedTeamId) await materializeProspectToPlayer(prospect, resolvedTeamId, context.leagueId);
+  // their post-Origins offers (chooseImmortalityTeam). finalizePreassignedImmortalityOwner
+  // handles that whole pipeline (materialize, card, HOF card, contracts) and no-ops instantly
+  // for anyone who isn't a preassigned commissioner (resolveExistingTeamIdForUser returns null).
+  // Calling it here too -- not just from submitOwnerPersona -- covers the ordering where the
+  // commissioner's owner was already done before this, their SECOND prospect's build; that
+  // combination previously never re-ran the pipeline for this prospect at all.
+  await finalizePreassignedImmortalityOwner({
+    guildId: input.guildId, recLeagueId: context.leagueId, immortalityLeagueId: league.id,
+    userId, discordId: await discordIdForRecUser(userId).catch(() => ""),
+  }).catch((error) => console.error("[WARN] Could not finalize preassigned RTI owner from Creation Points (non-fatal):", error));
   const board = await refreshImmortalityDraftBoard(league.id, context.leagueId);
   const grade = board.grades.find((row) => row.prospectId === String(prospect.id));
   return {
@@ -1533,7 +1539,17 @@ async function postProspectCardToDiscord(input: {
     const data = await getProspectCardRenderData(input.prospectId);
     let posted: { id?: string } | null = null;
     try {
-      const png = await renderProspectCardPng(input.prospectId);
+      // One retry before giving up on the real render -- a cold-container Chromium launch or a
+      // slow first page load can each blow the render's own timeout on the first attempt alone,
+      // which is what produced an inconsistent mix of real-render and text-fallback cards across
+      // prospects posted moments apart.
+      let png: Buffer;
+      try {
+        png = await renderProspectCardPng(input.prospectId);
+      } catch (firstError) {
+        console.error(`[WARN] Prospect-card render failed once for ${input.prospectId}, retrying:`, firstError);
+        png = await renderProspectCardPng(input.prospectId);
+      }
       posted = await postDiscordChannelMessageWithFile(
         channelId,
         {
@@ -1545,7 +1561,7 @@ async function postProspectCardToDiscord(input: {
     } catch (renderError) {
       // A missing Chromium binary must not erase the actual league event. Fall back to a rich
       // native embed with the same player/team identity; a later import can still refresh it.
-      console.error(`[WARN] Prospect-card image render failed for ${input.prospectId}; posting embed fallback:`, renderError);
+      console.error(`[WARN] Prospect-card image render failed twice for ${input.prospectId}; posting embed fallback:`, renderError);
       posted = await postDiscordChannelMessage(channelId, {
         content: `<@${input.discordId}> · ${data.teamName}`,
         embeds: [{
@@ -1577,7 +1593,13 @@ async function postProspectCardToDiscord(input: {
 async function refreshSingleProspectCard(prospectId: string, cardChannelId: string, cardMessageId: string): Promise<void> {
   try {
     const data = await getProspectCardRenderData(prospectId);
-    const png = await renderProspectCardPng(prospectId);
+    let png: Buffer;
+    try {
+      png = await renderProspectCardPng(prospectId);
+    } catch (firstError) {
+      console.error(`[WARN] Prospect-card refresh render failed once for ${prospectId}, retrying:`, firstError);
+      png = await renderProspectCardPng(prospectId);
+    }
     await editDiscordMessageWithFile(
       cardChannelId,
       cardMessageId,
@@ -1603,6 +1625,39 @@ export async function refreshImmortalityProspectCardsForLeague(leagueId: string)
     if (!row.card_channel_id || !row.card_message_id) continue;
     await refreshSingleProspectCard(row.id, row.card_channel_id, row.card_message_id);
   }
+}
+
+/** Bot-only maintenance action: forces a brand-new prospect-card post (not an edit-in-place --
+ * for a prospect stuck on the old text-embed fallback, where the plan is to manually delete that
+ * old message once the new one lands) and always ensures the HOF Milestones card exists too
+ * (postOrRefreshHofMilestoneCard already tracks hof_channel_id/hof_message_id and edits in place,
+ * so it's always safe to call regardless of whether a repost was requested). */
+export async function reissueImmortalityProspectArtifacts(input: {
+  guildId: string; prospectId: string; repostCard: boolean;
+}): Promise<{ reposted: boolean; hofRefreshed: boolean }> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const prospect = await supabase.from("rec_immortality_prospects")
+    .select("id,side,user_id,player_id")
+    .eq("id", input.prospectId).eq("immortality_league_id", league.id).maybeSingle();
+  if (prospect.error || !prospect.data) throw new ApiError(404, "Prospect not found in this league.");
+  const discordId = await discordIdForRecUser(String(prospect.data.user_id));
+
+  let reposted = false;
+  if (input.repostCard) {
+    await postProspectCardToDiscord({
+      leagueId: context.leagueId, prospectId: String(prospect.data.id),
+      side: prospect.data.side as "offense" | "defense", discordId,
+    });
+    reposted = true;
+  }
+  let hofRefreshed = false;
+  if (prospect.data.player_id) {
+    const { postOrRefreshHofMilestoneCard } = await import("./hof-milestones.service.js");
+    await postOrRefreshHofMilestoneCard(String(prospect.data.id));
+    hofRefreshed = true;
+  }
+  return { reposted, hofRefreshed };
 }
 
 /** Fires every time Creation Points is (re-)submitted -- writes a rec_commissioners_inbox row
@@ -2039,6 +2094,13 @@ async function finalizePreassignedImmortalityOwner(input: {
         discordId: input.discordId,
       });
     }
+    // Preassigned commissioners skip chooseImmortalityTeam entirely (see above), which is the
+    // only other place that posts this -- without it here their prospects never get an HOF
+    // Milestones card, since nothing else ever calls it for them. Safe to call unconditionally:
+    // postOrRefreshHofMilestoneCard already tracks hof_channel_id/hof_message_id itself and
+    // edits in place once posted, so this never duplicates on a repeat run.
+    await import("./hof-milestones.service.js").then(({ postOrRefreshHofMilestoneCard }) => postOrRefreshHofMilestoneCard(String(prospect.id)))
+      .catch((error) => console.error(`[WARN] Could not post HOF Milestones card for preassigned prospect ${prospect.id} (non-fatal):`, error));
   }
   const existingContracts = await supabase.from("rec_immortality_contracts").select("id,prospect_id,contract_number,offer_status")
     .in("prospect_id", prospects.map((prospect) => String(prospect.id)))
