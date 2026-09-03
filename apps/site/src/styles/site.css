@@ -4257,6 +4257,16 @@ h1, h2, h3, .site-wordmark {
 .rise-stage-nav { display: flex; flex-wrap: wrap; gap: 4px; }
 .rise-stage-nav button { border: var(--card-border); background: rgba(8, 8, 10, 0.97); color: var(--text); border-radius: var(--radius-md); padding: 8px 12px; cursor: pointer; }
 .rise-stage-nav button.is-active { border-color: var(--gold, #d4a843); }
+
+/* Owner -> franchise reveal -> contracts sequence, once both prospects are built. Distinct from
+   the per-side tabbed view it replaces -- no side tabs or stage nav, just one focused flow. */
+.rise-presentation { display: flex; flex-direction: column; gap: var(--space-4); }
+.rise-presentation-header { text-align: center; }
+.rise-presentation-header h1 { margin: 4px 0 0; }
+.rise-reveal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-2); }
+.rise-reveal-card { cursor: default; transition: opacity 0.9s ease, transform 0.9s ease, box-shadow 0.9s ease; }
+.rise-reveal-dissolved { opacity: 0; transform: scale(0.8); pointer-events: none; }
+.rise-reveal-chosen { transform: scale(1.12); border-color: var(--gold, #d4a843); box-shadow: 0 0 0 2px var(--gold, #d4a843), 0 0 36px rgba(212, 168, 67, 0.55); z-index: 1; }
 .rise-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--space-3); }
 .rise-headshot-picker { margin: var(--space-4) 0; padding: 0; border: 0; }
 .rise-headshot-picker legend { font-weight: 700; }

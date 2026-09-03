@@ -302,6 +302,10 @@ export async function listMySiteLeagues(input: {
       }
       league.seasonStage = stage;
       league.currentWeek = week;
+      // This enrichment pass never updated the label to match -- it stayed at whatever the
+      // initial (often stale/default) value was, e.g. showing "Week 1" for a league that's
+      // actually still in preseason training camp.
+      league.seasonStageLabel = stageLabel(stage, week ?? 1, game as "madden_26" | "madden_27" | "cfb_27");
       league.rosterType = row.roster_type ? String(row.roster_type) : null;
       if (isRiseToImmortalityLeagueType(String(league.rosterType ?? ""))) {
         const chapter = row.rise_chapter_state ? String(row.rise_chapter_state) as ImmortalityState : "REGISTRATION";

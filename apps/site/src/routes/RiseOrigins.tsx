@@ -29,9 +29,12 @@ function DiceButton({ onClick, label }: { onClick: () => void; label: string }) 
 }
 
 type Side = "offense" | "defense";
-type Stage = "identity" | "throwing_motion" | "iq" | "persona" | "playstyle" | "persona_dna" | "player_traits" | "characteristics" | "creation" | "owner" | "franchise";
+type Stage = "identity" | "throwing_motion" | "iq" | "persona" | "playstyle" | "persona_dna" | "player_traits" | "characteristics" | "creation";
 type TransitionPhase = "idle" | "out" | "in";
 
+// Owner and Franchise aren't per-side stages -- there's one owner and one franchise pick for
+// both prospects together, not one each. They live in the PresentationSequence below instead,
+// which takes over the whole page once both sides have finished Creation Points.
 const STAGES: { id: Stage; label: string }[] = [
   { id: "identity", label: "Identity" },
   { id: "throwing_motion", label: "Throwing Motion" },
@@ -42,8 +45,6 @@ const STAGES: { id: Stage; label: string }[] = [
   { id: "player_traits", label: "Player Traits" },
   { id: "characteristics", label: "Traits" },
   { id: "creation", label: "Creation Points" },
-  { id: "owner", label: "Owner" },
-  { id: "franchise", label: "Franchise" },
 ];
 
 function prospectFor(hub: ImmortalityHubResponse | null, side: Side) {
@@ -135,6 +136,15 @@ export function RiseOriginsPage() {
     ? (prospectFor(hub, "offense") ? "offense" : prospectFor(hub, "defense") ? "defense" : null)
     : null);
   const position = effectiveSide === "offense" ? hub?.league.offensePosition : hub?.league.defensePosition;
+  // Mirrors the same offense+defense-both-built check the server uses for franchiseOptions
+  // eligibility -- once true, the per-side Identity/IQ/etc. tabs are done and the page hands off
+  // to the owner -> team reveal -> contracts sequence instead.
+  const offenseProspect = prospectFor(hub, "offense");
+  const defenseProspect = prospectFor(hub, "defense");
+  const builtProspectIds = new Set((hub?.builds ?? []).map((row) => String((row as Record<string, unknown>).prospect_id)));
+  const bothBuilt = Boolean(offenseProspect && defenseProspect
+    && builtProspectIds.has(String((offenseProspect as Record<string, unknown>).id))
+    && builtProspectIds.has(String((defenseProspect as Record<string, unknown>).id)));
 
   return (
     <div className="site-page rise-page">
@@ -148,6 +158,8 @@ export function RiseOriginsPage() {
         </div>
       ) : !hub ? (
         <p className="site-muted">Loading your class…</p>
+      ) : bothBuilt ? (
+        <PresentationSequence guildId={guildId} hub={hub} onSaved={reload} setError={setError} />
       ) : effectiveSide === null ? (
         <div className="rise-origins-cinema">
           <SideChooser
@@ -254,13 +266,6 @@ export function RiseOriginsPage() {
           {stage === "creation" ? (
             <CreationPanel key={effectiveSide} guildId={guildId} side={effectiveSide}
               setError={setError} onSaved={reload} />
-          ) : null}
-          {stage === "owner" ? (
-            <OwnerPanel guildId={guildId} owner={hub.owner ?? null} personaQuestions={hub.catalogs.persona.owner}
-              onSaved={reload} setError={setError} />
-          ) : null}
-          {stage === "franchise" ? (
-            <FranchisePanel guildId={guildId} franchiseOptions={hub.franchiseOptions ?? null} contracts={hub.contracts ?? []} onSaved={reload} setError={setError} />
           ) : null}
         </>
       )}
@@ -999,51 +1004,134 @@ function OwnerPanel({
   );
 }
 
-function FranchisePanel({
-  guildId, franchiseOptions, contracts, onSaved, setError,
+/** Takes over the whole page once both prospects have finished Creation Points: owner creation,
+ * then the franchise reveal (TeamRevealPanel), then contract signings -- none of which are
+ * per-side, so they don't belong in the per-side stage tabs anymore. */
+function PresentationSequence({
+  guildId, hub, onSaved, setError,
 }: {
   guildId: string;
-  franchiseOptions: ImmortalityHubResponse["franchiseOptions"];
-  contracts: NonNullable<ImmortalityHubResponse["contracts"]>;
+  hub: ImmortalityHubResponse;
+  onSaved: () => Promise<void>;
+  setError: (value: string | null) => void;
+}) {
+  const owner = hub.owner ?? null;
+  const franchiseOptions = hub.franchiseOptions ?? null;
+  const contracts = hub.contracts ?? [];
+  const ownerDone = Boolean(owner && owner.originsStep === "complete");
+  const allContractsSigned = contracts.length > 0 && contracts.every((row) => row.status === "signed");
+  // Music spans team selection through signing -- starts the moment the franchise reveal screen
+  // is reachable (not during the owner step) and keeps playing across the reveal-to-contracts
+  // transition, which is why it's hoisted here rather than into either branch below: those are
+  // separate returns, so an <audio> placed inside either one would remount (and restart) when
+  // the phase changes. This one position stays mounted for the whole ownerDone span instead.
+  const playMusic = ownerDone;
+
+  return (
+    <div className="rise-presentation">
+      {playMusic ? <CeremonyMusic fadeOut={allContractsSigned} /> : null}
+      {!ownerDone ? (
+        <>
+          <header className="rise-presentation-header">
+            <p className="site-muted">Both prospects are locked in.</p>
+            <h1>Create Your Owner</h1>
+          </header>
+          <OwnerPanel guildId={guildId} owner={owner} personaQuestions={hub.catalogs.persona.owner}
+            onSaved={onSaved} setError={setError} />
+        </>
+      ) : franchiseOptions?.chosenTeamId ? (
+        (() => {
+          const chosen = franchiseOptions.teams.find((team) => team.teamId === franchiseOptions.chosenTeamId);
+          const label = chosen ? `${chosen.city ?? ""} ${chosen.name ?? chosen.abbreviation ?? ""}`.trim() : "your franchise";
+          return (
+            <>
+              <header className="rise-presentation-header">
+                <p className="site-muted">Welcome to the league.</p>
+                <h1>{label}</h1>
+              </header>
+              {contracts.length ? (
+                <RiseContractSigning guildId={guildId} contracts={contracts} onSigned={onSaved} setError={setError} />
+              ) : (
+                <p className="site-muted">Preparing your contracts…</p>
+              )}
+            </>
+          );
+        })()
+      ) : !franchiseOptions?.eligible ? (
+        <section className="rise-card">
+          <h2>Choose Your Franchise</h2>
+          <p className="site-muted">{franchiseOptions?.reason ?? "Almost there."}</p>
+        </section>
+      ) : (
+        <>
+          <header className="rise-presentation-header">
+            <p className="site-muted">Owner set. Both players are ready.</p>
+            <h1>Choose Your Franchise</h1>
+          </header>
+          <TeamRevealPanel guildId={guildId} franchiseOptions={franchiseOptions} onSaved={onSaved} setError={setError} />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Background music for the team-reveal-through-signing ceremony -- a single <audio> element
+ * mounted once (see the stable position in PresentationSequence above) so it keeps playing
+ * uninterrupted as the phase changes underneath it. Starts at 35% volume, plays once (no loop,
+ * so it simply falls silent if it finishes before the ceremony does), and fades out over ~2s
+ * instead of cutting off abruptly once every contract is signed. */
+function CeremonyMusic({ fadeOut }: { fadeOut: boolean }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fadingRef = useRef(false);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.volume = 0.35;
+    // Autoplay-with-sound is blocked without prior user interaction on the page -- by the time
+    // this mounts the user has already clicked Save/Confirm at least once, so this succeeds in
+    // practice; the catch just avoids a console error on the rare browser that still blocks it.
+    void audio.play().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !fadeOut || fadingRef.current) return;
+    fadingRef.current = true;
+    const startVolume = audio.volume;
+    const steps = 20;
+    const stepMs = 100;
+    let step = 0;
+    const id = window.setInterval(() => {
+      step += 1;
+      audio.volume = Math.max(0, startVolume * (1 - step / steps));
+      if (step >= steps) {
+        window.clearInterval(id);
+        audio.pause();
+      }
+    }, stepMs);
+    return () => window.clearInterval(id);
+  }, [fadeOut]);
+
+  return <audio ref={audioRef} src="/assets/audio/team-reveal-theme.mp3" preload="auto" />;
+}
+
+/** The franchise picker itself. Confirming a team doesn't reload immediately -- it first plays a
+ * dissolve: every other team fades and shrinks away while the chosen one gets a spotlight glow,
+ * then the hub reload (which flips franchiseOptions.chosenTeamId) hands off to the contracts
+ * view in PresentationSequence above. */
+function TeamRevealPanel({
+  guildId, franchiseOptions, onSaved, setError,
+}: {
+  guildId: string;
+  franchiseOptions: NonNullable<ImmortalityHubResponse["franchiseOptions"]>;
   onSaved: () => Promise<void>;
   setError: (value: string | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [pendingTeamId, setPendingTeamId] = useState<string | null>(null);
-
-  if (!franchiseOptions) {
-    return (
-      <section className="rise-card">
-        <h2>Choose Your Franchise</h2>
-        <p className="site-muted">Loading available franchises…</p>
-      </section>
-    );
-  }
-
-  if (franchiseOptions.chosenTeamId) {
-    const chosen = franchiseOptions.teams.find((team) => team.teamId === franchiseOptions.chosenTeamId);
-    const label = chosen ? `${chosen.city ?? ""} ${chosen.name ?? chosen.abbreviation ?? ""}`.trim() : "your franchise";
-    return (
-      <>
-        <section className="rise-card">
-          <h2>Your Franchise</h2>
-          <p>Your owner purchased the <strong>{label}</strong>. Your two Origins players are on the roster.</p>
-        </section>
-        {contracts.length ? (
-          <RiseContractSigning guildId={guildId} contracts={contracts} onSigned={onSaved} setError={setError} />
-        ) : null}
-      </>
-    );
-  }
-
-  if (!franchiseOptions.eligible) {
-    return (
-      <section className="rise-card">
-        <h2>Choose Your Franchise</h2>
-        <p className="site-muted">{franchiseOptions.reason ?? "Finish the rest of Origins first."}</p>
-      </section>
-    );
-  }
+  const [revealedTeamId, setRevealedTeamId] = useState<string | null>(null);
+  const dissolving = revealedTeamId != null;
 
   const pendingTeam = pendingTeamId ? franchiseOptions.teams.find((team) => team.teamId === pendingTeamId) ?? null : null;
   const groups = new Map<string, typeof franchiseOptions.teams>();
@@ -1057,53 +1145,74 @@ function FranchisePanel({
   async function confirmChoice() {
     if (!pendingTeamId) return;
     setBusy(true); setError(null);
-    try { await siteApi.immortalityChooseTeam({ guildId, teamId: pendingTeamId }); await onSaved(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Could not choose that franchise."); }
-    finally { setBusy(false); setPendingTeamId(null); }
+    try {
+      await siteApi.immortalityChooseTeam({ guildId, teamId: pendingTeamId });
+      setRevealedTeamId(pendingTeamId);
+      window.setTimeout(() => { void onSaved(); }, 1100);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not choose that franchise.");
+      setBusy(false);
+    }
   }
 
   return (
     <section className="rise-card">
-      <h2>Choose Your Franchise</h2>
-      <p className="site-muted">Pick any still-open franchise, grouped by division. This is final once confirmed.</p>
-      {[...groups.entries()].map(([division, teams]) => (
-        <div key={division} className="rise-question">
-          <p><strong>{division}</strong></p>
-          <div className="wizard-team-grid">
-            {teams.map((team) => (
-              <button
-                key={team.teamId}
-                type="button"
-                className={`wizard-team-card${team.open ? "" : " wizard-team-card-taken"}`}
-                disabled={busy || !team.open}
-                aria-disabled={!team.open}
-                onClick={() => team.open && setPendingTeamId(team.teamId)}
-              >
+      {!dissolving ? (
+        <>
+          <p className="site-muted">Pick any still-open franchise, grouped by division. This is final once confirmed.</p>
+          {[...groups.entries()].map(([division, teams]) => (
+            <div key={division} className="rise-question">
+              <p><strong>{division}</strong></p>
+              <div className="wizard-team-grid">
+                {teams.map((team) => (
+                  <button
+                    key={team.teamId}
+                    type="button"
+                    className={`wizard-team-card${team.open ? "" : " wizard-team-card-taken"}`}
+                    disabled={busy || !team.open}
+                    aria-disabled={!team.open}
+                    onClick={() => team.open && setPendingTeamId(team.teamId)}
+                  >
+                    {team.logoUrl ? <img src={team.logoUrl} alt="" className="wizard-team-card-logo" /> : null}
+                    <strong>{team.city ?? ""} {team.name ?? team.abbreviation}</strong>
+                    {team.abbreviation ? <span className="site-muted">{team.abbreviation}</span> : null}
+                    {!team.open ? <span className="site-muted">Taken</span> : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {pendingTeam ? (
+            <div className="rise-split-card" style={{ marginTop: 8 }}>
+              <div className="rise-split-half" style={{ cursor: "default" }}>
+                <span className="rise-split-eyebrow">Confirm</span>
+                <strong>{pendingTeam.city ?? ""} {pendingTeam.name ?? pendingTeam.abbreviation}</strong>
+                <span className="site-muted">This choice is final — your owner and both prospects join this franchise.</span>
+                <div className="rise-actions" style={{ marginTop: 8 }}>
+                  <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setPendingTeamId(null)}>Cancel</button>
+                  <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => void confirmChoice()}>
+                    {busy ? "Confirming…" : "Confirm & Proceed"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <div className="rise-reveal-grid">
+          {franchiseOptions.teams.map((team) => {
+            const isChosen = team.teamId === revealedTeamId;
+            return (
+              <div key={team.teamId} className={`wizard-team-card rise-reveal-card${isChosen ? " rise-reveal-chosen" : " rise-reveal-dissolved"}`}>
                 {team.logoUrl ? <img src={team.logoUrl} alt="" className="wizard-team-card-logo" /> : null}
                 <strong>{team.city ?? ""} {team.name ?? team.abbreviation}</strong>
                 {team.abbreviation ? <span className="site-muted">{team.abbreviation}</span> : null}
-                {!team.open ? <span className="site-muted">Taken</span> : null}
-              </button>
-            ))}
-          </div>
+              </div>
+            );
+          })}
         </div>
-      ))}
-
-      {pendingTeam ? (
-        <div className="rise-split-card" style={{ marginTop: 8 }}>
-          <div className="rise-split-half" style={{ cursor: "default" }}>
-            <span className="rise-split-eyebrow">Confirm</span>
-            <strong>{pendingTeam.city ?? ""} {pendingTeam.name ?? pendingTeam.abbreviation}</strong>
-            <span className="site-muted">This choice is final — your owner and both prospects join this franchise.</span>
-            <div className="rise-actions" style={{ marginTop: 8 }}>
-              <button type="button" className="site-btn site-btn-ghost" disabled={busy} onClick={() => setPendingTeamId(null)}>Cancel</button>
-              <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => void confirmChoice()}>
-                {busy ? "Confirming…" : "Confirm & Proceed"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      )}
     </section>
   );
 }

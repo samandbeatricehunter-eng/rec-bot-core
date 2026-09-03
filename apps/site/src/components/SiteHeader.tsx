@@ -70,7 +70,7 @@ function HeaderRow2() {
             <span className="site-header-row2-name">{selected.name}</span>
             {selected.seasonRecordText ? <span className="site-header-row2-detail">{selected.seasonRecordText}</span> : null}
             <span className="site-header-row2-detail">{selected.gameLabel}</span>
-            <span className="site-header-row2-detail">{selected.currentWeek != null ? `Week ${selected.currentWeek}` : selected.seasonStageLabel}</span>
+            <span className="site-header-row2-detail">{selected.seasonStageLabel}</span>
           </span>
         ) : (
           <span className="site-header-row2-active">My Leagues</span>
@@ -90,7 +90,7 @@ function HeaderRow2() {
               ) : null}
               <span className="site-header-league-row-name">{league.name}</span>
               <span className="site-header-league-row-meta">
-                {league.seasonRecordText ? `${league.seasonRecordText} · ` : ""}({league.gameLabel}) · {league.currentWeek != null ? `Week ${league.currentWeek}` : league.seasonStageLabel}
+                {league.seasonRecordText ? `${league.seasonRecordText} · ` : ""}({league.gameLabel}) · {league.seasonStageLabel}
               </span>
             </button>
           ))}
