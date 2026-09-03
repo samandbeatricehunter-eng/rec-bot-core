@@ -73,7 +73,18 @@ export function selectMatchupInterviewQuestion(input: {
   if (pool.length === 0) throw new Error("Matchup interview pool is empty.");
   const contextTags = new Set(contextTagsFor(context));
 
-  const weighted = pool.map((question) => {
+  // post_win/post_loss are hard requirements, not just a weighting bias -- a "post_win" question
+  // asked in a week with no completed game yet (preseason, or simply hasn't played) makes no
+  // sense no matter how the random weighting falls, since down-weighting still leaves it eligible
+  // to be picked. Exclude anything tagged for a result that hasn't actually happened.
+  const eligiblePool = pool.filter((question) => {
+    if (question.tags.includes("post_win") && context.lastResult !== "win") return false;
+    if (question.tags.includes("post_loss") && context.lastResult !== "loss") return false;
+    return true;
+  });
+  const effectivePool = eligiblePool.length ? eligiblePool : pool;
+
+  const weighted = effectivePool.map((question) => {
     const matches = question.tags.filter((tag) => contextTags.has(tag) || contextTags.has(question.category)).length;
     const categoryMatch = contextTags.has(question.category) ? 1 : 0;
     const weight = 1 + (matches + categoryMatch) * 4;
