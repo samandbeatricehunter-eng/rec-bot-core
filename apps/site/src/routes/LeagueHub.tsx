@@ -296,6 +296,7 @@ export function LeagueHubPage() {
   const routeLeague = hub.leagues.find((league) => league.id === leagueId) ?? (hub.selectedLeague?.id === leagueId ? hub.selectedLeague : null);
   const isRise = routeLeague?.rosterType === "rise_to_immortality";
   const riseHubUnlocked = routeLeague?.riseHubUnlocked === true;
+  const rtiOriginsComplete = routeLeague?.rtiOriginsComplete === true;
 
   useEffect(() => {
     if (!leagueId) return;
@@ -376,7 +377,7 @@ export function LeagueHubPage() {
     return <div className="site-page site-loading">Loading league hub…</div>;
   }
 
-  if (isRise && !riseHubUnlocked && view !== "mgmt") {
+  if (isRise && (!riseHubUnlocked || !rtiOriginsComplete) && view !== "mgmt") {
     return <Navigate replace to={`/l/${leagueId}/rise`} />;
   }
 

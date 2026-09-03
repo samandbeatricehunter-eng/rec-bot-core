@@ -771,7 +771,9 @@ export async function getHub(guildId: string, discordId: string) {
       ? "co_commissioner"
       : "commissioner";
   const [weeklyMedia, weeklyHighlights, weeklyStreams, weeklyGotwVotes, weeklyLedgers] = weeklyBundle;
-  const weeklyGame = (matchups.games ?? []).find((game: any) => game.homeUserId === userId || game.awayUserId === userId) ?? null;
+  const weeklyGame = userId
+    ? (matchups.games ?? []).find((game: any) => game.homeUserId === userId || game.awayUserId === userId) ?? null
+    : null;
   if (currentStreamLogs.error) throw new ApiError(500, "We couldn't load live streams right now. Please try again.", currentStreamLogs.error);
 
   const highlightWeeks = [...new Set((highlights.data ?? []).map((item: any) => Number(item.week_number)).filter((week) => Number.isFinite(week) && week > 0))];
@@ -1849,8 +1851,8 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         gameId: game.id,
         weekNumber: Number(game.week_number),
         matchupType: game.home_user_id && game.away_user_id ? "h2h" : game.home_user_id || game.away_user_id ? "human_cpu" : "cpu",
-        involvesMe: game.home_user_id === userId || game.away_user_id === userId,
-        viewerSide: game.home_user_id === userId ? "home" : game.away_user_id === userId ? "away" : null,
+        involvesMe: Boolean(userId) && (game.home_user_id === userId || game.away_user_id === userId),
+        viewerSide: !userId ? null : game.home_user_id === userId ? "home" : game.away_user_id === userId ? "away" : null,
         isGameOfWeek: Boolean(gamePoll),
         gotw,
         homeTeamId: game.home_team?.id ?? null,

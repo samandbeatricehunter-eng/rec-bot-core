@@ -368,9 +368,12 @@ export async function loadRtiMemberGates(input: {
     ? await supabase.from("rec_players").select("id,team_id").in("id", playerIds)
     : { data: [] };
   const teamIds = new Set((playerTeams.data ?? []).map((row: any) => String(row.team_id ?? "")).filter(Boolean));
-  const games = await supabase.from("rec_games").select("home_team_id,away_team_id")
-    .eq("league_id", input.leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber);
-  const hasGameThisWeek = (games.data ?? []).some((game: any) => teamIds.has(String(game.home_team_id)) || teamIds.has(String(game.away_team_id)));
+  const games = gameplaySeasonStages(input.game).has(input.seasonStage)
+    ? await supabase.from("rec_games").select("home_team_id,away_team_id")
+      .eq("league_id", input.leagueId).eq("week_number", weekNumber)
+    : { data: [] };
+  const hasGameThisWeek = gameplaySeasonStages(input.game).has(input.seasonStage)
+    && (games.data ?? []).some((game: any) => teamIds.has(String(game.home_team_id)) || teamIds.has(String(game.away_team_id)));
   const weeklyChallenges = hasGameThisWeek ? await weeklyChallengesForUser({
     leagueId: input.leagueId, userId: input.userId, seasonNumber, weekNumber,
   }) : [];

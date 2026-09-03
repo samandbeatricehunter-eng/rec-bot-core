@@ -95,7 +95,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { applyLeagueTeamIdentityOverrides, type LeagueTeamIdentityOverride } from "../team-identities/team-identities.service.js";
-import { postDiscordChannelMessageWithFile, editDiscordMessageWithFile, setGuildMemberNickname } from "../../lib/discord-guild.js";
+import { postDiscordChannelMessage, postDiscordChannelMessageWithFile, editDiscordMessageWithFile, setGuildMemberNickname } from "../../lib/discord-guild.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { kickLeagueUser } from "../moderation/moderation.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
@@ -1531,15 +1531,33 @@ async function postProspectCardToDiscord(input: {
       : routes?.routes?.defensive_pros_channel_id) as string | null | undefined;
     if (!channelId) return;
     const data = await getProspectCardRenderData(input.prospectId);
-    const png = await renderProspectCardPng(input.prospectId);
-    const posted = await postDiscordChannelMessageWithFile(
-      channelId,
-      {
+    let posted: { id?: string } | null = null;
+    try {
+      const png = await renderProspectCardPng(input.prospectId);
+      posted = await postDiscordChannelMessageWithFile(
+        channelId,
+        {
+          content: `<@${input.discordId}> · ${data.teamName}`,
+          embeds: [{ title: `${data.firstName} ${data.lastName}`, color: 0x2f81f7, image: { url: "attachment://prospect-card.png" } }],
+        },
+        { buffer: png, name: "prospect-card.png", contentType: "image/png" },
+      );
+    } catch (renderError) {
+      // A missing Chromium binary must not erase the actual league event. Fall back to a rich
+      // native embed with the same player/team identity; a later import can still refresh it.
+      console.error(`[WARN] Prospect-card image render failed for ${input.prospectId}; posting embed fallback:`, renderError);
+      posted = await postDiscordChannelMessage(channelId, {
         content: `<@${input.discordId}> · ${data.teamName}`,
-        embeds: [{ title: `${data.firstName} ${data.lastName}`, color: 0x2f81f7, image: { url: "attachment://prospect-card.png" } }],
-      },
-      { buffer: png, name: "prospect-card.png", contentType: "image/png" },
-    );
+        embeds: [{
+          author: data.teamLogoUrl ? { name: data.teamName, icon_url: data.teamLogoUrl } : { name: data.teamName },
+          title: `${data.firstName} ${data.lastName} · ${data.position}`,
+          color: 0x2f81f7,
+          description: [data.backstory, ...data.attributes.map((attribute) => `**${attribute.code}** ${attribute.value}`)].join("\n"),
+          ...(data.headshotUrl ? { thumbnail: { url: data.headshotUrl } } : {}),
+          footer: data.teamLogoUrl ? { text: "Rise to Immortality", icon_url: data.teamLogoUrl } : { text: "Rise to Immortality" },
+        }],
+      });
+    }
     if (posted?.id) {
       await supabase.from("rec_immortality_prospects").update({
         card_channel_id: channelId, card_message_id: posted.id,
@@ -1964,7 +1982,7 @@ export async function submitOwnerPersona(input: {
 async function finalizePreassignedImmortalityOwner(input: {
   guildId: string; recLeagueId: string; immortalityLeagueId: string; userId: string; discordId: string;
 }): Promise<void> {
-  const existingClaim = await supabase.from("rec_immortality_user_team_assignments").select("id")
+  const existingClaim = await supabase.from("rec_immortality_user_team_assignments").select("team_id")
     .eq("immortality_league_id", input.immortalityLeagueId).eq("user_id", input.userId).maybeSingle();
   const owner = await supabase.from("rec_immortality_owners").select("origins_step")
     .eq("immortality_league_id", input.immortalityLeagueId).eq("user_id", input.userId).maybeSingle();
@@ -2069,8 +2087,8 @@ export async function chooseImmortalityTeam(input: { guildId: string; discordId:
   ]);
   if (!offenseProspect || !defenseProspect) throw new ApiError(400, "Finish Origins for both your offense and defense players first.");
   const [offenseBuild, defenseBuild] = await Promise.all([
-    supabase.from("rec_immortality_creation_builds").select("id").eq("prospect_id", offenseProspect.id).maybeSingle(),
-    supabase.from("rec_immortality_creation_builds").select("id").eq("prospect_id", defenseProspect.id).maybeSingle(),
+    supabase.from("rec_immortality_creation_builds").select("prospect_id").eq("prospect_id", offenseProspect.id).maybeSingle(),
+    supabase.from("rec_immortality_creation_builds").select("prospect_id").eq("prospect_id", defenseProspect.id).maybeSingle(),
   ]);
   if (!offenseBuild.data || !defenseBuild.data) throw new ApiError(400, "Finish Creation Points for both players first.");
   if (owner.data?.origins_step !== "complete") throw new ApiError(400, "Create your owner and finish their interview first.");

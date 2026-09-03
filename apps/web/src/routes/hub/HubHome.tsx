@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, regularSeasonWeeks, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
+import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, regularSeasonWeeks, stageHasScheduledGames, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
@@ -292,17 +292,17 @@ function MaddenMyTeamGrid({
         <p className="hub-eyebrow">Matchup Center</p>
         <div className="hub-my-team-card-buttons">
           <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
-          <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>{isRise ? "Interview" : <>Interview/<wbr />Article</>}</strong><span>Media desk</span></button>
+          {!isRise ? <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Interview/<wbr />Article</strong><span>Media desk</span></button> : null}
         </div>
       </div>
       <div className="hub-my-team-card">
         <p className="hub-eyebrow">Team</p>
         <div className="hub-my-team-card-buttons">
-          {isRise ? (
+          {isRise && !riseHubUnlocked ? (
             <Link className="hub-my-team-btn" to={`/l/${leagueId}/rise`}><strong>Origins</strong><span>Class &amp; builds</span></Link>
-          ) : (
+          ) : !isRise ? (
             <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>
-          )}
+          ) : null}
           <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Roster</strong><span>Manage players</span></button>
           <Link className="hub-my-team-btn" to={`/l/${leagueId}/stats`}><strong>League Stats</strong><span>By category &amp; leaders</span></Link>
           <button type="button" className="hub-my-team-btn" onClick={() => setCareerStatsModalOpen(true)}><strong>Career Stats</strong><span>League career</span></button>
@@ -1403,9 +1403,11 @@ export function HubHome() {
   const heroUserMeta = viewerUser
     ? `#${viewerUser.rank}${viewerUser.teamName ? ` · ${viewerUser.teamName}` : ""}`
     : "Pending";
-  const heroMatchup = matchupSchedule?.games.find((game) => game.gameId === heroCurrentGameId)
-    ?? matchupSchedule?.games.find((game) => game.involvesMe)
-    ?? null;
+  const heroMatchup = stageHasScheduledGames(hub.league.seasonStage, hub.league.game as LeagueGame)
+    ? (matchupSchedule?.games.find((game) => game.gameId === heroCurrentGameId)
+      ?? matchupSchedule?.games.find((game) => game.involvesMe)
+      ?? null)
+    : null;
   const activeHighlight = highlights[activeHighlightIndex] ?? null;
   const highlightOwnerId = (activeHighlight as { user_id?: string | null; userId?: string | null } | null)?.user_id
     ?? (activeHighlight as { userId?: string | null } | null)?.userId
