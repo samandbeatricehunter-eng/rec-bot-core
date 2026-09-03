@@ -855,4 +855,7 @@ export const recApi = {
 
   isDisplayingBoxScoreCommand: (guildId: string) =>
     recFetch<{ includeBoxScore: boolean }>("/v1/league-week/box-score-command-state", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  backfillImmortalityProspectReviews: (guildId: string) =>
+    recFetch<{ backfilled: number }>("/v1/immortality/prospect/backfill-reviews", { method: "POST", body: JSON.stringify({ guildId }) }),
 };

@@ -468,6 +468,22 @@ setInterval(() => {
   pollBoxScoreDiscordCleanup().catch((error) => console.error("[ERROR] Box score Discord cleanup poll failed:", error));
 }, 150_000).unref();
 
+// Guarantees an RTI prospect's commissioner review-log row eventually exists even if the
+// real-time write inside evaluateCreationBuild failed (it's deliberately best-effort there, so a
+// transient DB blip must never cost a player their Creation Points save). Cheap no-op per guild
+// with no RTI league or nothing missing, so it's safe to poll every guild regardless.
+async function pollImmortalityProspectReviewBackfill() {
+  for (const guild of client.guilds.cache.values()) {
+    await recApi.backfillImmortalityProspectReviews(guild.id).catch((error) => {
+      console.error(`[ERROR] Failed to poll RTI prospect review backfill for guild ${guild.id}:`, error);
+    });
+  }
+}
+
+setInterval(() => {
+  pollImmortalityProspectReviewBackfill().catch((error) => console.error("[ERROR] RTI prospect review backfill poll failed:", error));
+}, 150_000).unref();
+
 // REC Scout is only meant to sit in servers actively running a site league, plus the one
 // server used to manage the site/bot itself (rec_site_discord_config.management_guild_id).
 // Any other guild it somehow ends up in (a stale invite, a league that got deleted without

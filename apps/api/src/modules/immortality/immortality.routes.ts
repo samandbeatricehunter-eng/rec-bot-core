@@ -2,7 +2,9 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
+import { requireInternalApiKey } from "../../lib/auth.js";
 import {
+  backfillMissingImmortalityProspectReviews,
   castHallVote,
   chooseImmortalityTeam,
   convertXp,
@@ -275,6 +277,17 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "Prospect review requires a website session.");
       return reply.send(await reviewImmortalityProspect({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Bot-only maintenance poll (see backfillMissingImmortalityProspectReviews) -- guarantees a
+  // prospect's commissioner review-log row eventually exists even if the real-time write inside
+  // evaluateCreationBuild failed. No user session needed; cheap no-op for non-RTI guilds.
+  app.post("/v1/immortality/prospect/backfill-reviews", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = GuildBody.parse(request.body);
+      return reply.send(await backfillMissingImmortalityProspectReviews(body.guildId));
     } catch (error) { return sendError(reply, error); }
   });
 

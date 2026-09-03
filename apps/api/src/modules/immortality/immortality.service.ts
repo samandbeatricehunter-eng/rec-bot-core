@@ -1307,7 +1307,6 @@ export async function evaluateCreationBuild(input: {
   // their Creation Points save, which has already succeeded above.
   await submitProspectForReview({
     guildId: input.guildId, leagueId: context.leagueId, immortalityLeagueId: league.id, prospect, userId,
-    finalAttributes: spent.attributes, startingDev: startingDevTrait(modifiers),
   }).catch((error) => console.error(`[ERROR] Failed to submit prospect ${prospect.id} for commissioner review (non-fatal):`, error));
   // The commissioner already has a franchise (picked outright at league creation) before their
   // own prospects finish Origins -- everyone else's team isn't known until they choose from
@@ -1566,25 +1565,38 @@ export async function refreshImmortalityProspectCardsForLeague(leagueId: string)
  * getImmortalityHub's franchiseOptions and chooseImmortalityTeam). Re-evaluating a build before
  * its inbox item has been acted on just refreshes the same card instead of spamming a duplicate.
  * Attributes are listed in MADDEN_ATTRIBUTE_DEFINITIONS order (first 24, matching CreationPanel's
- * own field order) since that's the in-game attribute order. Best-effort -- never blocks Creation Points
- * itself from succeeding. */
+ * own field order) since that's the in-game attribute order.
+ *
+ * Everything this needs (final attributes, starting dev trait, persona/playstyle/traits) is
+ * re-derivable purely from already-persisted rows, not passed in by the caller -- that's what
+ * lets backfillMissingImmortalityProspectReviews call this identically for a prospect built
+ * days ago as evaluateCreationBuild does the moment a build is saved. Best-effort at the call
+ * site -- never blocks Creation Points itself from succeeding -- but see
+ * backfillMissingImmortalityProspectReviews for how a call that fails here still eventually
+ * lands instead of being lost. */
 async function submitProspectForReview(input: {
   guildId: string; leagueId: string; immortalityLeagueId: string; prospect: Record<string, any>; userId: string;
-  finalAttributes: Record<string, number>; startingDev: string;
 }): Promise<void> {
   const { prospect } = input;
-  const [personaResult, branchingPlaystyle, flatPlaystyle, personaDnaTraits, playerTraits, characteristics, discordId] = await Promise.all([
+  const [personaResult, branchingPlaystyle, flatPlaystyle, personaDnaTraits, playerTraits, characteristics, build, discordId] = await Promise.all([
     supabase.from("rec_immortality_persona_results").select("label,primary_dimension,secondary_dimension").eq("prospect_id", prospect.id).maybeSingle(),
     supabase.from("rec_immortality_branching_playstyle_results").select("primary_archetype,secondary_archetype").eq("prospect_id", prospect.id).maybeSingle(),
     supabase.from("rec_immortality_playstyle_results").select("primary_archetype,secondary_archetype").eq("prospect_id", prospect.id).maybeSingle(),
     supabase.from("rec_immortality_prospect_persona_dna").select("trait_key").eq("prospect_id", prospect.id),
     supabase.from("rec_immortality_prospect_player_traits").select("trait_key").eq("prospect_id", prospect.id),
     supabase.from("rec_immortality_prospect_characteristics").select("characteristic_key").eq("prospect_id", prospect.id),
+    supabase.from("rec_immortality_creation_builds").select("final_attributes").eq("prospect_id", prospect.id).maybeSingle(),
     discordIdForRecUser(input.userId).catch(() => null),
   ]);
+  if (build.error) throw new ApiError(500, "Failed to load creation build for review.", build.error);
+  if (!build.data) throw new ApiError(400, "Creation Points must be saved before a prospect can be submitted for review.");
+  const finalAttributes = (build.data.final_attributes ?? {}) as Record<string, number>;
 
   const position = String(prospect.position ?? "");
   const group = positionGroupFor(position as ImmortalityPosition);
+  const catalog = characteristicCatalog(group);
+  const selectedCharacteristics = catalog.filter((item) => (characteristics.data ?? []).some((row) => row.characteristic_key === item.key));
+  const startingDev = startingDevTrait(combinedModifiers(selectedCharacteristics));
   const personaDnaNames = (personaDnaTraits.data ?? [])
     .map((t) => personaDnaCatalog().find((c) => c.key === t.trait_key)?.name)
     .filter((name): name is string => Boolean(name));
@@ -1601,7 +1613,7 @@ async function submitProspectForReview(input: {
   const playstyleSecondary = (branchingPlaystyle.data?.secondary_archetype ?? flatPlaystyle.data?.secondary_archetype ?? null) as string | null;
 
   const attributeLines = MADDEN_ATTRIBUTE_DEFINITIONS.slice(0, 24)
-    .map((def) => ({ code: def.code, name: def.name, value: input.finalAttributes[def.code] ?? null }))
+    .map((def) => ({ code: def.code, name: def.name, value: finalAttributes[def.code] ?? null }))
     .filter((attr): attr is { code: MaddenAttributeCode; name: string; value: number } => attr.value != null);
 
   const name = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Unnamed Prospect";
@@ -1609,7 +1621,7 @@ async function submitProspectForReview(input: {
     `Position: ${position} (${prospect.side})`,
     `Age ${prospect.age ?? "?"} · ${prospect.height_inches ? `${Math.floor(prospect.height_inches / 12)}'${prospect.height_inches % 12}"` : "?"} · ${prospect.weight_lbs ?? "?"} lbs · ${prospect.body_type ?? "—"}`,
     `Hometown: ${prospect.hometown ?? "—"}${prospect.hometown_state ? `, ${prospect.hometown_state}` : ""}${prospect.college ? ` · ${prospect.college}` : ""}`,
-    `Jersey #${prospect.jersey_number ?? "?"} · Starting Dev Trait: ${input.startingDev}`,
+    `Jersey #${prospect.jersey_number ?? "?"} · Starting Dev Trait: ${startingDev}`,
     prospect.throwing_motion_key ? `Throwing Motion: ${prospect.throwing_motion_key}` : null,
     "",
     `Persona: ${personaResult.data?.label ?? "—"}`,
@@ -1660,7 +1672,7 @@ async function submitProspectForReview(input: {
       firstName: prospect.first_name ?? "", lastName: prospect.last_name ?? "",
       age: prospect.age, heightInches: prospect.height_inches, weightLbs: prospect.weight_lbs, bodyType: prospect.body_type,
       hometown: prospect.hometown, hometownState: prospect.hometown_state, college: prospect.college,
-      jerseyNumber: prospect.jersey_number, startingDev: input.startingDev, throwingMotionKey: prospect.throwing_motion_key ?? null,
+      jerseyNumber: prospect.jersey_number, startingDev, throwingMotionKey: prospect.throwing_motion_key ?? null,
       personaLabel: personaResult.data?.label ?? null, playstyleArchetype, playstyleSecondary,
       personaDnaTraits: personaDnaNames, playerTraits: playerTraitNames, characteristics: characteristicNames,
       attributes: attributeLines,
@@ -1681,6 +1693,54 @@ async function submitProspectForReview(input: {
   }).eq("id", prospect.id);
 
   await notifyLeagueCommissionersOfPendingItem(input.leagueId);
+}
+
+/** Guarantees every prospect that's finished Creation Points eventually gets a commissioner
+ * review-log row, even when the real-time call inside evaluateCreationBuild failed (it's
+ * deliberately best-effort there -- see its .catch -- so a transient DB blip must never cost a
+ * player their build). Diffs this league's prospects-with-a-build against its existing
+ * "immortality_prospect" inbox rows and re-runs submitProspectForReview for whatever's missing;
+ * submitProspectForReview derives everything it needs (final attributes, starting dev trait,
+ * persona/playstyle/traits) from already-persisted rows, so calling it here for a build from
+ * days ago behaves identically to calling it the moment the build was saved. Polled from the bot
+ * every few minutes for every guild (recApi.backfillImmortalityProspectReviews) -- cheap no-op
+ * for a guild with no RTI league or nothing missing, so it's safe to poll broadly. */
+export async function backfillMissingImmortalityProspectReviews(guildId: string): Promise<{ backfilled: number }> {
+  const context = await getCurrentLeagueContext(guildId).catch(() => null);
+  if (!context) return { backfilled: 0 };
+  const league = await loadImmortalityLeague(context.leagueId);
+  if (!league) return { backfilled: 0 };
+
+  const prospects = await supabase.from("rec_immortality_prospects").select("*").eq("immortality_league_id", league.id);
+  if (prospects.error) throw new ApiError(500, "Failed to load prospects for review backfill.", prospects.error);
+  const prospectIds = (prospects.data ?? []).map((row: any) => String(row.id));
+  if (!prospectIds.length) return { backfilled: 0 };
+
+  const [builds, existingInboxRows] = await Promise.all([
+    supabase.from("rec_immortality_creation_builds").select("prospect_id").in("prospect_id", prospectIds),
+    supabase.from("rec_commissioners_inbox").select("source_id").eq("guild_id", guildId).eq("queue_type", "immortality_prospect").eq("source_table", "rec_immortality_prospects").in("source_id", prospectIds),
+  ]);
+  if (builds.error) throw new ApiError(500, "Failed to load creation builds for review backfill.", builds.error);
+  if (existingInboxRows.error) throw new ApiError(500, "Failed to load existing review items for backfill.", existingInboxRows.error);
+
+  const builtProspectIds = new Set((builds.data ?? []).map((row: any) => String(row.prospect_id)));
+  const loggedProspectIds = new Set((existingInboxRows.data ?? []).map((row: any) => String(row.source_id)));
+  const missing = (prospects.data ?? []).filter((row: any) => builtProspectIds.has(String(row.id)) && !loggedProspectIds.has(String(row.id)));
+  if (!missing.length) return { backfilled: 0 };
+
+  let backfilled = 0;
+  for (const prospect of missing as any[]) {
+    if (!prospect.user_id) continue;
+    try {
+      await submitProspectForReview({
+        guildId, leagueId: context.leagueId, immortalityLeagueId: league.id, prospect, userId: String(prospect.user_id),
+      });
+      backfilled += 1;
+    } catch (error) {
+      console.error(`[ERROR] Backfill failed to submit prospect ${prospect.id} for review:`, error);
+    }
+  }
+  return { backfilled };
 }
 
 /** Mark a prospect's commissioner-inbox item as "Applied in game" (approve) or reject it.
