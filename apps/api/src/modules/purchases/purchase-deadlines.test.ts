@@ -40,6 +40,31 @@ test("purchase deadline closes after a later stage", () => {
   );
 });
 
+test("enabled: false bypasses an otherwise-passed deadline, keeping the schedule on file", () => {
+  assert.doesNotThrow(() =>
+    assertPurchaseDeadlineOpen({
+      purchaseType: "custom_player",
+      deadlines: { custom_player: { stage: "regular_season", week: 5 } },
+      enabled: false,
+      currentStage: "regular_season",
+      currentWeek: 99,
+    }),
+  );
+});
+
+test("enabled defaults to true when omitted -- a passed deadline still blocks", () => {
+  assert.throws(
+    () =>
+      assertPurchaseDeadlineOpen({
+        purchaseType: "custom_player",
+        deadlines: { custom_player: { stage: "regular_season", week: 5 } },
+        currentStage: "regular_season",
+        currentWeek: 6,
+      }),
+    (error: unknown) => error instanceof ApiError && error.statusCode === 409,
+  );
+});
+
 test("missing or malformed deadlines are a no-op", () => {
   assert.doesNotThrow(() =>
     assertPurchaseDeadlineOpen({

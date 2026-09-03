@@ -590,7 +590,7 @@ export async function createPurchaseRequest(input: {
   const attrSelect = input.purchaseType === "attribute"
     ? ["core_attributes", "core_attribute_cap_overrides", "core_attribute_purchases_season_cap", "core_attribute_group_cap", "non_core_attribute_purchases_season_cap", "non_core_attribute_cap_overrides"]
     : [];
-  const selectCols = ["coin_economy_enabled", "purchase_deadlines", cfg.enabled, cfg.seasonCap, ...attrSelect].filter(Boolean).join(",");
+  const selectCols = ["coin_economy_enabled", "purchase_deadlines", "purchase_deadlines_enabled", cfg.enabled, cfg.seasonCap, ...attrSelect].filter(Boolean).join(",");
   const config = await supabase
     .from("rec_league_configuration")
     .select(selectCols)
@@ -615,6 +615,7 @@ export async function createPurchaseRequest(input: {
   assertPurchaseDeadlineOpen({
     purchaseType: input.purchaseType,
     deadlines: cfgRow.purchase_deadlines,
+    enabled: cfgRow.purchase_deadlines_enabled !== false,
     currentStage: String(context.rec_leagues?.season_stage ?? "regular_season"),
     currentWeek: Number(context.rec_leagues?.current_week ?? 1),
   });

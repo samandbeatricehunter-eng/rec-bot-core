@@ -160,6 +160,7 @@ export const CreateLeagueSchema = z.object({
     stage: z.string().trim().min(1).max(80),
     week: z.number().int().min(1).max(30),
   })).default({}),
+  purchaseDeadlinesEnabled: z.boolean().default(true),
 
   streamingRequirement: streamingRequirement.default("recommended"),
   regularSeasonStreamingRequirement: streamingRequirement.default("recommended"),

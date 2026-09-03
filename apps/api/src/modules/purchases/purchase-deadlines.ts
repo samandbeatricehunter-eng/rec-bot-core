@@ -18,7 +18,11 @@ export function assertPurchaseDeadlineOpen(input: {
   deadlines: unknown;
   currentStage: string;
   currentWeek: number;
+  /** Commissioner-level kill switch (League Settings) -- when off, configured deadlines are kept
+   * on file but not enforced, so re-enabling doesn't require re-entering every stage/week. */
+  enabled?: boolean;
 }) {
+  if (input.enabled === false) return;
   if (!input.deadlines || typeof input.deadlines !== "object" || Array.isArray(input.deadlines)) return;
   const deadline = (input.deadlines as Record<string, unknown>)[input.purchaseType];
   if (!deadline || typeof deadline !== "object" || Array.isArray(deadline)) return;

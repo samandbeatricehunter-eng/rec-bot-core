@@ -584,7 +584,10 @@ function IqPanel({
       {!state ? (
         <button type="button" className="site-btn site-btn-primary" disabled={busy} onClick={() => void start()}>Start IQ test</button>
       ) : state.completed ? (
-        <p>IQ {state.iqScore}. Awareness {state.awareness}. Play recognition {state.playRecognition}.</p>
+        // Play recognition only ever lands on a defensive player's PRC rating (see
+        // applyIqOverlay in baseline.ts) -- showing it for offense implies it does something it
+        // never does for QB/HB/WR/TE.
+        <p>IQ {state.iqScore}. Awareness {state.awareness}.{side === "offense" ? "" : ` Play recognition ${state.playRecognition}.`}</p>
       ) : (
         <>
           <p>Question {state.currentQuestion} of {IQ_QUESTION_COUNT} · {Math.max(0, Math.ceil(remainingMs / 1000))}s left</p>
@@ -840,24 +843,34 @@ function CreationPanel({
       <h2>Creation Points</h2>
       <p className="site-muted">
         Budget is {baseline.effectiveBudget} points{baseline.heightCost > 0 ? ` (${baseline.heightCost} of your ${baseline.totalBudget} already went to your above-average height)` : ""}.
-        Values below are your generated baseline from Origins — the input is how many points on top of it you're spending.
+        Drag a rating up to spend points on it — it can't go below where it started.
       </p>
       <p style={overBudget || invalid ? { color: "var(--error, #c0392b)" } : undefined}>
         Used {spentPoints} / {baseline.effectiveBudget}
         {overBudget ? " — over budget, lower an attribute before evaluating" : ""}
         {invalid && preview && !preview.ok ? ` — ${preview.error}` : ""}
       </p>
-      <div className="rise-grid">
+      <div className="rise-attribute-list">
         {MADDEN_ATTRIBUTE_DEFINITIONS.slice(0, 24).map((def) => {
           const base = baseline.baseline[def.code] ?? 0;
           const add = spent[def.code] ?? 0;
+          const total = base + add;
+          const fillPct = Math.max(0, Math.min(100, (total / 99) * 100));
           return (
-            <label key={def.code} className="site-field">
-              <span>{def.code} — {def.name} (baseline {base})</span>
-              <input className="site-input" type="number" min={0} max={20} value={add}
-                onChange={(e) => setSpent((prev) => ({ ...prev, [def.code]: Number(e.target.value) }))} />
-              {add > 0 ? <span className="site-muted">Total: {base + add}</span> : null}
-            </label>
+            <div key={def.code} className="rise-attr-row">
+              <span className="rise-attr-label"><span className="rise-attr-code">{def.code}</span> {def.name}</span>
+              <div className="rise-attr-slider-wrap">
+                <div className="rise-attr-track-gradient" />
+                <div className="rise-attr-track-mask" style={{ width: `${100 - fillPct}%` }} />
+                <input
+                  type="range" className="rise-attr-range"
+                  min={base} max={99} step={1} value={total}
+                  aria-label={`${def.name}, starting point ${base}, current ${total}`}
+                  onChange={(e) => setSpent((prev) => ({ ...prev, [def.code]: Math.max(0, Number(e.target.value) - base) }))}
+                />
+              </div>
+              <span className="rise-attr-value">{total}</span>
+            </div>
           );
         })}
       </div>

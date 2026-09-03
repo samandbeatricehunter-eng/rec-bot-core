@@ -4278,6 +4278,22 @@ h1, h2, h3, .site-wordmark {
 .rise-trait-option-body { display: flex; flex-direction: column; gap: 2px; }
 .rise-trait-option-body strong { font-size: 14px; color: var(--text); }
 .rise-trait-option-body .site-muted { font-size: 12px; }
+.rise-attribute-list { display: flex; flex-direction: column; gap: 2px; }
+.rise-attr-row { display: grid; grid-template-columns: 168px 1fr 34px; align-items: center; gap: 14px; padding: 7px 4px; }
+.rise-attr-label { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rise-attr-code { color: var(--text); margin-right: 4px; }
+.rise-attr-slider-wrap { position: relative; height: 10px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,.06); }
+/* Fixed gradient across the whole 0-99 range -- the mask (below) covers everything past the
+   current value, so a low rating only ever reveals the dark red/black end and a maxed-out one
+   reveals the whole ramp through to yellow-green. The gradient itself never moves or rescales. */
+.rise-attr-track-gradient { position: absolute; inset: 0; background: linear-gradient(90deg, #1a0505 0%, #7a1414 22%, #b0431a 45%, #d9a520 68%, #8fd94a 100%); }
+.rise-attr-track-mask { position: absolute; top: 0; right: 0; bottom: 0; background: #141414; transition: width .08s linear; }
+.rise-attr-range { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; background: transparent; -webkit-appearance: none; appearance: none; cursor: pointer; }
+.rise-attr-range::-webkit-slider-runnable-track { background: transparent; height: 100%; }
+.rise-attr-range::-moz-range-track { background: transparent; height: 100%; border: 0; }
+.rise-attr-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; margin-top: -2px; border-radius: 50%; background: #fff; border: 2px solid rgba(0,0,0,.5); cursor: pointer; }
+.rise-attr-range::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid rgba(0,0,0,.5); cursor: pointer; }
+.rise-attr-value { text-align: right; font-variant-numeric: tabular-nums; font-weight: 800; font-size: 16px; }
 .rise-question { display: flex; flex-direction: column; gap: var(--space-2); }
 .rise-stock-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 .rise-grade-card { display: flex; flex-direction: column; gap: 6px; padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); }

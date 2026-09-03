@@ -425,23 +425,37 @@ export function SettingsHome() {
             {category.key === "purchases" && Boolean(draft.coinEconomyEnabled) ? (
               <div className="form-field">
                 <label className="form-label">Purchase deadlines</label>
-                <p className="form-hint">Each product becomes unavailable after the selected stage and week. Leave a product unset to keep it available for the full season.</p>
-                {PURCHASE_DEADLINE_TYPES.filter(([key]) => game !== "cfb_27" || !["age_reset", "contract"].includes(key)).map(([key, label]) => {
-                  const current = purchaseDeadlines[key];
-                  return <div className="attribute-cap-row" key={key}>
-                    <span>{label}</span>
-                    <select className="form-select" value={current?.stage ?? ""} onChange={(event) => {
-                      const next = { ...purchaseDeadlines };
-                      if (!event.target.value) delete next[key];
-                      else next[key] = { stage: event.target.value, week: current?.week ?? 1 };
-                      setField("purchaseDeadlines", next);
-                    }}>
-                      <option value="">No deadline</option>
-                      {PURCHASE_DEADLINE_STAGES.map((stage) => <option key={stage} value={stage}>{stage.replaceAll("_", " ")}</option>)}
-                    </select>
-                    <input className="form-input" aria-label={`${label} deadline week`} type="number" min={1} max={30} disabled={!current?.stage} value={current?.week ?? 1} onChange={(event) => setField("purchaseDeadlines", { ...purchaseDeadlines, [key]: { stage: current?.stage ?? "regular_season", week: Math.max(1, Math.min(30, Number(event.target.value))) } })} />
-                  </div>;
-                })}
+                <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
+                  <input
+                    type="checkbox"
+                    checked={draft.purchaseDeadlinesEnabled !== false}
+                    onChange={(event) => setField("purchaseDeadlinesEnabled", event.target.checked)}
+                  />
+                  Enforce purchase deadlines
+                </label>
+                <p className="form-hint">
+                  {draft.purchaseDeadlinesEnabled === false
+                    ? "Off — every product stays available regardless of stage/week below. The schedule is kept, not cleared, so turning this back on restores it."
+                    : "Each product becomes unavailable after the selected stage and week. Leave a product unset to keep it available for the full season."}
+                </p>
+                <div style={draft.purchaseDeadlinesEnabled === false ? { opacity: 0.5, pointerEvents: "none" } : undefined}>
+                  {PURCHASE_DEADLINE_TYPES.filter(([key]) => game !== "cfb_27" || !["age_reset", "contract"].includes(key)).map(([key, label]) => {
+                    const current = purchaseDeadlines[key];
+                    return <div className="attribute-cap-row" key={key}>
+                      <span>{label}</span>
+                      <select className="form-select" value={current?.stage ?? ""} onChange={(event) => {
+                        const next = { ...purchaseDeadlines };
+                        if (!event.target.value) delete next[key];
+                        else next[key] = { stage: event.target.value, week: current?.week ?? 1 };
+                        setField("purchaseDeadlines", next);
+                      }}>
+                        <option value="">No deadline</option>
+                        {PURCHASE_DEADLINE_STAGES.map((stage) => <option key={stage} value={stage}>{stage.replaceAll("_", " ")}</option>)}
+                      </select>
+                      <input className="form-input" aria-label={`${label} deadline week`} type="number" min={1} max={30} disabled={!current?.stage} value={current?.week ?? 1} onChange={(event) => setField("purchaseDeadlines", { ...purchaseDeadlines, [key]: { stage: current?.stage ?? "regular_season", week: Math.max(1, Math.min(30, Number(event.target.value))) } })} />
+                    </div>;
+                  })}
+                </div>
               </div>
             ) : null}
           </Card>

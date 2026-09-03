@@ -203,6 +203,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     enabled: Boolean(config.data?.coin_economy_enabled && config.data?.custom_players_enabled),
     seasonCap: Number(config.data?.custom_players_season_cap ?? 0), seasonUsed: builds.count ?? 0,
     purchaseDeadlines: config.data?.purchase_deadlines ?? {},
+    purchaseDeadlinesEnabled: config.data?.purchase_deadlines_enabled ?? true,
     packages: await configuredPackages(game, year), positions: REC_CUSTOM_PLAYER_POSITIONS,
     devTraits: REC_DEV_TRAITS[game],
     // CFB: no dev-trait picker in the wizard — the inserted player just inherits whatever
@@ -332,6 +333,7 @@ export async function submitCustomPlayer(input: {
   assertPurchaseDeadlineOpen({
     purchaseType: "custom_player",
     deadlines: config.purchaseDeadlines,
+    enabled: config.purchaseDeadlinesEnabled ?? true,
     currentStage: String(context.rec_leagues.season_stage ?? "regular_season"),
     currentWeek: Number(context.rec_leagues.current_week ?? 1),
   });

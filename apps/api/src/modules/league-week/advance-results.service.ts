@@ -46,8 +46,11 @@ const PURCHASE_DEADLINE_LABELS: Record<string, string> = {
 };
 
 async function publishPurchaseDeadlineReminder(input: { guildId: string; leagueId: string; nextStage: string; nextWeek: number }) {
-  const config = await supabase.from("rec_league_configuration").select("purchase_deadlines").eq("league_id", input.leagueId).maybeSingle();
+  const config = await supabase.from("rec_league_configuration").select("purchase_deadlines,purchase_deadlines_enabled").eq("league_id", input.leagueId).maybeSingle();
   if (config.error) throw config.error;
+  // Deadlines can be turned off without clearing them (League Settings) -- a reminder that a
+  // no-longer-enforced deadline is approaching would be actively wrong, not just unnecessary.
+  if (config.data?.purchase_deadlines_enabled === false) return;
   const deadlines = config.data?.purchase_deadlines && typeof config.data.purchase_deadlines === "object"
     ? config.data.purchase_deadlines as Record<string, { stage?: string; week?: number }>
     : {};
