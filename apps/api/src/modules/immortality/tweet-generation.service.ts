@@ -295,9 +295,15 @@ async function generateAndQueueImmortalityTweets(leagueId: string, seasonNumber:
 }
 
 /** Called on a plain interval sweep (apps/api/src/index.ts) -- posts at most one pending tweet
- * per league every 4 hours, oldest-queued first. Cheap when idle: a single filtered query. */
+ * per league every 20 minutes, oldest-queued first. Cheap when idle: a single filtered query.
+ * Was 4 hours (tuned for ~10 tweets/week off a single Advance); with contract signings and
+ * Media Day tweets now feeding the same queue, a burst of activity (a launch night, several
+ * signings in an hour) could leave a dozen-plus tweets stuck behind that gate for days once the
+ * cooldown bug elsewhere in this file got fixed and actually started enforcing it. 20 minutes
+ * still reads as a real feed (not an instant dump) while draining a backlog in a few hours
+ * instead of a couple of days. */
 export async function sweepImmortalityTweetQueue(): Promise<void> {
-  const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+  const POST_COOLDOWN_MS = 20 * 60 * 1000;
 
   const leaguesWithPending = await supabase.from("rec_immortality_tweet_queue")
     .select("league_id").eq("status", "pending");
@@ -314,7 +320,7 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
       // can't parse an ISO date) to NaN, so every comparison was false and this cooldown never
       // actually gated anything. Normalize both sides to epoch ms before comparing.
       const lastPostedAtMs = lastPosted.data?.posted_at ? new Date(lastPosted.data.posted_at as any).getTime() : 0;
-      if (lastPostedAtMs > Date.now() - FOUR_HOURS_MS) continue;
+      if (lastPostedAtMs > Date.now() - POST_COOLDOWN_MS) continue;
 
       const next = await supabase.from("rec_immortality_tweet_queue")
         .select("id,author_handle,author_display_name,body")

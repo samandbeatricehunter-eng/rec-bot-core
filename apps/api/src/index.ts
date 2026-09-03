@@ -152,7 +152,7 @@ function runEaAutoImportSweep() {
 runEaAutoImportSweep();
 setInterval(runEaAutoImportSweep, 4 * 60 * 60_000).unref();
 
-// Rise to Immortality tweet queue: drains one pending tweet per league every 4 hours (the
+// Rise to Immortality tweet queue: drains one pending tweet per league every 20 minutes (the
 // per-league cutoff lives inside the sweep itself via each league's own last posted_at, not
 // this interval), so 15-minute polling gives comfortable precision without hammering the DB.
 setInterval(() => {
