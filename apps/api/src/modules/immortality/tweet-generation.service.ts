@@ -243,9 +243,108 @@ export async function queueImmortalityTweetsAfterImport(leagueId: string): Promi
   });
 }
 
-/** One tweet per signed contract, with the full package (seasons, coins, XP). Idempotent on
- * player name so sign + hub-load repair cannot queue a second post, and leftover pair-tweets
- * from the old two-post format collapse into a single pending row. */
+export function pickCatalogTweetAuthor(seed: number): { authorKind: "host" | "generic"; handle: string; displayName: string } {
+  const catalog = [
+    ...Object.values(TWEET_HOSTS).map((host) => ({ authorKind: "host" as const, handle: host.handle, displayName: host.displayName })),
+    ...GENERIC_HANDLES.map((account) => ({ authorKind: "generic" as const, handle: account.handle, displayName: account.displayName })),
+  ];
+  return catalog[Math.abs(seed) % catalog.length]!;
+}
+
+async function userOwnedHandlesForLeague(leagueId: string): Promise<Set<string>> {
+  const immortality = await loadImmortalityLeague(leagueId);
+  if (!immortality) return new Set();
+  const [prospects, owners] = await Promise.all([
+    supabase.from("rec_immortality_prospects").select("first_name,last_name").eq("immortality_league_id", immortality.id),
+    supabase.from("rec_immortality_owners").select("first_name,last_name").eq("immortality_league_id", immortality.id),
+  ]);
+  const handles = new Set<string>();
+  for (const row of [...(prospects.data ?? []), ...(owners.data ?? [])] as Array<{ first_name: string | null; last_name: string | null }>) {
+    handles.add(twitterHandleForProspect(row).handle.toLowerCase());
+  }
+  return handles;
+}
+
+const USER_AUTHORED_TWEET_SOURCES = new Set(["player_twitter"]);
+
+function seedFromId(id: string): number {
+  return [...id].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+}
+
+function normalizeTweetBody(body: string | null | undefined): string {
+  return String(body ?? "").replace(/\s+/g, " ").trim();
+}
+
+function looksLikeOfficialContractBody(body: string): boolean {
+  return /^It's official — .+ signed .+ to a Seasons .+ The package: .+ REC Coins and .+ Player XP\./.test(normalizeTweetBody(body));
+}
+
+/** Pending auto tweets must never post as a member's owner or created-player handle. Also
+ * collapse leftover contract-blurb copies that landed on interview/ambient rows. */
+async function sanitizePendingAutoTweets(leagueId: string): Promise<void> {
+  const pending = await supabase.from("rec_immortality_tweet_queue")
+    .select("id,author_handle,author_kind,body,source,created_at")
+    .eq("league_id", leagueId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: true });
+  const rows = (pending.data ?? []) as Array<{
+    id: string; author_handle: string; author_kind: string | null; body: string; source: string | null;
+  }>;
+  if (!rows.length) return;
+
+  const userHandles = await userOwnedHandlesForLeague(leagueId);
+  const stolenIds = rows
+    .filter((row) => looksLikeOfficialContractBody(row.body) && row.source !== "contract_signing")
+    .map((row) => String(row.id));
+  if (stolenIds.length) {
+    await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" }).in("id", stolenIds);
+  }
+
+  const posted = await supabase.from("rec_immortality_tweet_queue")
+    .select("id,body")
+    .eq("league_id", leagueId)
+    .eq("status", "posted");
+  const postedBodies = new Set(((posted.data ?? []) as Array<{ body: string }>).map((row) => normalizeTweetBody(row.body)));
+  const duplicateIds = rows
+    .filter((row) => postedBodies.has(normalizeTweetBody(row.body)))
+    .map((row) => String(row.id));
+  if (duplicateIds.length) {
+    await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" }).in("id", duplicateIds);
+  }
+
+  const seenPendingBodies = new Set<string>();
+  const pendingDupes: string[] = [];
+  for (const row of rows) {
+    if (stolenIds.includes(String(row.id)) || duplicateIds.includes(String(row.id))) continue;
+    const body = normalizeTweetBody(row.body);
+    if (!body) continue;
+    if (seenPendingBodies.has(body)) {
+      pendingDupes.push(String(row.id));
+      continue;
+    }
+    seenPendingBodies.add(body);
+  }
+  if (pendingDupes.length) {
+    await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" }).in("id", pendingDupes);
+  }
+
+  const skip = new Set([...stolenIds, ...duplicateIds, ...pendingDupes]);
+  for (const row of rows) {
+    if (skip.has(String(row.id))) continue;
+    if (USER_AUTHORED_TWEET_SOURCES.has(String(row.source ?? ""))) continue;
+    if (!userHandles.has(String(row.author_handle).toLowerCase())) continue;
+    const author = pickCatalogTweetAuthor(seedFromId(String(row.id)));
+    await supabase.from("rec_immortality_tweet_queue").update({
+      author_kind: author.authorKind,
+      author_handle: author.handle,
+      author_display_name: author.displayName,
+    }).eq("id", String(row.id)).eq("status", "pending");
+  }
+}
+
+/** One tweet per signed contract, with the full package (seasons, coins, XP). Always a catalog
+ * host/fan account -- never a member's owner or created-player handle. Idempotent on the
+ * official body so sign + hub-load repair cannot queue a second post. */
 export async function queueContractSigningTweets(input: {
   leagueId: string;
   seasonNumber: number;
@@ -264,32 +363,37 @@ export async function queueContractSigningTweets(input: {
   const body = `It's official — ${input.teamName} signed ${input.playerName} (${input.position}) to a Seasons ${input.startSeason}–${input.endSeason} ${label}. The package: ${input.coins.toLocaleString("en-US")} REC Coins and ${input.playerXp} Player XP.`;
 
   const existing = await supabase.from("rec_immortality_tweet_queue")
-    .select("id,status,created_at,body")
+    .select("id,status,created_at,body,source,author_kind")
     .eq("league_id", input.leagueId)
-    .eq("source", "contract_signing")
     .in("status", ["pending", "posted"]);
-  const mentionsPlayer = (existing.data ?? []).filter((row: any) => String(row.body ?? "").includes(input.playerName));
-  if (mentionsPlayer.some((row: any) => row.status === "posted")) {
-    const extras = mentionsPlayer.filter((row: any) => row.status === "pending").map((row: any) => String(row.id));
+  const official = (existing.data ?? []).filter((row: any) => looksLikeOfficialContractBody(String(row.body ?? "")) && String(row.body ?? "").includes(`signed ${input.playerName}`));
+  if (official.some((row: any) => row.status === "posted")) {
+    const extras = official.filter((row: any) => row.status === "pending").map((row: any) => String(row.id));
     if (extras.length) await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" }).in("id", extras);
     return;
   }
-  const pending = mentionsPlayer.filter((row: any) => row.status === "pending").sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)));
+  const pending = official
+    .filter((row: any) => row.status === "pending" && (row.source === "contract_signing" || row.author_kind === "generic" || row.author_kind === "host"))
+    .sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)));
+  const stolen = official.filter((row: any) => row.status === "pending" && !pending.some((keep: any) => keep.id === row.id)).map((row: any) => String(row.id));
+  if (stolen.length) await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" }).in("id", stolen);
   if (pending.length) {
     const keep = pending[0]!;
-    await supabase.from("rec_immortality_tweet_queue").update({ body }).eq("id", String(keep.id));
+    const author = pickCatalogTweetAuthor([...input.contractId].reduce((sum, char) => sum + char.charCodeAt(0), 0));
+    await supabase.from("rec_immortality_tweet_queue").update({
+      body, source: "contract_signing", author_kind: author.authorKind, author_handle: author.handle, author_display_name: author.displayName,
+    }).eq("id", String(keep.id));
     const extras = pending.slice(1).map((row: any) => String(row.id));
     if (extras.length) await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" }).in("id", extras);
     return;
   }
 
-  const seed = [...input.contractId].reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const author = GENERIC_HANDLES[seed % GENERIC_HANDLES.length]!;
+  const author = pickCatalogTweetAuthor([...input.contractId].reduce((sum, char) => sum + char.charCodeAt(0), 0));
   await supabase.from("rec_immortality_tweet_queue").insert({
     league_id: input.leagueId,
     season_number: input.seasonNumber,
     week_number: input.weekNumber,
-    author_kind: "generic",
+    author_kind: author.authorKind,
     author_handle: author.handle,
     author_display_name: author.displayName,
     body,
@@ -583,6 +687,8 @@ async function queueOnePlayerChatterTweet(
   const { handle, displayName } = persona
     ? { handle: persona.handle, displayName: persona.displayName }
     : handleForPlayerName(author.player.fullName);
+  const userHandles = await userOwnedHandlesForLeague(leagueId);
+  if (userHandles.has(handle.toLowerCase())) return;
   const tonePraiseWeight = persona?.tonePraiseWeight ?? null;
   const authorTeamName = teamLabel(author.player.team);
 
@@ -663,6 +769,7 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
 
   for (const leagueId of leagueIds) {
     try {
+      await sanitizePendingAutoTweets(leagueId);
       const lastPosted = await supabase.from("rec_immortality_tweet_queue")
         .select("posted_at").eq("league_id", leagueId).eq("status", "posted")
         .order("posted_at", { ascending: false }).limit(1).maybeSingle();
@@ -674,7 +781,7 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
       if (lastPostedAtMs > Date.now() - POST_COOLDOWN_MS) continue;
 
       const next = await supabase.from("rec_immortality_tweet_queue")
-        .select("id,author_handle,author_display_name,body")
+        .select("id,author_handle,author_display_name,body,source")
         .eq("league_id", leagueId).eq("status", "pending")
         .order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (!next.data) continue;
@@ -685,18 +792,44 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
 
       const claimed = await supabase.from("rec_immortality_tweet_queue")
         .update({ status: "posted", posted_at: new Date().toISOString() })
-        .eq("id", String(next.data.id)).eq("status", "pending").select("id").maybeSingle();
+        .eq("id", String(next.data.id)).eq("status", "pending")
+        .select("id,author_handle,author_display_name,body,source").maybeSingle();
       if (!claimed.data) continue; // another tick already claimed this row
       try {
-        const handle = String(next.data.author_handle);
+        const body = normalizeTweetBody(claimed.data.body);
+        if (body && !USER_AUTHORED_TWEET_SOURCES.has(String(claimed.data.source ?? ""))) {
+          const postedSame = await supabase.from("rec_immortality_tweet_queue")
+            .select("id,body").eq("league_id", leagueId).eq("status", "posted").neq("id", String(claimed.data.id));
+          const duplicate = ((postedSame.data ?? []) as Array<{ body: string }>)
+            .some((row) => normalizeTweetBody(row.body) === body);
+          if (duplicate) {
+            await supabase.from("rec_immortality_tweet_queue")
+              .update({ status: "cleared", posted_at: null }).eq("id", String(claimed.data.id));
+            continue;
+          }
+        }
+        let handle = String(claimed.data.author_handle);
+        let displayName = String(claimed.data.author_display_name);
+        const source = String(claimed.data.source ?? "");
+        if (!USER_AUTHORED_TWEET_SOURCES.has(source)) {
+          const userHandles = await userOwnedHandlesForLeague(leagueId);
+          if (userHandles.has(handle.toLowerCase())) {
+            const author = pickCatalogTweetAuthor(seedFromId(String(claimed.data.id)));
+            handle = author.handle;
+            displayName = author.displayName;
+            await supabase.from("rec_immortality_tweet_queue").update({
+              author_kind: author.authorKind, author_handle: handle, author_display_name: displayName,
+            }).eq("id", String(claimed.data.id));
+          }
+        }
         const iconUrl = staticAvatarUrlForHandle(handle)
           ?? await playerPersonaAvatarForHandle(leagueId, handle)
-          ?? await prospectAvatarUrlForHandle(leagueId, handle)
+          ?? (USER_AUTHORED_TWEET_SOURCES.has(source) ? await prospectAvatarUrlForHandle(leagueId, handle) : null)
           ?? undefined;
         await postDiscordChannelMessage(channelId, {
           embeds: [{
-            author: { name: `${next.data.author_display_name} (${next.data.author_handle})`, icon_url: iconUrl },
-            description: next.data.body,
+            author: { name: `${displayName} (${handle})`, icon_url: iconUrl },
+            description: claimed.data.body,
             color: 0x1d9bf0,
           }],
         }).then(async (posted) => {
@@ -794,6 +927,7 @@ type FeedAccount = {
   displayName: string;
   traits?: string[];
   tonePraiseWeight?: number;
+  mentionOnly?: boolean;
 };
 
 type ConversationRow = {
@@ -818,7 +952,10 @@ function snippetOf(body: string): string {
 }
 
 async function loadFeedAccounts(leagueId: string): Promise<FeedAccount[]> {
-  const personas = await listPlayerPersonasForLeague(leagueId);
+  const [personas, userHandles] = await Promise.all([
+    listPlayerPersonasForLeague(leagueId),
+    userOwnedHandlesForLeague(leagueId),
+  ]);
   return [
     ...personas.map((persona) => ({
       authorKind: "player" as const,
@@ -833,12 +970,12 @@ async function loadFeedAccounts(leagueId: string): Promise<FeedAccount[]> {
     ...GENERIC_HANDLES.map((account) => ({
       authorKind: "generic" as const, handle: account.handle, displayName: account.displayName,
     })),
-  ];
+  ].filter((account) => !userHandles.has(account.handle.toLowerCase()));
 }
 
 function pickFeedAccount(accounts: FeedAccount[], exclude: Set<string>, preferPlayer: boolean): FeedAccount | null {
   const blocked = new Set([...exclude].map((handle) => handle.toLowerCase()));
-  const pool = accounts.filter((account) => !blocked.has(account.handle.toLowerCase()));
+  const pool = accounts.filter((account) => !account.mentionOnly && !blocked.has(account.handle.toLowerCase()));
   if (!pool.length) return null;
   const players = pool.filter((account) => account.authorKind === "player");
   const source = preferPlayer && players.length && Math.random() < 0.7 ? players : pool;
@@ -931,8 +1068,13 @@ async function continueConversation(
   if (pending.data) return;
 
   const participants = new Set(convo.participant_handles);
-  let author = accountByHandle(accounts, convo.last_target_handle);
-  let target = accountByHandle(accounts, convo.last_author_handle);
+  let author = accountByHandle(accounts, convo.last_target_handle)
+    ?? pickFeedAccount(accounts, new Set([convo.last_author_handle]), false);
+  let target = accountByHandle(accounts, convo.last_author_handle)
+    ?? { authorKind: "generic" as const, handle: convo.last_author_handle, displayName: convo.last_author_handle, mentionOnly: true };
+  if (author?.mentionOnly) {
+    author = pickFeedAccount(accounts, new Set([convo.last_author_handle, convo.last_target_handle]), false);
+  }
   if (participants.size < 3 && Math.random() < 0.18) {
     const interloper = pickFeedAccount(accounts, new Set([convo.last_author_handle, convo.last_target_handle]), true);
     if (interloper) {
@@ -940,7 +1082,7 @@ async function continueConversation(
       target = accountByHandle(accounts, convo.last_author_handle) ?? target;
     }
   }
-  if (!author || !target || author.handle.toLowerCase() === target.handle.toLowerCase()) return;
+  if (!author || author.mentionOnly || !target || author.handle.toLowerCase() === target.handle.toLowerCase()) return;
 
   const kind: ConversationKind = convo.turn_count >= convo.max_turns - 1
     ? "clapback"
@@ -994,6 +1136,7 @@ async function startConversation(
     author = pickFeedAccount(accounts, new Set([original.author_handle]), true);
     target = accountByHandle(accounts, original.author_handle) ?? {
       authorKind: "generic", handle: original.author_handle, displayName: original.author_display_name,
+      mentionOnly: true,
     };
     kind = "reply";
     snippet = snippetOf(original.body);
@@ -1002,7 +1145,7 @@ async function startConversation(
     target = author ? pickFeedAccount(accounts, new Set([author.handle]), true) : null;
     kind = "mention";
   }
-  if (!author || !target) return;
+  if (!author || author.mentionOnly || !target) return;
   const pairKey = `${author.handle.toLowerCase()}|${target.handle.toLowerCase()}`;
   if (recentPairs.has(pairKey)) return;
 

@@ -2936,9 +2936,11 @@ async function queueStageInterviewTweet(input: {
   const quoteLines = highlighted.map((item) => `On "${item.question}" — "${item.answer}"`).join(" ");
   const intro = STAGE_INTERVIEW_TWEET_INTROS[Math.floor(Math.random() * STAGE_INTERVIEW_TWEET_INTROS.length)]!(displayName);
   const body = `${intro} ${quoteLines}`.replace(/\s+/g, " ").trim();
+  const { pickCatalogTweetAuthor } = await import("./tweet-generation.service.js");
+  const author = pickCatalogTweetAuthor([...String(input.prospect.id ?? handle)].reduce((sum, char) => sum + char.charCodeAt(0), 0));
   await supabase.from("rec_immortality_tweet_queue").insert({
     league_id: input.leagueId, season_number: input.season, week_number: input.weekNumber,
-    author_kind: "player", author_handle: handle, author_display_name: displayName,
+    author_kind: author.authorKind, author_handle: author.handle, author_display_name: author.displayName,
     body, status: "pending", source: "stage_interview",
   });
 }
@@ -2963,8 +2965,8 @@ const MEDIA_DAY_TWEET_CLOSERS: Array<(team: string) => string> = [
 
 /** Queues ONE combined tweet for a prospect once all 3 of a week's Media Day slots are answered
  * -- per direction, this replaced the earlier per-answer headline story (which fired up to 3
- * separate @everyone posts per player per week) with a single bulk post in the player's own
- * voice, formatted like the rest of the tweet feed. */
+ * separate @everyone posts per player per week) with a single bulk post quoting the player,
+ * authored by a catalog host/fan account. Member owner/player handles are never auto-authors. */
 async function queueMediaDayPlayerTweet(input: {
   leagueId: string; season: number; week: number;
   prospect: Record<string, any>; side: "offense" | "defense";
@@ -2995,10 +2997,12 @@ async function queueMediaDayPlayerTweet(input: {
     : "";
 
   const body = `${intro} ${quoteLines} ${closer}${opponentLine}`.replace(/\s+/g, " ").trim();
+  const { pickCatalogTweetAuthor } = await import("./tweet-generation.service.js");
+  const author = pickCatalogTweetAuthor([...String(input.prospect.id ?? handle), String(input.week)].reduce((sum, char) => sum + char.charCodeAt(0), 0));
 
   await supabase.from("rec_immortality_tweet_queue").insert({
     league_id: input.leagueId, season_number: input.season, week_number: input.week,
-    author_kind: "player", author_handle: handle, author_display_name: displayName,
+    author_kind: author.authorKind, author_handle: author.handle, author_display_name: author.displayName,
     body, status: "pending", source: "media_day",
   });
 
