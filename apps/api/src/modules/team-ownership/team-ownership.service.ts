@@ -842,9 +842,10 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
       skipped.push({ discordId, reason: "Head commissioner — Discord does not let the bot change this nickname." });
       return;
     }
-    const team = row.team as { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null;
+    const team = row.team as { name?: string | null; display_city?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null;
     if (!team) { skipped.push({ discordId, reason: "No team on this assignment." }); return; }
-    const nickname = buildManagedTeamNickname(shortTeamNickname(team, isCfb), row.notes);
+    const baseNick = immortality ? (formatTeamDisplayName(team) ?? shortTeamNickname(team, isCfb)) : shortTeamNickname(team, isCfb);
+    const nickname = buildManagedTeamNickname(baseNick, row.notes);
     try {
       await setGuildMemberNickname(guildId, discordId, nickname, "REC nickname resync (retroactive)");
       synced.push({ discordId, nickname });

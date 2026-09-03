@@ -76,8 +76,12 @@ export async function computePlayerLine(input: { leagueId: string; playerId: str
     supabase.from("rec_player_weekly_stats").select("stats").eq("league_id", input.leagueId).eq("season_number", input.seasonNumber).eq("week_number", input.weekNumber).eq("player_id", input.playerId),
     supabase.from("rec_player_weekly_stats").select("stats").eq("league_id", input.leagueId).eq("season_number", input.seasonNumber).lte("week_number", input.weekNumber).eq("player_id", input.playerId),
     supabase.from("rec_player_weekly_stats").select("player_id,stats").eq("league_id", input.leagueId).eq("season_number", input.seasonNumber).lte("week_number", input.weekNumber).eq("position", player.data.position),
+    // rec_teams has no secondary_color column (that only exists on the separate
+    // rec_league_team_identities table) -- selecting it made this query fail with Postgres
+    // error 42703 (undefined_column) on every call, which silently produced a null team.data
+    // and rendered every single player as "Free Agent" regardless of their actual team_id.
     player.data.team_id
-      ? supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated,abbreviation,display_abbr,logo_url,primary_color,secondary_color").eq("id", player.data.team_id).maybeSingle()
+      ? supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated,abbreviation,display_abbr,logo_url,primary_color").eq("id", player.data.team_id).maybeSingle()
       : Promise.resolve({ data: null }),
     // Season-scope totals (with passer rating/completion % etc. already derived) for the fuller
     // "current season" stat line -- separate from weekRows/seasonRows above, which only feed
@@ -101,12 +105,6 @@ export async function computePlayerLine(input: { leagueId: string; playerId: str
   const positionRank = ranked.length ? ranked.findIndex((r) => r.playerId === input.playerId) + 1 || null : null;
 
   const teamData = team.data as Record<string, unknown> | null;
-  if (!teamData && player.data.team_id) {
-    // Diagnostic for a reported bug: the DB confirms team_id resolves fine via direct SQL, but
-    // this shows "Free Agent" live. Log whenever that exact contradiction happens so the next
-    // occurrence is caught with the actual runtime values instead of more static guessing.
-    console.error(`[DIAG] computePlayerLine: player ${input.playerId} has team_id ${player.data.team_id} but the rec_teams lookup came back empty`, { teamError: (team as any).error ?? null });
-  }
   const seasonPlayerRow = (seasonStats.players as Array<Record<string, unknown>>).find((row) => String(row.id) === String(input.playerId));
   const seasonTotals = (seasonPlayerRow?.stats as Record<string, unknown>) ?? {};
   return {
