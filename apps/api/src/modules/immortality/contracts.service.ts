@@ -280,3 +280,44 @@ export async function signImmortalityContract(input: { guildId: string; discordI
   })).catch((error) => console.error("[WARN] Could not queue RTI contract-signing tweets (non-fatal):", error));
   return { ok: true, alreadySigned: false, playerXp, coins };
 }
+
+/** Repairs announcements for contracts signed while the Discord publishing path was unavailable.
+ * The exact generated headline is the idempotency key, so repeated hub loads cannot duplicate it. */
+export async function ensureSignedContractAnnouncement(input: { guildId: string; contractId: string }): Promise<void> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const contract = await supabase.from("rec_immortality_contracts").select("*").eq("id", input.contractId).maybeSingle();
+  if (!contract.data || String(contract.data.offer_status) !== "signed") return;
+  const prospect = await supabase.from("rec_immortality_prospects")
+    .select("id,position,first_name,last_name,player_id").eq("id", contract.data.prospect_id).maybeSingle();
+  if (!prospect.data) return;
+  const playerName = `${prospect.data.first_name ?? ""} ${prospect.data.last_name ?? ""}`.trim() || "A franchise player";
+  const player = prospect.data.player_id
+    ? await supabase.from("rec_players").select("team_id").eq("id", prospect.data.player_id).maybeSingle()
+    : { data: null };
+  const team = player.data?.team_id
+    ? await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", player.data.team_id).maybeSingle()
+    : { data: null };
+  const teamName = formatTeamDisplayName(team.data) ?? "the franchise";
+  const contractLabel = Number(contract.data.contract_number) === 1 ? "rookie contract" : Number(contract.data.contract_number) === 2 ? "second contract" : "final contract";
+  const headline = `${teamName} Sign ${playerName} to ${contractLabel}`;
+  const existing = await supabase.from("rec_game_stories").select("id")
+    .eq("league_id", context.leagueId).eq("primary_angle", "rti_contract_signing").eq("headline", headline).limit(1);
+  if ((existing.data ?? []).length) return;
+
+  const playerXp = Number(contract.data.player_xp_payout ?? 0);
+  const coins = Number(contract.data.coins_payout ?? contract.data.coins_per_season ?? 0);
+  await publishTransitionStory({
+    guildId: input.guildId,
+    primaryAngle: "rti_contract_signing",
+    headline,
+    body: `${playerName} (${prospect.data.position}) has signed a Seasons ${contract.data.start_season}–${contract.data.end_season} contract with the ${teamName}. The one-time signing package awards ${coins.toLocaleString("en-US")} REC Coins and ${playerXp} Player XP.`,
+  });
+  await import("./tweet-generation.service.js").then(({ queueContractSigningTweets }) => queueContractSigningTweets({
+    leagueId: context.leagueId,
+    seasonNumber: Number(context.rec_leagues.season_number ?? 1),
+    weekNumber: Number(context.rec_leagues.current_week ?? 1),
+    contractId: String(contract.data.id), playerName, position: String(prospect.data.position), teamName,
+    contractNumber: Number(contract.data.contract_number), startSeason: Number(contract.data.start_season),
+    endSeason: Number(contract.data.end_season), playerXp, coins,
+  }));
+}

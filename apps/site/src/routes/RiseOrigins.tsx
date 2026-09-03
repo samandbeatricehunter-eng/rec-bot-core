@@ -139,8 +139,13 @@ export function RiseOriginsPage() {
     setTransitionPhase("out");
     window.setTimeout(() => {
       void (async () => {
-        await hubCtx.refreshLeagues();
-        navigate(`/l/${leagueId}/buzz`, { replace: true });
+        try {
+          await hubCtx.refreshLeagues();
+        } finally {
+          // A failed/stale league-summary refresh must never strand the user behind the
+          // full-screen fade. The destination can load its own fresh state.
+          navigate(`/l/${leagueId}/buzz`, { replace: true });
+        }
       })();
     }, 400);
   }, [allContractsSigned, hubCtx, leagueId, navigate]);

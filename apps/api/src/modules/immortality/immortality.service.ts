@@ -1991,6 +1991,26 @@ async function finalizePreassignedImmortalityOwner(input: {
     if (claim.error) throw new ApiError(500, "Could not finalize the commissioner's franchise assignment.", claim.error);
   }
 
+  // Preassigned commissioners never pass through chooseImmortalityTeam, which normally
+  // advances the league out of Origins. Without this mirror step the completed-contract
+  // redirect lands on the hub, whose route guard immediately sends the user back to Origins.
+  const currentLeague = await supabase.from("rec_immortality_leagues").select("chapter_state")
+    .eq("id", input.immortalityLeagueId).maybeSingle();
+  const fromState = currentLeague.data?.chapter_state as ImmortalityState | undefined;
+  const unlockTo = fromState ? hubUnlockStateFrom(fromState) : null;
+  if (fromState && unlockTo) {
+    const advanced = await supabase.from("rec_immortality_leagues").update({
+      chapter_state: unlockTo, updated_at: new Date().toISOString(),
+    }).eq("id", input.immortalityLeagueId).eq("chapter_state", fromState).select("id").maybeSingle();
+    if (advanced.error) throw new ApiError(500, "Could not open the RTI league hub.", advanced.error);
+    if (advanced.data) {
+      await supabase.from("rec_immortality_state_history").insert({
+        immortality_league_id: input.immortalityLeagueId, from_state: fromState, to_state: unlockTo,
+        actor_user_id: input.userId, note: "Preassigned commissioner franchise finalized",
+      });
+    }
+  }
+
   for (const prospect of prospects) {
     if (!prospect.player_id) await materializeProspectToPlayer(prospect, teamId, input.recLeagueId);
     if (!prospect.card_message_id) {
@@ -2002,13 +2022,20 @@ async function finalizePreassignedImmortalityOwner(input: {
       });
     }
   }
-  const existingContracts = await supabase.from("rec_immortality_contracts").select("prospect_id,contract_number")
+  const existingContracts = await supabase.from("rec_immortality_contracts").select("id,prospect_id,contract_number,offer_status")
     .in("prospect_id", prospects.map((prospect) => String(prospect.id)))
     .eq("contract_number", 1);
   if ((existingContracts.data ?? []).length < 2) {
     await import("./contracts.service.js").then(({ offerRookieContracts }) => offerRookieContracts(
       prospects.map((prospect) => String(prospect.id)),
     ));
+  }
+  for (const contract of existingContracts.data ?? []) {
+    if (contract.offer_status === "signed") {
+      await import("./contracts.service.js").then(({ ensureSignedContractAnnouncement }) => ensureSignedContractAnnouncement({
+        guildId: input.guildId, contractId: String(contract.id),
+      })).catch((error) => console.error(`[WARN] Could not repair RTI contract headline ${contract.id} (non-fatal):`, error));
+    }
   }
   await import("./franchise-headline.js").then(({ postFranchiseSelectionHeadline }) => postFranchiseSelectionHeadline({
     guildId: input.guildId,
