@@ -71,6 +71,7 @@ export const FORMULA_VERSIONS = {
   playstyleBranching: "immortality-playstyle-branching-v1",
   matchupInterview: "immortality-matchup-interview-v1",
   abilityMastery: "immortality-ability-mastery-v1",
+  stageInterview: "immortality-stage-interview-v1",
 } as const;
 
 export type AttributeCode = string;

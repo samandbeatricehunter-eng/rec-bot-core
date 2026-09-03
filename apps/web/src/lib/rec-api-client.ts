@@ -1207,6 +1207,20 @@ export const recApi = {
   submitImmortalityWeeklyInterview: (input: { guildId: string; side: "offense" | "defense"; questionId: number; optionIndex: number }) =>
     recApiFetch<{ question: unknown; answer: Record<string, unknown>; slot: number; complete: boolean }>("/v1/immortality/interview/weekly/submit", { method: "POST", body: JSON.stringify(input) }),
 
+  // Stage interviews — preseason/training camp and every offseason stage, where Media Day's
+  // weekly matchup flow above doesn't apply (no opponent, no scheduled game).
+  getImmortalityStageInterview: (input: { guildId: string; side: "offense" | "defense" }) =>
+    recApiFetch<{
+      season: number;
+      seasonStage: string;
+      group: string;
+      complete: boolean;
+      question: { id: number; group: string; question: string; options: Array<{ text: string }> } | null;
+      answer: { question_id: number; option_index: number } | null;
+    }>("/v1/immortality/interview/stage", { method: "POST", body: JSON.stringify(input) }),
+  submitImmortalityStageInterview: (input: { guildId: string; side: "offense" | "defense"; questionId: number; optionIndex: number }) =>
+    recApiFetch<{ question: unknown; answer: Record<string, unknown>; complete: boolean }>("/v1/immortality/interview/stage/submit", { method: "POST", body: JSON.stringify(input) }),
+
   // Fantasy/offseason draft turn-order coordinator — all actions require a website session.
   getFantasyDraftState: (guildId: string) =>
     recApiFetch<FantasyDraftState>("/v1/fantasy-draft/state", { method: "POST", body: JSON.stringify({ guildId }) }),

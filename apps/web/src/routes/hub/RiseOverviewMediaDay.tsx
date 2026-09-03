@@ -2,11 +2,18 @@
 // Player XP page per direction -- it's a season-long narrative feature, not an XP-spend
 // control). Shows both of the member's prospects side by side; each answers its own weekly
 // slate of 3 questions independently.
+//
+// The weekly matchup flow below assumes a real scheduled game (opponent, week, bonus claims) --
+// that doesn't exist during preseason/training camp or any offseason stage (draft, free agency,
+// transfer portal, etc.). gameplaySeasonStages/stageHasScheduledGames decides which of the two
+// flows to render, same gate the API side uses (getWeeklyMatchupInterview vs getStageInterview).
 import { useCallback, useEffect, useState } from "react";
+import { stageHasScheduledGames, type LeagueGame } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 
 type Side = "offense" | "defense";
 type WeeklyInterview = Awaited<ReturnType<typeof recApi.getImmortalityWeeklyInterview>>;
+type StageInterview = Awaited<ReturnType<typeof recApi.getImmortalityStageInterview>>;
 
 function SideMediaDay({ guildId, side, label }: { guildId: string; side: Side; label: string }) {
   const [data, setData] = useState<WeeklyInterview | null>(null);
@@ -83,13 +90,82 @@ function SideMediaDay({ guildId, side, label }: { guildId: string; side: Side; l
   );
 }
 
-export function RiseOverviewMediaDayCard({ guildId }: { guildId: string }) {
+function StageSideMediaDay({ guildId, side, label }: { guildId: string; side: Side; label: string }) {
+  const [data, setData] = useState<StageInterview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const next = await recApi.getImmortalityStageInterview({ guildId, side });
+    setData(next);
+  }, [guildId, side]);
+
+  useEffect(() => {
+    load().catch(() => setData(null));
+  }, [load]);
+
+  if (!data || !data.question) return null;
+  const { question } = data;
+
+  return (
+    <div className="hub-media-day-side">
+      <h4>{label}</h4>
+      {data.complete && data.answer ? (
+        <div className="hub-media-day-answered">
+          <p className="hub-muted">{question.question}</p>
+          <p><strong>{question.options[data.answer.option_index]?.text ?? "Answered"}</strong></p>
+        </div>
+      ) : (
+        <div className="hub-media-day-question">
+          <p>{question.question}</p>
+          <div className="hub-media-day-options">
+            {question.options.map((option, index) => (
+              <button
+                key={index}
+                type="button"
+                className="hub-my-team-btn"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    await recApi.submitImmortalityStageInterview({ guildId, side, questionId: question.id, optionIndex: index });
+                    await load();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Could not save that answer.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {option.text}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {error ? <p className="hub-error">{error}</p> : null}
+    </div>
+  );
+}
+
+export function RiseOverviewMediaDayCard({ guildId, seasonStage, game }: { guildId: string; seasonStage: string; game: LeagueGame }) {
+  const inGameplayStage = stageHasScheduledGames(seasonStage, game);
   return (
     <section className="hub-gameday-card hub-media-day-card">
       <p className="hub-eyebrow">Media Day</p>
       <div className="hub-media-day-grid">
-        <SideMediaDay guildId={guildId} side="offense" label="Offense" />
-        <SideMediaDay guildId={guildId} side="defense" label="Defense" />
+        {inGameplayStage ? (
+          <>
+            <SideMediaDay guildId={guildId} side="offense" label="Offense" />
+            <SideMediaDay guildId={guildId} side="defense" label="Defense" />
+          </>
+        ) : (
+          <>
+            <StageSideMediaDay guildId={guildId} side="offense" label="Offense" />
+            <StageSideMediaDay guildId={guildId} side="defense" label="Defense" />
+          </>
+        )}
       </div>
     </section>
   );

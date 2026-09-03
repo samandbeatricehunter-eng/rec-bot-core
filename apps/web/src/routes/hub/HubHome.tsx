@@ -1816,7 +1816,9 @@ export function HubHome() {
               </div>
             </section>
 
-            {isRise && auth.status === "ready" ? <RiseOverviewMediaDayCard guildId={auth.guildId} /> : null}
+            {isRise && auth.status === "ready" ? (
+              <RiseOverviewMediaDayCard guildId={auth.guildId} seasonStage={hub.league.seasonStage} game={hub.league.game as LeagueGame} />
+            ) : null}
 
             <div className="hub-gameday-card hub-quick-actions-card hub-hero-quick-actions">
               <p className="hub-eyebrow">Quick actions</p>

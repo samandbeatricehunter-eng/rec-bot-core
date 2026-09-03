@@ -1057,7 +1057,8 @@
           "text": "This is why I play the game.",
           "dnaPoints": {
             "Legacy Drive": 2
-          }
+          },
+          "contentTrigger": "headline"
         },
         {
           "text": "Just another game we have to win together.",
@@ -1131,7 +1132,8 @@
           "text": "This is the kind of week legends are made in.",
           "dnaPoints": {
             "Legacy Drive": 2
-          }
+          },
+          "contentTrigger": "headline"
         }
       ]
     },
@@ -1163,7 +1165,8 @@
           "text": "This is the week I've been building toward my whole career.",
           "dnaPoints": {
             "Legacy Drive": 2
-          }
+          },
+          "contentTrigger": "headline"
         }
       ]
     },
@@ -1227,7 +1230,8 @@
           "text": "I love the stage. Cameras, lights, all of it.",
           "dnaPoints": {
             "Showmanship": 2
-          }
+          },
+          "contentTrigger": "headline"
         }
       ]
     },
@@ -1259,7 +1263,8 @@
           "text": "It'd be the start of a legacy people talk about for years.",
           "dnaPoints": {
             "Legacy Drive": 2
-          }
+          },
+          "contentTrigger": "headline"
         }
       ]
     },
@@ -1323,7 +1328,8 @@
           "text": "A legend — top of the record books.",
           "dnaPoints": {
             "Legacy Drive": 2
-          }
+          },
+          "contentTrigger": "headline"
         }
       ]
     },
@@ -1337,7 +1343,8 @@
           "text": "Records nobody's touched.",
           "dnaPoints": {
             "Legacy Drive": 2
-          }
+          },
+          "contentTrigger": "headline"
         },
         {
           "text": "A championship, whatever it takes.",
@@ -1387,7 +1394,8 @@
           "text": "I think about it, and I want it talked about loudly.",
           "dnaPoints": {
             "Showmanship": 2
-          }
+          },
+          "contentTrigger": "headline"
         }
       ]
     },
@@ -1419,7 +1427,8 @@
           "text": "I want my name in the same breath as the all-time greats.",
           "dnaPoints": {
             "Legacy Drive": 2
-          }
+          },
+          "contentTrigger": "headline"
         }
       ]
     },
@@ -1483,7 +1492,8 @@
           "text": "Yes, and I'm not shy about saying it out loud.",
           "dnaPoints": {
             "Legacy Drive": 2
-          }
+          },
+          "contentTrigger": "headline"
         }
       ]
     },
@@ -2398,7 +2408,8 @@
           "text": "This is just the beginning of what I'm building.",
           "dnaPoints": {
             "Legacy Drive": 2
-          }
+          },
+          "contentTrigger": "headline"
         },
         {
           "text": "Proud of this group, whatever happens.",
@@ -2512,7 +2523,8 @@
           "text": "The story isn't finished. Not close.",
           "dnaPoints": {
             "Legacy Drive": 2
-          }
+          },
+          "contentTrigger": "headline"
         }
       ]
     },
@@ -2576,7 +2588,8 @@
           "text": "Remember this season. It's only the start.",
           "dnaPoints": {
             "Legacy Drive": 2
-          }
+          },
+          "contentTrigger": "headline"
         }
       ]
     },
@@ -2590,7 +2603,8 @@
           "text": "He'll be wrong by season's end.",
           "dnaPoints": {
             "Competitive Fire": 2
-          }
+          },
+          "contentTrigger": "headline"
         },
         {
           "text": "My teammates know what I bring. That's enough.",
@@ -2690,7 +2704,8 @@
           "text": "He can watch how my team responds this week.",
           "dnaPoints": {
             "Competitive Fire": 2
-          }
+          },
+          "contentTrigger": "headline"
         },
         {
           "text": "My locker room knows who I am. That's all that matters.",

@@ -19,6 +19,7 @@ export * from "./abilities.js";
 export * from "./ability-mastery.js";
 export * from "./team-offers.js";
 export * from "./matchup-interview.js";
+export * from "./stage-interview.js";
 export * from "./nfl-records.js";
 export * from "./backstory.js";
 export * from "./throwing-motions.js";

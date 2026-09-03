@@ -93,7 +93,68 @@ export type TweetSlots = {
   secondStatLabel?: string;
   score?: string;
   margin?: number;
+  /** player_chatter only -- the person being praised/instigated (teammate or rival mode), as
+   * opposed to {player}, which is always the author reflecting on their own week. */
+  targetPlayer?: string;
+  targetTeam?: string;
 };
+
+// Player-vs-player chatter (tweet-generation.service.ts's queuePlayerChatterAfterImport) --
+// real/CPU roster players (never RTI custom prospects, whose tweets only ever come from the
+// user's own Media Day choices) occasionally reacting to their own week, hyping a teammate, or
+// going at a rival. Distinct axes (mode x tone) from the host/generic TWEET_TEMPLATES above, so
+// this gets its own small type/array rather than overloading TweetCategory. {player} is always
+// the author reflecting on their own stat line; {targetPlayer}/{targetTeam} are the subject of
+// teammate/rival modes only. Filled via the same fillTemplate() as everything else in this file.
+export type PlayerChatterMode = "self" | "teammate" | "rival";
+export type PlayerChatterTone = "praise" | "instigate";
+export type PlayerChatterTemplate = { mode: PlayerChatterMode; tone: PlayerChatterTone; text: string };
+
+export const PLAYER_CHATTER_TEMPLATES: PlayerChatterTemplate[] = [
+  // ================= self / praise =================
+  { mode: "self", tone: "praise", text: "Told y'all I still had it. {value} {statLabel} today. Not done." },
+  { mode: "self", tone: "praise", text: "That's what I do. {value} {statLabel} against {opponent}. Somebody put some respect on it." },
+  { mode: "self", tone: "praise", text: "Quietly went for {value} {statLabel} today. Loud enough now?" },
+  { mode: "self", tone: "praise", text: "I don't chase numbers but {value} {statLabel} today felt good regardless." },
+  { mode: "self", tone: "praise", text: "Been putting in work nobody sees. {value} {statLabel} today is why." },
+  { mode: "self", tone: "praise", text: "{value} {statLabel} against {opponent}. Same me, every week." },
+  { mode: "self", tone: "praise", text: "Not bragging, just stating facts: {value} {statLabel} today." },
+  { mode: "self", tone: "praise", text: "This is what I signed up for. {value} {statLabel} and we're just getting started." },
+
+  // ================= teammate / praise =================
+  { mode: "teammate", tone: "praise", text: "Shoutout to {targetPlayer}. Watched him go to work today. Proud to call him a teammate." },
+  { mode: "teammate", tone: "praise", text: "{targetPlayer} making it look easy out there. Love playing next to that." },
+  { mode: "teammate", tone: "praise", text: "Real ones know what {targetPlayer} did for us today. Respect." },
+  { mode: "teammate", tone: "praise", text: "{targetPlayer} put this team on his back today. That's a brother right there." },
+  { mode: "teammate", tone: "praise", text: "Can't say enough about {targetPlayer} right now. Special player, better teammate." },
+  { mode: "teammate", tone: "praise", text: "{targetPlayer} showing out for {team} today. Let him cook." },
+  { mode: "teammate", tone: "praise", text: "Been telling people about {targetPlayer} all year. Y'all seeing it now." },
+
+  // ================= teammate / instigate (friendly banter, not real beef) =================
+  { mode: "teammate", tone: "instigate", text: "{targetPlayer} thinks he's funny for that celebration today. I see you though 😂" },
+  { mode: "teammate", tone: "instigate", text: "{targetPlayer} owes me dinner after that block that got him going today. just saying." },
+  { mode: "teammate", tone: "instigate", text: "{targetPlayer} better share some of that stat sheet love, I set that up 💀" },
+  { mode: "teammate", tone: "instigate", text: "not {targetPlayer} acting like he did that all by himself. I see the tape too." },
+  { mode: "teammate", tone: "instigate", text: "{targetPlayer} talking his talk in the group chat again. we love him for it though." },
+
+  // ================= rival / instigate =================
+  { mode: "rival", tone: "instigate", text: "{targetPlayer} and {targetTeam} got a long film session coming after that. see y'all soon." },
+  { mode: "rival", tone: "instigate", text: "somebody tell {targetPlayer} I'm not done with {targetTeam} yet." },
+  { mode: "rival", tone: "instigate", text: "{targetPlayer} been quiet since last time we played. wonder why." },
+  { mode: "rival", tone: "instigate", text: "{targetTeam} can keep talking. {targetPlayer} knows what happened last time." },
+  { mode: "rival", tone: "instigate", text: "I don't forget. {targetPlayer}, see you soon." },
+  { mode: "rival", tone: "instigate", text: "{targetPlayer} out here acting comfortable. we'll fix that." },
+  { mode: "rival", tone: "instigate", text: "heard {targetTeam} think they're ready for us. {targetPlayer}, tell your team good luck." },
+  { mode: "rival", tone: "instigate", text: "{targetPlayer} is good, I said what I said. still coming for that smoke though." },
+
+  // ================= rival / praise (grudging respect) =================
+  { mode: "rival", tone: "praise", text: "gotta give it to {targetPlayer}. That's a real one over there at {targetTeam}." },
+  { mode: "rival", tone: "praise", text: "{targetPlayer} balling this year, not gonna lie. Respect from one competitor to another." },
+  { mode: "rival", tone: "praise", text: "{targetTeam}'s got a problem in {targetPlayer}. I'll say it even though we're not friends." },
+  { mode: "rival", tone: "praise", text: "{targetPlayer} earned that today. Doesn't mean I'm not still coming for {targetTeam} though." },
+  { mode: "rival", tone: "praise", text: "not gonna lie, {targetPlayer} might be the real deal. see you next time though." },
+  { mode: "rival", tone: "praise", text: "{targetPlayer} deserves his flowers. {targetTeam} should be proud. anyway, run it back soon." },
+];
 
 export type TweetTemplate = { category: TweetCategory; voice: TweetAuthor; text: string };
 

@@ -99,6 +99,12 @@ import {
   type ImmortalityPosition,
   type RiseToImmortalityTeamPool,
   buildProspectBackstory,
+  type PersonaDimension,
+  stageInterviewPool,
+  stageInterviewGroupFor,
+  selectStageInterviewQuestion,
+  scoreStageInterviewAnswer,
+  type StageInterviewQuestion,
 } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -113,6 +119,8 @@ import { renderProspectCardPng } from "../../lib/prospect-card-render.js";
 import { uploadImageToCloudflare } from "../../lib/cloudflare-images.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { leagueWeekGamesQuery, leagueSeasonGamesQuery } from "../league-context/league-games.query.js";
+import { postInterviewQuoteHeadline } from "./interview-headline.js";
+import { gameplaySeasonStages } from "@rec/shared";
 
 const HEADSHOT_ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const HEADSHOT_MAX_BYTES = 5 * 1024 * 1024;
@@ -2619,8 +2627,17 @@ export async function submitWeeklyMatchupInterview(input: {
     throw new ApiError(500, "Could not save that answer.", saved.error);
   }
 
-  await driftPersonaFromMediaDayAnswer(prospect.id).catch((error) =>
+  await driftPersonaFromInterviewAnswer(prospect.id).catch((error) =>
     console.error(`[WARN] Persona drift failed for prospect ${prospect.id} (non-fatal):`, error));
+
+  // A curated subset of matchup-pool answers are authored to also fire an immediate headline
+  // (a combined tweet already fires automatically at week completion below regardless of this
+  // tag, so only "headline" is meaningful here -- "tweet" would be a no-op).
+  if (result.contentTrigger === "headline") {
+    await postInterviewQuoteHeadlineForAnswer({
+      guildId: input.guildId, prospect, teamId, questionText: result.question.question, quoteText: result.option.text,
+    }).catch((error) => console.error(`[WARN] Could not post interview quote headline (non-fatal):`, error));
+  }
 
   if (nextSlot >= MEDIA_DAY_SLOTS) {
     const allAnswers = [...(existing.data ?? []), saved.data].sort((a, b) => Number(a.slot) - Number(b.slot));
@@ -2637,13 +2654,108 @@ export async function submitWeeklyMatchupInterview(input: {
   return { question, answer: saved.data, slot: nextSlot, complete: nextSlot >= MEDIA_DAY_SLOTS };
 }
 
+/** Media Day's matchup-interview flow assumes a real scheduled game (opponent, week, bonus
+ * claims) -- there's no matchup during preseason/training camp or any offseason stage. This is
+ * the parallel single-question-per-advance flow for exactly those stages: one question drawn
+ * from stageInterviewPool()'s bucket for the league's current season_stage (see STAGE_TO_GROUP
+ * in stage-interview.ts), keyed on (prospect, season, season_stage, advance_index) so re-loading
+ * doesn't reshuffle it and a new advance always gets a fresh question. */
+export async function getStageInterview(input: { guildId: string; discordId: string; side: "offense" | "defense" }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+
+  const season = Number(context.rec_leagues.season_number ?? 1);
+  const seasonStage = String(context.rec_leagues.season_stage ?? "");
+  if (gameplaySeasonStages(context.rec_leagues.game).has(seasonStage)) {
+    throw new ApiError(400, "Stage interviews are only available outside the regular season.");
+  }
+  const group = stageInterviewGroupFor(seasonStage);
+  if (!group) throw new ApiError(400, "No stage interview is available for this season stage yet.");
+  const advanceIndex = Number(context.rec_leagues.current_week ?? 1);
+
+  const existing = await supabase.from("rec_immortality_stage_interview_answers")
+    .select("*").eq("prospect_id", prospect.id).eq("season", season).eq("season_stage", seasonStage).eq("advance_index", advanceIndex).maybeSingle();
+  if (existing.error) throw new ApiError(500, "Could not load this stage's interview.", existing.error);
+  const pool = stageInterviewPool();
+  if (existing.data) {
+    const question = pool.find((q) => q.id === Number(existing.data.question_id)) ?? null;
+    return { season, seasonStage, group, complete: true, question, answer: existing.data };
+  }
+
+  const question = selectStageInterviewQuestion({
+    pool, group,
+    seed: `${league.id}:${prospect.id}:${season}:${seasonStage}:${advanceIndex}`,
+  });
+  if (!question) throw new ApiError(400, "No stage interview is available for this season stage yet.");
+  return { season, seasonStage, group, complete: false, question, answer: null };
+}
+
+export async function submitStageInterview(input: {
+  guildId: string; discordId: string; side: "offense" | "defense"; questionId: number; optionIndex: number;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+
+  const season = Number(context.rec_leagues.season_number ?? 1);
+  const seasonStage = String(context.rec_leagues.season_stage ?? "");
+  if (gameplaySeasonStages(context.rec_leagues.game).has(seasonStage)) {
+    throw new ApiError(400, "Stage interviews are only available outside the regular season.");
+  }
+  const group = stageInterviewGroupFor(seasonStage);
+  if (!group) throw new ApiError(400, "No stage interview is available for this season stage yet.");
+  const advanceIndex = Number(context.rec_leagues.current_week ?? 1);
+
+  const question = stageInterviewPool().find((q) => q.id === input.questionId);
+  if (!question || question.group !== group) throw new ApiError(404, "That question isn't available for this stage.");
+  const result = scoreStageInterviewAnswer({ question, optionIndex: input.optionIndex });
+
+  const teamRow = prospect.player_id
+    ? await supabase.from("rec_players").select("team_id").eq("id", prospect.player_id).maybeSingle()
+    : { data: null };
+  const teamId = teamRow.data?.team_id ? String(teamRow.data.team_id) : null;
+
+  const saved = await supabase.from("rec_immortality_stage_interview_answers").insert({
+    immortality_league_id: league.id, prospect_id: prospect.id, side: input.side,
+    season, season_stage: seasonStage, advance_index: advanceIndex,
+    question_id: question.id, option_index: input.optionIndex, dna_points: result.dnaPoints,
+  }).select("*").single();
+  if (saved.error) {
+    if (saved.error.code === "23505") throw new ApiError(409, "This stage's interview is already answered.");
+    throw new ApiError(500, "Could not save that answer.", saved.error);
+  }
+
+  await driftPersonaFromInterviewAnswer(prospect.id).catch((error) =>
+    console.error(`[WARN] Persona drift failed for prospect ${prospect.id} (non-fatal):`, error));
+
+  // Unlike Media Day, nothing fires automatically here -- contentTrigger is the only thing that
+  // makes a stage-interview answer public, since there's no weekly-completion tweet to fall back on.
+  if (result.contentTrigger === "tweet") {
+    await queueStageInterviewTweet({
+      leagueId: context.leagueId, season, weekNumber: advanceIndex, prospect,
+      questionText: question.question, quoteText: result.option.text,
+    }).catch((error) => console.error(`[WARN] Could not queue stage interview tweet (non-fatal):`, error));
+  } else if (result.contentTrigger === "headline") {
+    await postInterviewQuoteHeadlineForAnswer({
+      guildId: input.guildId, prospect, teamId, questionText: question.question, quoteText: result.option.text,
+    }).catch((error) => console.error(`[WARN] Could not post interview quote headline (non-fatal):`, error));
+  }
+
+  return { question, answer: saved.data, complete: true };
+}
+
 /** Weighted-combines the original one-time Persona interview's scores with every Media Day
  * answer's dnaPoints so far this career, and flips the stored primary/secondary/label if the
  * cumulative lean has genuinely shifted -- "if the answers are contrary to the player's current
  * DNA enough over time, their personality changes accordingly." The original interview keeps a
  * strong base weight (x3) so a handful of contrary weekly answers can't flip it overnight; it
  * takes sustained pressure across many weeks, same as a real personality would. */
-async function driftPersonaFromMediaDayAnswer(prospectId: string): Promise<void> {
+async function driftPersonaFromInterviewAnswer(prospectId: string): Promise<void> {
   const persona = await supabase.from("rec_immortality_persona_results").select("scores,primary_dimension,secondary_dimension").eq("prospect_id", prospectId).maybeSingle();
   if (!persona.data) return; // no baseline Persona yet -- nothing to drift
   const baseScores = (persona.data.scores ?? emptyPersonaScores()) as PersonaScores;
@@ -2653,16 +2765,45 @@ async function driftPersonaFromMediaDayAnswer(prospectId: string): Promise<void>
     cumulative[dimension] = baseScores[dimension] * ORIGINAL_INTERVIEW_WEIGHT;
   }
   // The caller always inserts this answer's row before calling here, so a single pass over
-  // every Media Day answer on record already includes the one that just triggered this --
-  // adding it a second time on top would double-count it.
-  const priorAnswers = await supabase.from("rec_immortality_matchup_interview_answers").select("dna_points").eq("prospect_id", prospectId);
-  for (const row of priorAnswers.data ?? []) cumulative = addPersonaPoints(cumulative, (row.dna_points ?? {}) as Partial<PersonaScores>);
+  // every interview answer on record already includes the one that just triggered this --
+  // adding it a second time on top would double-count it. Sums both interview systems (Media
+  // Day matchup interviews + offseason stage interviews) into one career-wide drift, since both
+  // represent the same prospect's ongoing personality on the record.
+  const [matchupAnswers, stageAnswers] = await Promise.all([
+    supabase.from("rec_immortality_matchup_interview_answers").select("dna_points").eq("prospect_id", prospectId),
+    supabase.from("rec_immortality_stage_interview_answers").select("dna_points").eq("prospect_id", prospectId),
+  ]);
+  for (const row of matchupAnswers.data ?? []) cumulative = addPersonaPoints(cumulative, (row.dna_points ?? {}) as Partial<PersonaScores>);
+  for (const row of stageAnswers.data ?? []) cumulative = addPersonaPoints(cumulative, (row.dna_points ?? {}) as Partial<PersonaScores>);
 
   const next = resolvePersona(cumulative);
   if (next.primary === persona.data.primary_dimension && next.secondary === persona.data.secondary_dimension) return;
   await supabase.from("rec_immortality_persona_results").update({
     primary_dimension: next.primary, secondary_dimension: next.secondary, label: next.label,
   }).eq("prospect_id", prospectId);
+}
+
+/** Resolves team name + persona dimension and hands off to interview-headline.ts -- shared by
+ * both submitWeeklyMatchupInterview and submitStageInterview so the contentTrigger dispatch
+ * looks the same regardless of which interview system produced the answer. */
+async function postInterviewQuoteHeadlineForAnswer(input: {
+  guildId: string; prospect: Record<string, any>; teamId: string | null; questionText: string; quoteText: string;
+}): Promise<void> {
+  const [team, persona] = await Promise.all([
+    input.teamId
+      ? supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", input.teamId).maybeSingle()
+      : Promise.resolve({ data: null as any }),
+    supabase.from("rec_immortality_persona_results").select("primary_dimension").eq("prospect_id", input.prospect.id).maybeSingle(),
+  ]);
+  await postInterviewQuoteHeadline({
+    guildId: input.guildId,
+    prospectFirstName: input.prospect.first_name ?? null,
+    prospectLastName: input.prospect.last_name ?? null,
+    teamName: formatTeamDisplayName(team.data) ?? "the franchise",
+    personaDim: (persona.data?.primary_dimension as PersonaDimension | undefined) ?? null,
+    questionText: input.questionText,
+    quoteText: input.quoteText,
+  });
 }
 
 /** A prospect's own in-fiction Twitter handle -- their player name, no spaces, "@"-prefixed --
@@ -2674,6 +2815,29 @@ function twitterHandleForProspect(prospect: { first_name?: string | null; last_n
   const displayName = `${first} ${last}`.trim() || "Prospect";
   const slug = `${first}${last}`.replace(/[^A-Za-z0-9]/g, "") || "Prospect";
   return { handle: `@${slug}`, displayName };
+}
+
+const STAGE_INTERVIEW_TWEET_INTROS: Array<(name: string) => string> = [
+  (name) => `${name} spoke to reporters this offseason and didn't hold back.`,
+  (name) => `${name} was asked about it directly, and answered just as directly.`,
+  (name) => `${name} went on the record during a quiet offseason stretch.`,
+  (name) => `${name} had something to say when reporters caught up with them.`,
+];
+
+/** A single-answer version of queueMediaDayPlayerTweet for the stage-interview flow -- no
+ * opponent to tag (there's no matchup during an offseason stage), and no combined multi-slot
+ * quote since stage interviews are one question per advance, not three per week. */
+async function queueStageInterviewTweet(input: {
+  leagueId: string; season: number; weekNumber: number; prospect: Record<string, any>; questionText: string; quoteText: string;
+}): Promise<void> {
+  const { handle, displayName } = twitterHandleForProspect(input.prospect);
+  const intro = STAGE_INTERVIEW_TWEET_INTROS[Math.floor(Math.random() * STAGE_INTERVIEW_TWEET_INTROS.length)]!(displayName);
+  const body = `${intro} On "${input.questionText}" — "${input.quoteText}"`.replace(/\s+/g, " ").trim();
+  await supabase.from("rec_immortality_tweet_queue").insert({
+    league_id: input.leagueId, season_number: input.season, week_number: input.weekNumber,
+    author_kind: "player", author_handle: handle, author_display_name: displayName,
+    body, status: "pending", source: "stage_interview",
+  });
 }
 
 const MEDIA_DAY_TWEET_INTROS: Array<(name: string) => string> = [

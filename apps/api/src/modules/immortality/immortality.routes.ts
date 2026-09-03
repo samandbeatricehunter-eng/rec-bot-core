@@ -16,6 +16,8 @@ import {
   getImmortalityRivals,
   getWeeklyMatchupInterview,
   submitWeeklyMatchupInterview,
+  getStageInterview,
+  submitStageInterview,
   markImmortalityIntroVideoWatched,
   publicCharacteristicCatalog,
   selectCharacteristics,
@@ -389,6 +391,27 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
       return reply.send(await submitWeeklyMatchupInterview({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Preseason/training camp and every offseason stage (draft, free agency, transfer portal,
+  // etc.) -- Media Day's weekly matchup flow above assumes a real scheduled game and doesn't
+  // apply here. See getStageInterview/submitStageInterview's doc comments.
+  app.post("/v1/immortality/interview/stage", async (request, reply) => {
+    try {
+      const body = SideBody.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
+      return reply.send(await getStageInterview({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/interview/stage/submit", async (request, reply) => {
+    try {
+      const body = SideBody.extend({ questionId: z.number().int(), optionIndex: z.number().int().min(0) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
+      return reply.send(await submitStageInterview({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

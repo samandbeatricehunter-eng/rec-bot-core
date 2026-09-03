@@ -11,7 +11,7 @@ import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-co
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { loadImmortalityLeague } from "./immortality.service.js";
 import {
-  GENERIC_HANDLES, MANUAL_TWEET_GENERIC_HANDLES, TWEET_HOSTS, TWEET_TEMPLATES,
+  GENERIC_HANDLES, MANUAL_TWEET_GENERIC_HANDLES, PLAYER_CHATTER_TEMPLATES, TWEET_HOSTS, TWEET_TEMPLATES,
   type TweetAuthor, type TweetCategory, type TweetHostKey, type TweetSlots, type TweetTemplate,
 } from "./tweet-bank.js";
 
@@ -217,6 +217,8 @@ export async function queueImmortalityTweetsAfterAdvance(input: { leagueId: stri
   const immortalityLeague = await loadImmortalityLeague(input.leagueId);
   if (!immortalityLeague) return;
   await generateAndQueueImmortalityTweets(input.leagueId, input.seasonNumber, input.weekNumber);
+  await queuePlayerChatterAfterImport(input.leagueId, input.seasonNumber, input.weekNumber).catch((err) =>
+    console.error(`[ERROR] Player chatter tweets failed for league ${input.leagueId} (non-fatal):`, err));
 }
 
 /** Same generator, called from the EA import completion hooks (ea-connections.service.ts /
@@ -376,6 +378,143 @@ async function generateAndQueueImmortalityTweets(leagueId: string, seasonNumber:
 
   if (!rows.length) return;
   await supabase.from("rec_immortality_tweet_queue").insert(rows);
+}
+
+/** Same notable-performance bar buildCandidates uses for the host/generic recap tweets -- a
+ * player-chatter tweet should always be grounded in something that actually happened this week. */
+function hasNotablePerformance(line: ReturnType<typeof statLine>): boolean {
+  const tds = line.passTds + line.rushTds + line.receivingTds;
+  return line.passYards >= 250 || line.rushYards >= 100 || line.receivingYards >= 100
+    || tds >= 2 || line.tackles >= 10 || line.sacks >= 2
+    || line.interceptions >= 1 || line.forcedFumbles >= 1 || line.defensiveTds >= 1;
+}
+
+/** The stat line's headline number for a self-mode chatter tweet -- whichever category actually
+ * cleared the notable bar, checked in the same priority order buildCandidates' candidates imply
+ * (a big passing week is the headline even if the same player also had a modest number elsewhere). */
+function primaryStatFor(line: ReturnType<typeof statLine>): { value: number; statLabel: string } {
+  if (line.passYards >= 250) return { value: line.passYards, statLabel: "pass yards" };
+  if (line.rushYards >= 100) return { value: line.rushYards, statLabel: "rush yards" };
+  if (line.receivingYards >= 100) return { value: line.receivingYards, statLabel: "receiving yards" };
+  const tds = line.passTds + line.rushTds + line.receivingTds;
+  if (tds >= 2) return { value: tds, statLabel: "touchdowns" };
+  if (line.tackles >= 10) return { value: line.tackles, statLabel: "tackles" };
+  if (line.sacks >= 2) return { value: line.sacks, statLabel: "sacks" };
+  if (line.interceptions >= 1) return { value: line.interceptions, statLabel: "interceptions" };
+  if (line.forcedFumbles >= 1) return { value: line.forcedFumbles, statLabel: "forced fumbles" };
+  return { value: line.defensiveTds, statLabel: "defensive touchdowns" };
+}
+
+/** Synthesizes an in-fiction "@FirstLast" handle for ANY rec_players row (real NFL/CPU roster
+ * fill, not just RTI custom prospects) -- generalizes immortality.service.ts's prospect-only
+ * twitterHandleForProspect to a plain full_name string. */
+function handleForPlayerName(fullName: string | null | undefined): { handle: string; displayName: string } {
+  const displayName = (fullName ?? "").trim() || "Player";
+  const slug = displayName.replace(/[^A-Za-z0-9]/g, "") || "Player";
+  return { handle: `@${slug}`, displayName };
+}
+
+/** Occasional player-vs-player chatter once real per-week stats land -- real/CPU roster players
+ * only. RTI custom prospects are never the AUTHOR of an auto-generated tweet here (they can still
+ * be the TARGET of a teammate/rival tweet) -- per direction, a prospect's own tweets only ever
+ * come from the user's own Media Day answers, not random auto-generation. 0-2 chatter tweets per
+ * league per week, each behind its own random roll so it reads as occasional, not a metronome. */
+async function queuePlayerChatterAfterImport(leagueId: string, seasonNumber: number, weekNumber: number): Promise<void> {
+  const { weekRows } = await loadWeekAndSeasonStats(leagueId, seasonNumber, weekNumber);
+  const authorCandidates = weekRows.filter((row) =>
+    !String(row.player.maddenPlayerId ?? "").startsWith(IS_CUSTOM_PROSPECT_PREFIX)
+    && hasNotablePerformance(statLine(row.stats as Record<string, unknown>)));
+  if (!authorCandidates.length) return;
+
+  const chatterCount = (Math.random() < 0.4 ? 1 : 0) + (Math.random() < 0.15 ? 1 : 0);
+  if (!chatterCount) return;
+
+  const results = await supabase.from("rec_game_results")
+    .select("home_team_id,away_team_id").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber);
+  const opponentTeamIdByTeamId = new Map<string, string>();
+  for (const g of (results.data ?? []) as Array<{ home_team_id: string | null; away_team_id: string | null }>) {
+    if (g.home_team_id && g.away_team_id) {
+      opponentTeamIdByTeamId.set(String(g.home_team_id), String(g.away_team_id));
+      opponentTeamIdByTeamId.set(String(g.away_team_id), String(g.home_team_id));
+    }
+  }
+
+  for (let i = 0; i < chatterCount; i += 1) {
+    await queueOnePlayerChatterTweet(leagueId, seasonNumber, weekNumber, authorCandidates, opponentTeamIdByTeamId).catch((err) =>
+      console.error(`[ERROR] Player chatter tweet failed for league ${leagueId} (non-fatal):`, err));
+  }
+}
+
+async function queueOnePlayerChatterTweet(
+  leagueId: string, seasonNumber: number, weekNumber: number,
+  authorCandidates: Array<{ player_id: string; stats: unknown; player: PlayerInfo }>,
+  opponentTeamIdByTeamId: Map<string, string>,
+): Promise<void> {
+  const author = authorCandidates[Math.floor(Math.random() * authorCandidates.length)]!;
+  const line = statLine(author.stats as Record<string, unknown>);
+  const authorTeamId = author.player.team?.id ? String(author.player.team.id) : null;
+  const { handle, displayName } = handleForPlayerName(author.player.fullName);
+  const authorTeamName = teamLabel(author.player.team);
+
+  const modeRoll = Math.random();
+  const mode: "self" | "teammate" | "rival" = modeRoll < 0.35 ? "self" : modeRoll < 0.7 ? "teammate" : "rival";
+
+  let targetPlayer: string | null = null;
+  let targetTeamName: string | null = null;
+  let tone: "praise" | "instigate" = "praise";
+
+  if (mode === "teammate" && authorTeamId) {
+    const rows = await supabase.from("rec_players").select("full_name")
+      .eq("league_id", leagueId).eq("team_id", authorTeamId).neq("id", author.player_id);
+    const list = ((rows.data ?? []) as Array<{ full_name: string | null }>).filter((r) => r.full_name);
+    if (list.length) {
+      targetPlayer = list[Math.floor(Math.random() * list.length)]!.full_name;
+      tone = Math.random() < 0.7 ? "praise" : "instigate";
+    }
+  }
+  // Rival mode, or teammate mode that found no eligible teammate (e.g. a solo roster slot) --
+  // targets this week's actual opponent roster half the time, any other league player the other
+  // half, chosen fresh each tweet rather than a fixed setting either way.
+  if ((mode === "rival" || (mode === "teammate" && !targetPlayer)) && authorTeamId) {
+    const rivalTeamId = Math.random() < 0.5 ? opponentTeamIdByTeamId.get(authorTeamId) ?? null : null;
+    const rows = rivalTeamId
+      ? await supabase.from("rec_players").select("full_name,team_id").eq("league_id", leagueId).eq("team_id", rivalTeamId)
+      : await supabase.from("rec_players").select("full_name,team_id").eq("league_id", leagueId).neq("team_id", authorTeamId).not("team_id", "is", null);
+    const list = ((rows.data ?? []) as Array<{ full_name: string | null; team_id: string | null }>).filter((r) => r.full_name && r.team_id);
+    if (list.length) {
+      const picked = list[Math.floor(Math.random() * list.length)]!;
+      targetPlayer = picked.full_name;
+      const teamRow = await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", picked.team_id!).maybeSingle();
+      targetTeamName = teamLabel(teamRow.data);
+      tone = Math.random() < 0.6 ? "instigate" : "praise";
+    }
+  }
+
+  const effectiveMode: "self" | "teammate" | "rival" = targetPlayer ? mode : "self";
+  const templates = effectiveMode === "self"
+    ? PLAYER_CHATTER_TEMPLATES.filter((tmpl) => tmpl.mode === "self")
+    : PLAYER_CHATTER_TEMPLATES.filter((tmpl) => tmpl.mode === effectiveMode && tmpl.tone === tone);
+  const template = pick(templates);
+  if (!template) return;
+
+  const opponentTeamId = authorTeamId ? opponentTeamIdByTeamId.get(authorTeamId) ?? null : null;
+  const opponentTeamRow = opponentTeamId
+    ? await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", opponentTeamId).maybeSingle()
+    : { data: null };
+  const primaryStat = primaryStatFor(line);
+
+  const body = fillTemplate(template.text, {
+    player: displayName, team: authorTeamName, opponent: teamLabel(opponentTeamRow.data),
+    value: primaryStat.value, statLabel: primaryStat.statLabel,
+    targetPlayer: targetPlayer ?? undefined, targetTeam: targetTeamName ?? undefined,
+  });
+  if (!body) return;
+
+  await supabase.from("rec_immortality_tweet_queue").insert({
+    league_id: leagueId, season_number: seasonNumber, week_number: weekNumber,
+    author_kind: "player", author_handle: handle, author_display_name: displayName,
+    body, status: "pending", source: "player_chatter",
+  });
 }
 
 /** Called on a plain interval sweep (apps/api/src/index.ts) -- posts at most one pending tweet

@@ -14,6 +14,7 @@ import synergiesJson from "./config/characteristic_synergies.json" with { type: 
 import milestonesJson from "./config/milestones_v1.json" with { type: "json" };
 import contractsJson from "./config/contracts_v1.json" with { type: "json" };
 import matchupInterviewJson from "./config/matchup_interview_pool.json" with { type: "json" };
+import stageInterviewJson from "./config/stage_interview_pool.json" with { type: "json" };
 import {
   characteristicKey,
   modifiersFromDefinition,
@@ -30,6 +31,7 @@ import type { BranchingPlaystyleGroup } from "./playstyle.js";
 import type { ImmortalityPositionGroup, ImmortalitySide } from "./types.js";
 import { FORMULA_VERSIONS } from "./types.js";
 import type { MatchupInterviewQuestion } from "./matchup-interview.js";
+import type { StageInterviewQuestion } from "./stage-interview.js";
 
 export const immortalityCoreConfig = coreConfigJson;
 export const immortalitySynergies = synergiesJson;
@@ -233,4 +235,8 @@ export function branchingPlaystyleGroup(group: BranchingPlaystylePositionGroup):
 
 export function matchupInterviewPool(): MatchupInterviewQuestion[] {
   return matchupInterviewJson.pool as MatchupInterviewQuestion[];
+}
+
+export function stageInterviewPool(): StageInterviewQuestion[] {
+  return stageInterviewJson.pool as StageInterviewQuestion[];
 }

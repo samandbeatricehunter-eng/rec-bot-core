@@ -5,10 +5,18 @@ export type MatchupInterviewBonusOpportunity = {
   xpBonusPct: number;
 };
 
+/** An authored subset of answers can make an answer public beyond ordinary persona drift --
+ * "tweet" queues a first-person player tweet quoting/paraphrasing this answer, "headline" posts a
+ * one-off quote-headline story (see interview-headline.ts). Absent means drift-only, the default
+ * for most options. On the existing matchup-interview pool, only "headline" is meaningful -- a
+ * combined tweet already fires automatically at week completion regardless of this tag. */
+export type MatchupInterviewContentTrigger = "tweet" | "headline";
+
 export type MatchupInterviewOption = {
   text: string;
   dnaPoints: Partial<Record<PersonaDimension, number>>;
   bonusOpportunity?: MatchupInterviewBonusOpportunity;
+  contentTrigger?: MatchupInterviewContentTrigger;
 };
 
 export type MatchupInterviewQuestion = {
@@ -40,8 +48,10 @@ export type MatchupInterviewContext = {
   priorMeetingMargin?: "blowout" | "close" | null;
 };
 
-/** Deterministic 32-bit hash -> [0,1) PRNG, so the same (league, prospect, week) always yields the same pick. */
-function seededRandom(seed: string): () => number {
+/** Deterministic 32-bit hash -> [0,1) PRNG, so the same (league, prospect, week) always yields
+ * the same pick. Exported so stage-interview.ts's parallel offseason-stage selector reuses the
+ * same determinism pattern instead of duplicating the hash. */
+export function seededRandom(seed: string): () => number {
   let h = 1779033703 ^ seed.length;
   for (let i = 0; i < seed.length; i++) {
     h = Math.imul(h ^ seed.charCodeAt(i), 3432918353);
@@ -275,6 +285,7 @@ export type MatchupInterviewAnswerResult = {
   option: MatchupInterviewOption;
   dnaPoints: Partial<Record<PersonaDimension, number>>;
   bonusOpportunity: MatchupInterviewBonusOpportunity | null;
+  contentTrigger: MatchupInterviewContentTrigger | null;
   formulaVersion: typeof FORMULA_VERSIONS.matchupInterview;
 };
 
@@ -289,6 +300,7 @@ export function scoreMatchupInterviewAnswer(input: {
     option,
     dnaPoints: option.dnaPoints,
     bonusOpportunity: option.bonusOpportunity ?? null,
+    contentTrigger: option.contentTrigger ?? null,
     formulaVersion: FORMULA_VERSIONS.matchupInterview,
   };
 }
