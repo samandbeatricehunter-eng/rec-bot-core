@@ -38,6 +38,7 @@ import {
   selectImmortalityAbility,
   removeImmortalityAbility,
   reissueImmortalityProspectArtifacts,
+  reopenImmortalityOriginsIfPrematurelyAdvanced,
   reviewImmortalityProspect,
   reviewImmortalityXpRequest,
   submitThrowingMotion,
@@ -278,6 +279,15 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "Prospect review requires a website session.");
       return reply.send(await reviewImmortalityProspect({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Bot-only emergency repair -- see reopenImmortalityOriginsIfPrematurelyAdvanced's doc comment.
+  app.post("/v1/immortality/reopen-origins-if-premature", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = GuildBody.parse(request.body);
+      return reply.send(await reopenImmortalityOriginsIfPrematurelyAdvanced(body.guildId));
     } catch (error) { return sendError(reply, error); }
   });
 

@@ -44,7 +44,6 @@ import {
   RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT,
   RISE_TO_IMMORTALITY_LEAGUE_TYPE,
   riseHubUnlocked,
-  hubUnlockStateFrom,
   rankDraftClass,
   completePairUserIds,
   type DraftGradeSnapshot,
@@ -735,6 +734,24 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
   };
 }
 
+/** Enrollment gate for a brand-new prospect: Origins never closes on a league-wide clock --
+ * a member can start (or keep working on) their prospect at any point in the league's life, as
+ * long as a franchise is still actually open for them to eventually claim. Someone editing a
+ * prospect they already started is never blocked by this, even if every team fills up in the
+ * meantime -- only starting a NEW one requires a team still being open. */
+async function hasOpenImmortalityFranchiseTeam(immortalityLeagueId: string, recLeagueId: string): Promise<boolean> {
+  const [teamIdentities, linkedAssignments, franchiseClaims] = await Promise.all([
+    supabase.from("rec_league_team_identities").select("team_id").eq("league_id", recLeagueId),
+    supabase.from("rec_team_assignments").select("team_id").eq("league_id", recLeagueId).eq("assignment_status", "active").is("ended_at", null),
+    supabase.from("rec_immortality_user_team_assignments").select("team_id").eq("immortality_league_id", immortalityLeagueId),
+  ]);
+  const claimed = new Set<string>([
+    ...(linkedAssignments.data ?? []).map((row: any) => String(row.team_id)),
+    ...(franchiseClaims.data ?? []).map((row: any) => String(row.team_id)),
+  ]);
+  return (teamIdentities.data ?? []).some((row: any) => !claimed.has(String(row.team_id)));
+}
+
 export async function upsertProspectIdentity(input: {
   guildId: string;
   discordId: string;
@@ -754,12 +771,12 @@ export async function upsertProspectIdentity(input: {
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const league = await requireImmortalityLeague(context.leagueId);
-  if (!originsOpen(league.chapter_state as ImmortalityState) && league.chapter_state !== "REGISTRATION") {
-    throw new ApiError(400, "Origins is closed.");
-  }
   const userId = await recUserIdFromDiscordId(input.discordId);
   const position = input.side === "offense" ? league.offense_position : league.defense_position;
   const existing = await loadProspectForUser(league.id, userId, input.side);
+  if (!existing && !(await hasOpenImmortalityFranchiseTeam(league.id, context.leagueId))) {
+    throw new ApiError(400, "Origins is closed -- every franchise in this league has already been claimed.");
+  }
   const payload = {
     immortality_league_id: league.id,
     user_id: userId,
@@ -2064,25 +2081,18 @@ async function finalizePreassignedImmortalityOwner(input: {
     if (claim.error) throw new ApiError(500, "Could not finalize the commissioner's franchise assignment.", claim.error);
   }
 
-  // Preassigned commissioners never pass through chooseImmortalityTeam, which normally
-  // advances the league out of Origins. Without this mirror step the completed-contract
-  // redirect lands on the hub, whose route guard immediately sends the user back to Origins.
-  const currentLeague = await supabase.from("rec_immortality_leagues").select("chapter_state")
-    .eq("id", input.immortalityLeagueId).maybeSingle();
-  const fromState = currentLeague.data?.chapter_state as ImmortalityState | undefined;
-  const unlockTo = fromState ? hubUnlockStateFrom(fromState) : null;
-  if (fromState && unlockTo) {
-    const advanced = await supabase.from("rec_immortality_leagues").update({
-      chapter_state: unlockTo, updated_at: new Date().toISOString(),
-    }).eq("id", input.immortalityLeagueId).eq("chapter_state", fromState).select("id").maybeSingle();
-    if (advanced.error) throw new ApiError(500, "Could not open the RTI league hub.", advanced.error);
-    if (advanced.data) {
-      await supabase.from("rec_immortality_state_history").insert({
-        immortality_league_id: input.immortalityLeagueId, from_state: fromState, to_state: unlockTo,
-        actor_user_id: input.userId, note: "Preassigned commissioner franchise finalized",
-      });
-    }
-  }
+  // Preassigned commissioners never pass through chooseImmortalityTeam, which is the normal
+  // member path -- this function mirrors everything else it does (claim, materialize, cards,
+  // contracts) EXCEPT advancing chapter_state, which used to jump here too. That was wrong:
+  // chapter_state is a whole-LEAGUE gate (controls whether Origins is open for every member,
+  // not just this one), so auto-advancing it the moment the commissioner personally finished
+  // slammed Origins shut for every other member still mid-creation -- confirmed live (a member
+  // stuck on "Origins is closed" with real Origins steps still incomplete, while the league's
+  // chapter_state had jumped straight to ROOKIE_DRAFT_COMPLETE). The commissioner's own hub
+  // access no longer depends on this at all: site-leagues.service.ts's riseHubUnlocked is now
+  // ORed with the viewer's own rtiOriginsComplete flag, so a member whose own two prospects have
+  // signed contracts reaches their hub regardless of the league-wide chapter_state -- advancing
+  // Origins for the whole league stays a deliberate commissioner action, not a side effect.
 
   for (const prospect of prospects) {
     if (!prospect.player_id) await materializeProspectToPlayer(prospect, teamId, input.recLeagueId);
@@ -2214,19 +2224,18 @@ export async function chooseImmortalityTeam(input: { guildId: string; discordId:
     }
   }
 
-  // First real franchise assignment opens the league hub for everyone (chapter_state is
-  // league-wide, not per-member) -- mirrors the trigger point the old batch draft-solve used.
-  const fromState = league.chapter_state as ImmortalityState;
-  const unlockTo = hubUnlockStateFrom(fromState);
-  if (unlockTo) {
-    await supabase.from("rec_immortality_leagues").update({
-      chapter_state: unlockTo, updated_at: new Date().toISOString(),
-    }).eq("id", league.id);
-    await supabase.from("rec_immortality_state_history").insert({
-      immortality_league_id: league.id, from_state: fromState, to_state: unlockTo,
-      actor_user_id: userId, note: "First franchise chosen",
-    });
-  }
+  // This used to auto-advance chapter_state the moment the FIRST member anywhere in the league
+  // picked a franchise, on the theory that it "opens the league hub for everyone." It doesn't --
+  // chapter_state is a whole-league gate that also controls whether Origins itself is open
+  // (originsOpen() only allows ORIGINS/REGISTRATION), so the first member to finish and pick a
+  // team was silently slamming Origins shut for every other member still mid-creation. Confirmed
+  // live: one member's team pick jumped the league straight to ROOKIE_DRAFT_COMPLETE while
+  // several others were still on Identity/IQ/Persona, and they got "Origins is closed" with no
+  // way to finish. A member's own hub access doesn't need this: site-leagues.service.ts's
+  // riseHubUnlocked is ORed with the viewer's own rtiOriginsComplete flag, so whoever just
+  // finished reaches their hub regardless of the league-wide chapter_state. Advancing Origins for
+  // the whole league now stays a deliberate commissioner action (transitionImmortalityState),
+  // never an automatic side effect of one member finishing.
 
   await import("./contracts.service.js").then(({ offerRookieContracts }) => offerRookieContracts(
     [offenseProspect, defenseProspect].filter(Boolean).map((row) => String(row!.id)),
@@ -2798,6 +2807,35 @@ export async function transitionImmortalityState(input: {
     actor_user_id: userId,
   });
   return { league: updated.data, chapter: chapterForState(input.toState) };
+}
+
+// States chooseImmortalityTeam / finalizePreassignedImmortalityOwner used to auto-jump a league
+// PAST while other members could still be mid-Origins (that auto-advance has been removed --
+// see both functions' comments). Bot-only emergency repair for any league still stuck in one of
+// these from before the fix. Deliberately bypasses canTransition (this is a backward repair, not
+// a normal forward move) but refuses once TEAM_DRAFT or later has actually started, since
+// reopening Origins after real franchise activity began would be destructive, not a repair.
+const PREMATURELY_ADVANCED_STATES: ImmortalityState[] = [
+  "REGISTRATION", "ORIGINS_COMPLETE", "ROOKIE_DRAFT_PREP", "ROOKIE_DRAFT_LIVE", "ROOKIE_DRAFT_COMPLETE",
+];
+
+export async function reopenImmortalityOriginsIfPrematurelyAdvanced(guildId: string): Promise<{ reverted: boolean; fromState: ImmortalityState }> {
+  const context = await getCurrentLeagueContext(guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const fromState = league.chapter_state as ImmortalityState;
+  if (!PREMATURELY_ADVANCED_STATES.includes(fromState)) return { reverted: false, fromState };
+
+  const updated = await supabase.from("rec_immortality_leagues").update({
+    chapter_state: "ORIGINS", updated_at: new Date().toISOString(),
+  }).eq("id", league.id).eq("chapter_state", fromState).select("id").maybeSingle();
+  if (updated.error) throw new ApiError(500, "Could not reopen Origins.", updated.error);
+  if (updated.data) {
+    await supabase.from("rec_immortality_state_history").insert({
+      immortality_league_id: league.id, from_state: fromState, to_state: "ORIGINS",
+      note: "Emergency repair: reverted an incorrect league-wide auto-advance that had closed Origins while members were still mid-creation",
+    });
+  }
+  return { reverted: Boolean(updated.data), fromState };
 }
 
 export function publicCharacteristicCatalog() {

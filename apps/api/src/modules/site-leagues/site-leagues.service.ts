@@ -321,9 +321,16 @@ export async function listMySiteLeagues(input: {
       league.rosterType = row.roster_type ? String(row.roster_type) : null;
       if (isRiseToImmortalityLeagueType(String(league.rosterType ?? ""))) {
         const chapter = row.rise_chapter_state ? String(row.rise_chapter_state) as ImmortalityState : "REGISTRATION";
+        const originsComplete = Boolean(row.rti_origins_complete);
         league.riseChapterState = chapter;
-        league.riseHubUnlocked = riseHubUnlocked(chapter);
-        league.rtiOriginsComplete = Boolean(row.rti_origins_complete);
+        // A member whose own two prospects have signed contracts reaches their hub regardless
+        // of the league-wide chapter_state -- that state used to get auto-advanced the moment
+        // any one member finished, which closed Origins for everyone else still mid-creation
+        // (see chooseImmortalityTeam / finalizePreassignedImmortalityOwner). Whole-league Origins
+        // progression is a deliberate commissioner action now, not something a single member's
+        // own completion should force on the rest of the league.
+        league.riseHubUnlocked = riseHubUnlocked(chapter) || originsComplete;
+        league.rtiOriginsComplete = originsComplete;
         league.rtiStoreUnlocked = gameplaySeasonStages(game).has(stage);
         league.rtiRostersUnlocked = String(row.fantasy_draft_status ?? "") === "concluded" && Boolean(row.rti_rosters_imported);
         league.rtiTradesUnlocked = false;
