@@ -25,7 +25,14 @@ function RiseContractDocument({
   const playerName = contract.playerName || "Player";
   const teamName = contract.teamName || "the Club";
   const ownerName = contract.ownerName || "the Owner";
-  const showSignature = signing || signed || contract.status === "signed";
+  // "Signed" only reflects the server's confirmed status -- `signing` used to count as signed on
+  // its own, so the pad claimed "Signed" the instant the tap fired, well before the (deliberately
+  // delayed) API call even started. If that call failed or never completed (closed the tab during
+  // the 1.1s writing animation, a 403 from a stale session, a network hiccup), the pad still
+  // showed "Signed" for that whole window with nothing to contradict it -- exactly the kind of gap
+  // that leaves a contract looking executed on screen while the database still says "offered."
+  const isSigned = signed || contract.status === "signed";
+  const showSignature = signing || isSigned;
 
   return (
     <article className="rise-contract" aria-label={`${contractTitle(contract.contractNumber)} for ${playerName}`}>
@@ -88,11 +95,11 @@ function RiseContractDocument({
 
       <button
         type="button"
-        className={`rise-contract-sign-pad${showSignature ? " is-signed" : ""}`}
+        className={`rise-contract-sign-pad${isSigned ? " is-signed" : ""}`}
         disabled={showSignature}
         onClick={onSign}
       >
-        <span className="rise-contract-sign-hint">{showSignature ? "Signed" : "Tap the line to sign"}</span>
+        <span className="rise-contract-sign-hint">{isSigned ? "Signed" : signing ? "Signing…" : "Tap the line to sign"}</span>
         <span className={`rise-contract-signature${signing ? " is-writing" : ""}${showSignature ? " is-visible" : ""}`}>
           {playerName}
         </span>
@@ -125,18 +132,22 @@ export function RiseContractSigning({
     if (!current || current.status === "signed" || signingId) return;
     setSigningId(current.id);
     setError(null);
-    window.setTimeout(() => {
-      void (async () => {
-        try {
-          await siteApi.immortalitySignContract({ guildId, contractId: current.id });
-          await onSigned();
-        } catch (err) {
-          setError(err instanceof Error ? err.message : "Could not sign that contract.");
-        } finally {
-          setSigningId(null);
-        }
-      })();
-    }, 1100);
+    // Fires the real request immediately -- it used to wait behind a 1.1s setTimeout purely to
+    // pace the signature-writing animation, which meant closing the tab or navigating away during
+    // that window meant the sign call never went out at all, even though the pad had already
+    // shown the (now-fixed) "Signed" state. The animation still gets its full 1.1s; only the
+    // network call's own timing no longer depends on it.
+    const startedAt = Date.now();
+    try {
+      await siteApi.immortalitySignContract({ guildId, contractId: current.id });
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < 1100) await new Promise((resolve) => window.setTimeout(resolve, 1100 - elapsed));
+      await onSigned();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not sign that contract.");
+    } finally {
+      setSigningId(null);
+    }
   }
 
   return (
