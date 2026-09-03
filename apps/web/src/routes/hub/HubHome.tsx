@@ -1776,6 +1776,15 @@ export function HubHome() {
 
             <section className="hub-season-snapshot">
               <header><span>Season Snapshot</span><small>{coachName} · {heroTeam}</small></header>
+              {isRise && rtiGates?.playerSnapshots?.length ? (() => {
+                const bannerTeam = rtiGates.playerSnapshots.find((player) => player.teamLogoUrl) ?? rtiGates.playerSnapshots[0];
+                return bannerTeam.teamName ? (
+                  <div className="hub-rti-team-banner">
+                    {bannerTeam.teamLogoUrl ? <img src={bannerTeam.teamLogoUrl} alt="" /> : null}
+                    <strong>{bannerTeam.teamName}</strong>
+                  </div>
+                ) : null;
+              })() : null}
               {isRise && rtiGates?.playerSnapshots?.length ? <div className="hub-rti-player-snapshot-grid">
                 {rtiGates.playerSnapshots.map((player) => <article key={player.playerId} className="hub-rti-player-snapshot-card">
                   <div className="hub-rti-player-portrait">
@@ -1792,7 +1801,10 @@ export function HubHome() {
               </div> : null}
               {isRise && rtiGates?.playerSnapshots?.length ? <div className="hub-rti-hof-progress-grid">
                 {rtiGates.playerSnapshots.map((player) => <article key={`hof-${player.playerId}`}>
-                  <div><span>{player.side === "offense" ? "Offensive" : "Defensive"} HOF Progress</span><strong>{player.hofProgress.toFixed(1)}%</strong></div>
+                  <div className="hub-rti-progress-row"><span>Player XP Progress</span><strong>{player.xpProgressPct.toFixed(1)}%</strong></div>
+                  <p>{player.playerName} · {player.position} · to next Player XP point</p>
+                  <div className="hub-rti-xp-meter" role="progressbar" aria-label={`${player.playerName} progress to next Player XP point`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={player.xpProgressPct}><i style={{ width: `${player.xpProgressPct}%` }} /></div>
+                  <div className="hub-rti-progress-row"><span>{player.side === "offense" ? "Offensive" : "Defensive"} HOF Progress</span><strong>{player.hofProgress.toFixed(1)}%</strong></div>
                   <p>{player.playerName} · {player.position}</p>
                   <div className="hub-rti-hof-meter" role="progressbar" aria-label={`${player.playerName} Hall of Fame progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={player.hofProgress}><i style={{ width: `${player.hofProgress}%` }} /></div>
                 </article>)}

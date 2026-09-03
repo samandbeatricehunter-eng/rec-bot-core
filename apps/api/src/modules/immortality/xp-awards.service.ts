@@ -324,6 +324,7 @@ export async function loadRtiMemberGates(input: {
     playerId: string; playerName: string; position: string | null; side: string; headshotUrl: string | null;
     teamName: string; teamAbbr: string | null; teamLogoUrl: string | null;
     seasonLines: string[]; positionRank: number | null; positionCount: number | null; hofProgress: number;
+    xpProgressPct: number;
   }>;
   pendingContracts: number;
 }> {
@@ -346,7 +347,7 @@ export async function loadRtiMemberGates(input: {
   const immortality = await loadImmortalityLeague(input.leagueId);
   if (!immortality) return empty;
   const prospects = await supabase.from("rec_immortality_prospects")
-    .select("id,side,position,player_id,headshot_url")
+    .select("id,side,position,player_id,headshot_url,xp_points_balance")
     .eq("immortality_league_id", immortality.id)
     .eq("user_id", input.userId);
   let tradesUnlocked = false;
@@ -363,7 +364,12 @@ export async function loadRtiMemberGates(input: {
   const league = await supabase.from("rec_leagues").select("season_number,current_week").eq("id", input.leagueId).maybeSingle();
   const seasonNumber = Number(league.data?.season_number ?? 1);
   const weekNumber = Number(league.data?.current_week ?? 1);
-  const playerIds = (prospects.data ?? []).map((row: any) => row.player_id).filter(Boolean).map(String);
+  // Sorted offense-then-defense so playerSnapshots (built from this order below) always lines up
+  // with the Media Day card's fixed offense-left/defense-right layout -- the prospects query has
+  // no natural ordering guarantee otherwise.
+  const playerIds = (prospects.data ?? []).slice()
+    .sort((a: any, b: any) => (a.side === "offense" ? 0 : 1) - (b.side === "offense" ? 0 : 1))
+    .map((row: any) => row.player_id).filter(Boolean).map(String);
   const playerTeams = playerIds.length
     ? await supabase.from("rec_players").select("id,team_id").in("id", playerIds)
     : { data: [] };
@@ -390,6 +396,9 @@ export async function loadRtiMemberGates(input: {
       side: String(prospectByPlayer.get(playerId)?.side ?? ""),
       headshotUrl: snapshot.headshotUrl ?? prospectByPlayer.get(playerId)?.headshot_url ?? null,
       hofProgress: Math.max(0, Math.min(100, scoreByProspect.get(String(prospectByPlayer.get(playerId)?.id)) ?? 0)),
+      // xp_points_balance already holds the remainder toward the next Player XP point (see
+      // creditXpPoints -- it stores pointsTowardNextLevel, not the raw running total).
+      xpProgressPct: Math.max(0, Math.min(100, (Number(prospectByPlayer.get(playerId)?.xp_points_balance ?? 0) / XP_POINTS_PER_LEVEL) * 100)),
     }) : null)));
   return {
     rostersUnlocked,

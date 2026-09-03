@@ -298,7 +298,6 @@ async function generateAndQueueImmortalityTweets(leagueId: string, seasonNumber:
  * per league every 4 hours, oldest-queued first. Cheap when idle: a single filtered query. */
 export async function sweepImmortalityTweetQueue(): Promise<void> {
   const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
-  const cutoff = new Date(Date.now() - FOUR_HOURS_MS).toISOString();
 
   const leaguesWithPending = await supabase.from("rec_immortality_tweet_queue")
     .select("league_id").eq("status", "pending");
@@ -310,7 +309,12 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
       const lastPosted = await supabase.from("rec_immortality_tweet_queue")
         .select("posted_at").eq("league_id", leagueId).eq("status", "posted")
         .order("posted_at", { ascending: false }).limit(1).maybeSingle();
-      if (lastPosted.data?.posted_at && lastPosted.data.posted_at > cutoff) continue;
+      // node-postgres hands timestamptz columns back as real Date objects, not ISO strings --
+      // comparing one to a string cutoff with `>` silently coerces the string via Number() (which
+      // can't parse an ISO date) to NaN, so every comparison was false and this cooldown never
+      // actually gated anything. Normalize both sides to epoch ms before comparing.
+      const lastPostedAtMs = lastPosted.data?.posted_at ? new Date(lastPosted.data.posted_at as any).getTime() : 0;
+      if (lastPostedAtMs > Date.now() - FOUR_HOURS_MS) continue;
 
       const next = await supabase.from("rec_immortality_tweet_queue")
         .select("id,author_handle,author_display_name,body")

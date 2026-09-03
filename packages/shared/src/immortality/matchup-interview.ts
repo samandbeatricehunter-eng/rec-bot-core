@@ -28,6 +28,16 @@ export type MatchupInterviewContext = {
   isElimination?: boolean;
   isSeasonFinale?: boolean;
   scoreMargin?: "blowout" | "close" | "comeback" | "overtime" | null;
+  /** Whether this prospect's team has a completed game on record this season at all -- a brand
+   * new signee with zero games played is a "debut" week, and any question implying a game
+   * history (a past result, a prior head-to-head) has to be hard-excluded, not just down-weighted,
+   * or it reads as nonsensical for that player. */
+  hasPlayedThisSeason?: boolean;
+  /** Result/margin of the most recent PRIOR meeting between these two specific teams this season
+   * (not just "the last game," which could've been against anyone) -- only ever set when that
+   * meeting actually happened. */
+  priorMeetingResult?: "win" | "loss" | "tie" | null;
+  priorMeetingMargin?: "blowout" | "close" | null;
 };
 
 /** Deterministic 32-bit hash -> [0,1) PRNG, so the same (league, prospect, week) always yields the same pick. */
@@ -54,6 +64,7 @@ function contextTagsFor(context: MatchupInterviewContext): string[] {
   if (context.lastResult === "win") tags.push("post_win");
   if (context.lastResult === "loss") tags.push("post_loss");
   if (context.scoreMargin) tags.push("score_margin");
+  if (context.hasPlayedThisSeason === false) tags.push("debut");
   for (const spot of context.opponentWeakSpots ?? []) tags.push(spot);
   return tags;
 }
@@ -73,13 +84,19 @@ export function selectMatchupInterviewQuestion(input: {
   if (pool.length === 0) throw new Error("Matchup interview pool is empty.");
   const contextTags = new Set(contextTagsFor(context));
 
-  // post_win/post_loss are hard requirements, not just a weighting bias -- a "post_win" question
-  // asked in a week with no completed game yet (preseason, or simply hasn't played) makes no
-  // sense no matter how the random weighting falls, since down-weighting still leaves it eligible
-  // to be picked. Exclude anything tagged for a result that hasn't actually happened.
+  // post_win/post_loss/prior-meeting/debut-only tags are hard requirements, not just a weighting
+  // bias -- a question that presupposes a specific fact (a past result, a prior head-to-head
+  // meeting, a rookie's very first week on the roster) makes no sense to ask when that fact isn't
+  // actually true, no matter how the random weighting falls, since down-weighting still leaves it
+  // eligible to be picked. Exclude anything tagged for a fact that hasn't actually happened.
   const eligiblePool = pool.filter((question) => {
     if (question.tags.includes("post_win") && context.lastResult !== "win") return false;
     if (question.tags.includes("post_loss") && context.lastResult !== "loss") return false;
+    if (question.tags.includes("requires_prior_meeting_loss") && context.priorMeetingResult !== "loss") return false;
+    if (question.tags.includes("requires_prior_meeting_blowout_win")
+      && !(context.priorMeetingResult === "win" && context.priorMeetingMargin === "blowout")) return false;
+    if (question.tags.includes("requires_prior_meeting_close") && context.priorMeetingMargin !== "close") return false;
+    if (question.tags.includes("debut_only") && context.hasPlayedThisSeason !== false) return false;
     return true;
   });
   const effectivePool = eligiblePool.length ? eligiblePool : pool;

@@ -2367,6 +2367,12 @@ async function isMediaDayWindowClosed(gameId: string | null): Promise<boolean> {
   return false;
 }
 
+function marginCategory(marginAbs: number): "blowout" | "close" | null {
+  if (marginAbs >= 21) return "blowout";
+  if (marginAbs <= 3) return "close";
+  return null;
+}
+
 async function resolveMediaDayMatchupContext(input: {
   recLeagueId: string; immortalityLeagueId: string; season: number; week: number; teamId: string | null; side: "offense" | "defense"; userId: string;
 }): Promise<{
@@ -2375,10 +2381,16 @@ async function resolveMediaDayMatchupContext(input: {
   isRivalryGame: boolean;
   opponentProspect: { id: string; user_id: string; first_name: string | null; last_name: string | null } | null;
   opponentTeamId: string | null;
+  hasPlayedThisSeason: boolean;
+  priorMeetingResult: "win" | "loss" | "tie" | null;
+  priorMeetingMargin: "blowout" | "close" | null;
 }> {
   let gameId: string | null = null;
   let lastResult: "win" | "loss" | null = null;
   let opponentTeamId: string | null = null;
+  let hasPlayedThisSeason = false;
+  let priorMeetingResult: "win" | "loss" | "tie" | null = null;
+  let priorMeetingMargin: "blowout" | "close" | null = null;
 
   if (input.teamId) {
     // Every season restarts at week 1, so filtering games by week_number alone leaks in a prior
@@ -2386,12 +2398,16 @@ async function resolveMediaDayMatchupContext(input: {
     // before for GOTW/wagers/the hub hero card/etc. Route through the season-scoped helpers
     // instead of a raw week_number filter.
     const seasonId = await resolveSeasonId(input.recLeagueId, input.season);
-    const [thisWeekGame, lastGame] = await Promise.all([
+    // Fetches every completed game for this team this season (not just the most recent) so a
+    // specific prior meeting against THIS week's opponent can be found below -- "the last time
+    // you played" and margin-flavored questions are about that specific head-to-head, not just
+    // whatever the last game happened to be.
+    const [thisWeekGame, priorGames] = await Promise.all([
       leagueWeekGamesQuery(supabase, { leagueId: input.recLeagueId, seasonId, weekNumber: input.week }, "id,home_team_id,away_team_id")
         .or(`home_team_id.eq.${input.teamId},away_team_id.eq.${input.teamId}`).maybeSingle(),
       leagueSeasonGamesQuery(supabase, { leagueId: input.recLeagueId, seasonId }, "home_team_id,away_team_id,home_score,away_score,week_number")
         .eq("status", "final").or(`home_team_id.eq.${input.teamId},away_team_id.eq.${input.teamId}`)
-        .lt("week_number", input.week).order("week_number", { ascending: false }).limit(1).maybeSingle(),
+        .lt("week_number", input.week).order("week_number", { ascending: false }),
     ]);
     if (thisWeekGame.data) {
       gameId = String(thisWeekGame.data.id);
@@ -2399,11 +2415,26 @@ async function resolveMediaDayMatchupContext(input: {
         ? (thisWeekGame.data.away_team_id ? String(thisWeekGame.data.away_team_id) : null)
         : (thisWeekGame.data.home_team_id ? String(thisWeekGame.data.home_team_id) : null);
     }
-    if (lastGame.data && lastGame.data.home_score != null && lastGame.data.away_score != null) {
-      const iAmHome = String(lastGame.data.home_team_id) === input.teamId;
-      const myScore = iAmHome ? lastGame.data.home_score : lastGame.data.away_score;
-      const theirScore = iAmHome ? lastGame.data.away_score : lastGame.data.home_score;
+    const priorGameRows = (priorGames.data ?? []) as Array<{ home_team_id: string; away_team_id: string; home_score: number | null; away_score: number | null }>;
+    hasPlayedThisSeason = priorGameRows.some((row) => row.home_score != null && row.away_score != null);
+    const lastGame = priorGameRows.find((row) => row.home_score != null && row.away_score != null);
+    if (lastGame) {
+      const iAmHome = String(lastGame.home_team_id) === input.teamId;
+      const myScore = iAmHome ? lastGame.home_score! : lastGame.away_score!;
+      const theirScore = iAmHome ? lastGame.away_score! : lastGame.home_score!;
       lastResult = myScore > theirScore ? "win" : myScore < theirScore ? "loss" : null;
+    }
+    if (opponentTeamId) {
+      const priorMeeting = priorGameRows.find((row) =>
+        (String(row.home_team_id) === opponentTeamId || String(row.away_team_id) === opponentTeamId)
+        && row.home_score != null && row.away_score != null);
+      if (priorMeeting) {
+        const iAmHome = String(priorMeeting.home_team_id) === input.teamId;
+        const myScore = iAmHome ? priorMeeting.home_score! : priorMeeting.away_score!;
+        const theirScore = iAmHome ? priorMeeting.away_score! : priorMeeting.home_score!;
+        priorMeetingResult = myScore > theirScore ? "win" : myScore < theirScore ? "loss" : "tie";
+        priorMeetingMargin = marginCategory(Math.abs(myScore - theirScore));
+      }
     }
   }
 
@@ -2431,7 +2462,7 @@ async function resolveMediaDayMatchupContext(input: {
     .maybeSingle();
   const isRivalryGame = Boolean(rival.data?.rival_team_id) && rival.data?.rival_team_id === opponentTeamId;
 
-  return { gameId, lastResult, isRivalryGame, opponentProspect, opponentTeamId };
+  return { gameId, lastResult, isRivalryGame, opponentProspect, opponentTeamId, hasPlayedThisSeason, priorMeetingResult, priorMeetingMargin };
 }
 
 export async function getWeeklyMatchupInterview(input: { guildId: string; discordId: string; side: "offense" | "defense" }) {
@@ -2468,7 +2499,11 @@ export async function getWeeklyMatchupInterview(input: { guildId: string; discor
   const remainingSlots = MEDIA_DAY_SLOTS - answered.length;
   const remainingStatic = selectMatchupInterviewQuestions({
     pool,
-    context: { lastResult: matchup.lastResult, isRivalryGame: matchup.isRivalryGame },
+    context: {
+      lastResult: matchup.lastResult, isRivalryGame: matchup.isRivalryGame,
+      hasPlayedThisSeason: matchup.hasPlayedThisSeason,
+      priorMeetingResult: matchup.priorMeetingResult, priorMeetingMargin: matchup.priorMeetingMargin,
+    },
     seed: `${league.id}:${prospect.id}:${week}`,
     count: remainingSlots,
   });
@@ -2586,12 +2621,13 @@ export async function submitWeeklyMatchupInterview(input: {
 
   await driftPersonaFromMediaDayAnswer(prospect.id).catch((error) =>
     console.error(`[WARN] Persona drift failed for prospect ${prospect.id} (non-fatal):`, error));
-  await postMediaDayAnswerHeadline({
-    guildId: input.guildId, recLeagueId: context.leagueId, prospect, side: input.side,
-    question, optionIndex: input.optionIndex, opponentProspect: matchup.opponentProspect,
-  }).catch((error) => console.error(`[WARN] Could not publish Media Day headline (non-fatal):`, error));
 
   if (nextSlot >= MEDIA_DAY_SLOTS) {
+    const allAnswers = [...(existing.data ?? []), saved.data].sort((a, b) => Number(a.slot) - Number(b.slot));
+    await queueMediaDayPlayerTweet({
+      leagueId: context.leagueId, season, week, prospect, side: input.side,
+      answers: allAnswers, opponentProspect: matchup.opponentProspect,
+    }).catch((error) => console.error(`[WARN] Could not queue Media Day tweet (non-fatal):`, error));
     await payMediaDayCompletionCoins({ leagueId: context.leagueId, season, week, prospect, userId })
       .catch((error) => console.error(`[WARN] Could not pay Media Day coins for prospect ${prospect.id} (non-fatal):`, error));
     await queueMediaDayRoundupTweetsIfDue(context.leagueId, league.id, season, week)
@@ -2629,10 +2665,44 @@ async function driftPersonaFromMediaDayAnswer(prospectId: string): Promise<void>
   }).eq("prospect_id", prospectId);
 }
 
-async function postMediaDayAnswerHeadline(input: {
-  guildId: string; recLeagueId: string; prospect: Record<string, any>; side: "offense" | "defense";
-  question: { question: string; options: Array<{ text: string }> }; optionIndex: number;
-  opponentProspect: { id: string; user_id: string; first_name: string | null; last_name: string | null } | null;
+/** A prospect's own in-fiction Twitter handle -- their player name, no spaces, "@"-prefixed --
+ * per direction that Media Day should read as the player's own tweets, not a third-party
+ * headline story. */
+function twitterHandleForProspect(prospect: { first_name?: string | null; last_name?: string | null }): { handle: string; displayName: string } {
+  const first = (prospect.first_name ?? "").trim();
+  const last = (prospect.last_name ?? "").trim();
+  const displayName = `${first} ${last}`.trim() || "Prospect";
+  const slug = `${first}${last}`.replace(/[^A-Za-z0-9]/g, "") || "Prospect";
+  return { handle: `@${slug}`, displayName };
+}
+
+const MEDIA_DAY_TWEET_INTROS: Array<(name: string) => string> = [
+  (name) => `${name} held nothing back at Media Day this week.`,
+  (name) => `${name} sat down for Media Day and let it fly.`,
+  (name) => `${name} didn't dodge a single question at Media Day.`,
+  (name) => `Media Day round with ${name} — a few things stood out.`,
+  (name) => `${name} went on the record at Media Day this week.`,
+  (name) => `${name} showed up to Media Day with plenty to say.`,
+];
+
+const MEDIA_DAY_TWEET_CLOSERS: Array<(team: string) => string> = [
+  (team) => `${team} will find out soon enough if the words match the tape.`,
+  (team) => `Now it's on ${team} to back it up on the field.`,
+  () => `Kickoff will have the final say.`,
+  (team) => `${team}'s week starts now.`,
+  () => `We'll see how it holds up after Sunday.`,
+  (team) => `Big talk ahead of a big week for ${team}.`,
+];
+
+/** Queues ONE combined tweet for a prospect once all 3 of a week's Media Day slots are answered
+ * -- per direction, this replaced the earlier per-answer headline story (which fired up to 3
+ * separate @everyone posts per player per week) with a single bulk post in the player's own
+ * voice, formatted like the rest of the tweet feed. */
+async function queueMediaDayPlayerTweet(input: {
+  leagueId: string; season: number; week: number;
+  prospect: Record<string, any>; side: "offense" | "defense";
+  answers: Array<{ rendered_question: unknown; option_index: number }>;
+  opponentProspect: { first_name: string | null; last_name: string | null } | null;
 }): Promise<void> {
   const teamRow = input.prospect.player_id
     ? await supabase.from("rec_players").select("team_id").eq("id", input.prospect.player_id).maybeSingle()
@@ -2641,19 +2711,28 @@ async function postMediaDayAnswerHeadline(input: {
     ? await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", teamRow.data.team_id).maybeSingle()
     : { data: null };
   const teamName = formatTeamDisplayName(team.data) ?? "the franchise";
-  const name = `${input.prospect.first_name ?? ""} ${input.prospect.last_name ?? ""}`.trim() || "A prospect";
-  const answerText = input.question.options[input.optionIndex]?.text ?? "";
-  let opponentTag = "";
-  if (input.opponentProspect) {
-    const opponentDiscordId = await discordIdForRecUser(String(input.opponentProspect.user_id)).catch(() => null);
-    if (opponentDiscordId) opponentTag = `<@${opponentDiscordId}>`;
-  }
-  const { publishTransitionStory } = await import("../hub/story-publishing.js");
-  await publishTransitionStory({
-    guildId: input.guildId,
-    primaryAngle: "rti_media_day",
-    headline: `${teamName}'s ${name} Sounds Off at Media Day`,
-    body: `Asked "${input.question.question}" ${name} said it straight: "${answerText}"${opponentTag ? `\n\n${opponentTag}` : ""}`,
+  const { handle, displayName } = twitterHandleForProspect(input.prospect);
+
+  const quotes = input.answers.map((row) => {
+    const question = row.rendered_question as { question: string; options: Array<{ text: string }> };
+    return { question: question.question, answer: question.options[row.option_index]?.text ?? "" };
+  }).filter((q) => q.answer);
+  if (!quotes.length) return;
+
+  const highlighted = quotes.length > 1 ? [quotes[0]!, quotes[quotes.length - 1]!] : quotes;
+  const quoteLines = highlighted.map((q) => `On "${q.question}" — "${q.answer}"`).join(" ");
+  const intro = MEDIA_DAY_TWEET_INTROS[Math.floor(Math.random() * MEDIA_DAY_TWEET_INTROS.length)]!(displayName);
+  const closer = MEDIA_DAY_TWEET_CLOSERS[Math.floor(Math.random() * MEDIA_DAY_TWEET_CLOSERS.length)]!(teamName);
+  const opponentLine = input.opponentProspect
+    ? ` ${twitterHandleForProspect(input.opponentProspect).handle} is up next.`
+    : "";
+
+  const body = `${intro} ${quoteLines} ${closer}${opponentLine}`.replace(/\s+/g, " ").trim();
+
+  await supabase.from("rec_immortality_tweet_queue").insert({
+    league_id: input.leagueId, season_number: input.season, week_number: input.week,
+    author_kind: "player", author_handle: handle, author_display_name: displayName,
+    body, status: "pending",
   });
 }
 

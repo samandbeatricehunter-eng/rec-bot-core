@@ -3352,7 +3352,8 @@
       "id": 103,
       "category": "weekly_matchup",
       "tags": [
-        "opponent_context"
+        "opponent_context",
+        "requires_prior_meeting_loss"
       ],
       "question": "This team beat you the last time you played. What's different now?",
       "options": [
@@ -3555,35 +3556,34 @@
     {
       "id": 109,
       "category": "weekly_matchup",
-      "tags": [
-        "score_margin"
-      ],
-      "question": "That game got out of hand fast. Did you feel bad running it up?",
+      "tags": [],
+      "question": "If this one gets away from the other team early, do you ease up or keep pouring it on?",
       "options": [
         {
-          "text": "We finish. That's what we do.",
+          "text": "We finish plays until the whistle, doesn't matter the score.",
           "dnaPoints": {
             "Competitive Fire": 2
           },
           "bonusOpportunity": {
-            "statCategoryHint": "clutch_finish",
+            "statCategoryHint": "dominant_performance",
             "xpBonusPct": 25
           }
         },
         {
-          "text": "We never stopped believing in each other.",
+          "text": "Ease up. There's no reason to run up a score.",
           "dnaPoints": {
-            "Team First": 2
+            "Team First": 1,
+            "Composure": 1
           }
         },
         {
-          "text": "Stayed even the whole time — panic never entered it.",
+          "text": "That's for the coaches to decide, not me.",
           "dnaPoints": {
             "Composure": 2
           }
         },
         {
-          "text": "Games like that are exactly why I love this sport.",
+          "text": "If the opportunity's there, I'm taking it every time.",
           "dnaPoints": {
             "Showmanship": 2
           }
@@ -3593,13 +3593,11 @@
     {
       "id": 110,
       "category": "weekly_matchup",
-      "tags": [
-        "score_margin"
-      ],
-      "question": "That game came down to the final possession. How draining was that?",
+      "tags": [],
+      "question": "If this one comes down to the final possession, who do you want the ball in their hands?",
       "options": [
         {
-          "text": "We finish. That's what we do.",
+          "text": "Give it to me. I want that moment.",
           "dnaPoints": {
             "Competitive Fire": 2
           },
@@ -3609,19 +3607,19 @@
           }
         },
         {
-          "text": "We never stopped believing in each other.",
+          "text": "Whoever the play calls for — I trust the system.",
           "dnaPoints": {
             "Team First": 2
           }
         },
         {
-          "text": "Stayed even the whole time — panic never entered it.",
+          "text": "I stay even either way, before and after the snap.",
           "dnaPoints": {
             "Composure": 2
           }
         },
         {
-          "text": "Games like that are exactly why I love this sport.",
+          "text": "Those are the moments that get remembered.",
           "dnaPoints": {
             "Showmanship": 2
           }
@@ -3631,37 +3629,35 @@
     {
       "id": 111,
       "category": "weekly_matchup",
-      "tags": [
-        "score_margin"
-      ],
-      "question": "You were down big early and came all the way back. Talk about that.",
+      "tags": [],
+      "question": "If you fall behind early today, what gets this team back in it?",
       "options": [
         {
-          "text": "We finish. That's what we do.",
+          "text": "We don't blink. We chip away possession by possession.",
           "dnaPoints": {
-            "Competitive Fire": 2
+            "Composure": 2
           },
           "bonusOpportunity": {
-            "statCategoryHint": "clutch_finish",
+            "statCategoryHint": "bounce_back_week",
             "xpBonusPct": 25
           }
         },
         {
-          "text": "We never stopped believing in each other.",
+          "text": "Leadership in the huddle. Somebody has to settle everyone down.",
+          "dnaPoints": {
+            "Leadership": 2
+          }
+        },
+        {
+          "text": "We lean on each other. Nobody's doing it alone.",
           "dnaPoints": {
             "Team First": 2
           }
         },
         {
-          "text": "Stayed even the whole time — panic never entered it.",
+          "text": "I want the ball more, not less, when we're behind.",
           "dnaPoints": {
-            "Composure": 2
-          }
-        },
-        {
-          "text": "Games like that are exactly why I love this sport.",
-          "dnaPoints": {
-            "Showmanship": 2
+            "Competitive Fire": 2
           }
         }
       ]
@@ -3669,35 +3665,302 @@
     {
       "id": 112,
       "category": "weekly_matchup",
-      "tags": [
-        "score_margin"
-      ],
-      "question": "That game went to overtime. What was going through your head?",
+      "tags": [],
+      "question": "Every game feels different once the fourth quarter hits. What's your mentality late?",
       "options": [
         {
-          "text": "We finish. That's what we do.",
-          "dnaPoints": {
-            "Competitive Fire": 2
-          },
-          "bonusOpportunity": {
-            "statCategoryHint": "clutch_finish",
-            "xpBonusPct": 25
-          }
-        },
-        {
-          "text": "We never stopped believing in each other.",
-          "dnaPoints": {
-            "Team First": 2
-          }
-        },
-        {
-          "text": "Stayed even the whole time — panic never entered it.",
+          "text": "Nothing changes. Same process, whatever the clock says.",
           "dnaPoints": {
             "Composure": 2
           }
         },
         {
-          "text": "Games like that are exactly why I love this sport.",
+          "text": "That's when I want to take over.",
+          "dnaPoints": {
+            "Competitive Fire": 2
+          }
+        },
+        {
+          "text": "That's when leadership actually matters most.",
+          "dnaPoints": {
+            "Leadership": 2
+          }
+        },
+        {
+          "text": "I want the crowd into it by then.",
+          "dnaPoints": {
+            "Showmanship": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": 113,
+      "category": "debut",
+      "tags": [
+        "debut_only"
+      ],
+      "question": "You're just getting started with this franchise. What's the first impression been like?",
+      "options": [
+        {
+          "text": "Business. Everyone's locked in and ready to work.",
+          "dnaPoints": {
+            "Composure": 2
+          }
+        },
+        {
+          "text": "The energy's been great — feels like a good group.",
+          "dnaPoints": {
+            "Team First": 2
+          }
+        },
+        {
+          "text": "I'm here to prove I belong immediately.",
+          "dnaPoints": {
+            "Competitive Fire": 2
+          }
+        },
+        {
+          "text": "Excited to show this city what I can do.",
+          "dnaPoints": {
+            "Showmanship": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": 114,
+      "category": "debut",
+      "tags": [
+        "debut_only"
+      ],
+      "question": "New team, new locker room. What's stood out most so far?",
+      "options": [
+        {
+          "text": "How quickly guys have welcomed me in.",
+          "dnaPoints": {
+            "Team First": 2
+          }
+        },
+        {
+          "text": "Everybody's got something to prove — I like that.",
+          "dnaPoints": {
+            "Competitive Fire": 2
+          }
+        },
+        {
+          "text": "The structure. This is a well-run operation.",
+          "dnaPoints": {
+            "Composure": 2
+          }
+        },
+        {
+          "text": "I already feel like a leader's expected of me.",
+          "dnaPoints": {
+            "Leadership": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": 115,
+      "category": "debut",
+      "tags": [
+        "debut_only"
+      ],
+      "question": "You haven't taken the field with this organization yet. What are you most looking forward to?",
+      "options": [
+        {
+          "text": "Just getting out there and competing, period.",
+          "dnaPoints": {
+            "Competitive Fire": 2
+          }
+        },
+        {
+          "text": "Building something with these teammates from week one.",
+          "dnaPoints": {
+            "Team First": 2
+          }
+        },
+        {
+          "text": "Making sure I earn the trust of this locker room.",
+          "dnaPoints": {
+            "Leadership": 2
+          }
+        },
+        {
+          "text": "Giving these fans a moment to remember.",
+          "dnaPoints": {
+            "Showmanship": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": 116,
+      "category": "debut",
+      "tags": [
+        "debut_only"
+      ],
+      "question": "What made this landing spot feel like the right fit?",
+      "options": [
+        {
+          "text": "The direction of the franchise, honestly.",
+          "dnaPoints": {
+            "Legacy Drive": 2
+          }
+        },
+        {
+          "text": "The people. It felt like family right away.",
+          "dnaPoints": {
+            "Team First": 2
+          }
+        },
+        {
+          "text": "I saw a real chance to compete for something.",
+          "dnaPoints": {
+            "Competitive Fire": 2
+          }
+        },
+        {
+          "text": "It just felt calm. No noise, just football.",
+          "dnaPoints": {
+            "Composure": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": 117,
+      "category": "debut",
+      "tags": [
+        "debut_only"
+      ],
+      "question": "How has the transition into a new system been going?",
+      "options": [
+        {
+          "text": "Smooth. I put the work in before it mattered.",
+          "dnaPoints": {
+            "Composure": 2
+          }
+        },
+        {
+          "text": "Still learning, but I ask a lot of questions.",
+          "dnaPoints": {
+            "Team First": 1,
+            "Leadership": 1
+          }
+        },
+        {
+          "text": "I want to master it faster than anyone expects.",
+          "dnaPoints": {
+            "Competitive Fire": 2
+          }
+        },
+        {
+          "text": "However long it takes — I'm building for the long haul here.",
+          "dnaPoints": {
+            "Legacy Drive": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": 118,
+      "category": "debut",
+      "tags": [
+        "debut_only"
+      ],
+      "question": "What do you want this franchise's fans to know about you before your first game?",
+      "options": [
+        {
+          "text": "That I show up and do the work, every day.",
+          "dnaPoints": {
+            "Composure": 2
+          }
+        },
+        {
+          "text": "That I play for the guys next to me, first.",
+          "dnaPoints": {
+            "Team First": 2
+          }
+        },
+        {
+          "text": "That I came here to win, not just show up.",
+          "dnaPoints": {
+            "Competitive Fire": 2
+          }
+        },
+        {
+          "text": "That they're going to want to watch every snap.",
+          "dnaPoints": {
+            "Showmanship": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": 119,
+      "category": "debut",
+      "tags": [
+        "debut_only"
+      ],
+      "question": "Getting settled with a brand-new group of teammates — how's that going?",
+      "options": [
+        {
+          "text": "Great. I've made it a priority to connect with everyone.",
+          "dnaPoints": {
+            "Team First": 2
+          }
+        },
+        {
+          "text": "It's a process, but I trust it'll click fast.",
+          "dnaPoints": {
+            "Composure": 2
+          }
+        },
+        {
+          "text": "I'm already pushing people, and they're pushing back.",
+          "dnaPoints": {
+            "Competitive Fire": 2
+          }
+        },
+        {
+          "text": "I want to be someone the young guys can lean on.",
+          "dnaPoints": {
+            "Leadership": 2
+          }
+        }
+      ]
+    },
+    {
+      "id": 120,
+      "category": "debut",
+      "tags": [
+        "debut_only"
+      ],
+      "question": "What's the biggest adjustment so far since joining this team?",
+      "options": [
+        {
+          "text": "Honestly, not much — football is football.",
+          "dnaPoints": {
+            "Composure": 2
+          }
+        },
+        {
+          "text": "Learning the identity of this locker room.",
+          "dnaPoints": {
+            "Team First": 2
+          }
+        },
+        {
+          "text": "Figuring out exactly what's expected of me here.",
+          "dnaPoints": {
+            "Leadership": 2
+          }
+        },
+        {
+          "text": "Getting used to the target that comes with a new name.",
           "dnaPoints": {
             "Showmanship": 2
           }
