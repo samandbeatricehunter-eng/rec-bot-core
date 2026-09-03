@@ -121,6 +121,11 @@ export type TweetSlots = {
    * opposed to {player}, which is always the author reflecting on their own week. */
   targetPlayer?: string;
   targetTeam?: string;
+  targetHandle?: string;
+  toHandle?: string;
+  toName?: string;
+  fromName?: string;
+  snippet?: string;
 };
 
 // Player-vs-player chatter (tweet-generation.service.ts's queuePlayerChatterAfterImport) --

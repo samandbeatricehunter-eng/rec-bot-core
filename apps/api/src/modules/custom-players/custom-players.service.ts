@@ -483,13 +483,11 @@ export async function submitCustomPlayer(input: {
   // their own season-cap/CP/wallet logic), so unlike every other purchase type they never got
   // a rec_commissioners_inbox row — meaning they never showed up in League Mgmt's Pending
   // Items list or counted toward the notification bell. Insert one directly.
-  // Every editable attribute starts at REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR (35) — only list the
-  // ones the buyer actually raised above that floor, or this dumps 30-40 "Attribute: 35" lines
-  // into the pending-item card for every build (unreadable, and enormous on mobile).
-  const attrLines = sortRecAttributeCodes(Object.keys(input.attributes))
-    .filter((code) => input.attributes[code]! > REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR)
-    .map((code) => `${getRecAttributeDisplayName(code)}: ${input.attributes[code]}`)
-    .join("\n") || "No attributes raised above the floor.";
+  const allCodes = sortRecAttributeCodes(getRecEditableAttributes(game, effectivePosition, input.archetypeKey));
+  const attrLines = allCodes
+    .map((code) => `${getRecAttributeDisplayName(code)} (${code.toUpperCase()}): ${Number(input.attributes[code] ?? REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR)}`)
+    .join("\n") || "No attributes recorded.";
+  const headshotUrl = input.identity.cardRenderId ? customPlayerRenderPublicUrl(String(input.identity.cardRenderId)) : null;
   const purchasingTeam = await supabase.from("rec_teams").select("name,display_abbr,abbreviation").eq("id", teamId).maybeSingle();
   const teamName = (purchasingTeam.data as any)?.name ?? (purchasingTeam.data as any)?.display_abbr ?? (purchasingTeam.data as any)?.abbreviation ?? null;
   const inboxInsert = await supabase.from("rec_commissioners_inbox").insert({
@@ -515,7 +513,7 @@ export async function submitCustomPlayer(input: {
     amount: pkg.coinPrice,
     source_table: "rec_custom_player_builds",
     source_id: build.data.id,
-    payload: { buildId: build.data.id, position: effectivePosition, estimatedOvr: evaluation.displayOverall, teamName },
+    payload: { buildId: build.data.id, position: effectivePosition, estimatedOvr: evaluation.displayOverall, teamName, headshotUrl },
   });
   if (inboxInsert.error) console.error("[ERROR] Failed to create commissioner-inbox row for custom-player submission (non-fatal):", inboxInsert.error);
   void notifyLeagueCommissionersOfPendingItem(context.leagueId);

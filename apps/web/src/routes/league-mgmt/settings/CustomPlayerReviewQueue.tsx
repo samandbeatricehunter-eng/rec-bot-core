@@ -131,7 +131,12 @@ function CustomPlayerBuildRow({
     </div>
     <p className="form-hint"><strong>Locked purchase selections:</strong> {build.position}{build.game_family !== "CFB" ? ` · ${build.development_trait}` : ""}. Commissioners cannot change these during approval.</p>
     <h4>Submitted Ratings</h4>
-    <div className="custom-player-fields">{sortRecAttributeCodes(Object.keys(ratings)).map((code) => <span key={code} className="form-label">{getRecAttributeDisplayName(code)} ({code.toUpperCase()}): <strong>{ratings[code]}</strong></span>)}</div>
+    <div className="legend-purchase-attributes">{sortRecAttributeCodes(Object.keys(ratings)).map((code) => (
+      <div key={code} className="legend-purchase-attribute">
+        <span>{getRecAttributeDisplayName(code)} ({code.toUpperCase()})</span>
+        <strong>{ratings[code]}</strong>
+      </div>
+    ))}</div>
     <textarea className="form-input" rows={2} placeholder="Commissioner note or required rejection reason" value={note} onChange={(event) => onNoteChange(event.target.value)} />
     <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
       <Button

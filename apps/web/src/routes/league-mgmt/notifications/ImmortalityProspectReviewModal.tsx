@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { REC_ATTRIBUTE_DISPLAY_ORDER, getRecAttributeDisplayName, sortRecAttributeCodes } from "@rec/shared";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { CommissionerNotification } from "../../../types/api.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -28,7 +29,7 @@ type ProspectReviewPayload = {
   personaDnaTraits: string[];
   playerTraits: string[];
   characteristics: string[];
-  // Already in MADDEN_ATTRIBUTE_DEFINITIONS (in-game) order -- see submitProspectForReview.
+  headshotUrl?: string | null;
   attributes: Array<{ code: string; name: string; value: number }>;
 };
 
@@ -74,7 +75,17 @@ export function ImmortalityProspectReviewModal({
     <Modal title={`${data.side === "offense" ? "Offensive" : "Defensive"} Prospect Review`} onClose={onClose} panelClassName="fantasy-draft-modal-wide">
       {message && <ErrorState message={message} />}
       <div className="settings-review-row">
-        <h3 style={{ margin: 0 }}>{data.name} — {data.position}</h3>
+        <div style={{ display: "flex", gap: 16, alignItems: "flex-start", marginBottom: 8 }}>
+          {data.headshotUrl ? (
+            <img
+              className="pending-item-logo-preview"
+              src={data.headshotUrl}
+              alt={`${data.name} headshot`}
+              style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 8, flex: "0 0 auto" }}
+            />
+          ) : null}
+          <h3 style={{ margin: 0 }}>{data.name} — {data.position}</h3>
+        </div>
         <p className="form-hint" style={{ margin: "4px 0 8px" }}>
           This player is already live and eligible for team selection — this is just your build sheet to recreate them in-game. Fix the name here first if Madden's filter would block it as vulgar; it updates everywhere, including an already-posted player card.
         </p>
@@ -98,20 +109,25 @@ export function ImmortalityProspectReviewModal({
           {data.throwingMotionKey ? <> · Throwing Motion: <strong>{data.throwingMotionKey}</strong></> : null}
         </p>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 8, marginBottom: 12 }}>
-          {data.attributes.map((attr) => (
-            <div key={attr.code} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-              <span className="form-hint">{attr.code} {attr.name}</span>
-              <strong>{attr.value}</strong>
-            </div>
-          ))}
+        <div className="legend-purchase-attributes">
+          {(() => {
+            const byCode = new Map((data.attributes ?? []).map((attr) => [attr.code.toUpperCase(), attr]));
+            return sortRecAttributeCodes([...new Set([...REC_ATTRIBUTE_DISPLAY_ORDER, ...byCode.keys()])]).map((code) => {
+              const attr = byCode.get(code.toUpperCase());
+              return (
+                <div key={code} className="legend-purchase-attribute">
+                  <span>{code} {attr?.name ?? getRecAttributeDisplayName(code)}</span>
+                  <strong>{attr?.value ?? "—"}</strong>
+                </div>
+              );
+            });
+          })()}
         </div>
 
         <p style={{ margin: "0 0 4px" }}><strong>Persona:</strong> {data.personaLabel ?? "—"}</p>
         <p style={{ margin: "0 0 4px" }}><strong>Playstyle:</strong> {data.playstyleArchetype ?? "—"}{data.playstyleSecondary ? ` / ${data.playstyleSecondary}` : ""}</p>
         <p style={{ margin: "0 0 4px" }}><strong>Persona DNA:</strong> {data.personaDnaTraits.join(", ") || "—"}</p>
-        {data.playerTraits.length > 0 && <p style={{ margin: "0 0 4px" }}><strong>Player Traits:</strong> {data.playerTraits.join(", ")}</p>}
-        <p style={{ margin: "0 0 12px" }}><strong>Natural Characteristics:</strong> {data.characteristics.join(", ") || "—"}</p>
+        {data.playerTraits.length > 0 && <p style={{ margin: "0 0 12px" }}><strong>Player Traits:</strong> {data.playerTraits.join(", ")}</p>}
 
         <label className="form-label" htmlFor="prospect-review-note">Note (required to reject)</label>
         <textarea id="prospect-review-note" className="form-input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason this build is unacceptable" />

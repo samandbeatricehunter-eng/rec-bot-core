@@ -10,11 +10,13 @@ import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { loadImmortalityLeague, prospectAvatarUrlForHandle, recUserIdFromDiscordId, requireImmortalityLeague, twitterHandleForProspect } from "./immortality.service.js";
-import { ensurePlayerPersonasForLeague, playerPersonaFor, playerPersonaAvatarForHandle } from "./player-personas.service.js";
+import { ensurePlayerPersonasForLeague, listPlayerPersonasForLeague, playerPersonaFor, playerPersonaAvatarForHandle } from "./player-personas.service.js";
 import {
   GENERIC_HANDLES, MANUAL_TWEET_GENERIC_HANDLES, PLAYER_CHATTER_TEMPLATES, TWEET_HOSTS, TWEET_TEMPLATES, staticAvatarUrlForHandle,
   type TweetAuthor, type TweetCategory, type TweetHostKey, type TweetSlots, type TweetTemplate,
 } from "./tweet-bank.js";
+import { conversationTemplateKey, selectConversationLine, type ConversationKind } from "./tweet-bank-conversations.js";
+import { personaForHandle, playerVoiceFromTraits } from "./tweet-bank-voices.js";
 
 const QUEUE_SIZE = 10;
 const IS_CUSTOM_PROSPECT_PREFIX = "rti:";
@@ -210,16 +212,15 @@ function resolveAuthor(voice: TweetAuthor): { authorKind: "host" | "generic"; ha
   return { authorKind: "host", handle: host.handle, displayName: host.displayName };
 }
 
-/** Call after a week's advance completes -- no-ops for preseason/offseason (gameplaySeasonStages,
- * same gate postWeeklyProTrackerUpdates uses) or a non-RTI league. Safe to call unconditionally
- * from the advance flow. */
+/** Host/stat tweets still no-op outside gameplay, but player personas must exist in camp so
+ * the conversation sweep has real-life roster accounts to talk with. */
 export async function queueImmortalityTweetsAfterAdvance(input: { leagueId: string; seasonNumber: number; weekNumber: number; seasonStage: string; game: LeagueGame }): Promise<void> {
-  if (!gameplaySeasonStages(input.game).has(input.seasonStage)) return;
   const immortalityLeague = await loadImmortalityLeague(input.leagueId);
   if (!immortalityLeague) return;
-  await generateAndQueueImmortalityTweets(input.leagueId, input.seasonNumber, input.weekNumber);
   await ensurePlayerPersonasForLeague(input.leagueId).catch((err) =>
     console.error(`[ERROR] Player persona generation failed for league ${input.leagueId} (non-fatal):`, err));
+  if (!gameplaySeasonStages(input.game).has(input.seasonStage)) return;
+  await generateAndQueueImmortalityTweets(input.leagueId, input.seasonNumber, input.weekNumber);
   await queuePlayerChatterAfterImport(input.leagueId, input.seasonNumber, input.weekNumber).catch((err) =>
     console.error(`[ERROR] Player chatter tweets failed for league ${input.leagueId} (non-fatal):`, err));
 }
@@ -242,8 +243,9 @@ export async function queueImmortalityTweetsAfterImport(leagueId: string): Promi
   });
 }
 
-/** Adds two fan-account reactions after an RTI contract is executed. They use the existing
- * four-hour tweet drip instead of posting simultaneously, keeping the channel timeline natural. */
+/** One tweet per signed contract, with the full package (seasons, coins, XP). Idempotent on
+ * player name so sign + hub-load repair cannot queue a second post, and leftover pair-tweets
+ * from the old two-post format collapse into a single pending row. */
 export async function queueContractSigningTweets(input: {
   leagueId: string;
   seasonNumber: number;
@@ -258,34 +260,42 @@ export async function queueContractSigningTweets(input: {
   playerXp: number;
   coins: number;
 }): Promise<void> {
+  const label = input.contractNumber === 1 ? "rookie contract" : input.contractNumber === 2 ? "second contract" : "final contract";
+  const body = `It's official — ${input.teamName} signed ${input.playerName} (${input.position}) to a Seasons ${input.startSeason}–${input.endSeason} ${label}. The package: ${input.coins.toLocaleString("en-US")} REC Coins and ${input.playerXp} Player XP.`;
+
+  const existing = await supabase.from("rec_immortality_tweet_queue")
+    .select("id,status,created_at,body")
+    .eq("league_id", input.leagueId)
+    .eq("source", "contract_signing")
+    .in("status", ["pending", "posted"]);
+  const mentionsPlayer = (existing.data ?? []).filter((row: any) => String(row.body ?? "").includes(input.playerName));
+  if (mentionsPlayer.some((row: any) => row.status === "posted")) {
+    const extras = mentionsPlayer.filter((row: any) => row.status === "pending").map((row: any) => String(row.id));
+    if (extras.length) await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" }).in("id", extras);
+    return;
+  }
+  const pending = mentionsPlayer.filter((row: any) => row.status === "pending").sort((a: any, b: any) => String(a.created_at).localeCompare(String(b.created_at)));
+  if (pending.length) {
+    const keep = pending[0]!;
+    await supabase.from("rec_immortality_tweet_queue").update({ body }).eq("id", String(keep.id));
+    const extras = pending.slice(1).map((row: any) => String(row.id));
+    if (extras.length) await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" }).in("id", extras);
+    return;
+  }
+
   const seed = [...input.contractId].reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  const first = GENERIC_HANDLES[seed % GENERIC_HANDLES.length]!;
-  const second = GENERIC_HANDLES[(seed + 17) % GENERIC_HANDLES.length]!;
-  const label = input.contractNumber === 1 ? "rookie deal" : input.contractNumber === 2 ? "second contract" : "final contract";
-  await supabase.from("rec_immortality_tweet_queue").insert([
-    {
-      league_id: input.leagueId,
-      season_number: input.seasonNumber,
-      week_number: input.weekNumber,
-      author_kind: "generic",
-      author_handle: first.handle,
-      author_display_name: first.displayName,
-      body: `${input.teamName} locked in ${input.playerName} (${input.position}) on a Seasons ${input.startSeason}–${input.endSeason} ${label}. The franchise has its cornerstone.`,
-      status: "pending",
-      source: "contract_signing",
-    },
-    {
-      league_id: input.leagueId,
-      season_number: input.seasonNumber,
-      week_number: input.weekNumber,
-      author_kind: "generic",
-      author_handle: second.handle,
-      author_display_name: second.displayName,
-      body: `${input.playerName} just signed for ${input.coins.toLocaleString("en-US")} REC Coins and ${input.playerXp} Player XP. Now the pressure shifts to making that ${input.position} investment pay off.`,
-      status: "pending",
-      source: "contract_signing",
-    },
-  ]);
+  const author = GENERIC_HANDLES[seed % GENERIC_HANDLES.length]!;
+  await supabase.from("rec_immortality_tweet_queue").insert({
+    league_id: input.leagueId,
+    season_number: input.seasonNumber,
+    week_number: input.weekNumber,
+    author_kind: "generic",
+    author_handle: author.handle,
+    author_display_name: author.displayName,
+    body,
+    status: "pending",
+    source: "contract_signing",
+  });
 }
 
 const MANUAL_GENERIC_PERSONA_KEYS = ["generic1", "generic2", "generic3", "generic4"] as const;
@@ -540,7 +550,7 @@ async function queuePlayerChatterAfterImport(leagueId: string, seasonNumber: num
     && hasNotablePerformance(statLine(row.stats as Record<string, unknown>)));
   if (!authorCandidates.length) return;
 
-  const chatterCount = (Math.random() < 0.4 ? 1 : 0) + (Math.random() < 0.15 ? 1 : 0);
+  const chatterCount = (Math.random() < 0.55 ? 1 : 0) + (Math.random() < 0.25 ? 1 : 0);
   if (!chatterCount) return;
 
   const results = await supabase.from("rec_game_results")
@@ -627,6 +637,7 @@ async function queueOnePlayerChatterTweet(
     player: displayName, team: authorTeamName, opponent: teamLabel(opponentTeamRow.data),
     value: primaryStat.value, statLabel: primaryStat.statLabel,
     targetPlayer: targetPlayer ?? undefined, targetTeam: targetTeamName ?? undefined,
+    targetHandle: targetPlayer ? handleForPlayerName(targetPlayer).handle : undefined,
   });
   if (!body) return;
 
@@ -707,6 +718,7 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
   }
 
   await sweepAmbientFanChatter();
+  await sweepTweetConversations();
 }
 
 const AMBIENT_CHATTER_COOLDOWN_MS = 90 * 60 * 1000;
@@ -770,5 +782,304 @@ async function sweepAmbientFanChatter(): Promise<void> {
   for (const row of (leagues.data ?? []) as Array<{ id: string; league_id: string }>) {
     await queueAmbientFanChatterIfDue(row.league_id, row.id).catch((err) =>
       console.error(`[ERROR] Ambient fan chatter failed for league ${row.league_id} (non-fatal):`, err));
+  }
+}
+
+const MAX_ACTIVE_CONVERSATIONS = 4;
+const CONVERSATION_SOURCE_PREFIX = "conversation:";
+
+type FeedAccount = {
+  authorKind: "host" | "generic" | "player";
+  handle: string;
+  displayName: string;
+  traits?: string[];
+  tonePraiseWeight?: number;
+};
+
+type ConversationRow = {
+  id: string;
+  league_id: string;
+  participant_handles: string[];
+  last_author_handle: string;
+  last_target_handle: string;
+  last_body: string;
+  used_keys: string[];
+  turn_count: number;
+  max_turns: number;
+};
+
+function conversationSource(id: string): string {
+  return `${CONVERSATION_SOURCE_PREFIX}${id}`;
+}
+
+function snippetOf(body: string): string {
+  const cleaned = body.replace(/\s+/g, " ").trim();
+  return cleaned.length <= 72 ? cleaned : `${cleaned.slice(0, 72).trim()}…`;
+}
+
+async function loadFeedAccounts(leagueId: string): Promise<FeedAccount[]> {
+  const personas = await listPlayerPersonasForLeague(leagueId);
+  return [
+    ...personas.map((persona) => ({
+      authorKind: "player" as const,
+      handle: persona.handle,
+      displayName: persona.displayName,
+      traits: persona.traits,
+      tonePraiseWeight: persona.tonePraiseWeight,
+    })),
+    ...Object.values(TWEET_HOSTS).map((host) => ({
+      authorKind: "host" as const, handle: host.handle, displayName: host.displayName,
+    })),
+    ...GENERIC_HANDLES.map((account) => ({
+      authorKind: "generic" as const, handle: account.handle, displayName: account.displayName,
+    })),
+  ];
+}
+
+function pickFeedAccount(accounts: FeedAccount[], exclude: Set<string>, preferPlayer: boolean): FeedAccount | null {
+  const blocked = new Set([...exclude].map((handle) => handle.toLowerCase()));
+  const pool = accounts.filter((account) => !blocked.has(account.handle.toLowerCase()));
+  if (!pool.length) return null;
+  const players = pool.filter((account) => account.authorKind === "player");
+  const source = preferPlayer && players.length && Math.random() < 0.7 ? players : pool;
+  return source[Math.floor(Math.random() * source.length)] ?? null;
+}
+
+function accountByHandle(accounts: FeedAccount[], handle: string): FeedAccount | null {
+  const needle = handle.toLowerCase();
+  return accounts.find((account) => account.handle.toLowerCase() === needle) ?? null;
+}
+
+function lineForAccount(account: FeedAccount, kind: ConversationKind, usedKeys: Iterable<string>): string | null {
+  const catalog = personaForHandle(account.handle);
+  const playerVoice = account.authorKind === "player"
+    ? playerVoiceFromTraits({ traits: account.traits, tonePraiseWeight: account.tonePraiseWeight })
+    : null;
+  return selectConversationLine({
+    kind,
+    family: catalog?.family ?? playerVoice?.family ?? "player_mixed",
+    moods: catalog?.moods ?? playerVoice?.moods ?? ["hype", "witty", "trash"],
+    vulgar: catalog?.vulgar ?? playerVoice?.vulgar ?? true,
+    signatures: catalog?.signatures[kind] ?? [],
+    usedKeys,
+  });
+}
+
+async function recentAuthorUsedKeys(leagueId: string, handle: string): Promise<string[]> {
+  const recent = await supabase.from("rec_immortality_tweet_queue")
+    .select("body,source").eq("league_id", leagueId).eq("author_handle", handle)
+    .order("created_at", { ascending: false }).limit(20);
+  return ((recent.data ?? []) as Array<{ body: string; source: string | null }>)
+    .filter((row) => String(row.source ?? "").startsWith(CONVERSATION_SOURCE_PREFIX))
+    .slice(0, 12)
+    .map((row) => conversationTemplateKey(String(row.body ?? "")));
+}
+
+async function queueConversationTweet(input: {
+  leagueId: string;
+  seasonNumber: number;
+  weekNumber: number;
+  conversationId: string;
+  author: FeedAccount;
+  target: FeedAccount;
+  kind: ConversationKind;
+  usedKeys: string[];
+  snippet?: string;
+}): Promise<{ body: string; key: string } | null> {
+  const prior = [...input.usedKeys, ...await recentAuthorUsedKeys(input.leagueId, input.author.handle)];
+  const template = lineForAccount(input.author, input.kind, prior);
+  if (!template) return null;
+  const body = fillTemplate(template, {
+    toHandle: input.target.handle,
+    toName: input.target.displayName,
+    fromName: input.author.displayName,
+    snippet: input.snippet,
+  });
+  if (!body) return null;
+  const inserted = await supabase.from("rec_immortality_tweet_queue").insert({
+    league_id: input.leagueId,
+    season_number: input.seasonNumber,
+    week_number: input.weekNumber,
+    author_kind: input.author.authorKind,
+    author_handle: input.author.handle,
+    author_display_name: input.author.displayName,
+    body,
+    status: "pending",
+    source: conversationSource(input.conversationId),
+  });
+  if (inserted.error) {
+    console.error(`[ERROR] Failed to queue conversation tweet for league ${input.leagueId}:`, inserted.error);
+    return null;
+  }
+  return { body, key: conversationTemplateKey(template) };
+}
+
+async function concludeConversation(id: string): Promise<void> {
+  await supabase.from("rec_immortality_tweet_conversations").delete().eq("id", id);
+}
+
+async function continueConversation(
+  leagueId: string,
+  seasonNumber: number,
+  weekNumber: number,
+  convo: ConversationRow,
+  accounts: FeedAccount[],
+): Promise<void> {
+  const pending = await supabase.from("rec_immortality_tweet_queue")
+    .select("id").eq("league_id", leagueId).eq("status", "pending")
+    .eq("source", conversationSource(convo.id)).limit(1).maybeSingle();
+  if (pending.data) return;
+
+  const participants = new Set(convo.participant_handles);
+  let author = accountByHandle(accounts, convo.last_target_handle);
+  let target = accountByHandle(accounts, convo.last_author_handle);
+  if (participants.size < 3 && Math.random() < 0.18) {
+    const interloper = pickFeedAccount(accounts, new Set([convo.last_author_handle, convo.last_target_handle]), true);
+    if (interloper) {
+      author = interloper;
+      target = accountByHandle(accounts, convo.last_author_handle) ?? target;
+    }
+  }
+  if (!author || !target || author.handle.toLowerCase() === target.handle.toLowerCase()) return;
+
+  const kind: ConversationKind = convo.turn_count >= convo.max_turns - 1
+    ? "clapback"
+    : (Math.random() < 0.65 ? "reply" : "clapback");
+  const queued = await queueConversationTweet({
+    leagueId, seasonNumber, weekNumber, conversationId: convo.id,
+    author, target, kind, usedKeys: convo.used_keys, snippet: snippetOf(convo.last_body),
+  });
+  if (!queued) return;
+
+  const nextTurn = convo.turn_count + 1;
+  if (nextTurn >= convo.max_turns) {
+    await concludeConversation(convo.id);
+    return;
+  }
+  await supabase.from("rec_immortality_tweet_conversations").update({
+    participant_handles: Array.from(new Set([...convo.participant_handles, author.handle, target.handle])),
+    last_author_handle: author.handle,
+    last_target_handle: target.handle,
+    last_body: queued.body,
+    used_keys: [...convo.used_keys, queued.key],
+    turn_count: nextTurn,
+    updated_at: new Date().toISOString(),
+  }).eq("id", convo.id);
+}
+
+async function startConversation(
+  leagueId: string,
+  seasonNumber: number,
+  weekNumber: number,
+  accounts: FeedAccount[],
+): Promise<void> {
+  const recent = await supabase.from("rec_immortality_tweet_queue")
+    .select("author_handle,author_display_name,body,source")
+    .eq("league_id", leagueId).eq("status", "posted")
+    .order("posted_at", { ascending: false }).limit(16);
+  const recentRows = (recent.data ?? []) as Array<{ author_handle: string; author_display_name: string; body: string; source: string | null }>;
+  const recentPairs = new Set(
+    recentRows
+      .filter((row) => String(row.source ?? "").startsWith(CONVERSATION_SOURCE_PREFIX))
+      .map((row) => `${String(row.author_handle).toLowerCase()}|${conversationTemplateKey(String(row.body ?? ""))}`),
+  );
+
+  let author: FeedAccount | null = null;
+  let target: FeedAccount | null = null;
+  let kind: ConversationKind = "mention";
+  let snippet: string | undefined;
+  const replyable = recentRows.filter((row) => !String(row.source ?? "").startsWith(CONVERSATION_SOURCE_PREFIX));
+  if (replyable.length && Math.random() < 0.7) {
+    const original = replyable[Math.floor(Math.random() * replyable.length)]!;
+    author = pickFeedAccount(accounts, new Set([original.author_handle]), true);
+    target = accountByHandle(accounts, original.author_handle) ?? {
+      authorKind: "generic", handle: original.author_handle, displayName: original.author_display_name,
+    };
+    kind = "reply";
+    snippet = snippetOf(original.body);
+  } else {
+    author = pickFeedAccount(accounts, new Set(), true);
+    target = author ? pickFeedAccount(accounts, new Set([author.handle]), true) : null;
+    kind = "mention";
+  }
+  if (!author || !target) return;
+  const pairKey = `${author.handle.toLowerCase()}|${target.handle.toLowerCase()}`;
+  if (recentPairs.has(pairKey)) return;
+
+  const maxTurns = 3 + Math.floor(Math.random() * 3);
+  const created = await supabase.from("rec_immortality_tweet_conversations").insert({
+    league_id: leagueId,
+    participant_handles: [author.handle, target.handle],
+    last_author_handle: author.handle,
+    last_target_handle: target.handle,
+    last_body: "",
+    used_keys: [],
+    turn_count: 0,
+    max_turns: maxTurns,
+  }).select("id").maybeSingle();
+  if (created.error || !created.data) {
+    console.error(`[ERROR] Failed to start tweet conversation for league ${leagueId}:`, created.error);
+    return;
+  }
+
+  const queued = await queueConversationTweet({
+    leagueId, seasonNumber, weekNumber, conversationId: String(created.data.id),
+    author, target, kind, usedKeys: [], snippet,
+  });
+  if (!queued) {
+    await concludeConversation(String(created.data.id));
+    return;
+  }
+  await supabase.from("rec_immortality_tweet_conversations").update({
+    last_body: queued.body,
+    used_keys: [queued.key],
+    turn_count: 1,
+    updated_at: new Date().toISOString(),
+  }).eq("id", String(created.data.id));
+}
+
+async function queueConversationsForLeague(leagueId: string): Promise<void> {
+  const existing = await supabase.from("rec_immortality_player_personas")
+    .select("player_id", { count: "exact", head: true }).eq("league_id", leagueId);
+  if ((existing.count ?? 0) < 8) {
+    await ensurePlayerPersonasForLeague(leagueId).catch((err) =>
+      console.error(`[ERROR] Player persona generation failed for league ${leagueId} (non-fatal):`, err));
+  }
+
+  const league = await supabase.from("rec_leagues")
+    .select("season_number,current_week").eq("id", leagueId).maybeSingle();
+  if (!league.data) return;
+  const seasonNumber = Number(league.data.season_number ?? 1);
+  const weekNumber = Number(league.data.current_week ?? 1);
+  const accounts = await loadFeedAccounts(leagueId);
+  if (accounts.length < 2) return;
+
+  const active = await supabase.from("rec_immortality_tweet_conversations")
+    .select("id,league_id,participant_handles,last_author_handle,last_target_handle,last_body,used_keys,turn_count,max_turns")
+    .eq("league_id", leagueId)
+    .order("updated_at", { ascending: true });
+  if (active.error) {
+    console.error(`[ERROR] Failed to load tweet conversations for league ${leagueId}:`, active.error);
+    return;
+  }
+  const rows = (active.data ?? []) as ConversationRow[];
+  for (const convo of rows) {
+    if (Math.random() < 0.8) {
+      await continueConversation(leagueId, seasonNumber, weekNumber, convo, accounts);
+    }
+  }
+
+  const remaining = MAX_ACTIVE_CONVERSATIONS - ((await supabase.from("rec_immortality_tweet_conversations")
+    .select("id", { count: "exact", head: true }).eq("league_id", leagueId)).count ?? rows.length);
+  if (remaining > 0 && Math.random() < 0.55) {
+    await startConversation(leagueId, seasonNumber, weekNumber, accounts);
+  }
+}
+
+async function sweepTweetConversations(): Promise<void> {
+  const leagues = await supabase.from("rec_immortality_leagues").select("league_id");
+  for (const row of (leagues.data ?? []) as Array<{ league_id: string }>) {
+    await queueConversationsForLeague(row.league_id).catch((err) =>
+      console.error(`[ERROR] Tweet conversations failed for league ${row.league_id} (non-fatal):`, err));
   }
 }

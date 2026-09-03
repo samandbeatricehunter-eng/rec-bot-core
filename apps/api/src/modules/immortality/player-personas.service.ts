@@ -129,6 +129,20 @@ export async function playerPersonaFor(leagueId: string, playerId: string): Prom
   };
 }
 
+export async function listPlayerPersonasForLeague(leagueId: string): Promise<PlayerPersona[]> {
+  const rows = await supabase.from("rec_immortality_player_personas")
+    .select("player_id,handle,display_name,traits,tone_praise_weight,avatar_url")
+    .eq("league_id", leagueId);
+  return ((rows.data ?? []) as any[]).map((row) => ({
+    playerId: String(row.player_id),
+    handle: String(row.handle),
+    displayName: String(row.display_name),
+    traits: (row.traits ?? []) as string[],
+    tonePraiseWeight: Number(row.tone_praise_weight ?? 0.5),
+    avatarUrl: row.avatar_url ? String(row.avatar_url) : null,
+  }));
+}
+
 /** Avatar-only lookup by handle -- used at post time (sweepImmortalityTweetQueue) once the
  * static host/generic catalogs have already missed, since a persona's handle is dynamic. */
 export async function playerPersonaAvatarForHandle(leagueId: string, handle: string): Promise<string | null> {

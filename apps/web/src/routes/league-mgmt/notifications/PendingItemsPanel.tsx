@@ -181,7 +181,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
                       dedicated review modal (LegendPurchaseDetail / CustomPlayerBuildRow) opened
                       on tap, not in this scannable list. Every other type's subtitle stays short
                       enough to keep here. */}
-                  {notification.type !== "legend" && notification.type !== "custom_player" && (
+                  {notification.type !== "legend" && notification.type !== "custom_player" && notification.type !== "immortality_prospect" && (
                     <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{notification.subtitle}</p>
                   )}
                   {notification.type === "custom_team" && typeof (notification.payload as { logoUrl?: string } | null)?.logoUrl === "string" && (
@@ -189,6 +189,13 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
                       className="pending-item-logo-preview"
                       src={(notification.payload as { logoUrl: string }).logoUrl}
                       alt="Submitted custom team logo"
+                    />
+                  )}
+                  {(notification.type === "immortality_prospect" || notification.type === "custom_player") && typeof (notification.payload as { headshotUrl?: string } | null)?.headshotUrl === "string" && (
+                    <img
+                      className="pending-item-logo-preview"
+                      src={(notification.payload as { headshotUrl: string }).headshotUrl}
+                      alt="Player headshot"
                     />
                   )}
                   <TradeDetail

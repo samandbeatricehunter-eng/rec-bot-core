@@ -107,6 +107,9 @@ import {
   selectStageInterviewQuestions,
   scoreStageInterviewAnswer,
   type StageInterviewQuestion,
+  REC_ATTRIBUTE_DISPLAY_ORDER,
+  getRecAttributeDisplayName,
+  sortRecAttributeCodes,
 } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -1770,13 +1773,21 @@ async function submitProspectForReview(input: {
   const playstyleArchetype = (branchingPlaystyle.data?.primary_archetype ?? flatPlaystyle.data?.primary_archetype ?? null) as string | null;
   const playstyleSecondary = (branchingPlaystyle.data?.secondary_archetype ?? flatPlaystyle.data?.secondary_archetype ?? null) as string | null;
 
-  const sideCategory = prospect.side === "offense" ? "offensive" : "defensive";
-  const attributeLines = MADDEN_ATTRIBUTE_DEFINITIONS
-    .filter((def) => def.category === "physical" || def.category === sideCategory)
-    .map((def) => ({ code: def.code, name: def.name, value: finalAttributes[def.code] ?? null }))
-    .filter((attr): attr is { code: MaddenAttributeCode; name: string; value: number } => attr.value != null);
+  const attributeCodes = sortRecAttributeCodes([
+    ...REC_ATTRIBUTE_DISPLAY_ORDER,
+    ...Object.keys(finalAttributes),
+  ]);
+  const attributeLines = attributeCodes.map((code) => {
+    const raw = finalAttributes[code] ?? finalAttributes[code.toUpperCase()];
+    return {
+      code,
+      name: MADDEN_ATTRIBUTE_BY_CODE.get(code as MaddenAttributeCode)?.name ?? getRecAttributeDisplayName(code),
+      value: typeof raw === "number" ? raw : null,
+    };
+  }).filter((attr): attr is { code: string; name: string; value: number } => attr.value != null);
 
   const name = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Unnamed Prospect";
+  const headshotUrl = prospect.headshot_url ? String(prospect.headshot_url) : null;
   const summary = [
     `Position: ${position} (${prospect.side})`,
     `Age ${prospect.age ?? "?"} · ${prospect.height_inches ? `${Math.floor(prospect.height_inches / 12)}'${prospect.height_inches % 12}"` : "?"} · ${prospect.weight_lbs ?? "?"} lbs · ${prospect.body_type ?? "—"}`,
@@ -1788,7 +1799,6 @@ async function submitProspectForReview(input: {
     `Playstyle: ${playstyleArchetype ?? "—"}${playstyleSecondary ? ` / ${playstyleSecondary}` : ""}`,
     `Persona DNA: ${personaDnaNames.join(", ") || "—"}`,
     playerTraitGroup ? `Player Traits: ${playerTraitNames.join(", ") || "—"}` : null,
-    `Natural Characteristics: ${characteristicNames.join(", ") || "—"}`,
     "",
     "Attributes:",
     attributeLines.map((attr) => `${attr.code} ${attr.name}: ${attr.value}`).join("\n") || "—",
@@ -1835,7 +1845,7 @@ async function submitProspectForReview(input: {
       jerseyNumber: prospect.jersey_number, startingDev, throwingMotionKey: prospect.throwing_motion_key ?? null,
       personaLabel: personaResult.data?.label ?? null, playstyleArchetype, playstyleSecondary,
       personaDnaTraits: personaDnaNames, playerTraits: playerTraitNames, characteristics: characteristicNames,
-      attributes: attributeLines,
+      attributes: attributeLines, headshotUrl,
     },
     updated_at: new Date().toISOString(),
   };
@@ -1885,7 +1895,19 @@ export async function backfillMissingImmortalityProspectReviews(guildId: string)
 
   const builtProspectIds = new Set((builds.data ?? []).map((row: any) => String(row.prospect_id)));
   const loggedProspectIds = new Set((existingInboxRows.data ?? []).map((row: any) => String(row.source_id)));
-  const missing = (prospects.data ?? []).filter((row: any) => builtProspectIds.has(String(row.id)) && !loggedProspectIds.has(String(row.id)));
+  const pendingInbox = await supabase.from("rec_commissioners_inbox")
+    .select("source_id,payload").eq("guild_id", guildId).eq("queue_type", "immortality_prospect")
+    .eq("source_table", "rec_immortality_prospects").eq("status", "pending").in("source_id", prospectIds);
+  const staleLogged = new Set(
+    ((pendingInbox.data ?? []) as Array<{ source_id: string; payload: any }>)
+      .filter((row) => {
+        const attrs = Array.isArray(row.payload?.attributes) ? row.payload.attributes : [];
+        return !row.payload?.headshotUrl || attrs.length < 40;
+      })
+      .map((row) => String(row.source_id)),
+  );
+  const missing = (prospects.data ?? []).filter((row: any) =>
+    builtProspectIds.has(String(row.id)) && (!loggedProspectIds.has(String(row.id)) || staleLogged.has(String(row.id))));
   if (!missing.length) return { backfilled: 0 };
 
   let backfilled = 0;
