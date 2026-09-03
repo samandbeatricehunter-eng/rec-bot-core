@@ -978,7 +978,7 @@ export async function submitPersona(input: {
     label: result.label,
     answers: input.answers,
     formula_version: result.formulaVersion,
-  }).select("*").single();
+  }, { onConflict: "prospect_id" }).select("*").single();
   if (saved.error) throw new ApiError(500, "Could not save persona results.", saved.error);
   await bumpOriginsStep(String(prospect.id), prospect.origins_step, "persona");
   await refreshImmortalityDraftBoard(league.id, context.leagueId);
@@ -1007,7 +1007,7 @@ export async function submitPlaystyle(input: {
     blend: result.blend,
     answers: input.answers,
     formula_version: result.formulaVersion,
-  }).select("*").single();
+  }, { onConflict: "prospect_id" }).select("*").single();
   if (saved.error) throw new ApiError(500, "Could not save playstyle results.", saved.error);
   await bumpOriginsStep(String(prospect.id), prospect.origins_step, "playstyle");
   await refreshImmortalityDraftBoard(league.id, context.leagueId);
@@ -1295,7 +1295,7 @@ export async function evaluateCreationBuild(input: {
     projected_round: projectedRoundFromRank(16, 32),
     formula_version: FORMULA_VERSIONS.creationPoints,
     updated_at: new Date().toISOString(),
-  }).select("*").single();
+  }, { onConflict: "prospect_id" }).select("*").single();
   if (saved.error) throw new ApiError(500, "Could not save creation build.", saved.error);
   await bumpOriginsStep(String(prospect.id), prospect.origins_step, "creation");
   await submitProspectForReview({
