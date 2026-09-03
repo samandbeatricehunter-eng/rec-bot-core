@@ -22,7 +22,7 @@
     "@fastify/websocket": "^11.3.0",
     "@rec/shared": "workspace:*",
     "@supabase/supabase-js": "^2.111.0",
-    "dotenv": "^16.4.7",
+    "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.10.0",
     "jose": "^6.2.4",
