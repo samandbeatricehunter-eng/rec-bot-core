@@ -52,6 +52,28 @@ function syncRecruitingAd(leagueId: string) {
     .catch((error) => console.error("[WARN] Failed to sync recruiting-board ad after team-ownership change:", error));
 }
 
+/** Announces a newly-active team assignment without making Discord availability part of the
+ * assignment transaction. Shared with league creation so the head commissioner's initial team
+ * is announced through the exact same route as every later coach assignment. */
+export async function announceTeamAssignment(input: {
+  guildId: string;
+  discordId: string;
+  team: { name?: string | null; display_city?: string | null; display_nick?: string | null; is_relocated?: boolean | null };
+  authority?: string | null;
+}): Promise<void> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const channelId = String((context.routes as any)?.announcements_channel_id ?? "");
+  if (!channelId) return;
+  const teamName = formatTeamDisplayName(input.team) ?? input.team.name ?? "a team";
+  const role = input.authority === "commissioner" || input.authority === "head_commissioner"
+    ? "head commissioner and owner"
+    : input.authority === "co_commissioner" ? "co-commissioner and owner" : "owner";
+  const member = isSiteOnlyDiscordId(input.discordId) ? "A new member" : `<@${input.discordId}>`;
+  await postDiscordChannelMessage(channelId, {
+    content: `🏈 ${member} has been assigned to the **${teamName}** as ${role}.`,
+  });
+}
+
 type DefaultTeamInsertRow = {
   league_id: string;
   name: string;
@@ -594,6 +616,13 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     reason: "User linked to team through Team Ownership setup.",
     source: "manual_admin_entry"
   });
+
+  await bestEffort("discord.team_assignment_announcement", () => announceTeamAssignment({
+    guildId: input.guildId,
+    discordId: input.discordId,
+    team: team.data,
+    authority: input.authority,
+  }), { guildId: input.guildId, leagueId: league.id, userId, entityId: assignment.data.id });
 
   // A new active assignment may have just crossed the economy's linked-user floor —
   // release any queued backlog for the league's current season if so (no-op otherwise).

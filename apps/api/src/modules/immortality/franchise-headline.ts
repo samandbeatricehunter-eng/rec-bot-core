@@ -51,6 +51,13 @@ export async function postFranchiseSelectionHeadline(input: {
   defenseProspectId: string;
 }): Promise<void> {
   try {
+    const existing = await supabase.from("rec_game_stories").select("id")
+      .eq("league_id", input.recLeagueId)
+      .eq("author_user_id", input.userId)
+      .eq("primary_angle", "rti_franchise_selection")
+      .limit(1);
+    if (existing.data?.length) return;
+
     const [context, offenseCard, defenseCard, iqRows, personaRows, devTraitRows, team] = await Promise.all([
       getCurrentLeagueContext(input.guildId),
       getProspectCardRenderData(input.offenseProspectId),

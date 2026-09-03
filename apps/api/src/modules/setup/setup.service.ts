@@ -5,7 +5,7 @@ import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { createDefaultTeamsForGuild, createDefaultTeamsForLeague } from "../team-ownership/team-ownership.service.js";
+import { announceTeamAssignment, createDefaultTeamsForGuild, createDefaultTeamsForLeague } from "../team-ownership/team-ownership.service.js";
 import { applyCfbBaselineToLeague } from "../cfb-baseline/cfb-baseline.service.js";
 import { applyMaddenBaselineToLeague, getActiveMaddenDataset } from "../madden-baseline/madden-baseline.service.js";
 import { seedMaddenDraftPicks } from "../draft-picks/madden-pick-seed.service.js";
@@ -1211,6 +1211,13 @@ export async function completeWizard(input: {
         const roleId = await ensureManagedRoleId(guildId, "commissioner");
         await addMemberRole(guildId, discordId, roleId, "REC league wizard — head commissioner assignment");
       } catch { /* role hierarchy may block — non-fatal */ }
+
+      await bestEffort("discord.initial_team_assignment_announcement", () => announceTeamAssignment({
+        guildId,
+        discordId,
+        team: team.data,
+        authority: "commissioner",
+      }), { guildId, leagueId: input.leagueId, userId: input.requestedByUserId, entityId: assignment.data.id });
     }
 
     return { ok: true, team: team.data, assignment: assignment.data };

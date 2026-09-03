@@ -824,6 +824,11 @@ function CreationPanel({
   const invalid = preview !== null && !preview.ok;
   const spentPoints = preview?.ok ? preview.spentPoints : 0;
   const overBudget = Boolean(baseline) && !invalid && spentPoints > baseline!.effectiveBudget;
+  const sideCategory = side === "offense" ? "offensive" : "defensive";
+  const availableAttributes = useMemo(
+    () => MADDEN_ATTRIBUTE_DEFINITIONS.filter((def) => def.category === "physical" || def.category === sideCategory),
+    [sideCategory],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -867,7 +872,7 @@ function CreationPanel({
         {invalid && preview && !preview.ok ? ` — ${preview.error}` : ""}
       </p>
       <div className="rise-attribute-list">
-        {MADDEN_ATTRIBUTE_DEFINITIONS.slice(0, 24).map((def) => {
+        {availableAttributes.map((def) => {
           const base = baseline.baseline[def.code] ?? 0;
           const add = spent[def.code] ?? 0;
           const total = base + add;

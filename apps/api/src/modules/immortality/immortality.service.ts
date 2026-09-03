@@ -363,6 +363,16 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const league = await requireImmortalityLeague(context.leagueId);
   const userId = await recUserIdFromDiscordId(discordId);
+  // Repairs commissioners from leagues created before the RTI franchise-claim flow existed.
+  // Their ordinary team assignment is already valid, but without the mirrored RTI claim the
+  // presentation screen loops them back into team selection and never publishes their players.
+  await finalizePreassignedImmortalityOwner({
+    guildId,
+    recLeagueId: context.leagueId,
+    immortalityLeagueId: String(league.id),
+    userId,
+    discordId,
+  }).catch((error) => console.error("[WARN] Could not backfill preassigned RTI owner (non-fatal):", error));
   const board = await refreshImmortalityDraftBoard(String(league.id), context.leagueId);
   const prospects = await supabase
     .from("rec_immortality_prospects")
@@ -1583,8 +1593,8 @@ export async function refreshImmortalityProspectCardsForLeague(leagueId: string)
  * 'approved' immediately by the caller, and team selection never waits on it (see
  * getImmortalityHub's franchiseOptions and chooseImmortalityTeam). Re-evaluating a build before
  * its inbox item has been acted on just refreshes the same card instead of spamming a duplicate.
- * Attributes are listed in MADDEN_ATTRIBUTE_DEFINITIONS order (first 24, matching CreationPanel's
- * own field order) since that's the in-game attribute order.
+ * Attributes are listed in the same physical + side-specific order as CreationPanel so a MIKE
+ * review shows defensive ratings instead of the global catalog's offensive-first slice.
  *
  * Everything this needs (final attributes, starting dev trait, persona/playstyle/traits) is
  * re-derivable purely from already-persisted rows, not passed in by the caller -- that's what
@@ -1631,7 +1641,9 @@ async function submitProspectForReview(input: {
   const playstyleArchetype = (branchingPlaystyle.data?.primary_archetype ?? flatPlaystyle.data?.primary_archetype ?? null) as string | null;
   const playstyleSecondary = (branchingPlaystyle.data?.secondary_archetype ?? flatPlaystyle.data?.secondary_archetype ?? null) as string | null;
 
-  const attributeLines = MADDEN_ATTRIBUTE_DEFINITIONS.slice(0, 24)
+  const sideCategory = prospect.side === "offense" ? "offensive" : "defensive";
+  const attributeLines = MADDEN_ATTRIBUTE_DEFINITIONS
+    .filter((def) => def.category === "physical" || def.category === sideCategory)
     .map((def) => ({ code: def.code, name: def.name, value: finalAttributes[def.code] ?? null }))
     .filter((attr): attr is { code: MaddenAttributeCode; name: string; value: number } => attr.value != null);
 
@@ -1932,7 +1944,73 @@ export async function submitOwnerPersona(input: {
   }, { onConflict: "owner_id" });
   if (saved.error) throw new ApiError(500, "Could not save owner persona.", saved.error);
   await supabase.from("rec_immortality_owners").update({ origins_step: "complete", updated_at: new Date().toISOString() }).eq("id", owner.data.id);
+
+  // The head commissioner already chose a team during league creation, so they never pass
+  // through chooseImmortalityTeam (the normal member path that publishes cards, creates the RTI
+  // franchise claim, and offers contracts). Finish that same pipeline when their owner is done.
+  await finalizePreassignedImmortalityOwner({
+    guildId: input.guildId,
+    recLeagueId: context.leagueId,
+    immortalityLeagueId: league.id,
+    userId,
+    discordId: input.discordId,
+  }).catch((error) => console.error("[WARN] Could not finalize preassigned RTI owner (non-fatal):", error));
   return result;
+}
+
+async function finalizePreassignedImmortalityOwner(input: {
+  guildId: string; recLeagueId: string; immortalityLeagueId: string; userId: string; discordId: string;
+}): Promise<void> {
+  const existingClaim = await supabase.from("rec_immortality_user_team_assignments").select("id")
+    .eq("immortality_league_id", input.immortalityLeagueId).eq("user_id", input.userId).maybeSingle();
+  if (existingClaim.data) return;
+  const owner = await supabase.from("rec_immortality_owners").select("origins_step")
+    .eq("immortality_league_id", input.immortalityLeagueId).eq("user_id", input.userId).maybeSingle();
+  if (owner.data?.origins_step !== "complete") return;
+  const teamId = await resolveExistingTeamIdForUser(input.immortalityLeagueId, input.recLeagueId, input.userId);
+  if (!teamId) return;
+  const [offenseProspect, defenseProspect] = await Promise.all([
+    loadProspectForUser(input.immortalityLeagueId, input.userId, "offense"),
+    loadProspectForUser(input.immortalityLeagueId, input.userId, "defense"),
+  ]);
+  if (!offenseProspect || !defenseProspect) return;
+  const prospects = [offenseProspect, defenseProspect];
+  const builds = await supabase.from("rec_immortality_creation_builds").select("prospect_id")
+    .in("prospect_id", prospects.map((prospect) => String(prospect.id)));
+  if ((builds.data ?? []).length !== 2) return;
+
+  const claim = await supabase.from("rec_immortality_user_team_assignments").insert({
+    immortality_league_id: input.immortalityLeagueId,
+    user_id: input.userId,
+    team_id: teamId,
+    revealed_at: new Date().toISOString(),
+  });
+  if (claim.error) throw new ApiError(500, "Could not finalize the commissioner's franchise assignment.", claim.error);
+
+  for (const prospect of prospects) {
+    await materializeProspectToPlayer(prospect, teamId, input.recLeagueId);
+    if (!prospect.card_message_id) {
+      await postProspectCardToDiscord({
+        leagueId: input.recLeagueId,
+        prospectId: String(prospect.id),
+        side: prospect.side as "offense" | "defense",
+        discordId: input.discordId,
+      });
+    }
+  }
+  await import("./contracts.service.js").then(({ offerRookieContracts }) => offerRookieContracts(
+    prospects.map((prospect) => String(prospect.id)),
+  ));
+  await import("./franchise-headline.js").then(({ postFranchiseSelectionHeadline }) => postFranchiseSelectionHeadline({
+    guildId: input.guildId,
+    recLeagueId: input.recLeagueId,
+    immortalityLeagueId: input.immortalityLeagueId,
+    userId: input.userId,
+    discordId: input.discordId,
+    teamId,
+    offenseProspectId: String(offenseProspect.id),
+    defenseProspectId: String(defenseProspect.id),
+  }));
 }
 
 /** Members browse every still-open franchise (grouped by division client-side) and pick one
