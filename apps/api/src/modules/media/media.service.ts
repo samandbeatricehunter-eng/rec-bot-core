@@ -15,6 +15,8 @@ import {
 import { supabase } from "../../lib/supabase.js";
 import { editDiscordMessage, editDiscordMessageWithFile, postDiscordChannelMessage, postDiscordChannelMessageWithFile } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
+import { resolveSeasonId } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 
@@ -426,6 +428,67 @@ export async function getMyHighlightWeekCounts(input: {
     counts[week] = (counts[week] ?? 0) + 1;
   }
   return { seasonNumber, counts };
+}
+
+// Powers a richer /highlights Discord embed: this week's matchup(s) with a human label, plus
+// the caller's already-uploaded count against the weekly cap -- so the command can show what's
+// eligible before handing off to the site uploader, without needing a website session (unlike
+// /v1/hub/highlights/my-week-counts, this is driven entirely by the Discord interaction's own
+// verified discordId via the internal API key, matching how highlights-slash.ts already trusts
+// getMenuProfile for the same call).
+export async function getHighlightUploadSnapshotForDiscord(input: {
+  guildId: string;
+  discordId: string;
+}): Promise<{
+  seasonNumber: number;
+  weekNumber: number;
+  seasonStage: string;
+  highlightLimit: number;
+  uploadedThisWeek: number;
+  games: Array<{ gameId: string; label: string }>;
+}> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const account = await getDiscordAccount(input.discordId);
+
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  const seasonStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "regular_season");
+  const highlightLimit = (await getGlobalEconomyConfig()).submissions.highlightWeeklyUploadLimit;
+
+  const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
+  const games = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber },
+    "id,home_user_id,away_user_id,home_team_id,away_team_id")
+    .or(`home_user_id.eq.${account.user_id},away_user_id.eq.${account.user_id}`);
+  if (games.error) throw new ApiError(500, "We couldn't load your matchups. Please try again.", games.error);
+
+  const teamIds = [...new Set((games.data ?? []).flatMap((g: any) => [g.home_team_id, g.away_team_id].filter(Boolean)))];
+  const teams = teamIds.length
+    ? await supabase.from("rec_teams").select("id,name").in("id", teamIds)
+    : { data: [], error: null };
+  if (teams.error) throw new ApiError(500, "We couldn't load team names. Please try again.", teams.error);
+  const teamName = new Map((teams.data ?? []).map((t: any) => [t.id, t.name]));
+
+  const uploaded = await supabase
+    .from("rec_highlight_posts")
+    .select("id,media_status")
+    .eq("league_id", context.leagueId)
+    .eq("user_id", account.user_id)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber);
+  if (uploaded.error) throw new ApiError(500, "We couldn't check this week's highlight count. Please try again.", uploaded.error);
+  const uploadedThisWeek = (uploaded.data ?? []).filter((row) => row.media_status !== "failed" && row.media_status !== "deleted").length;
+
+  return {
+    seasonNumber,
+    weekNumber,
+    seasonStage,
+    highlightLimit,
+    uploadedThisWeek,
+    games: (games.data ?? []).map((game: any) => ({
+      gameId: game.id,
+      label: `${teamName.get(game.away_team_id) ?? "Away"} @ ${teamName.get(game.home_team_id) ?? "Home"}`,
+    })),
+  };
 }
 
 export async function createHighlightDirectUpload(input: {

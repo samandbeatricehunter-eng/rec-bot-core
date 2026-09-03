@@ -7,6 +7,7 @@ import {
   backfillDiscordHighlights,
   createCommissionerHighlightUpload,
   createHighlightDirectUpload,
+  getHighlightUploadSnapshotForDiscord,
   getHighlightUploadStatus,
   getMyHighlightWeekCounts,
   handleStreamWebhook,
@@ -97,6 +98,20 @@ export async function mediaRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "This requires a user session.");
       return reply.send(await getMyHighlightWeekCounts({ guildId: body.guildId, discordId: auth.discordId }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Bot-only (no website session) -- backs the /highlights Discord command's richer embed.
+  app.post("/v1/highlights/discord-snapshot", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const body = z.object({
+        guildId: z.string().min(1),
+        discordId: z.string().min(1),
+      }).parse(request.body);
+      return reply.send(await getHighlightUploadSnapshotForDiscord(body));
     } catch (error) {
       return sendError(reply, error);
     }

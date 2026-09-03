@@ -44,12 +44,30 @@ export async function handleHighlightsSlash(interaction: ChatInputCommandInterac
   const url = `${base}/l/${profile.league.id}/buzz?openHighlights=1`;
   const embed = new EmbedBuilder()
     .setTitle("Upload a Highlight")
-    .setColor(0x1d9bf0)
-    .setDescription(
-      `[Open the highlight uploader](${url})\n\n` +
-        `Pick any eligible week (this week or a past one you haven't already hit the 2-upload cap on) — ` +
-        `the clip uploads straight to our storage from your browser, so Discord's file-size limit never ` +
-        `comes into play.`,
-    );
+    .setColor(0x1d9bf0);
+
+  // Best-effort — this snapshot just makes the embed richer (shows this week's matchup(s) and
+  // upload count before the click-through); a failure here shouldn't block the fallback link.
+  let snapshot: Awaited<ReturnType<typeof recApi.getHighlightUploadSnapshot>> | null = null;
+  try {
+    snapshot = await recApi.getHighlightUploadSnapshot({ guildId: interaction.guildId, discordId: interaction.user.id });
+  } catch (error) {
+    console.error(`Failed to load highlight upload snapshot for /highlights in guild ${interaction.guildId}:`, error);
+  }
+
+  const lines = [`[Open the highlight uploader](${url})`, ""];
+  if (snapshot) {
+    lines.push(`**Week ${snapshot.weekNumber}** — you've uploaded ${snapshot.uploadedThisWeek}/${snapshot.highlightLimit} this week.`);
+    if (snapshot.games.length) {
+      lines.push(...snapshot.games.map((g) => `• ${g.label}`));
+    }
+    lines.push("");
+  }
+  lines.push(
+    "Pick any eligible week (this week or a past one you haven't already hit the upload cap on) — " +
+      "the clip uploads straight to our storage from your browser, so Discord's file-size limit never " +
+      "comes into play.",
+  );
+  embed.setDescription(lines.join("\n"));
   await interaction.editReply({ embeds: [embed] });
 }

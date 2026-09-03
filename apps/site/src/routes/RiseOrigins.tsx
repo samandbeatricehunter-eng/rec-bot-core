@@ -175,7 +175,7 @@ export function RiseOriginsPage() {
             <h1>{hub.league.chapter.replaceAll("_", " ")}</h1>
             <p className="site-muted">
               League positions: {hub.league.offensePosition ?? "—"} / {hub.league.defensePosition ?? "—"}.
-              Store purchases are off — Player XP upgrades ratings. Coins pay 2 highlights/week at 150, GOTW, and interviews.
+              Store purchases are off — Player XP upgrades ratings. Coins pay 2 highlights/week at {hub.league.highlightPayout ?? 100}, GOTW, and interviews.
             </p>
           </header>
 

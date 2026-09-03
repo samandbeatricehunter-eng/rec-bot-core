@@ -564,6 +564,13 @@ export const recApi = {
       body: JSON.stringify(input)
     }),
 
+  getHighlightUploadSnapshot: (input: { guildId: string; discordId: string }) =>
+    recFetch<{
+      seasonNumber: number; weekNumber: number; seasonStage: string;
+      highlightLimit: number; uploadedThisWeek: number;
+      games: Array<{ gameId: string; label: string }>;
+    }>("/v1/highlights/discord-snapshot", { method: "POST", body: JSON.stringify(input) }),
+
   recordHighlightPost: (input: {
     guildId: string;
     discordId: string;
