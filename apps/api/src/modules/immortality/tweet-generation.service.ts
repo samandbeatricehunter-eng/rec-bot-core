@@ -9,7 +9,7 @@ import { ApiError } from "../../lib/errors.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
-import { loadImmortalityLeague, prospectAvatarUrlForHandle, recUserIdFromDiscordId, requireImmortalityLeague, twitterHandleForProspect } from "./immortality.service.js";
+import { discordIdForRecUser, loadImmortalityLeague, prospectAvatarUrlForHandle, recUserIdFromDiscordId, requireImmortalityLeague, twitterHandleForProspect } from "./immortality.service.js";
 import { ensurePlayerPersonasForLeague, listPlayerPersonasForLeague, playerPersonaFor, playerPersonaAvatarForHandle } from "./player-personas.service.js";
 import {
   GENERIC_HANDLES, MANUAL_TWEET_GENERIC_HANDLES, PLAYER_CHATTER_TEMPLATES, TWEET_HOSTS, TWEET_TEMPLATES, staticAvatarUrlForHandle,
@@ -266,6 +266,33 @@ async function userOwnedHandlesForLeague(leagueId: string): Promise<Set<string>>
 }
 
 const USER_AUTHORED_TWEET_SOURCES = new Set(["player_twitter"]);
+
+/** Resolves "@FutureHendrix"-style fictional handles inside a tweet's body to the real Discord
+ * user behind them, if any (an RTI prospect or owner controlled by a real linked member) --
+ * mentions inside an embed description never actually notify anyone on Discord, so a real ping
+ * has to go in the message's own `content` field instead. Only covers prospects/owners (the
+ * "in-fiction person" handles this feature is actually about) -- team handles are already
+ * tag-able directly via /tweets' native Discord role picker. */
+async function resolveMentionDiscordIds(recLeagueId: string, body: string): Promise<string[]> {
+  const mentioned = new Set([...body.matchAll(/@([A-Za-z0-9_]+)/g)].map((m) => m[0].toLowerCase()));
+  if (!mentioned.size) return [];
+  const immortality = await loadImmortalityLeague(recLeagueId);
+  if (!immortality) return [];
+
+  const [prospects, owners] = await Promise.all([
+    supabase.from("rec_immortality_prospects").select("first_name,last_name,user_id").eq("immortality_league_id", immortality.id).not("user_id", "is", null),
+    supabase.from("rec_immortality_owners").select("first_name,last_name,user_id").eq("immortality_league_id", immortality.id),
+  ]);
+  const candidates = [...(prospects.data ?? []), ...(owners.data ?? [])] as Array<{ first_name: string | null; last_name: string | null; user_id: string }>;
+
+  const discordIds = new Set<string>();
+  for (const person of candidates) {
+    if (!mentioned.has(twitterHandleForProspect(person).handle.toLowerCase())) continue;
+    const discordId = await discordIdForRecUser(String(person.user_id)).catch(() => null);
+    if (discordId) discordIds.add(discordId);
+  }
+  return [...discordIds];
+}
 
 function seedFromId(id: string): number {
   return [...id].reduce((sum, char) => sum + char.charCodeAt(0), 0);
@@ -826,7 +853,12 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
           ?? await playerPersonaAvatarForHandle(leagueId, handle)
           ?? (USER_AUTHORED_TWEET_SOURCES.has(source) ? await prospectAvatarUrlForHandle(leagueId, handle) : null)
           ?? undefined;
+        // Mentions inside the embed description below never actually notify anyone on Discord --
+        // any fictional handle in the body that resolves to a real linked member gets a genuine
+        // ping in `content` instead, alongside (not replacing) the embed.
+        const pingIds = await resolveMentionDiscordIds(leagueId, String(claimed.data.body ?? ""));
         await postDiscordChannelMessage(channelId, {
+          content: pingIds.length ? pingIds.map((id) => `<@${id}>`).join(" ") : undefined,
           embeds: [{
             author: { name: `${displayName} (${handle})`, icon_url: iconUrl },
             description: claimed.data.body,
