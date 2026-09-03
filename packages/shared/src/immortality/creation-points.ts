@@ -1,8 +1,8 @@
 import { FORMULA_VERSIONS, type AttributeMap, type ImmortalityDevTrait, type ImmortalityPosition } from "./types.js";
 import type { CharacteristicModifiers } from "./characteristics.js";
 
-export const DEFAULT_CREATION_POINT_BUDGET = 60;
-export const CREATION_POINT_CALIBRATION_BUDGETS = [45, 50, 55, 60, 65] as const;
+export const DEFAULT_CREATION_POINT_BUDGET = 175;
+export const CREATION_POINT_CALIBRATION_BUDGETS = [145, 160, 175, 190, 205] as const;
 
 /** Historical real-NFL max height per position, in inches. A prospect can go taller, but each
  * inch over costs HEIGHT_OVERAGE_CP_COST_PER_INCH out of the Creation Point budget -- these are
@@ -26,14 +26,17 @@ export function creationPointCostForValue(nextValue: number): number {
   return 6;
 }
 
-/** Speed, Acceleration, Agility, and Change of Direction cost more per point than the rest of
- * the curve above -- these are the attributes most build-warping at creation time, so they carry
- * a flat surcharge on top of the normal value-based cost rather than their own separate curve. */
+/** Every position-relevant attribute Creation Points can raise carries a small flat surcharge on
+ * top of the normal value-based cost, bumped alongside the CP budget increase (60 -> 175) so
+ * ratings don't get proportionally cheaper just because the budget grew. Speed, Acceleration,
+ * Agility, and Change of Direction stack an additional surcharge on top of that -- they're the
+ * attributes most build-warping at creation time, so they stay pricier than the rest. */
+export const GENERAL_ATTRIBUTE_CP_SURCHARGE = 1;
 export const SPEED_ATTRIBUTE_CODES = ["SPD", "ACC", "AGI", "COD"] as const;
-export const SPEED_ATTRIBUTE_CP_SURCHARGE = 1;
+export const SPEED_ATTRIBUTE_CP_SURCHARGE = 2;
 
 export function creationPointCostForAttribute(code: string, nextValue: number): number {
-  const base = creationPointCostForValue(nextValue);
+  const base = creationPointCostForValue(nextValue) + GENERAL_ATTRIBUTE_CP_SURCHARGE;
   return SPEED_ATTRIBUTE_CODES.includes(code as (typeof SPEED_ATTRIBUTE_CODES)[number]) ? base + SPEED_ATTRIBUTE_CP_SURCHARGE : base;
 }
 

@@ -287,7 +287,7 @@ test("creation point spend is recalculated server-side against budget", () => {
   const result = spendCreationPoints({
     baseline: { SPD: 85, ACC: 84 },
     spent: { SPD: 2, ACC: 1 },
-    budget: 20,
+    budget: 25,
   });
   assert.equal(result.ok, true);
   if (result.ok) {
