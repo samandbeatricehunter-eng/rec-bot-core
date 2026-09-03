@@ -44,11 +44,14 @@ async function getScheduler(kind: ScorebugWhitelistKind): Promise<Tesseract.Sche
         await worker.setParameters({
           tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
           tessedit_char_whitelist: WHITELISTS[kind],
-          // LSTM-only skips the "Legacy" engine's Otsu-thresholding pass entirely -- that pass
-          // is where Leptonica prints raw debug histogram stats (quartiles/median/SD) straight
-          // to stdout via native printf, bypassing tesseract.js's own logger hook completely.
-          // That's the source of the constant "Upper quartile=.../Bottom=.../Really=..." spam
-          // flooding Railway logs -- this is the documented fix, not a workaround.
+          // LSTM-only is faster and more accurate for this use case, but does NOT stop Leptonica's
+          // debug histogram stats (quartiles/median/SD) from printing -- verified directly against
+          // the installed tesseract-core-lstm.wasm binary, which contains the same debug strings
+          // as the full core. Those prints go straight to native stderr via tesseract.js-core's
+          // default printErr -> console.error wiring, bypassing tesseract.js's own logger hook
+          // entirely -- that's what was flooding Railway's logs ("Upper quartile=.../Bottom=...").
+          // Actually suppressed in ../../lib/suppress-tesseract-stderr-noise.ts (installed once at
+          // process boot), not here.
           tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
         });
         return worker;

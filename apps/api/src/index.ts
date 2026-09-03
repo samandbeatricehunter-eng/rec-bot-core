@@ -1,3 +1,6 @@
+import { suppressTesseractStderrNoise } from "./lib/suppress-tesseract-stderr-noise.js";
+suppressTesseractStderrNoise();
+
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
