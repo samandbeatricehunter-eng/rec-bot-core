@@ -50,7 +50,7 @@ export const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("tweets")
-    .setDescription("Commissioner: post a tweet to the RTI tweets feed as a persona, a generic account, or a custom handle.")
+    .setDescription("Commissioner: post a tweet to the RTI feed as a persona, generic, or custom handle.")
     .addStringOption((opt) => opt
       .setName("persona")
       .setDescription("Who's posting this tweet?")
