@@ -218,6 +218,24 @@ export async function queueImmortalityTweetsAfterAdvance(input: { leagueId: stri
   await generateAndQueueImmortalityTweets(input.leagueId, input.seasonNumber, input.weekNumber);
 }
 
+/** Same generator, called from the EA import completion hooks (ea-connections.service.ts /
+ * madden-ea.routes.ts) instead of waiting for a commissioner to click Advance -- a Madden league
+ * lives and dies by its data imports, not a separate manual step, so freshly-imported stats
+ * should be able to produce tweets right away. Loads its own season/week/stage/game since the
+ * import hooks only have a leagueId on hand. */
+export async function queueImmortalityTweetsAfterImport(leagueId: string): Promise<void> {
+  const league = await supabase.from("rec_leagues")
+    .select("season_number,current_week,season_stage,game").eq("id", leagueId).maybeSingle();
+  if (!league.data) return;
+  await queueImmortalityTweetsAfterAdvance({
+    leagueId,
+    seasonNumber: Number(league.data.season_number ?? 1),
+    weekNumber: Number(league.data.current_week ?? 1),
+    seasonStage: String(league.data.season_stage ?? ""),
+    game: league.data.game as LeagueGame,
+  });
+}
+
 /** Adds two fan-account reactions after an RTI contract is executed. They use the existing
  * four-hour tweet drip instead of posting simultaneously, keeping the channel timeline natural. */
 export async function queueContractSigningTweets(input: {
@@ -248,6 +266,7 @@ export async function queueContractSigningTweets(input: {
       author_display_name: first.displayName,
       body: `${input.teamName} locked in ${input.playerName} (${input.position}) on a Seasons ${input.startSeason}–${input.endSeason} ${label}. The franchise has its cornerstone.`,
       status: "pending",
+      source: "contract_signing",
     },
     {
       league_id: input.leagueId,
@@ -258,15 +277,19 @@ export async function queueContractSigningTweets(input: {
       author_display_name: second.displayName,
       body: `${input.playerName} just signed for ${input.coins.toLocaleString("en-US")} REC Coins and ${input.playerXp} Player XP. Now the pressure shifts to making that ${input.position} investment pay off.`,
       status: "pending",
+      source: "contract_signing",
     },
   ]);
 }
 
-/** Clears whatever is still pending from the previous Advance and queues a fresh batch of up to
- * 10 tweets for this one. Safe no-op if the league has nothing tweet-worthy this week. */
+/** Clears whatever this generator left pending from its previous run and queues a fresh batch of
+ * up to 10 tweets for this one. Safe no-op if the league has nothing tweet-worthy this week.
+ * Scoped to source: "weekly_recap" only -- this used to clear every pending row for the league
+ * regardless of who queued it, which would silently wipe out not-yet-posted contract-signing and
+ * Media Day tweets every time this ran. */
 async function generateAndQueueImmortalityTweets(leagueId: string, seasonNumber: number, weekNumber: number): Promise<void> {
   await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" })
-    .eq("league_id", leagueId).eq("status", "pending");
+    .eq("league_id", leagueId).eq("status", "pending").eq("source", "weekly_recap");
 
   const candidates = await buildCandidates(leagueId, seasonNumber, weekNumber);
   if (!candidates.length) return;
@@ -287,6 +310,7 @@ async function generateAndQueueImmortalityTweets(leagueId: string, seasonNumber:
       author_display_name: author.displayName,
       body: fillTemplate(template.text, candidate.slots),
       status: "pending" as const,
+      source: "weekly_recap",
     };
   }).filter((row): row is NonNullable<typeof row> => row != null && row.body.length > 0);
 
@@ -359,5 +383,64 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
     } catch (err) {
       console.error(`[ERROR] Tweet queue sweep failed for league ${leagueId} (non-fatal):`, err);
     }
+  }
+
+  await sweepAmbientFanChatter();
+}
+
+const AMBIENT_CHATTER_COOLDOWN_MS = 90 * 60 * 1000;
+
+/** Fan/hater chatter about a random active prospect that doesn't depend on any game result --
+ * reuses the existing "praise"/"taunt" template categories (already written generically enough to
+ * not require a real stat line), filtered down to the variants that don't reference a game
+ * ({opponent}/{score}/{week}). Gives the feed something happening even with zero games played
+ * yet (preseason, a bye week, between imports), which stat-driven tweets can't do on their own. */
+async function queueAmbientFanChatterIfDue(recLeagueId: string, immortalityLeagueId: string): Promise<void> {
+  const last = await supabase.from("rec_immortality_tweet_queue")
+    .select("created_at").eq("league_id", recLeagueId).eq("source", "ambient")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const lastAtMs = last.data?.created_at ? new Date(last.data.created_at as any).getTime() : 0;
+  if (lastAtMs > Date.now() - AMBIENT_CHATTER_COOLDOWN_MS) return;
+  // Only fires on a fraction of the sweep ticks that clear the cooldown, so it reads as
+  // occasional chatter rather than a metronome going off exactly every 90 minutes.
+  if (Math.random() > 0.4) return;
+
+  const prospects = await supabase.from("rec_immortality_prospects")
+    .select("first_name,last_name,player_id").eq("immortality_league_id", immortalityLeagueId).not("player_id", "is", null);
+  const rows = (prospects.data ?? []) as Array<{ first_name: string | null; last_name: string | null; player_id: string }>;
+  if (!rows.length) return;
+  const target = rows[Math.floor(Math.random() * rows.length)]!;
+  const playerName = `${target.first_name ?? ""} ${target.last_name ?? ""}`.trim() || "That player";
+
+  const playerRow = await supabase.from("rec_players").select("team_id").eq("id", target.player_id).maybeSingle();
+  const team = playerRow.data?.team_id
+    ? await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", playerRow.data.team_id).maybeSingle()
+    : { data: null };
+  const teamName = formatTeamDisplayName(team.data) ?? "their team";
+
+  const category: TweetCategory = Math.random() < 0.5 ? "praise" : "taunt";
+  const templates = TWEET_TEMPLATES.filter((tmpl) => tmpl.category === category
+    && !tmpl.text.includes("{opponent}") && !tmpl.text.includes("{score}") && !tmpl.text.includes("{week}") && !tmpl.text.includes("{margin}"));
+  const template = pick(templates) as TweetTemplate | null;
+  if (!template) return;
+  const body = fillTemplate(template.text, { player: playerName, team: teamName });
+  if (!body) return;
+  const author = resolveAuthor(template.voice);
+
+  const league = await supabase.from("rec_leagues").select("season_number,current_week").eq("id", recLeagueId).maybeSingle();
+  await supabase.from("rec_immortality_tweet_queue").insert({
+    league_id: recLeagueId,
+    season_number: Number(league.data?.season_number ?? 1),
+    week_number: Number(league.data?.current_week ?? 1),
+    author_kind: author.authorKind, author_handle: author.handle, author_display_name: author.displayName,
+    body, status: "pending", source: "ambient",
+  });
+}
+
+async function sweepAmbientFanChatter(): Promise<void> {
+  const leagues = await supabase.from("rec_immortality_leagues").select("id,league_id");
+  for (const row of (leagues.data ?? []) as Array<{ id: string; league_id: string }>) {
+    await queueAmbientFanChatterIfDue(row.league_id, row.id).catch((err) =>
+      console.error(`[ERROR] Ambient fan chatter failed for league ${row.league_id} (non-fatal):`, err));
   }
 }

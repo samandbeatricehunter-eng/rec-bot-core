@@ -162,6 +162,8 @@ export async function maddenEaRoutes(app: FastifyInstance) {
         await postRosterMovementForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI roster movement post failed for league ${body.league_id} (non-fatal):`, err));
         const { checkNflRecordsAfterImport } = await import("../immortality/nfl-record-holders.service.js");
         await checkNflRecordsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI NFL record check failed for league ${body.league_id} (non-fatal):`, err));
+        const { queueImmortalityTweetsAfterImport } = await import("../immortality/tweet-generation.service.js");
+        await queueImmortalityTweetsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI tweet generation failed for league ${body.league_id} (non-fatal):`, err));
         return reply.send({ imports });
       } catch (importError) {
         await recordEaImportError(body.connection_id, importError);
@@ -200,6 +202,8 @@ export async function maddenEaRoutes(app: FastifyInstance) {
         await postRosterMovementForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI roster movement post failed for league ${body.league_id} (non-fatal):`, err));
         const { checkNflRecordsAfterImport } = await import("../immortality/nfl-record-holders.service.js");
         await checkNflRecordsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI NFL record check failed for league ${body.league_id} (non-fatal):`, err));
+        const { queueImmortalityTweetsAfterImport } = await import("../immortality/tweet-generation.service.js");
+        await queueImmortalityTweetsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI tweet generation failed for league ${body.league_id} (non-fatal):`, err));
       }).catch((error) => {
         console.error("[EA] Background import failed:", error);
         pushProgress(body.league_id, { type: "error", error: error instanceof Error ? error.message : String(error) });

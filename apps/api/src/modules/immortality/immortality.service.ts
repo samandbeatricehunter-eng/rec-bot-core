@@ -2732,9 +2732,34 @@ async function queueMediaDayPlayerTweet(input: {
   await supabase.from("rec_immortality_tweet_queue").insert({
     league_id: input.leagueId, season_number: input.season, week_number: input.week,
     author_kind: "player", author_handle: handle, author_display_name: displayName,
-    body, status: "pending",
+    body, status: "pending", source: "media_day",
   });
+
+  // A fan/hater account sometimes reacts to the loudest of the 3 answers -- gives the statement
+  // somewhere to actually land in the feed instead of just sitting there as its own isolated post.
+  if (Math.random() < 0.45) {
+    const loudest = highlighted[highlighted.length - 1]!;
+    const reactionBody = MEDIA_DAY_REACTION_TEMPLATES[Math.floor(Math.random() * MEDIA_DAY_REACTION_TEMPLATES.length)]!(displayName, loudest.answer);
+    const { GENERIC_HANDLES } = await import("./tweet-bank.js");
+    const seed = [...String(input.prospect.id ?? displayName)].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    const reactor = GENERIC_HANDLES[(seed + input.week) % GENERIC_HANDLES.length]!;
+    await supabase.from("rec_immortality_tweet_queue").insert({
+      league_id: input.leagueId, season_number: input.season, week_number: input.week,
+      author_kind: "generic", author_handle: reactor.handle, author_display_name: reactor.displayName,
+      body: reactionBody, status: "pending", source: "media_reaction",
+    });
+  }
 }
+
+const MEDIA_DAY_REACTION_TEMPLATES: Array<(name: string, quote: string) => string> = [
+  (name, quote) => `${name} said "${quote}" at Media Day and the group chat has NOT stopped talking about it.`,
+  (name, quote) => `not ${name} saying "${quote}" like it's nothing 💀`,
+  (name, quote) => `${name}'s Media Day answer -- "${quote}" -- is getting replayed all week.`,
+  (name, quote) => `somebody screenshot ${name} saying "${quote}" before he tries to walk it back.`,
+  (name, quote) => `${name} really went on the record with "${quote}". respect the confidence.`,
+  (name, quote) => `"${quote}" -- ${name} said that with his whole chest at Media Day. bold.`,
+  (name, quote) => `${name} didn't have to say "${quote}" but he did anyway. love that for him.`,
+];
 
 async function payMediaDayCompletionCoins(input: {
   leagueId: string; season: number; week: number; prospect: Record<string, any>; userId: string;
@@ -2791,6 +2816,7 @@ async function queueMediaDayRoundupTweetsIfDue(recLeagueId: string, immortalityL
       author_kind: "generic" as const, author_handle: handle.handle, author_display_name: handle.displayName,
       body: `Media Day is in full swing around the league this week — ${completed} of ${total} interviews on the record so far.`,
       status: "pending" as const,
+      source: "media_day_roundup",
     };
   });
   if (rows.length) await supabase.from("rec_immortality_tweet_queue").insert(rows);
@@ -2869,6 +2895,7 @@ export async function resolvePendingMediaDayClaimsForGame(gameId: string): Promi
           author_kind: "generic", author_handle: handle.handle, author_display_name: handle.displayName,
           body: `Well... ${name} said "${answerText}" before this one. Didn't age well.`,
           status: "pending",
+          source: "media_day_backfire",
         });
       }
     } catch (error) {
