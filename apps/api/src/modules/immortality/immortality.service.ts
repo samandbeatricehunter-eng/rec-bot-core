@@ -97,6 +97,7 @@ import { linkUserToTeam } from "../team-ownership/team-ownership.service.js";
 import { applyLeagueTeamIdentityOverrides, type LeagueTeamIdentityOverride } from "../team-identities/team-identities.service.js";
 import { postDiscordChannelMessageWithFile, editDiscordMessageWithFile, setGuildMemberNickname } from "../../lib/discord-guild.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
+import { kickLeagueUser } from "../moderation/moderation.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { renderProspectCardPng } from "../../lib/prospect-card-render.js";
 import { uploadImageToCloudflare } from "../../lib/cloudflare-images.js";
@@ -550,11 +551,14 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
       const offenseProspect = myProspects.find((row: any) => row.side === "offense");
       const defenseProspect = myProspects.find((row: any) => row.side === "defense");
       const buildByProspectId = new Set((builds.data ?? []).map((row: any) => String(row.prospect_id)));
+      // Commissioner review no longer gates team selection -- a finished Creation Points build
+      // is approved immediately (see submitProspectForReview). The commissioner inbox item that
+      // still gets created exists only so they can log the build for in-game recreation; if a
+      // build is genuinely unacceptable they reject it, which removes the member from the league
+      // entirely (reviewImmortalityProspect) rather than leaving them stuck here.
       let reason: string | null = null;
       if (!offenseProspect || !defenseProspect) reason = "Finish Origins for both your offense and defense players first.";
       else if (!buildByProspectId.has(String(offenseProspect.id)) || !buildByProspectId.has(String(defenseProspect.id))) reason = "Finish Creation Points for both players first.";
-      else if (offenseProspect.review_status === "pending_review" || defenseProspect.review_status === "pending_review") reason = "Waiting on commissioner approval for your prospect(s).";
-      else if (offenseProspect.review_status === "rejected" || defenseProspect.review_status === "rejected") reason = "One of your prospects was not approved -- contact your commissioner.";
       else if (ownerRow.data?.origins_step !== "complete") reason = "Create your owner and finish their interview first.";
       return {
         eligible: !myClaim && reason == null,
@@ -1298,10 +1302,13 @@ export async function evaluateCreationBuild(input: {
   }, { onConflict: "prospect_id" }).select("*").single();
   if (saved.error) throw new ApiError(500, "Could not save creation build.", saved.error);
   await bumpOriginsStep(String(prospect.id), prospect.origins_step, "creation");
+  // Genuinely best-effort now (see submitProspectForReview's doc comment) -- it only logs the
+  // build for the commissioner to recreate in-game, so a failure here must never cost the player
+  // their Creation Points save, which has already succeeded above.
   await submitProspectForReview({
     guildId: input.guildId, leagueId: context.leagueId, immortalityLeagueId: league.id, prospect, userId,
     finalAttributes: spent.attributes, startingDev: startingDevTrait(modifiers),
-  });
+  }).catch((error) => console.error(`[ERROR] Failed to submit prospect ${prospect.id} for commissioner review (non-fatal):`, error));
   // The commissioner already has a franchise (picked outright at league creation) before their
   // own prospects finish Origins -- everyone else's team isn't known until they choose from
   // their post-Origins offers (chooseImmortalityTeam). Materialize immediately when a team is
@@ -1549,16 +1556,17 @@ export async function refreshImmortalityProspectCardsForLeague(leagueId: string)
   }
 }
 
-/** Fires every time Creation Points is (re-)submitted -- upserts a rec_commissioners_inbox row
+/** Fires every time Creation Points is (re-)submitted -- writes a rec_commissioners_inbox row
  * (queue_type "immortality_prospect", keyed on the table's existing
- * (guild_id, queue_type, source_table, source_id) unique index) with the full build so a
- * commissioner can review it from League Mgmt's Pending Items, same flow custom players already
- * go through. Upserting rather than inserting means re-evaluating a build before it's been
- * reviewed just refreshes the same card instead of spamming a duplicate, and resets the
- * prospect's review_status back to pending_review so a build edited after a rejection (or even
- * after approval) always gets a fresh look instead of being permanently stuck. Attributes are
- * listed in MADDEN_ATTRIBUTE_DEFINITIONS order (first 24, matching CreationPanel's own field
- * order) since that's the in-game attribute order. Best-effort -- never blocks Creation Points
+ * (guild_id, queue_type, source_table, source_id) partial unique index -- see the select-then-
+ * insert/update below, which sidesteps the query builder's inability to target a partial index
+ * via ON CONFLICT) with the full build so a commissioner can log it for in-game recreation, same
+ * panel custom players already go through. This is a log, not a gate: review_status is set to
+ * 'approved' immediately by the caller, and team selection never waits on it (see
+ * getImmortalityHub's franchiseOptions and chooseImmortalityTeam). Re-evaluating a build before
+ * its inbox item has been acted on just refreshes the same card instead of spamming a duplicate.
+ * Attributes are listed in MADDEN_ATTRIBUTE_DEFINITIONS order (first 24, matching CreationPanel's
+ * own field order) since that's the in-game attribute order. Best-effort -- never blocks Creation Points
  * itself from succeeding. */
 async function submitProspectForReview(input: {
   guildId: string; leagueId: string; immortalityLeagueId: string; prospect: Record<string, any>; userId: string;
@@ -1664,27 +1672,32 @@ async function submitProspectForReview(input: {
     : await supabase.from("rec_commissioners_inbox").insert(inboxPayload);
   if (inboxUpsert.error) throw new ApiError(500, "Failed to submit prospect for review.", inboxUpsert.error);
 
-  // A build submitted (or re-submitted) always needs a fresh look, even if the commissioner
-  // already approved or rejected an earlier version of it.
+  // Approval is automatic -- Creation Points itself is the real gate (evaluateCreationBuild
+  // already enforces every prior Origins step is done before this ever fires). The inbox item
+  // exists purely so a commissioner can log this build to recreate the player in-game; it does
+  // not block team selection. A re-submission clears any earlier rejection the same way.
   await supabase.from("rec_immortality_prospects").update({
-    review_status: "pending_review", review_reason: null, reviewed_by_discord_id: null, reviewed_at: null,
+    review_status: "approved", review_reason: null, reviewed_by_discord_id: null, reviewed_at: null,
   }).eq("id", prospect.id);
 
   await notifyLeagueCommissionersOfPendingItem(input.leagueId);
 }
 
-/** Approve/reject a pending prospect build. Approving just flips review_status -- the prospect
- * was already fully built by Creation Points, there's nothing left to "apply." Rejecting
- * requires a reason so the member knows what to fix; nothing currently lets them resubmit the
- * same prospect automatically, so a rejected build needs the commissioner to follow up directly. */
-/** Approve/reject a pending prospect build. A commissioner can correct the first/last name
- * here before approving -- Madden's in-game name filter sometimes blocks a name as vulgar even
- * when it isn't, and this is the point where that becomes visible. A rename is applied to the
- * prospect immediately and propagates everywhere the name is read from live (identity form,
- * franchise headline, future prospect-card renders); if this prospect was already materialized
- * onto a roster (rec_players) and/or already has a posted Discord card, those get updated and
- * the card re-rendered in place too, so a rename after the fact doesn't leave a stale name on
- * an already-published Discord embed. */
+/** Mark a prospect's commissioner-inbox item as "Applied in game" (approve) or reject it.
+ * review_status is already 'approved' the moment Creation Points is submitted (see
+ * submitProspectForReview) and team selection never waits on this -- the inbox item exists so a
+ * commissioner can log the build to recreate it in-game, nothing more. "Applied in game" just
+ * closes out the inbox item; there's no build state left to change. Rejecting is the actual
+ * moderation action here: it requires a reason and removes the prospect's owner from the league
+ * entirely (same as a commissioner /kick), since a rejected build means the submission itself
+ * was unacceptable, not that the member should be left stuck mid-flow to fix and resubmit.
+ * A commissioner can also correct the first/last name here before closing it out -- Madden's
+ * in-game name filter sometimes blocks a name as vulgar even when it isn't, and this is the
+ * point where that becomes visible. A rename is applied to the prospect immediately and
+ * propagates everywhere the name is read from live (identity form, franchise headline, future
+ * prospect-card renders); if this prospect was already materialized onto a roster (rec_players)
+ * and/or already has a posted Discord card, those get updated and the card re-rendered in place
+ * too, so a rename after the fact doesn't leave a stale name on an already-published embed. */
 export async function reviewImmortalityProspect(input: {
   guildId: string; prospectId: string; action: "approve" | "reject"; reviewerDiscordId: string; note?: string;
   firstName?: string; lastName?: string;
@@ -1692,11 +1705,15 @@ export async function reviewImmortalityProspect(input: {
   const context = await getCurrentLeagueContext(input.guildId);
   const league = await requireImmortalityLeague(context.leagueId);
   const prospect = await supabase.from("rec_immortality_prospects")
-    .select("id,review_status,first_name,last_name,player_id,card_channel_id,card_message_id")
+    .select("id,user_id,review_status,first_name,last_name,player_id,card_channel_id,card_message_id")
     .eq("id", input.prospectId).eq("immortality_league_id", league.id).maybeSingle();
   if (prospect.error || !prospect.data) throw new ApiError(404, "Prospect not found in this league.");
-  if (prospect.data.review_status !== "pending_review") throw new ApiError(409, `Prospect is already ${prospect.data.review_status}.`);
-  if (input.action === "reject" && !input.note?.trim()) throw new ApiError(400, "A rejection reason is required.");
+
+  const inboxRow = await supabase.from("rec_commissioners_inbox").select("id,status")
+    .eq("source_table", "rec_immortality_prospects").eq("source_id", input.prospectId).maybeSingle();
+  if (inboxRow.error) throw new ApiError(500, "Could not load that review item.", inboxRow.error);
+  if (inboxRow.data && inboxRow.data.status !== "pending") throw new ApiError(409, `This item is already ${inboxRow.data.status}.`);
+  if (input.action === "reject" && !input.note?.trim()) throw new ApiError(400, "A reason is required to reject and remove this player from the league.");
 
   const nextFirstName = input.firstName?.trim() || prospect.data.first_name;
   const nextLastName = input.lastName?.trim() || prospect.data.last_name;
@@ -1715,6 +1732,14 @@ export async function reviewImmortalityProspect(input: {
     reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString(),
     review_reason: input.note?.trim() ?? null,
   }).eq("source_table", "rec_immortality_prospects").eq("source_id", input.prospectId);
+
+  if (input.action === "reject" && prospect.data.user_id) {
+    const ownerDiscordId = await discordIdForRecUser(String(prospect.data.user_id));
+    await kickLeagueUser({
+      guildId: input.guildId, target: ownerDiscordId, scope: "league",
+      reason: input.note!.trim(), actorDiscordId: input.reviewerDiscordId,
+    });
+  }
 
   if (renamed) {
     const fullName = `${nextFirstName ?? ""} ${nextLastName ?? ""}`.trim();
@@ -1856,10 +1881,10 @@ export async function chooseImmortalityTeam(input: { guildId: string; discordId:
   ]);
   if (!offenseBuild.data || !defenseBuild.data) throw new ApiError(400, "Finish Creation Points for both players first.");
   if (owner.data?.origins_step !== "complete") throw new ApiError(400, "Create your owner and finish their interview first.");
-  const pendingSide = offenseProspect.review_status === "pending_review" ? "offensive" : defenseProspect.review_status === "pending_review" ? "defensive" : null;
-  if (pendingSide) throw new ApiError(400, `Your ${pendingSide} player is still waiting on commissioner approval.`);
-  const rejectedSide = offenseProspect.review_status === "rejected" ? "offensive" : defenseProspect.review_status === "rejected" ? "defensive" : null;
-  if (rejectedSide) throw new ApiError(400, `Your ${rejectedSide} player was not approved${(rejectedSide === "offensive" ? offenseProspect : defenseProspect).review_reason ? `: ${(rejectedSide === "offensive" ? offenseProspect : defenseProspect).review_reason}` : "."} Contact your commissioner.`);
+  // Commissioner review no longer gates team selection -- see the matching note in
+  // getImmortalityHub's franchiseOptions. A rejected build means its owner was already removed
+  // from the league entirely (reviewImmortalityProspect), so there's no rejected-but-still-a-
+  // member case left to check for here.
 
   const team = await supabase.from("rec_teams").select("id").eq("id", input.teamId).eq("league_id", context.leagueId).maybeSingle();
   if (!team.data) throw new ApiError(404, "Team not found in this league.");

@@ -76,7 +76,7 @@ export function ImmortalityProspectReviewModal({
       <div className="settings-review-row">
         <h3 style={{ margin: 0 }}>{data.name} — {data.position}</h3>
         <p className="form-hint" style={{ margin: "4px 0 8px" }}>
-          If Madden's in-game name filter is blocking this name as vulgar, fix it here before approving — it updates everywhere, including an already-posted player card.
+          This player is already live and eligible for team selection — this is just your build sheet to recreate them in-game. Fix the name here first if Madden's filter would block it as vulgar; it updates everywhere, including an already-posted player card.
         </p>
         <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
           <label className="form-field" style={{ flex: 1 }}>
@@ -114,11 +114,14 @@ export function ImmortalityProspectReviewModal({
         <p style={{ margin: "0 0 12px" }}><strong>Natural Characteristics:</strong> {data.characteristics.join(", ") || "—"}</p>
 
         <label className="form-label" htmlFor="prospect-review-note">Note (required to reject)</label>
-        <textarea id="prospect-review-note" className="form-input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason for rejecting, if applicable" />
+        <textarea id="prospect-review-note" className="form-input" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason this build is unacceptable" />
+        <p className="form-hint" style={{ margin: "4px 0 0" }}>
+          Rejecting removes this player's owner from the league entirely — use it only when the submission itself is the problem.
+        </p>
 
         <div className="fantasy-draft-actions" style={{ marginTop: 12, justifyContent: "flex-end" }}>
-          <Button variant="danger" disabled={busy} onClick={() => void review("reject")}>Reject</Button>
-          <Button variant="primary" disabled={busy} onClick={() => void review("approve")}>Approve</Button>
+          <Button variant="danger" disabled={busy} onClick={() => void review("reject")}>Reject &amp; Remove From League</Button>
+          <Button variant="primary" disabled={busy} onClick={() => void review("approve")}>Applied In Game</Button>
         </div>
       </div>
     </Modal>
