@@ -26,6 +26,10 @@ export const RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT = 100;
 export const RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT = 2;
 export const RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT = 100;
 export const RISE_TO_IMMORTALITY_ARTICLE_PAYOUT = 100;
+/** Paid once per week when a prospect completes that week's full Media Day slate (all 3
+ * questions) -- distinct from RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT, which is the older, manually
+ * submitted interview type, not the weekly Matchup Interview / Media Day system. */
+export const RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT = 100;
 
 export const RISE_TO_IMMORTALITY_TEAM_POOLS = ["default_nfl", "custom_32"] as const;
 export type RiseToImmortalityTeamPool = (typeof RISE_TO_IMMORTALITY_TEAM_POOLS)[number];
@@ -51,6 +55,7 @@ export const RISE_TO_IMMORTALITY_ALLOWED_COIN_SOURCES = [
   "highlight",
   "gotw",
   "interview",
+  "media_day",
 ] as const;
 
 export const RISE_TO_IMMORTALITY_LOCKED_SETTINGS = {

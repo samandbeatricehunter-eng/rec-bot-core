@@ -155,8 +155,9 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       const options = weekOptionsFromBody(body);
       try {
         const imports = await importEaDatasets(body.connection_id, body.league_id, options);
-        const { refreshImmortalityProspectCardsForLeague } = await import("../immortality/immortality.service.js");
+        const { refreshImmortalityProspectCardsForLeague, resolvePendingMediaDayClaimsForLeague } = await import("../immortality/immortality.service.js");
         await refreshImmortalityProspectCardsForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI prospect card refresh failed for league ${body.league_id} (non-fatal):`, err));
+        await resolvePendingMediaDayClaimsForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI Media Day claim resolution failed for league ${body.league_id} (non-fatal):`, err));
         const { postRosterMovementForLeague } = await import("../immortality/roster-movement.service.js");
         await postRosterMovementForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI roster movement post failed for league ${body.league_id} (non-fatal):`, err));
         const { checkNflRecordsAfterImport } = await import("../immortality/nfl-record-holders.service.js");
@@ -192,8 +193,9 @@ export async function maddenEaRoutes(app: FastifyInstance) {
 
       // Fire and forget — the import runs in the background
       importEaDatasetsWithProgress(body.connection_id, body.league_id, options).then(async () => {
-        const { refreshImmortalityProspectCardsForLeague } = await import("../immortality/immortality.service.js");
+        const { refreshImmortalityProspectCardsForLeague, resolvePendingMediaDayClaimsForLeague } = await import("../immortality/immortality.service.js");
         await refreshImmortalityProspectCardsForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI prospect card refresh failed for league ${body.league_id} (non-fatal):`, err));
+        await resolvePendingMediaDayClaimsForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI Media Day claim resolution failed for league ${body.league_id} (non-fatal):`, err));
         const { postRosterMovementForLeague } = await import("../immortality/roster-movement.service.js");
         await postRosterMovementForLeague(body.league_id).catch((err) => console.error(`[ERROR] RTI roster movement post failed for league ${body.league_id} (non-fatal):`, err));
         const { checkNflRecordsAfterImport } = await import("../immortality/nfl-record-holders.service.js");

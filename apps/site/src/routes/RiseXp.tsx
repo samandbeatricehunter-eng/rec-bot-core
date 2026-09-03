@@ -125,10 +125,6 @@ export function RiseXpPage() {
         )}
       </section>
 
-      {prospect ? (
-        <WeeklyInterviewPanel guildId={guildId} side={side} setError={setError} />
-      ) : null}
-
       {prospectId ? (
         <AbilityPanel
           guildId={guildId}
@@ -139,68 +135,6 @@ export function RiseXpPage() {
         />
       ) : null}
     </div>
-  );
-}
-
-type WeeklyInterview = Awaited<ReturnType<typeof siteApi.immortalityGetWeeklyInterview>>;
-
-function WeeklyInterviewPanel({
-  guildId, side, setError,
-}: {
-  guildId: string;
-  side: Side;
-  setError: (value: string | null) => void;
-}) {
-  const [data, setData] = useState<WeeklyInterview | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const load = useCallback(async () => {
-    const next = await siteApi.immortalityGetWeeklyInterview({ guildId, side });
-    setData(next);
-  }, [guildId, side]);
-
-  useEffect(() => {
-    load().catch((err) => setError(err instanceof Error ? err.message : "Could not load this week's interview."));
-  }, [load, setError]);
-
-  if (!data?.question) return null;
-
-  return (
-    <section className="rise-card">
-      <h2>Media Day — Week {data.week}</h2>
-      {data.locked && data.answer ? (
-        <>
-          <p>{data.question.question}</p>
-          <p><strong>{data.question.options[data.answer.option_index]?.text ?? "Answered"}</strong></p>
-          {data.answer.bonus_stat_category_hint ? (
-            <p className="site-muted">
-              Bonus opportunity flagged (+{data.answer.bonus_xp_pct}% Player XP) — status: {data.answer.bonus_status}.
-              A commissioner confirms it once the box score is in.
-            </p>
-          ) : null}
-        </>
-      ) : (
-        <>
-          <p>{data.question.question}</p>
-          <div className="rise-options">
-            {data.question.options.map((option, index) => (
-              <button key={index} type="button" className="site-btn site-btn-secondary" disabled={busy}
-                onClick={async () => {
-                  setBusy(true); setError(null);
-                  try {
-                    await siteApi.immortalitySubmitWeeklyInterview({ guildId, side, questionId: data.question!.id, optionIndex: index });
-                    await load();
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : "Could not save that answer.");
-                  } finally { setBusy(false); }
-                }}>
-                {option.text}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </section>
   );
 }
 

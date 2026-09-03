@@ -1162,8 +1162,9 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
       const after = await snapshotImportState(row.league_id);
       const notes = describeImportChanges(before, after);
       if (notes.length) await notifyCommissionersOfAutoImport(row.league_id, notes);
-      const { refreshImmortalityProspectCardsForLeague } = await import("../immortality/immortality.service.js");
+      const { refreshImmortalityProspectCardsForLeague, resolvePendingMediaDayClaimsForLeague } = await import("../immortality/immortality.service.js");
       await refreshImmortalityProspectCardsForLeague(row.league_id).catch((err) => console.error(`[ERROR] RTI prospect card refresh failed for league ${row.league_id} (non-fatal):`, err));
+      await resolvePendingMediaDayClaimsForLeague(row.league_id).catch((err) => console.error(`[ERROR] RTI Media Day claim resolution failed for league ${row.league_id} (non-fatal):`, err));
       const { postRosterMovementForLeague } = await import("../immortality/roster-movement.service.js");
       await postRosterMovementForLeague(row.league_id).catch((err) => console.error(`[ERROR] RTI roster movement post failed for league ${row.league_id} (non-fatal):`, err));
       const { checkNflRecordsAfterImport } = await import("../immortality/nfl-record-holders.service.js");

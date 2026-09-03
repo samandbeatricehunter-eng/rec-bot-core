@@ -47,6 +47,7 @@ import { RosterHome } from "../roster/RosterHome.js";
 import { TradeCenterHome } from "./TradeCenterHome.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { FantasyDraftCard } from "./FantasyDraftCard.js";
+import { RiseOverviewMediaDayCard } from "./RiseOverviewMediaDay.js";
 
 // Highlight reactions are exactly three: Like, POTY, and Dislike. POTY opens the category
 // modal (AWARD_REACTIONS) where the user picks one Play-of-the-Year category and submits.
@@ -1802,6 +1803,8 @@ export function HubHome() {
                 <article><span>Savings Balance</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong><small>Banked funds</small></article>
               </div>
             </section>
+
+            {isRise && auth.status === "ready" ? <RiseOverviewMediaDayCard guildId={auth.guildId} /> : null}
 
             <div className="hub-gameday-card hub-quick-actions-card hub-hero-quick-actions">
               <p className="hub-eyebrow">Quick actions</p>

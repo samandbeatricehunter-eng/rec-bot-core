@@ -71,7 +71,18 @@ import {
   type MaddenAttributeCode,
   matchupInterviewPool,
   selectMatchupInterviewQuestion,
+  selectMatchupInterviewQuestions,
+  buildReactiveMatchupInterviewQuestion,
+  REACTIVE_MATCHUP_QUESTION_ID_BASE,
+  evaluateMatchupInterviewClaim,
   scoreMatchupInterviewAnswer,
+  resolvePersona,
+  addPersonaPoints,
+  emptyPersonaScores,
+  type PersonaScores,
+  issuedWeeklyChallenges,
+  XP_POINTS_PER_LEVEL,
+  RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT,
   personaDnaQuestions,
   personaDnaCatalog,
   mindsetFocusCatalog,
@@ -100,6 +111,8 @@ import { kickLeagueUser } from "../moderation/moderation.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { renderProspectCardPng } from "../../lib/prospect-card-render.js";
 import { uploadImageToCloudflare } from "../../lib/cloudflare-images.js";
+import { resolveSeasonId } from "../league-context/season.service.js";
+import { leagueWeekGamesQuery, leagueSeasonGamesQuery } from "../league-context/league-games.query.js";
 
 const HEADSHOT_ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const HEADSHOT_MAX_BYTES = 5 * 1024 * 1024;
@@ -2336,6 +2349,91 @@ export async function getImmortalityRivalHistory(input: { guildId: string; disco
  * week, biased toward the matchup's rivalry/result/high-stakes context when known. Answers
  * lock for the week once submitted -- resolving a flagged bonus opportunity against the
  * actual stat line is a manual commissioner call for now, the same way EOS payouts are. */
+const MEDIA_DAY_SLOTS = 3;
+
+/** True once this week's game for teamId is no longer a "pregame" opportunity -- live, its
+ * scheduled kickoff has passed, or a stream got posted for it (per direction: whichever of the
+ * three happens first ends the window). No game scheduled yet this week just means no game to
+ * be pregame about, which isn't a closed window on its own. */
+async function isMediaDayWindowClosed(gameId: string | null): Promise<boolean> {
+  if (!gameId) return false;
+  const [game, streamLog] = await Promise.all([
+    supabase.from("rec_games").select("status,scheduled_for").eq("id", gameId).maybeSingle(),
+    supabase.from("rec_stream_compliance_logs").select("id").eq("game_id", gameId).limit(1).maybeSingle(),
+  ]);
+  if (game.data?.status === "live") return true;
+  if (game.data?.scheduled_for && new Date(String(game.data.scheduled_for)).getTime() <= Date.now()) return true;
+  if (streamLog.data) return true;
+  return false;
+}
+
+async function resolveMediaDayMatchupContext(input: {
+  recLeagueId: string; immortalityLeagueId: string; season: number; week: number; teamId: string | null; side: "offense" | "defense"; userId: string;
+}): Promise<{
+  gameId: string | null;
+  lastResult: "win" | "loss" | null;
+  isRivalryGame: boolean;
+  opponentProspect: { id: string; user_id: string; first_name: string | null; last_name: string | null } | null;
+  opponentTeamId: string | null;
+}> {
+  let gameId: string | null = null;
+  let lastResult: "win" | "loss" | null = null;
+  let opponentTeamId: string | null = null;
+
+  if (input.teamId) {
+    // Every season restarts at week 1, so filtering games by week_number alone leaks in a prior
+    // season's game at the same week number -- the recurring bug class this codebase has hit
+    // before for GOTW/wagers/the hub hero card/etc. Route through the season-scoped helpers
+    // instead of a raw week_number filter.
+    const seasonId = await resolveSeasonId(input.recLeagueId, input.season);
+    const [thisWeekGame, lastGame] = await Promise.all([
+      leagueWeekGamesQuery(supabase, { leagueId: input.recLeagueId, seasonId, weekNumber: input.week }, "id,home_team_id,away_team_id")
+        .or(`home_team_id.eq.${input.teamId},away_team_id.eq.${input.teamId}`).maybeSingle(),
+      leagueSeasonGamesQuery(supabase, { leagueId: input.recLeagueId, seasonId }, "home_team_id,away_team_id,home_score,away_score,week_number")
+        .eq("status", "final").or(`home_team_id.eq.${input.teamId},away_team_id.eq.${input.teamId}`)
+        .lt("week_number", input.week).order("week_number", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (thisWeekGame.data) {
+      gameId = String(thisWeekGame.data.id);
+      opponentTeamId = String(thisWeekGame.data.home_team_id) === input.teamId
+        ? (thisWeekGame.data.away_team_id ? String(thisWeekGame.data.away_team_id) : null)
+        : (thisWeekGame.data.home_team_id ? String(thisWeekGame.data.home_team_id) : null);
+    }
+    if (lastGame.data && lastGame.data.home_score != null && lastGame.data.away_score != null) {
+      const iAmHome = String(lastGame.data.home_team_id) === input.teamId;
+      const myScore = iAmHome ? lastGame.data.home_score : lastGame.data.away_score;
+      const theirScore = iAmHome ? lastGame.data.away_score : lastGame.data.home_score;
+      lastResult = myScore > theirScore ? "win" : myScore < theirScore ? "loss" : null;
+    }
+  }
+
+  let opponentProspect: { id: string; user_id: string; first_name: string | null; last_name: string | null } | null = null;
+  if (opponentTeamId) {
+    // The opposing RTI prospect on the same side, via whoever currently owns that team --
+    // reactive questions only ever compare same-side prospects (offense answers react to the
+    // opposing offense prospect, same for defense) since that's who's actually "across from"
+    // this player in the matchup narrative.
+    const opponentUser = await supabase.from("rec_immortality_user_team_assignments")
+      .select("user_id").eq("immortality_league_id", input.immortalityLeagueId).eq("team_id", opponentTeamId).maybeSingle();
+    const opponentUserId = opponentUser.data?.user_id
+      ? String(opponentUser.data.user_id)
+      : (await supabase.from("rec_team_assignments").select("user_id").eq("league_id", input.recLeagueId).eq("team_id", opponentTeamId).eq("assignment_status", "active").is("ended_at", null).maybeSingle()).data?.user_id ?? null;
+    if (opponentUserId) {
+      const row = await supabase.from("rec_immortality_prospects")
+        .select("id,user_id,first_name,last_name")
+        .eq("immortality_league_id", input.immortalityLeagueId).eq("user_id", String(opponentUserId)).eq("side", input.side).maybeSingle();
+      opponentProspect = row.data ?? null;
+    }
+  }
+
+  const rival = await supabase.from("rec_immortality_rivals").select("rival_team_id")
+    .eq("immortality_league_id", input.immortalityLeagueId).eq("side", input.side).eq("user_id", input.userId)
+    .maybeSingle();
+  const isRivalryGame = Boolean(rival.data?.rival_team_id) && rival.data?.rival_team_id === opponentTeamId;
+
+  return { gameId, lastResult, isRivalryGame, opponentProspect, opponentTeamId };
+}
+
 export async function getWeeklyMatchupInterview(input: { guildId: string; discordId: string; side: "offense" | "defense" }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const league = await requireImmortalityLeague(context.leagueId);
@@ -2344,43 +2442,64 @@ export async function getWeeklyMatchupInterview(input: { guildId: string; discor
   if (!prospect) throw new ApiError(400, "Save identity first.");
   const season = Number(context.rec_leagues.season_number ?? 1);
   const week = Number(context.rec_leagues.current_week ?? 1);
+  const teamId = prospect.player_id
+    ? (await supabase.from("rec_players").select("team_id").eq("id", prospect.player_id).maybeSingle()).data?.team_id ?? null
+    : null;
 
   const existing = await supabase.from("rec_immortality_matchup_interview_answers")
-    .select("*").eq("prospect_id", prospect.id).eq("week_number", week).maybeSingle();
-  if (existing.data) {
-    const pool = matchupInterviewPool();
-    const question = pool.find((item) => item.id === existing.data!.question_id) ?? null;
-    return { season, week, question, answer: existing.data, locked: true };
+    .select("*").eq("prospect_id", prospect.id).eq("week_number", week).order("slot", { ascending: true });
+  if (existing.error) throw new ApiError(500, "Could not load this week's Media Day.", existing.error);
+  const answered = existing.data ?? [];
+
+  const matchup = await resolveMediaDayMatchupContext({
+    recLeagueId: context.leagueId, immortalityLeagueId: league.id, season, week, teamId: teamId ? String(teamId) : null, side: input.side, userId,
+  });
+  const windowClosed = await isMediaDayWindowClosed(matchup.gameId);
+
+  if (answered.length >= MEDIA_DAY_SLOTS) {
+    return { season, week, questions: answered.map((row) => row.rendered_question), answers: answered, complete: true, windowClosed };
+  }
+  if (windowClosed) {
+    return { season, week, questions: answered.map((row) => row.rendered_question), answers: answered, complete: false, windowClosed };
   }
 
-  let lastResult: "win" | "loss" | null = null;
-  if (prospect.player_id) {
-    const player = await supabase.from("rec_players").select("team_id").eq("id", prospect.player_id).maybeSingle();
-    const teamId = player.data?.team_id ? String(player.data.team_id) : null;
-    if (teamId) {
-      const lastGame = await supabase.from("rec_games")
-        .select("home_team_id,away_team_id,home_score,away_score")
-        .eq("league_id", context.leagueId).eq("status", "final")
-        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-        .lt("week_number", week).order("week_number", { ascending: false }).limit(1).maybeSingle();
-      if (lastGame.data && lastGame.data.home_score != null && lastGame.data.away_score != null) {
-        const iAmHome = String(lastGame.data.home_team_id) === teamId;
-        const myScore = iAmHome ? lastGame.data.home_score : lastGame.data.away_score;
-        const theirScore = iAmHome ? lastGame.data.away_score : lastGame.data.home_score;
-        lastResult = myScore > theirScore ? "win" : myScore < theirScore ? "loss" : null;
-      }
+  const answeredIds = new Set(answered.map((row) => Number(row.question_id)));
+  const pool = matchupInterviewPool().filter((question) => !answeredIds.has(question.id));
+  const remainingSlots = MEDIA_DAY_SLOTS - answered.length;
+  const remainingStatic = selectMatchupInterviewQuestions({
+    pool,
+    context: { lastResult: matchup.lastResult, isRivalryGame: matchup.isRivalryGame },
+    seed: `${league.id}:${prospect.id}:${week}`,
+    count: remainingSlots,
+  });
+
+  // Slot 1 becomes a reactive question instead of a static pick when the opponent has already
+  // answered their own slot 1 for this week -- "in response to what they stated," per direction.
+  let nextQuestions = remainingStatic;
+  if (answered.length === 0 && matchup.opponentProspect) {
+    const opponentSlot1 = await supabase.from("rec_immortality_matchup_interview_answers")
+      .select("rendered_question,option_index")
+      .eq("prospect_id", matchup.opponentProspect.id).eq("week_number", week).eq("slot", 1).maybeSingle();
+    const opponentQuestion = opponentSlot1.data?.rendered_question as { options?: Array<{ text: string }> } | undefined;
+    const opponentAnswerText = opponentQuestion?.options?.[Number(opponentSlot1.data?.option_index ?? -1)]?.text;
+    if (opponentAnswerText) {
+      const opponentName = `${matchup.opponentProspect.first_name ?? ""} ${matchup.opponentProspect.last_name ?? ""}`.trim() || "Your opponent";
+      const opponentTeam = matchup.opponentTeamId
+        ? await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", matchup.opponentTeamId).maybeSingle()
+        : { data: null };
+      const reactive = buildReactiveMatchupInterviewQuestion({
+        seed: `${league.id}:${prospect.id}:${week}:reactive`,
+        opponent: { opponentName, opponentTeamName: formatTeamDisplayName(opponentTeam.data) ?? "their team", opponentAnswerText },
+      });
+      nextQuestions = [reactive, ...remainingStatic.slice(1)];
     }
   }
-  const rival = await supabase.from("rec_immortality_rivals").select("rival_team_id").eq("immortality_league_id", league.id).eq("user_id", userId).eq("side", input.side).maybeSingle();
-  const isRivalryGame = Boolean(rival.data?.rival_team_id);
 
-  const pool = matchupInterviewPool();
-  const question = selectMatchupInterviewQuestion({
-    pool,
-    context: { lastResult, isRivalryGame },
-    seed: `${league.id}:${prospect.id}:${week}`,
-  });
-  return { season, week, question, answer: null, locked: false };
+  return {
+    season, week, complete: false, windowClosed: false,
+    questions: [...answered.map((row) => row.rendered_question), ...nextQuestions],
+    answers: answered,
+  };
 }
 
 export async function submitWeeklyMatchupInterview(input: {
@@ -2397,10 +2516,49 @@ export async function submitWeeklyMatchupInterview(input: {
   if (!prospect) throw new ApiError(400, "Save identity first.");
   const season = Number(context.rec_leagues.season_number ?? 1);
   const week = Number(context.rec_leagues.current_week ?? 1);
+  const teamRow = prospect.player_id
+    ? await supabase.from("rec_players").select("team_id").eq("id", prospect.player_id).maybeSingle()
+    : { data: null };
+  const teamId = teamRow.data?.team_id ? String(teamRow.data.team_id) : null;
 
-  const pool = matchupInterviewPool();
-  const question = pool.find((item) => item.id === input.questionId);
-  if (!question) throw new ApiError(404, "That question isn't in this week's pool.");
+  const existing = await supabase.from("rec_immortality_matchup_interview_answers")
+    .select("id,slot").eq("prospect_id", prospect.id).eq("week_number", week).order("slot", { ascending: true });
+  if (existing.error) throw new ApiError(500, "Could not load this week's Media Day.", existing.error);
+  const answeredCount = existing.data?.length ?? 0;
+  if (answeredCount >= MEDIA_DAY_SLOTS) throw new ApiError(409, "This week's Media Day is already complete.");
+  const nextSlot = answeredCount + 1;
+
+  const matchup = await resolveMediaDayMatchupContext({
+    recLeagueId: context.leagueId, immortalityLeagueId: league.id, season, week, teamId, side: input.side, userId,
+  });
+  if (await isMediaDayWindowClosed(matchup.gameId)) {
+    throw new ApiError(400, "This week's Media Day window has closed.");
+  }
+
+  const isReactive = input.questionId >= REACTIVE_MATCHUP_QUESTION_ID_BASE;
+  let question;
+  if (isReactive) {
+    if (nextSlot !== 1 || !matchup.opponentProspect) throw new ApiError(400, "That reactive question isn't available.");
+    const opponentSlot1 = await supabase.from("rec_immortality_matchup_interview_answers")
+      .select("rendered_question,option_index").eq("prospect_id", matchup.opponentProspect.id).eq("week_number", week).eq("slot", 1).maybeSingle();
+    const opponentQuestion = opponentSlot1.data?.rendered_question as { options?: Array<{ text: string }> } | undefined;
+    const opponentAnswerText = opponentQuestion?.options?.[Number(opponentSlot1.data?.option_index ?? -1)]?.text;
+    if (!opponentAnswerText) throw new ApiError(400, "That reactive question isn't available.");
+    const opponentName = `${matchup.opponentProspect.first_name ?? ""} ${matchup.opponentProspect.last_name ?? ""}`.trim() || "Your opponent";
+    const opponentTeam = matchup.opponentTeamId
+      ? await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", matchup.opponentTeamId).maybeSingle()
+      : { data: null };
+    question = buildReactiveMatchupInterviewQuestion({
+      seed: `${league.id}:${prospect.id}:${week}:reactive`,
+      opponent: { opponentName, opponentTeamName: formatTeamDisplayName(opponentTeam.data) ?? "their team", opponentAnswerText },
+    });
+    if (question.id !== input.questionId) throw new ApiError(400, "That reactive question has changed. Reload and try again.");
+  } else {
+    const pool = matchupInterviewPool();
+    const found = pool.find((item) => item.id === input.questionId);
+    if (!found) throw new ApiError(404, "That question isn't in this week's pool.");
+    question = found;
+  }
   const result = scoreMatchupInterviewAnswer({ question, optionIndex: input.optionIndex });
 
   const saved = await supabase.from("rec_immortality_matchup_interview_answers").insert({
@@ -2409,7 +2567,11 @@ export async function submitWeeklyMatchupInterview(input: {
     side: input.side,
     season,
     week_number: week,
+    slot: nextSlot,
+    game_id: matchup.gameId,
+    opponent_prospect_id: matchup.opponentProspect?.id ?? null,
     question_id: question.id,
+    rendered_question: question,
     option_index: input.optionIndex,
     dna_points: result.dnaPoints,
     bonus_stat_category_hint: result.bonusOpportunity?.statCategoryHint ?? null,
@@ -2421,7 +2583,219 @@ export async function submitWeeklyMatchupInterview(input: {
     if (saved.error.code === "23505") throw new ApiError(409, "This week's interview is already answered.");
     throw new ApiError(500, "Could not save that answer.", saved.error);
   }
-  return { question, answer: saved.data };
+
+  await driftPersonaFromMediaDayAnswer(prospect.id).catch((error) =>
+    console.error(`[WARN] Persona drift failed for prospect ${prospect.id} (non-fatal):`, error));
+  await postMediaDayAnswerHeadline({
+    guildId: input.guildId, recLeagueId: context.leagueId, prospect, side: input.side,
+    question, optionIndex: input.optionIndex, opponentProspect: matchup.opponentProspect,
+  }).catch((error) => console.error(`[WARN] Could not publish Media Day headline (non-fatal):`, error));
+
+  if (nextSlot >= MEDIA_DAY_SLOTS) {
+    await payMediaDayCompletionCoins({ leagueId: context.leagueId, season, week, prospect, userId })
+      .catch((error) => console.error(`[WARN] Could not pay Media Day coins for prospect ${prospect.id} (non-fatal):`, error));
+    await queueMediaDayRoundupTweetsIfDue(context.leagueId, league.id, season, week)
+      .catch((error) => console.error("[WARN] Could not queue Media Day roundup tweets (non-fatal):", error));
+  }
+
+  return { question, answer: saved.data, slot: nextSlot, complete: nextSlot >= MEDIA_DAY_SLOTS };
+}
+
+/** Weighted-combines the original one-time Persona interview's scores with every Media Day
+ * answer's dnaPoints so far this career, and flips the stored primary/secondary/label if the
+ * cumulative lean has genuinely shifted -- "if the answers are contrary to the player's current
+ * DNA enough over time, their personality changes accordingly." The original interview keeps a
+ * strong base weight (x3) so a handful of contrary weekly answers can't flip it overnight; it
+ * takes sustained pressure across many weeks, same as a real personality would. */
+async function driftPersonaFromMediaDayAnswer(prospectId: string): Promise<void> {
+  const persona = await supabase.from("rec_immortality_persona_results").select("scores,primary_dimension,secondary_dimension").eq("prospect_id", prospectId).maybeSingle();
+  if (!persona.data) return; // no baseline Persona yet -- nothing to drift
+  const baseScores = (persona.data.scores ?? emptyPersonaScores()) as PersonaScores;
+  const ORIGINAL_INTERVIEW_WEIGHT = 3;
+  let cumulative = emptyPersonaScores();
+  for (const dimension of Object.keys(cumulative) as Array<keyof PersonaScores>) {
+    cumulative[dimension] = baseScores[dimension] * ORIGINAL_INTERVIEW_WEIGHT;
+  }
+  // The caller always inserts this answer's row before calling here, so a single pass over
+  // every Media Day answer on record already includes the one that just triggered this --
+  // adding it a second time on top would double-count it.
+  const priorAnswers = await supabase.from("rec_immortality_matchup_interview_answers").select("dna_points").eq("prospect_id", prospectId);
+  for (const row of priorAnswers.data ?? []) cumulative = addPersonaPoints(cumulative, (row.dna_points ?? {}) as Partial<PersonaScores>);
+
+  const next = resolvePersona(cumulative);
+  if (next.primary === persona.data.primary_dimension && next.secondary === persona.data.secondary_dimension) return;
+  await supabase.from("rec_immortality_persona_results").update({
+    primary_dimension: next.primary, secondary_dimension: next.secondary, label: next.label,
+  }).eq("prospect_id", prospectId);
+}
+
+async function postMediaDayAnswerHeadline(input: {
+  guildId: string; recLeagueId: string; prospect: Record<string, any>; side: "offense" | "defense";
+  question: { question: string; options: Array<{ text: string }> }; optionIndex: number;
+  opponentProspect: { id: string; user_id: string; first_name: string | null; last_name: string | null } | null;
+}): Promise<void> {
+  const teamRow = input.prospect.player_id
+    ? await supabase.from("rec_players").select("team_id").eq("id", input.prospect.player_id).maybeSingle()
+    : { data: null };
+  const team = teamRow.data?.team_id
+    ? await supabase.from("rec_teams").select("name,display_city,display_nick,is_relocated").eq("id", teamRow.data.team_id).maybeSingle()
+    : { data: null };
+  const teamName = formatTeamDisplayName(team.data) ?? "the franchise";
+  const name = `${input.prospect.first_name ?? ""} ${input.prospect.last_name ?? ""}`.trim() || "A prospect";
+  const answerText = input.question.options[input.optionIndex]?.text ?? "";
+  let opponentTag = "";
+  if (input.opponentProspect) {
+    const opponentDiscordId = await discordIdForRecUser(String(input.opponentProspect.user_id)).catch(() => null);
+    if (opponentDiscordId) opponentTag = `<@${opponentDiscordId}>`;
+  }
+  const { publishTransitionStory } = await import("../hub/story-publishing.js");
+  await publishTransitionStory({
+    guildId: input.guildId,
+    primaryAngle: "rti_media_day",
+    headline: `${teamName}'s ${name} Sounds Off at Media Day`,
+    body: `Asked "${input.question.question}" ${name} said it straight: "${answerText}"${opponentTag ? `\n\n${opponentTag}` : ""}`,
+  });
+}
+
+async function payMediaDayCompletionCoins(input: {
+  leagueId: string; season: number; week: number; prospect: Record<string, any>; userId: string;
+}): Promise<void> {
+  const { creditOrBacklog } = await import("../economy/economy-backlog.js");
+  await creditOrBacklog({
+    leagueId: input.leagueId,
+    seasonNumber: input.season,
+    userId: input.userId,
+    amount: RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT,
+    description: `Rise to Immortality Media Day — Week ${input.week} interview completed`,
+    transactionType: "immortality_media_day_payout",
+    source: "media_day",
+    sourceReference: { prospectId: input.prospect.id, week: input.week, season: input.season },
+  });
+}
+
+const MEDIA_DAY_ROUNDUP_HANDLE_OFFSETS = [3, 11];
+
+/** Fires 1-2 generic roundup tweets once a meaningful chunk of the league's Media Day
+ * interviews are in for the week -- capped at 2/week via the two fixed thresholds below,
+ * each individually idempotent (checked against what's already queued/posted this week). */
+// Idempotency key for these rows is the fixed body prefix below (same pattern
+// ensureSignedContractAnnouncement uses its generated headline for) -- no dedicated "kind"
+// column on rec_immortality_tweet_queue to filter on otherwise.
+const MEDIA_DAY_ROUNDUP_BODY_PREFIX = "Media Day is in full swing";
+
+async function queueMediaDayRoundupTweetsIfDue(recLeagueId: string, immortalityLeagueId: string, season: number, week: number): Promise<void> {
+  const completedCount = await supabase.from("rec_immortality_matchup_interview_answers")
+    .select("prospect_id", { count: "exact", head: true }).eq("immortality_league_id", immortalityLeagueId).eq("week_number", week).eq("slot", MEDIA_DAY_SLOTS);
+  const totalProspects = await supabase.from("rec_immortality_prospects").select("id", { count: "exact", head: true }).eq("immortality_league_id", immortalityLeagueId);
+  const completed = completedCount.count ?? 0;
+  const total = totalProspects.count ?? 0;
+  if (total <= 0) return;
+  const pct = completed / total;
+
+  // The query builder here doesn't support LIKE -- this league/week slice is always small, so
+  // filtering the prefix match in JS after fetching is simpler than adding LIKE support for one
+  // caller.
+  const queuedThisWeek = await supabase.from("rec_immortality_tweet_queue")
+    .select("body").eq("league_id", recLeagueId).eq("week_number", week).in("status", ["pending", "posted"]);
+  const alreadyQueuedCount = (queuedThisWeek.data ?? []).filter((row: any) => String(row.body ?? "").startsWith(MEDIA_DAY_ROUNDUP_BODY_PREFIX)).length;
+
+  const thresholds = [0.33, 0.75];
+  const dueCount = thresholds.filter((t) => pct >= t).length;
+  const toQueue = Math.max(0, Math.min(dueCount, MEDIA_DAY_ROUNDUP_HANDLE_OFFSETS.length) - alreadyQueuedCount);
+  if (toQueue <= 0) return;
+
+  const { GENERIC_HANDLES } = await import("./tweet-bank.js");
+  const rows = MEDIA_DAY_ROUNDUP_HANDLE_OFFSETS.slice(alreadyQueuedCount, alreadyQueuedCount + toQueue).map((offset) => {
+    const handle = GENERIC_HANDLES[offset % GENERIC_HANDLES.length]!;
+    return {
+      league_id: recLeagueId, season_number: season, week_number: week,
+      author_kind: "generic" as const, author_handle: handle.handle, author_display_name: handle.displayName,
+      body: `Media Day is in full swing around the league this week — ${completed} of ${total} interviews on the record so far.`,
+      status: "pending" as const,
+    };
+  });
+  if (rows.length) await supabase.from("rec_immortality_tweet_queue").insert(rows);
+}
+
+/** Called once a specific game's real EA-imported stats are in (see the post-import hook points
+ * in ea-connections.service.ts / madden-ea.routes.ts). Resolves every still-pending Media Day
+ * bonus claim tied to that game: awards the flagged Player XP bonus if the claim held up,
+ * otherwise fires a "backfired" tweet -- and either way marks it resolved so it's never
+ * re-evaluated. No-ops instantly if nothing's pending for this game. */
+/** League-wide sweep -- call from the EA-import completion hooks (ea-connections.service.ts /
+ * madden-ea.routes.ts) alongside the other post-import RTI steps. Finds every game a pending
+ * Media Day claim is still waiting on and resolves each; cheap no-op when nothing's pending. */
+export async function resolvePendingMediaDayClaimsForLeague(leagueId: string): Promise<void> {
+  const immortalityLeague = await loadImmortalityLeague(leagueId);
+  if (!immortalityLeague) return;
+  const pending = await supabase.from("rec_immortality_matchup_interview_answers")
+    .select("game_id").eq("immortality_league_id", immortalityLeague.id).eq("bonus_status", "pending").not("game_id", "is", null);
+  if (pending.error || !pending.data?.length) return;
+  const gameIds: string[] = [...new Set((pending.data as Array<{ game_id: string }>).map((row) => String(row.game_id)))];
+  for (const gameId of gameIds) {
+    await resolvePendingMediaDayClaimsForGame(gameId).catch((error) =>
+      console.error(`[ERROR] Failed to resolve Media Day claims for game ${gameId} (non-fatal):`, error));
+  }
+}
+
+export async function resolvePendingMediaDayClaimsForGame(gameId: string): Promise<void> {
+  const pending = await supabase.from("rec_immortality_matchup_interview_answers")
+    .select("id,prospect_id,immortality_league_id,side,season,week_number,bonus_stat_category_hint,bonus_xp_pct,rendered_question,option_index")
+    .eq("game_id", gameId).eq("bonus_status", "pending");
+  if (pending.error || !pending.data?.length) return;
+
+  const game = await supabase.from("rec_games").select("league_id,home_team_id,away_team_id,home_score,away_score,status").eq("id", gameId).maybeSingle();
+  if (!game.data || game.data.status !== "final" || game.data.home_score == null || game.data.away_score == null) return;
+
+  for (const row of pending.data as any[]) {
+    try {
+      const prospect = await supabase.from("rec_immortality_prospects").select("id,user_id,position,player_id,first_name,last_name").eq("id", row.prospect_id).maybeSingle();
+      if (!prospect.data?.player_id) continue;
+      const player = await supabase.from("rec_players").select("team_id").eq("id", prospect.data.player_id).maybeSingle();
+      const teamId = player.data?.team_id ? String(player.data.team_id) : null;
+      const iAmHome = teamId && String(game.data.home_team_id) === teamId;
+      const won = teamId ? (iAmHome ? game.data.home_score > game.data.away_score : game.data.away_score > game.data.home_score) : false;
+      const marginAbs = Math.abs(Number(game.data.home_score) - Number(game.data.away_score));
+
+      const weekStats = await supabase.from("rec_player_weekly_stats").select("stats")
+        .eq("league_id", game.data.league_id).eq("player_id", prospect.data.player_id).eq("week_number", row.week_number).eq("season_number", row.season).maybeSingle();
+      const stats = (weekStats.data?.stats ?? {}) as Record<string, number>;
+      const challenges = issuedWeeklyChallenges({ position: String(prospect.data.position ?? ""), seed: `${row.prospect_id}:${row.week_number}`, stats });
+      const hadGoldWeek = challenges.some((c) => c.tier === "gold" && c.complete);
+
+      const outcome = evaluateMatchupInterviewClaim({ hint: String(row.bonus_stat_category_hint), won, marginAbs, hadGoldWeek });
+      await supabase.from("rec_immortality_matchup_interview_answers").update({
+        bonus_status: outcome, resolved_at: new Date().toISOString(),
+      }).eq("id", row.id);
+
+      if (outcome === "met") {
+        const traits = await supabase.from("rec_immortality_prospect_characteristics").select("characteristic_key").eq("prospect_id", prospect.data.id);
+        const group = positionGroupFor(String(prospect.data.position ?? "") as ImmortalityPosition);
+        const catalog = characteristicCatalog(group);
+        const selected = catalog.filter((item) => (traits.data ?? []).some((t) => t.characteristic_key === item.key));
+        const modifiers = combinedModifiers(selected);
+        const points = Math.round(XP_POINTS_PER_LEVEL * (Number(row.bonus_xp_pct ?? 0) / 100));
+        if (points > 0) {
+          const { creditXpPoints } = await import("./xp-awards.service.js");
+          await creditXpPoints({ prospectId: row.prospect_id, eventType: "media_day_bonus", sourceId: row.id, points, season: row.season, week: row.week_number, modifiers });
+        }
+      } else {
+        const question = row.rendered_question as { question?: string; options?: Array<{ text: string }> } | null;
+        const answerText = question?.options?.[row.option_index]?.text ?? question?.question ?? "their pregame claim";
+        const name = `${prospect.data.first_name ?? ""} ${prospect.data.last_name ?? ""}`.trim() || "The player";
+        const { GENERIC_HANDLES } = await import("./tweet-bank.js");
+        const handle = GENERIC_HANDLES[Math.abs(row.id.charCodeAt(0) + row.id.charCodeAt(row.id.length - 1)) % GENERIC_HANDLES.length]!;
+        await supabase.from("rec_immortality_tweet_queue").insert({
+          league_id: game.data.league_id, season_number: row.season, week_number: row.week_number,
+          author_kind: "generic", author_handle: handle.handle, author_display_name: handle.displayName,
+          body: `Well... ${name} said "${answerText}" before this one. Didn't age well.`,
+          status: "pending",
+        });
+      }
+    } catch (error) {
+      console.error(`[ERROR] Failed to resolve Media Day claim ${row.id} (non-fatal):`, error);
+    }
+  }
 }
 
 export async function creditXpEvent(input: {

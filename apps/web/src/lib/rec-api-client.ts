@@ -1189,6 +1189,24 @@ export const recApi = {
   setImmortalityIntroVideo: (input: { guildId: string; url: string | null }) =>
     recApiFetch<{ introVideoUrl: string | null }>("/v1/immortality/intro-video/set", { method: "POST", body: JSON.stringify(input) }),
 
+  // Media Day — Overview page feature card (RiseOverviewMediaDay.tsx)
+  getImmortalityWeeklyInterview: (input: { guildId: string; side: "offense" | "defense" }) =>
+    recApiFetch<{
+      season: number;
+      week: number;
+      complete: boolean;
+      windowClosed: boolean;
+      questions: Array<{
+        id: number;
+        category: string;
+        question: string;
+        options: Array<{ text: string; bonusOpportunity?: { statCategoryHint: string; xpBonusPct: number } | null }>;
+      }>;
+      answers: Array<{ slot: number; question_id: number; option_index: number; bonus_stat_category_hint: string | null; bonus_xp_pct: number | null; bonus_status: string }>;
+    }>("/v1/immortality/interview/weekly", { method: "POST", body: JSON.stringify(input) }),
+  submitImmortalityWeeklyInterview: (input: { guildId: string; side: "offense" | "defense"; questionId: number; optionIndex: number }) =>
+    recApiFetch<{ question: unknown; answer: Record<string, unknown>; slot: number; complete: boolean }>("/v1/immortality/interview/weekly/submit", { method: "POST", body: JSON.stringify(input) }),
+
   // Fantasy/offseason draft turn-order coordinator — all actions require a website session.
   getFantasyDraftState: (guildId: string) =>
     recApiFetch<FantasyDraftState>("/v1/fantasy-draft/state", { method: "POST", body: JSON.stringify({ guildId }) }),

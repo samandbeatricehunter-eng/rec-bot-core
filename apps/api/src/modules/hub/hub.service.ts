@@ -23,7 +23,7 @@ import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { getH2hHistory } from "../official-records/official-records.service.js";
 import { createStreamPayoutReview, deriveStreamMatchupContext, postStreamToDiscordChannel, postStreamToGameChannel } from "../streams/streams.service.js";
-import { isRiseToImmortalityLeagueType, RISE_TO_IMMORTALITY_ARTICLE_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT, RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
+import { isRiseToImmortalityLeagueType, RISE_TO_IMMORTALITY_ARTICLE_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT, RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT, RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
@@ -739,7 +739,7 @@ export async function getHub(guildId: string, discordId: string) {
       supabase.from("rec_highlight_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).eq("payout_kind", "weekly_highlight").neq("status", "denied"),
       supabase.from("rec_stream_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).neq("status", "denied"),
       supabase.from("rec_game_of_week_votes").select("is_correct,payout_amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId),
-      supabase.from("rec_dollar_ledger").select("amount,transaction_type,source_reference").eq("league_id", context.leagueId).eq("user_id", userId).in("transaction_type", ["box_score_payout", "game_result_payout", "scheduling_bonus_payout"]),
+      supabase.from("rec_dollar_ledger").select("amount,transaction_type,source_reference").eq("league_id", context.leagueId).eq("user_id", userId).in("transaction_type", ["box_score_payout", "game_result_payout", "scheduling_bonus_payout", "immortality_media_day_payout"]),
     ]) : Promise.resolve([emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly] as const),
     supabase
       .from("rec_stream_compliance_logs")
@@ -842,19 +842,26 @@ export async function getHub(guildId: string, discordId: string) {
   const articleRows = mediaRows.filter((row: any) => row.submission_type === "user_article");
   const cfg = storeConfig.data ?? {};
   const isRise = isRiseToImmortalityLeagueType(String((cfg as { roster_type?: string | null }).roster_type ?? ""));
+  // Media Day pays a flat RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT per prospect that completes its
+  // full weekly slate -- earned/payout directly gives the completed count without a second
+  // query, since it's never a partial amount.
+  const mediaDayEarned = (weeklyLedgers.data ?? []).filter((row: any) => row.transaction_type === "immortality_media_day_payout"
+    && Number(row.source_reference?.week ?? -1) === currentWeek).reduce((sum: number, row: any) => sum + Number(row.amount ?? 0), 0);
+  const mediaDayCurrent = Math.round(mediaDayEarned / RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT);
   let weeklyItems = [
     { key: "interview", label: "Submit an Interview", amount: isRise ? RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT : economy.submissions.interview, current: interviewRows.length, limit: 1, earned: paid(interviewRows) },
     { key: "article", label: "Submit a custom article", amount: isRise ? RISE_TO_IMMORTALITY_ARTICLE_PAYOUT : economy.submissions.article, current: articleRows.length, limit: 1, earned: paid(articleRows) },
     { key: "stream", label: "Share your stream when you play", amount: economy.submissions.stream, current: Math.min(1, (weeklyStreams.data ?? []).length), limit: 1, earned: paid(weeklyStreams.data ?? []) },
     { key: "highlights", label: "Post up to 2 game highlights", amount: isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT : economy.submissions.highlight, current: Math.min(isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT : economy.submissions.highlightWeeklyUploadLimit, (weeklyHighlights.data ?? []).length), limit: isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT : economy.submissions.highlightWeeklyUploadLimit, earned: paid(weeklyHighlights.data ?? []) },
     { key: "gotw", label: "Correctly predict Game of the Week", amount: economy.submissions.gotwCorrectVote, current: (weeklyGotwVotes.data ?? []).length ? 1 : 0, limit: 1, earned: (weeklyGotwVotes.data ?? []).reduce((sum: number, row: any) => sum + Number(row.payout_amount ?? 0), 0) },
+    { key: "media_day", label: "Complete a player's Media Day interview", amount: RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT, current: mediaDayCurrent, limit: 2, earned: mediaDayEarned, note: "One payout per prospect (offense + defense), once all 3 of that week's questions are answered" },
     ...(weeklyGame && !isRise ? [
       { key: "result", label: "Complete your matchup", amount: economy.submissions.boxScoreWin, current: weeklyGame.status === "final" ? 1 : 0, limit: 1, earned: weeklyGameBasePaid, note: `${economy.submissions.boxScoreWin} for a win, ${economy.submissions.boxScoreLoss} for a loss; Fair Sims and Force Wins pay neither coach — and only count as one when it came from real scheduling engagement (checked in while your opponent didn't, proposed a time that got no response in the wait window, etc.), not a unilateral claim` },
       { key: "scheduling_bonus", label: "Earn the scheduling completion bonus", amount: economy.submissions.boxScoreWin, current: schedulingMultiplier === 2 ? 1 : 0, limit: 1, earned: weeklySchedulingBonusPaid, note: "Schedule through REC, have both coaches check in, and mark the game over; this doubles everything you earned that week — the win/loss payout, plus any interview, article, stream, highlight, and GOTW payout" },
     ] : []),
   ];
   if (isRise) {
-    weeklyItems = weeklyItems.filter((item) => item.key === "interview" || item.key === "highlights" || item.key === "gotw");
+    weeklyItems = weeklyItems.filter((item) => item.key === "interview" || item.key === "highlights" || item.key === "gotw" || item.key === "media_day");
   }
   const weeklyPotential = weeklyItems.reduce((sum, item) => sum + item.amount * item.limit, 0);
   const weeklyEarned = weeklyItems.reduce((sum, item) => sum + item.earned, 0);

@@ -301,6 +301,15 @@ button.poty:disabled {
   .hub-subtabs { display: none; }
 }
 
+/* Rise to Immortality Media Day feature card (Overview page) */
+.hub-media-day-card { padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border-subtle)); border-radius: var(--radius-lg); background: linear-gradient(135deg, rgba(255,255,255,.025), color-mix(in srgb, var(--accent) 5%, transparent)); }
+.hub-media-day-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-4); margin-top: var(--space-2); }
+.hub-media-day-side h4 { margin: 0 0 var(--space-2); font-size: var(--text-sm); }
+.hub-media-day-answered { margin-bottom: var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--border-subtle); }
+.hub-media-day-answered:last-of-type { border-bottom: 0; }
+.hub-media-day-options { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+.hub-media-day-options .hub-my-team-btn { text-align: left; }
+
 /* My Team shortcut cards + media modals + full-season schedule modal */
 .hub-gameday-card { margin-bottom: var(--space-4); }
 .hub-gameday-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-top: var(--space-2); }

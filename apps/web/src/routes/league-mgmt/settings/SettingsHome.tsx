@@ -422,7 +422,7 @@ export function SettingsHome() {
                 </> : null}
               </div>
             ) : null}
-            {category.key === "purchases" && Boolean(draft.coinEconomyEnabled) ? (
+            {category.key === "purchases" ? (
               <div className="form-field">
                 <label className="form-label">Purchase deadlines</label>
                 <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
