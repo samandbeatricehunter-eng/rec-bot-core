@@ -15,7 +15,7 @@ import {
   GENERIC_HANDLES, MANUAL_TWEET_GENERIC_HANDLES, PLAYER_CHATTER_TEMPLATES, TWEET_HOSTS, TWEET_TEMPLATES, staticAvatarUrlForHandle,
   type TweetAuthor, type TweetCategory, type TweetHostKey, type TweetSlots, type TweetTemplate,
 } from "./tweet-bank.js";
-import { conversationTemplateKey, selectConversationLine, type ConversationKind } from "./tweet-bank-conversations.js";
+import { conversationTemplateKey, selectConversationLine, type ConversationKind, type VoiceFamily } from "./tweet-bank-conversations.js";
 import { personaForHandle, playerVoiceFromTraits } from "./tweet-bank-voices.js";
 
 const QUEUE_SIZE = 10;
@@ -781,13 +781,20 @@ async function queueOnePlayerChatterTweet(
   });
 }
 
+// 11 PM-6 AM Central reads as an inactive feed either way -- posting at the daytime cadence
+// overnight just means a pile of tweets are all sitting there stale by morning. America/Chicago
+// (not a fixed UTC offset) so this stays correct across the CDT/CST DST switch.
+function isOvernightQuietHoursCentral(date: Date): boolean {
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Chicago", hour: "numeric", hour12: false }).format(date));
+  return hour >= 23 || hour < 6;
+}
+
 /** Called on a plain interval sweep (apps/api/src/index.ts) -- posts at most one pending tweet
- * per league every 4 minutes, oldest-queued first. Cheap when idle: a single filtered query.
- * Was 4 hours, then 20 minutes; Media Day and player /twitter now feed the same queue, so a
- * 20-minute gate left a just-finished interview sitting silent for most of an hour. 4 minutes
- * still reads as a drip, not a dump. */
+ * per league every 30 minutes (1 per 2 hours overnight, 11 PM-6 AM Central), oldest-queued
+ * first. Cheap when idle: a single filtered query. Was 4 hours, then 20 minutes, then 4 minutes
+ * (too fast -- read as a dump, not a feed); settled back at 30 per direction. */
 export async function sweepImmortalityTweetQueue(): Promise<void> {
-  const POST_COOLDOWN_MS = 4 * 60 * 1000;
+  const POST_COOLDOWN_MS = isOvernightQuietHoursCentral(new Date()) ? 2 * 60 * 60 * 1000 : 30 * 60 * 1000;
 
   const leaguesWithPending = await supabase.from("rec_immortality_tweet_queue")
     .select("league_id").eq("status", "pending");
@@ -1019,6 +1026,19 @@ function accountByHandle(accounts: FeedAccount[], handle: string): FeedAccount |
   return accounts.find((account) => account.handle.toLowerCase() === needle) ?? null;
 }
 
+// Voices whose whole bit is demanding a number ("I need the rate, not the total.", "CSV or it
+// didn't happen.") -- fine reacting to a real stat line, a non sequitur reacting to a headline
+// with no stat in it (a signing, a franchise reveal, a rivalry promo).
+const STAT_PRECISION_FAMILIES = new Set<VoiceFamily>(["elliot", "analyst", "fan_stats"]);
+
+function familyForAccount(account: FeedAccount): VoiceFamily {
+  const catalog = personaForHandle(account.handle);
+  const playerVoice = account.authorKind === "player"
+    ? playerVoiceFromTraits({ traits: account.traits, tonePraiseWeight: account.tonePraiseWeight })
+    : null;
+  return catalog?.family ?? playerVoice?.family ?? "player_mixed";
+}
+
 function lineForAccount(account: FeedAccount, kind: ConversationKind, usedKeys: Iterable<string>): string | null {
   const catalog = personaForHandle(account.handle);
   const playerVoice = account.authorKind === "player"
@@ -1183,7 +1203,12 @@ async function startConversation(
   const replyable = recentRows.filter((row) => !String(row.source ?? "").startsWith(CONVERSATION_SOURCE_PREFIX));
   if (replyable.length && Math.random() < 0.7) {
     const original = replyable[Math.floor(Math.random() * replyable.length)]!;
-    author = pickFeedAccount(accounts, new Set([original.author_handle]), true);
+    // Same non-sequitur risk as the mention branch below -- a stat-precision voice demanding "the
+    // rate, not the total" makes no sense replying to a contract signing or a Media Day quote,
+    // which have no rate to give. Only the two genuinely stat-driven sources exempt them.
+    const isStatSource = original.source === "weekly_recap" || original.source === "player_chatter" || !original.source;
+    const pool = isStatSource ? accounts : accounts.filter((acc) => !STAT_PRECISION_FAMILIES.has(familyForAccount(acc)));
+    author = pickFeedAccount(pool, new Set([original.author_handle]), true);
     target = accountByHandle(accounts, original.author_handle) ?? {
       authorKind: "generic", handle: original.author_handle, displayName: original.author_display_name,
       mentionOnly: true,
@@ -1191,9 +1216,23 @@ async function startConversation(
     kind = "reply";
     snippet = snippetOf(original.body);
   } else {
-    author = pickFeedAccount(accounts, new Set(), true);
-    target = author ? pickFeedAccount(accounts, new Set([author.handle]), true) : null;
     kind = "mention";
+    // Early in a league's life (preseason, few games) the tweet feed itself has very little to
+    // reply to yet, so this branch fires far more than its intended ~30% share -- fall back to a
+    // recent real headline (contract signings, franchise reveals, rivalry promotion) so a
+    // "mention" conversation still opens on something that actually happened instead of pure
+    // vibes with nothing behind them.
+    const recentStories = await supabase.from("rec_game_stories")
+      .select("headline").eq("league_id", leagueId).order("created_at", { ascending: false }).limit(6);
+    const stories = (recentStories.data ?? []) as Array<{ headline: string | null }>;
+    const headlines = stories.map((row) => row.headline).filter((h): h is string => Boolean(h));
+    // A headline never has a "rate" or a "split" to demand -- the stat-precision voices' lines
+    // ("I need the rate, not the total", "CSV or it didn't happen") only make sense reacting to
+    // an actual stat line, so they sit this one out rather than reading as a non sequitur.
+    const pool = headlines.length ? accounts.filter((acc) => !STAT_PRECISION_FAMILIES.has(familyForAccount(acc))) : accounts;
+    author = pickFeedAccount(pool, new Set(), true);
+    target = author ? pickFeedAccount(pool, new Set([author.handle]), true) : null;
+    if (headlines.length) snippet = snippetOf(headlines[Math.floor(Math.random() * headlines.length)]!);
   }
   if (!author || author.mentionOnly || !target) return;
   const pairKey = `${author.handle.toLowerCase()}|${target.handle.toLowerCase()}`;

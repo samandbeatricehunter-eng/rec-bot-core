@@ -155,10 +155,11 @@ function runEaAutoImportSweep() {
 runEaAutoImportSweep();
 setInterval(runEaAutoImportSweep, 4 * 60 * 60_000).unref();
 
-// Rise to Immortality tweet queue: drains one pending tweet per league every few minutes (the
+// Rise to Immortality tweet queue: drains one pending tweet per league every 30 minutes (the
 // per-league cutoff lives inside the sweep itself via each league's own last posted_at, not
-// this interval). Poll every minute so a just-queued Media Day tweet isn't stuck behind the
-// old 15-minute tick, and run once at boot so a redeploy doesn't sit idle until the first interval.
+// this interval). Polling every minute just gives that cutoff good precision -- it's a cheap
+// no-op query most ticks -- and running once at boot means a redeploy doesn't sit idle until
+// the first interval.
 function runImmortalityTweetQueueSweep() {
   sweepImmortalityTweetQueue().catch((error) => app.log.error({ err: error }, "Immortality tweet queue sweep failed"));
 }
