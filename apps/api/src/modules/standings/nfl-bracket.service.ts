@@ -369,6 +369,7 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
      join rec_nfl_brackets b on b.id=s.bracket_id
      left join rec_games g on g.id=s.game_id
      left join rec_game_results r on r.league_id=b.league_id and r.season_number=b.season_number
+       and r.week_number=g.week_number
        and r.home_team_id=s.home_team_id and r.away_team_id=s.away_team_id
      where b.league_id=$1 and b.season_number=$2`,
     [leagueId, seasonNumber],
