@@ -166,6 +166,8 @@ export async function maddenEaRoutes(app: FastifyInstance) {
         await queueImmortalityTweetsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI tweet generation failed for league ${body.league_id} (non-fatal):`, err));
         const { awardImmortalityChallengesAfterImport } = await import("../immortality/xp-awards.service.js");
         await awardImmortalityChallengesAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI challenge/rivalry XP award failed for league ${body.league_id} (non-fatal):`, err));
+        const { syncNflStandingsAfterImport } = await import("../standings/nfl-standings.service.js");
+        await syncNflStandingsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] NFL standings/bracket sync failed for league ${body.league_id} (non-fatal):`, err));
         return reply.send({ imports });
       } catch (importError) {
         await recordEaImportError(body.connection_id, importError);
@@ -208,6 +210,8 @@ export async function maddenEaRoutes(app: FastifyInstance) {
         await queueImmortalityTweetsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI tweet generation failed for league ${body.league_id} (non-fatal):`, err));
         const { awardImmortalityChallengesAfterImport } = await import("../immortality/xp-awards.service.js");
         await awardImmortalityChallengesAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI challenge/rivalry XP award failed for league ${body.league_id} (non-fatal):`, err));
+        const { syncNflStandingsAfterImport } = await import("../standings/nfl-standings.service.js");
+        await syncNflStandingsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] NFL standings/bracket sync failed for league ${body.league_id} (non-fatal):`, err));
       }).catch((error) => {
         console.error("[EA] Background import failed:", error);
         pushProgress(body.league_id, { type: "error", error: error instanceof Error ? error.message : String(error) });

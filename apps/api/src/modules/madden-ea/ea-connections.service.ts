@@ -1173,6 +1173,8 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
       await queueImmortalityTweetsAfterImport(row.league_id).catch((err) => console.error(`[ERROR] RTI tweet generation failed for league ${row.league_id} (non-fatal):`, err));
       const { awardImmortalityChallengesAfterImport } = await import("../immortality/xp-awards.service.js");
       await awardImmortalityChallengesAfterImport(row.league_id).catch((err) => console.error(`[ERROR] RTI challenge/rivalry XP award failed for league ${row.league_id} (non-fatal):`, err));
+      const { syncNflStandingsAfterImport } = await import("../standings/nfl-standings.service.js");
+      await syncNflStandingsAfterImport(row.league_id).catch((err) => console.error(`[ERROR] NFL standings/bracket sync failed for league ${row.league_id} (non-fatal):`, err));
       succeeded += 1;
     } catch (error) {
       failed += 1;

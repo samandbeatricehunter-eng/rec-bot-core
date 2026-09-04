@@ -175,3 +175,20 @@ export async function syncMaddenStandingsAndBracket(input: {
     await syncAllNflBracketRounds({ leagueId: input.leagueId, seasonNumber: input.seasonNumber, seasonId: input.seasonId });
   }
 }
+
+/** Same sync, triggered directly off an EA import instead of only the Advance flow -- a
+ * standings import mid-postseason (a corrected seed, a newly-decided Wild Card result) should
+ * update the live bracket right away, not sit until the next Advance. No-ops for non-Madden
+ * leagues and leagues with no season row yet. */
+export async function syncNflStandingsAfterImport(leagueId: string): Promise<void> {
+  const league = await getPgPool().query<{ game: string; season_number: number; season_stage: string }>(
+    `select game,season_number,season_stage from rec_leagues where id=$1`,
+    [leagueId],
+  );
+  const row = league.rows[0];
+  if (!row || !String(row.game ?? "").startsWith("madden")) return;
+  const seasonNumber = Number(row.season_number ?? 1);
+  const { resolveSeasonId } = await import("../league-context/season.service.js");
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
+  await syncMaddenStandingsAndBracket({ leagueId, seasonNumber, seasonId, seasonStage: String(row.season_stage ?? "") });
+}
