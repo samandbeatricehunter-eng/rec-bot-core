@@ -407,7 +407,6 @@ export async function immortalityRoutes(app: FastifyInstance) {
         imageUrl: z.string().trim().url().max(2000).optional(),
         mentionContent: z.string().trim().max(200).optional(),
       }).parse(request.body);
-      console.log(`[DEBUG] /tweets/manual raw request.body.imageUrl: ${JSON.stringify((request.body as any)?.imageUrl ?? null)}, parsed body.imageUrl: ${JSON.stringify(body.imageUrl ?? null)}`);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       await postManualImmortalityTweet(body);
       return reply.send({ posted: true });

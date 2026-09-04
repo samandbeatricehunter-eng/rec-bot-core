@@ -476,7 +476,6 @@ export async function postManualImmortalityTweet(input: {
     handle = account.handle; displayName = account.displayName; avatarUrl = account.avatarUrl; authorKind = "generic";
   }
 
-  console.log(`[DEBUG] postManualImmortalityTweet imageUrl received: ${JSON.stringify(input.imageUrl ?? null)}`);
   const posted = await postDiscordChannelMessage(channelId, {
     content: input.mentionContent?.trim() || undefined,
     embeds: [{

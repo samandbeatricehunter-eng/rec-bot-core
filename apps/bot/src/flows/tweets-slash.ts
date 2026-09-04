@@ -29,9 +29,7 @@ export async function handleTweetsSlash(interaction: ChatInputCommandInteraction
   // Discord already hosts the attachment at a permanent CDN URL the moment it's uploaded with
   // the slash command -- no need to re-download/re-upload it ourselves, just pass the URL
   // straight into the tweet's embed image.
-  const imageAttachment = interaction.options.getAttachment("image");
-  const imageUrl = imageAttachment?.url;
-  console.log(`[DEBUG] /tweets image attachment: ${JSON.stringify(imageAttachment ? { url: imageAttachment.url, name: imageAttachment.name, contentType: imageAttachment.contentType } : null)}`);
+  const imageUrl = interaction.options.getAttachment("image")?.url;
 
   if (persona === "custom" && !customHandle?.trim()) {
     return interaction.reply({ content: "Persona is set to Custom handle -- fill in `custom_handle` too.", flags: MessageFlags.Ephemeral });
