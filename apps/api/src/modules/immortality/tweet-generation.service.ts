@@ -442,6 +442,7 @@ export async function postManualImmortalityTweet(input: {
   customHandle?: string;
   customDisplayName?: string;
   tweetText: string;
+  imageUrl?: string;
   mentionContent?: string;
 }): Promise<void> {
   const context = await getCurrentLeagueContext(input.guildId);
@@ -477,7 +478,12 @@ export async function postManualImmortalityTweet(input: {
 
   const posted = await postDiscordChannelMessage(channelId, {
     content: input.mentionContent?.trim() || undefined,
-    embeds: [{ author: { name: `${displayName} (${handle})`, icon_url: avatarUrl }, description: input.tweetText, color: 0x1d9bf0 }],
+    embeds: [{
+      author: { name: `${displayName} (${handle})`, icon_url: avatarUrl },
+      description: input.tweetText,
+      color: 0x1d9bf0,
+      image: input.imageUrl ? { url: input.imageUrl } : undefined,
+    }],
   });
   if (!posted) throw new ApiError(502, "Discord rejected the tweet -- check the tweets channel still exists and the bot can post there.");
 
@@ -565,6 +571,7 @@ export async function postPlayerTwitterTweet(input: {
   discordId: string;
   persona: string;
   tweetText: string;
+  imageUrl?: string;
   mentionContent?: string;
 }): Promise<{ postedAs: string }> {
   await requireImmortalityLeague((await getCurrentLeagueContext(input.guildId)).leagueId);
@@ -586,6 +593,7 @@ export async function postPlayerTwitterTweet(input: {
       author: { name: `${chosen.name} (${chosen.handle})`, icon_url: chosen.avatarUrl },
       description: input.tweetText,
       color: 0x1d9bf0,
+      image: input.imageUrl ? { url: input.imageUrl } : undefined,
     }],
   });
   if (!posted) throw new ApiError(502, "Discord rejected the tweet -- check the tweets channel still exists and the bot can post there.");

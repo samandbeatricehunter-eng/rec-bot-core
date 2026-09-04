@@ -71,6 +71,7 @@ export const commands = [
     .addStringOption((opt) => opt.setName("tweet").setDescription("The tweet text.").setRequired(true).setMaxLength(1000))
     .addStringOption((opt) => opt.setName("custom_handle").setDescription("Handle to post as (only used when persona is Custom handle).").setRequired(false).setMaxLength(50))
     .addStringOption((opt) => opt.setName("custom_display_name").setDescription("Display name for the custom handle (defaults to the handle).").setRequired(false).setMaxLength(50))
+    .addAttachmentOption((opt) => opt.setName("image").setDescription("Optional image to attach to the tweet.").setRequired(false))
     .addMentionableOption((opt) => opt.setName("tag").setDescription("Tag a specific user or role above the tweet (optional).").setRequired(false))
     .addBooleanOption((opt) => opt.setName("tag_everyone").setDescription("Tag @everyone above the tweet (optional).").setRequired(false))
     .toJSON(),
@@ -83,6 +84,7 @@ export const commands = [
       .setRequired(true)
       .setAutocomplete(true))
     .addStringOption((opt) => opt.setName("tweet").setDescription("The tweet text.").setRequired(true).setMaxLength(1000))
+    .addAttachmentOption((opt) => opt.setName("image").setDescription("Optional image to attach to the tweet.").setRequired(false))
     .addMentionableOption((opt) => opt.setName("tag").setDescription("Tag a user or role above the tweet (optional).").setRequired(false))
     .addBooleanOption((opt) => opt.setName("tag_everyone").setDescription("Tag @everyone above the tweet (optional).").setRequired(false))
     .toJSON(),

@@ -46,6 +46,7 @@ export async function handleTwitterSlash(interaction: ChatInputCommandInteractio
   }
 
   const tweetText = interaction.options.getString("tweet", true);
+  const imageUrl = interaction.options.getAttachment("image")?.url;
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   try {
     const result = await recApi.postPlayerTwitterTweet({
@@ -53,6 +54,7 @@ export async function handleTwitterSlash(interaction: ChatInputCommandInteractio
       discordId: interaction.user.id,
       persona,
       tweetText,
+      imageUrl,
       mentionContent: resolveMentionContent(interaction),
     });
     await interaction.editReply({ content: `Posted to the tweets feed as ${result.postedAs}.` });

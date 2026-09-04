@@ -26,6 +26,10 @@ export async function handleTweetsSlash(interaction: ChatInputCommandInteraction
   const tweetText = interaction.options.getString("tweet", true);
   const customHandle = interaction.options.getString("custom_handle") ?? undefined;
   const customDisplayName = interaction.options.getString("custom_display_name") ?? undefined;
+  // Discord already hosts the attachment at a permanent CDN URL the moment it's uploaded with
+  // the slash command -- no need to re-download/re-upload it ourselves, just pass the URL
+  // straight into the tweet's embed image.
+  const imageUrl = interaction.options.getAttachment("image")?.url;
 
   if (persona === "custom" && !customHandle?.trim()) {
     return interaction.reply({ content: "Persona is set to Custom handle -- fill in `custom_handle` too.", flags: MessageFlags.Ephemeral });
@@ -39,6 +43,7 @@ export async function handleTweetsSlash(interaction: ChatInputCommandInteraction
       customHandle,
       customDisplayName,
       tweetText,
+      imageUrl,
       mentionContent: resolveMentionContent(interaction),
     });
     const asWhom = persona === "custom" ? `@${customHandle}` : PERSONA_LABELS[persona] ?? persona;

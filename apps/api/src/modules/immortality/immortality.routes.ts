@@ -404,6 +404,7 @@ export async function immortalityRoutes(app: FastifyInstance) {
         customHandle: z.string().trim().max(50).optional(),
         customDisplayName: z.string().trim().max(50).optional(),
         tweetText: z.string().trim().min(1).max(1000),
+        imageUrl: z.string().trim().url().max(2000).optional(),
         mentionContent: z.string().trim().max(200).optional(),
       }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
@@ -428,6 +429,7 @@ export async function immortalityRoutes(app: FastifyInstance) {
         discordId: z.string().min(1),
         persona: z.enum(["owner", "offense", "defense"]),
         tweetText: z.string().trim().min(1).max(1000),
+        imageUrl: z.string().trim().url().max(2000).optional(),
         mentionContent: z.string().trim().max(200).optional(),
       }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
