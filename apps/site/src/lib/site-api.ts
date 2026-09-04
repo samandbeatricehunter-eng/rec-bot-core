@@ -2036,6 +2036,14 @@ export const siteApi = {
   getLeagueLeadersRenderData(leagueId: string, weekNumber: string, token: string) {
     return publicRequest<LeagueLeadersRenderData>(`/v1/render/league-leaders/${leagueId}/${weekNumber}?token=${encodeURIComponent(token)}`);
   },
+  getRivalryH2hRenderData(gameId: string, side: "offense" | "defense", token: string) {
+    return publicRequest<{
+      side: "offense" | "defense";
+      matchup: { game: Record<string, unknown>; preview: Record<string, unknown> | null } | null;
+      homeProspect: ProspectCardRenderData | null;
+      awayProspect: ProspectCardRenderData | null;
+    }>(`/v1/render/rivalry-h2h/${gameId}/${side}?token=${encodeURIComponent(token)}`);
+  },
 };
 
 export type LeagueLeaderEntry = {

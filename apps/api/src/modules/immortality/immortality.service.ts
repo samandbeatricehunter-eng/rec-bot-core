@@ -1576,6 +1576,62 @@ export async function getProspectCardRenderData(prospectId: string) {
   };
 }
 
+async function prospectForTeamSide(immortalityLeagueId: string, teamId: string, side: "offense" | "defense"): Promise<string | null> {
+  const players = await supabase.from("rec_players").select("id").eq("team_id", teamId);
+  const playerIds = (players.data ?? []).map((row: any) => String(row.id));
+  if (!playerIds.length) return null;
+  const prospect = await supabase.from("rec_immortality_prospects").select("id")
+    .eq("immortality_league_id", immortalityLeagueId).eq("side", side).in("player_id", playerIds).maybeSingle();
+  return prospect.data?.id ? String(prospect.data.id) : null;
+}
+
+/** Backs the chromeless /render/rivalry-h2h/:gameId/:side site route -- combines the existing
+ * matchup team-comparison card with a new prospect-vs-prospect comparison for whichever custom
+ * RTI prospects (if any) each side's team has at this position group. Either prospect can be
+ * null (a CPU/baseline-roster opponent with no custom prospect on that side) -- the site
+ * component renders a solo spotlight instead of a comparison in that case. */
+export async function getRivalryH2hRenderData(gameId: string, side: "offense" | "defense") {
+  const game = await supabase.from("rec_games").select("id,league_id,home_team_id,away_team_id").eq("id", gameId).maybeSingle();
+  if (game.error) throw new ApiError(500, "Could not load this game.", game.error);
+  if (!game.data) throw new ApiError(404, "Game not found.");
+  const immortality = await loadImmortalityLeague(String(game.data.league_id));
+  if (!immortality) throw new ApiError(404, "This is not a Rise to Immortality league.");
+
+  const [homeProspectId, awayProspectId] = await Promise.all([
+    game.data.home_team_id ? prospectForTeamSide(immortality.id, String(game.data.home_team_id), side) : Promise.resolve(null),
+    game.data.away_team_id ? prospectForTeamSide(immortality.id, String(game.data.away_team_id), side) : Promise.resolve(null),
+  ]);
+  const [homeProspect, awayProspect] = await Promise.all([
+    homeProspectId ? getProspectCardRenderData(homeProspectId) : Promise.resolve(null),
+    awayProspectId ? getProspectCardRenderData(awayProspectId) : Promise.resolve(null),
+  ]);
+  const { getMatchupCardRenderData } = await import("../hub/hub.service.js");
+  const matchup = await getMatchupCardRenderData(gameId).catch(() => null);
+
+  return { side, matchup, homeProspect, awayProspect };
+}
+
+/** Fires once per rivalry matchup, the moment that week's Media Day opens for the rivalry side
+ * (see getWeeklyMatchupInterview) -- renders the combined team + prospect comparison graphic and
+ * posts it as "extra game day promotion" ahead of kickoff. Idempotent via a plain insert-or-skip
+ * against rec_immortality_rivalry_h2h_posts, since the caller is a read-path hit on every page
+ * load and can't rely on a generated-text dedup check the way story posts do. */
+export async function postRivalryH2hIfDue(input: { leagueId: string; guildId: string; gameId: string; side: "offense" | "defense" }): Promise<void> {
+  const claimed = await supabase.from("rec_immortality_rivalry_h2h_posts")
+    .insert({ game_id: input.gameId, side: input.side }).select("game_id").maybeSingle();
+  if (!claimed.data) return; // already posted (unique constraint), or the insert itself failed -- either way, don't retry from a hot read path
+
+  const routes = await findServerRoutesForLeague(input.leagueId);
+  const channelId = (routes?.routes as any)?.interviews_channel_id as string | null | undefined;
+  if (!channelId) return;
+
+  const { renderRivalryH2hPng } = await import("../../lib/rivalry-h2h-render.js");
+  const png = await renderRivalryH2hPng(input.gameId, input.side);
+  await postDiscordChannelMessageWithFile(channelId, {
+    content: "🔥 **Rivalry Week Head-to-Head**",
+  }, { buffer: png, name: "rivalry-head-to-head.png", contentType: "image/png" });
+}
+
 // Best-effort Discord post for a prospect's "player card" -- fires once, right after a user's
 // franchise choice materializes both prospects into rec_players (chooseImmortalityTeam). Renders
 // the same ProspectCard component the site would show, screenshot via Playwright (same pattern
@@ -2616,6 +2672,11 @@ export async function getWeeklyMatchupInterview(input: { guildId: string; discor
     recLeagueId: context.leagueId, immortalityLeagueId: league.id, season, week, teamId: teamId ? String(teamId) : null, side: input.side, userId,
   });
   const windowClosed = await isMediaDayWindowClosed(matchup.gameId);
+
+  if (matchup.isRivalryGame && matchup.gameId && !windowClosed) {
+    void postRivalryH2hIfDue({ leagueId: context.leagueId, guildId: input.guildId, gameId: matchup.gameId, side: input.side })
+      .catch((error) => console.error(`[ERROR] Rivalry head-to-head render failed for game ${matchup.gameId} (non-fatal):`, error));
+  }
 
   if (answered.length >= MEDIA_DAY_SLOTS) {
     return { season, week, questions: answered.map((row) => row.rendered_question), answers: answered, complete: true, windowClosed };
