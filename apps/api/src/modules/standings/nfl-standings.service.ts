@@ -44,10 +44,22 @@ function groupBy<T, K>(items: T[], keyFn: (item: T) => K): Map<K, T[]> {
   return map;
 }
 
+/** EA's own computed seed per team for this season, if a Companion App standings import has
+ * ever landed (see applyStandings in madden-companion.canonical.ts) -- kept in its own table so
+ * it never races with this function's own recompute. */
+async function loadEaSeedOverrides(leagueId: string, seasonNumber: number): Promise<Map<string, { seed: number; isPlayoff: boolean }>> {
+  const result = await getPgPool().query<{ team_id: string; ea_seed: number; ea_is_playoff: boolean | null }>(
+    `select team_id, ea_seed, ea_is_playoff from rec_season_team_ea_seeds where league_id=$1 and season_number=$2 and ea_seed is not null`,
+    [leagueId, seasonNumber],
+  );
+  return new Map(result.rows.map((row) => [String(row.team_id), { seed: Number(row.ea_seed), isPlayoff: Boolean(row.ea_is_playoff) }]));
+}
+
 async function computeNflStandingsUncached(leagueId: string, seasonNumber: number): Promise<NflStandingsResult> {
   const { standings, games } = await loadTeamGameLog(leagueId, seasonNumber);
   const allStandings = standings;
   const byConference = groupBy(Array.from(standings.values()), (s) => s.conference);
+  const eaOverrides = await loadEaSeedOverrides(leagueId, seasonNumber);
 
   const conferences: ConferenceSeeding[] = [];
   const teamRows: NflStandingsTeamRow[] = [];
@@ -55,28 +67,45 @@ async function computeNflStandingsUncached(leagueId: string, seasonNumber: numbe
   for (const [conference, confTeams] of byConference) {
     if (!conference) continue;
     const byDivision = groupBy(confTeams, (s) => s.division);
-    const divisionWinners: TeamStanding[] = [];
     const divisions: ConferenceSeeding["divisions"] = [];
 
     for (const [division, divTeams] of byDivision) {
       if (!division) continue;
       const sorted = sortStandingsWithTiebreakers(divTeams, games, allStandings, { sameDivision: true });
       divisions.push({ division, standings: sorted });
-      if (sorted.length) divisionWinners.push(sorted[0]);
     }
 
     // Sort divisions for stable display order.
     divisions.sort((a, b) => a.division.localeCompare(b.division));
 
-    const seededDivisionWinners = sortStandingsWithTiebreakers(divisionWinners, games, allStandings, { sameDivision: false });
-    const divisionWinnerIds = new Set(seededDivisionWinners.map((s) => s.teamId));
-    const wildcardPool = confTeams.filter((s) => !divisionWinnerIds.has(s.teamId));
-    const seededWildcards = sortStandingsWithTiebreakers(wildcardPool, games, allStandings, { sameDivision: false }).slice(0, 3);
+    // Madden's own in-game seeding can genuinely diverge from a real-NFL-style tiebreaker chain
+    // (confirmed live: it ranked a team ahead of one that had beaten it head-to-head, which real
+    // NFL rules would never produce) -- when a complete, valid 1-7 seed set has actually been
+    // imported for this conference, that's the source of truth and our own recomputation below
+    // never runs for it. Falls back to the tiebreaker chain otherwise (no standings import yet,
+    // a non-Madden game, or a partial/incomplete import).
+    const eaEntries = confTeams
+      .map((s) => ({ teamId: s.teamId, override: eaOverrides.get(s.teamId) }))
+      .filter((row): row is { teamId: string; override: { seed: number; isPlayoff: boolean } } => Boolean(row.override?.isPlayoff));
+    const eaSeedNumbers = new Set(eaEntries.map((row) => row.override.seed));
+    const hasCompleteEaSeeding = eaEntries.length === 7 && [1, 2, 3, 4, 5, 6, 7].every((n) => eaSeedNumbers.has(n));
 
-    const seeds: ConferenceSeeding["seeds"] = [
-      ...seededDivisionWinners.map((s, i) => ({ seed: i + 1, teamId: s.teamId, isDivisionWinner: true })),
-      ...seededWildcards.map((s, i) => ({ seed: 5 + i, teamId: s.teamId, isDivisionWinner: false })),
-    ];
+    let seeds: ConferenceSeeding["seeds"];
+    if (hasCompleteEaSeeding) {
+      seeds = eaEntries
+        .sort((a, b) => a.override.seed - b.override.seed)
+        .map((row) => ({ seed: row.override.seed, teamId: row.teamId, isDivisionWinner: row.override.seed <= 4 }));
+    } else {
+      const divisionWinners = divisions.map((d) => d.standings[0]).filter((s): s is TeamStanding => Boolean(s));
+      const seededDivisionWinners = sortStandingsWithTiebreakers(divisionWinners, games, allStandings, { sameDivision: false });
+      const divisionWinnerIds = new Set(seededDivisionWinners.map((s) => s.teamId));
+      const wildcardPool = confTeams.filter((s) => !divisionWinnerIds.has(s.teamId));
+      const seededWildcards = sortStandingsWithTiebreakers(wildcardPool, games, allStandings, { sameDivision: false }).slice(0, 3);
+      seeds = [
+        ...seededDivisionWinners.map((s, i) => ({ seed: i + 1, teamId: s.teamId, isDivisionWinner: true })),
+        ...seededWildcards.map((s, i) => ({ seed: 5 + i, teamId: s.teamId, isDivisionWinner: false })),
+      ];
+    }
     const seedByTeamId = new Map(seeds.map((s) => [s.teamId, s]));
 
     conferences.push({ conference, divisions, seeds });

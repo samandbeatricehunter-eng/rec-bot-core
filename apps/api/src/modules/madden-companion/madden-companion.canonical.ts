@@ -515,10 +515,39 @@ async function applyTeamStats(client: PoolClient, leagueId: string, canonicalRec
   );
 }
 
+/** EA's own computed seed for this team (teamStandingInfoList: seed/totalWins/totalLosses/
+ * totalTies/isPlayoff) -- fetched via getStandings() this whole time but previously discarded
+ * (no canonical mapping existed for the "standings" endpoint). Written to its own table, never
+ * rec_season_team_seeds, so it can't race with syncMaddenStandingsAndBracket's own recompute --
+ * see nfl-standings.service.ts for where this gets preferred over that recompute. */
+async function applyStandings(client: PoolClient, leagueId: string, record: NormalizedCompanionRecord) {
+  const row = record.rawData;
+  const resolvedTeamId = await teamId(client, leagueId, record.sourceTeamId);
+  if (!resolvedTeamId) return;
+  const eaSeed = integer(row, ["seed"]);
+  if (eaSeed == null) return;
+  const conference = text(row, ["conference", "conferenceName", "conference_name"]);
+  const wins = integer(row, ["totalWins", "total_wins"]);
+  const losses = integer(row, ["totalLosses", "total_losses"]);
+  const ties = integer(row, ["totalTies", "total_ties"]);
+  const isPlayoff = bool(row, ["isPlayoff", "is_playoff"]);
+  // See applyPlayerStats/applyTeamStats — always the league's real season number, never EA's.
+  const season = (await client.query<{ season_number: number }>("select season_number from rec_leagues where id=$1", [leagueId])).rows[0]?.season_number ?? 1;
+  await client.query(
+    `insert into rec_season_team_ea_seeds(league_id,season_number,team_id,conference,ea_seed,ea_wins,ea_losses,ea_ties,ea_is_playoff,updated_at)
+     values($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
+     on conflict(league_id,season_number,team_id) do update set
+       conference=excluded.conference,ea_seed=excluded.ea_seed,ea_wins=excluded.ea_wins,ea_losses=excluded.ea_losses,
+       ea_ties=excluded.ea_ties,ea_is_playoff=excluded.ea_is_playoff,updated_at=now()`,
+    [leagueId, season, resolvedTeamId, conference, eaSeed, wins, losses, ties, isPlayoff],
+  );
+}
+
 export async function applyCompanionRecordToCanonical(input: { client: PoolClient; leagueId: string; endpointKey: MaddenEndpointKey; canonicalRecordId: string; seasonKey: string; record: NormalizedCompanionRecord }) {
   if (input.endpointKey === "teams") return applyTeam(input.client, input.leagueId, input.record);
   if (input.endpointKey === "rosters") return applyRosterPlayer(input.client, input.leagueId, input.record);
   if (input.endpointKey === "schedule") return applySchedule(input.client, input.leagueId, input.record);
   if (input.endpointKey === "player_stats") return applyPlayerStats(input.client, input.leagueId, input.canonicalRecordId, input.seasonKey, input.record);
   if (input.endpointKey === "team_stats") return applyTeamStats(input.client, input.leagueId, input.canonicalRecordId, input.seasonKey, input.record);
+  if (input.endpointKey === "standings") return applyStandings(input.client, input.leagueId, input.record);
 }
