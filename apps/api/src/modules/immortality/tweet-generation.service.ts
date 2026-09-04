@@ -1083,7 +1083,7 @@ async function queueConversationTweet(input: {
   kind: ConversationKind;
   usedKeys: string[];
   snippet?: string;
-}): Promise<{ body: string; key: string } | null> {
+}): Promise<{ body: string; reaction: string; key: string } | null> {
   const prior = [...input.usedKeys, ...await recentAuthorUsedKeys(input.leagueId, input.author.handle)];
   const template = lineForAccount(input.author, input.kind, prior);
   if (!template) return null;
@@ -1118,7 +1118,10 @@ async function queueConversationTweet(input: {
     console.error(`[ERROR] Failed to queue conversation tweet for league ${input.leagueId}:`, inserted.error);
     return null;
   }
-  return { body, key: conversationTemplateKey(template) };
+  // reaction (not body) is what the NEXT turn quotes as its snippet -- body may already be
+  // quote-wrapped itself, and quoting a quote produces the garbled, doubly-nested
+  // `"On "On "X": Y": Z"` mess a real tweet reply would never contain.
+  return { body, reaction, key: conversationTemplateKey(template) };
 }
 
 async function concludeConversation(id: string): Promise<void> {
@@ -1172,7 +1175,7 @@ async function continueConversation(
     participant_handles: Array.from(new Set([...convo.participant_handles, author.handle, target.handle])),
     last_author_handle: author.handle,
     last_target_handle: target.handle,
-    last_body: queued.body,
+    last_body: queued.reaction,
     used_keys: [...convo.used_keys, queued.key],
     turn_count: nextTurn,
     updated_at: new Date().toISOString(),
@@ -1263,7 +1266,7 @@ async function startConversation(
     return;
   }
   await supabase.from("rec_immortality_tweet_conversations").update({
-    last_body: queued.body,
+    last_body: queued.reaction,
     used_keys: [queued.key],
     turn_count: 1,
     updated_at: new Date().toISOString(),
