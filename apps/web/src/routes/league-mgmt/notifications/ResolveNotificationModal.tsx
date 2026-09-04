@@ -298,7 +298,7 @@ function formatCoins(amount: number): string {
 // that type is missing its sourceId.
 type ResolveMode =
   | { kind: "approve_deny"; reasonField: boolean; approveLabel: string; denyLabel: string }
-  | { kind: "single"; actionLabel: string }
+  | { kind: "single"; actionLabel: string; message?: string }
   | { kind: "info"; message: string };
 
 function resolveModeFor(type: string): ResolveMode {
@@ -345,7 +345,10 @@ function resolveModeFor(type: string): ResolveMode {
     case "ea_auto_import":
       return { kind: "single", actionLabel: "Mark Handled" };
     default:
-      return { kind: "info", message: "This notification type doesn't have a web resolve action yet." };
+      // Any queue_type not covered above -- including a legacy/orphaned type left behind by a
+      // removed flow, which would otherwise sit "pending" forever with genuinely no code path
+      // that can resolve it -- gets a plain Dismiss instead of being a permanent dead end.
+      return { kind: "single", actionLabel: "Dismiss", message: "This notification type doesn't have a dedicated review action. Dismiss it once you've handled it (or determined there's nothing to do)." };
   }
 }
 
@@ -412,7 +415,9 @@ async function resolveAction(
       // per request — a game can have more than one pending help request at once).
       return recApi.markCommissionerInboxItemHandled({ guildId, inboxId: notification.id });
     default:
-      throw new Error("No resolve action for this notification type.");
+      // Same generic handler as above -- covers any type resolveModeFor doesn't recognize
+      // (see its default case), so an orphaned/legacy queue_type is always dismissable.
+      return recApi.markCommissionerInboxItemHandled({ guildId, inboxId: notification.id });
   }
 }
 
@@ -588,9 +593,12 @@ export function ResolveNotificationModal({
       {mode.kind === "info" && <p className="form-hint">{mode.message}</p>}
 
       {mode.kind === "single" && (
-        <Button variant="primary" onClick={() => handle("approve")} disabled={busy}>
-          {busy ? "Working…" : mode.actionLabel}
-        </Button>
+        <div>
+          {mode.message && <p className="form-hint">{mode.message}</p>}
+          <Button variant="primary" onClick={() => handle("approve")} disabled={busy}>
+            {busy ? "Working…" : mode.actionLabel}
+          </Button>
+        </div>
       )}
 
       {mode.kind === "approve_deny" && (
