@@ -57,9 +57,11 @@ export const commands = [
       .setRequired(true)
       .addChoices(
         { name: "Marcus Vale", value: "marcus" },
+        { name: "Vaughn Price", value: "vaughn" },
         { name: "Jalen Cross", value: "jalen" },
         { name: "Elliot Mercer", value: "elliot" },
         { name: "Darius King", value: "darius" },
+        { name: "NFL Front Office", value: "nfl_front_office" },
         { name: "Gridiron Gospel", value: "generic1" },
         { name: "Cold Takes Only", value: "generic2" },
         { name: "The Tape Don't Lie", value: "generic3" },

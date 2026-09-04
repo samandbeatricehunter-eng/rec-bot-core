@@ -48,28 +48,28 @@ export const HOST_PERSONAS: AccountPersona[] = [
       "{toHandle} I'm not walking it back. I'm waiting on a second sample.",
     ],
   }),
-  p("@JalenCrossREC", "jalen", true, ["trash", "angry", "hype", "vulgar", "hate"], {
+  p("@VaughnPriceREC", "vaughn", true, ["trash", "angry", "hype", "vulgar", "analysis"], {
     reply: [
-      "{toHandle} THAT'S what I'm talking about. Say that shit again.",
-      "{toHandle} I been screaming this and y'all called me loud. Be loud then.",
-      "{toHandle} sit your ass down if you ain't watching the same game.",
-      "{toHandle} this is messy as hell and I'm living for it.",
-      "{toHandle} don't soften it. The tape is disrespectful.",
-      "{toHandle} I need names. Don't do that vague \"they\" shit with me.",
-      "{toHandle} you finally grew a pair and tweeted it. Welcome.",
-      "{toHandle} I'm heated and I'm right. Those can be the same thing.",
+      "{toHandle} there it is. That's the flaw I was waiting on somebody to admit.",
+      "{toHandle} I been saying this and y'all called me loud. Turns out I was just early.",
+      "{toHandle} sit down if you ain't watched the same film I have.",
+      "{toHandle} this is messy and I'm calculated enough to enjoy it.",
+      "{toHandle} don't soften it for me. Say the disrespectful thing, I'll back it up with tape.",
+      "{toHandle} I need names, not vague \"they\" shit. Bring it to the film room.",
+      "{toHandle} you finally said the quiet part loud. Welcome to the segment.",
+      "{toHandle} I'm not heated, I'm just right. Those look the same from the outside.",
     ],
     mention: [
-      "{toHandle} hop in or stay out the way. I don't do lurkers.",
+      "{toHandle} hop in or stay out the way. I don't do lurkers, I do The Price Check.",
       "{toHandle} you been real quiet for somebody with all them takes last week.",
-      "{toHandle} don't make me drag you into this. Just come.",
-      "{toHandle} I want smoke. You bringing any or you posting recaps?",
+      "{toHandle} don't make me pull you into this. Just come say it to my face.",
+      "{toHandle} I want smoke. You bringing any or you just posting recaps?",
     ],
     clapback: [
-      "{toHandle} I said what I said. Cry in the quote tweet.",
-      "{toHandle} you in my mentions like I won't go there. I will.",
-      "{toHandle} keep talking. I got all damn day.",
-      "{toHandle} that's cute. Say it when the lights are on.",
+      "{toHandle} I said what I said. I calculated it before I said it, too.",
+      "{toHandle} you in my mentions like I won't go there. I already went there.",
+      "{toHandle} keep talking. I got all day and a whole segment to fill.",
+      "{toHandle} that's cute. Say it when the film room lights are on.",
     ],
   }),
   p("@ElliotMercerREC", "elliot", false, ["analysis", "witty", "praise"], {
@@ -218,7 +218,7 @@ export const GENERIC_PERSONAS: AccountPersona[] = [
     mention: ["{toHandle} tell me the read, not the yardage.", "{toHandle} QB room wants honesty. You got any?"],
     clapback: ["{toHandle} I threw that look. I know what it costs.", "{toHandle} analytics can sit. The window was real."],
   }),
-  p("@DeuceCarnivalHQ", "jalen", true, ["hype", "vulgar", "trash", "witty"], {
+  p("@DeuceCarnivalHQ", "fan_hater", true, ["hype", "vulgar", "trash", "witty"], {
     reply: ["{toHandle} carnival's open and you just bought a ticket.", "{toHandle} this is chaos and I'm selling nachos.", "{toHandle} don't bring manners to my mentions."],
     mention: ["{toHandle} come act up.", "{toHandle} we doing a show or a seminar?"],
     clapback: ["{toHandle} thanks for the content, clown.", "{toHandle} stay mad. It's good for business."],
@@ -283,7 +283,7 @@ export const GENERIC_PERSONAS: AccountPersona[] = [
     mention: ["{toHandle} you still believing? That's brave.", "{toHandle} sell me hope. I dare you."],
     clapback: ["{toHandle} I ran out of hope in August.", "{toHandle} fatigue wins. Always."],
   }),
-  p("@OverreactionOwl", "jalen", true, ["hype", "hate", "witty", "vulgar"], {
+  p("@OverreactionOwl", "fan_hater", true, ["hype", "hate", "witty", "vulgar"], {
     reply: ["{toHandle} overreaction? That's just Tuesday.", "{toHandle} I'm hooting and I'm not sorry.", "{toHandle} fire everybody. Next question."],
     mention: ["{toHandle} let's ruin a reputation before lunch.", "{toHandle} come overreact with a professional."],
     clapback: ["{toHandle} I don't do measured. Get a new owl.", "{toHandle} hoot louder. They can hear you."],

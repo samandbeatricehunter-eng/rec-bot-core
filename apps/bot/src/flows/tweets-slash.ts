@@ -4,7 +4,8 @@ import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 
 const PERSONA_LABELS: Record<string, string> = {
-  marcus: "Marcus Vale", jalen: "Jalen Cross", elliot: "Elliot Mercer", darius: "Darius King",
+  marcus: "Marcus Vale", vaughn: "Vaughn Price", jalen: "Jalen Cross", elliot: "Elliot Mercer", darius: "Darius King",
+  nfl_front_office: "NFL Front Office",
   generic1: "Gridiron Gospel", generic2: "Cold Takes Only", generic3: "The Tape Don't Lie", generic4: "RTI Recap Radio",
   custom: "a custom handle",
 };

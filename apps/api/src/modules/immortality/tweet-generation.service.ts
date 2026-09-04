@@ -12,8 +12,9 @@ import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { discordIdForRecUser, loadImmortalityLeague, prospectAvatarUrlForHandle, recUserIdFromDiscordId, requireImmortalityLeague, twitterHandleForProspect } from "./immortality.service.js";
 import { ensurePlayerPersonasForLeague, listPlayerPersonasForLeague, playerPersonaFor, playerPersonaAvatarForHandle } from "./player-personas.service.js";
 import {
-  GENERIC_HANDLES, MANUAL_TWEET_GENERIC_HANDLES, PLAYER_CHATTER_TEMPLATES, TWEET_HOSTS, TWEET_TEMPLATES, staticAvatarUrlForHandle,
-  type TweetAuthor, type TweetCategory, type TweetHostKey, type TweetSlots, type TweetTemplate,
+  GENERIC_HANDLES, JALEN_DECLINE_LINES, MANUAL_TWEET_GENERIC_HANDLES, PLAYER_CHATTER_TEMPLATES, STANDALONE_ACCOUNTS,
+  TWEET_HOSTS, TWEET_TEMPLATES, VAUGHN_SIGNATURE_LINES, staticAvatarUrlForHandle,
+  type StandaloneAccountKey, type TweetAuthor, type TweetCategory, type TweetHostKey, type TweetSlots, type TweetTemplate,
 } from "./tweet-bank.js";
 import { conversationTemplateKey, selectConversationLine, type ConversationKind, type VoiceFamily } from "./tweet-bank-conversations.js";
 import { personaForHandle, playerVoiceFromTraits } from "./tweet-bank-voices.js";
@@ -455,6 +456,12 @@ export async function postManualImmortalityTweet(input: {
   if (input.persona in TWEET_HOSTS) {
     const host = TWEET_HOSTS[input.persona as TweetHostKey];
     handle = host.handle; displayName = host.displayName; avatarUrl = host.avatarUrl; authorKind = "host";
+  } else if (input.persona in STANDALONE_ACCOUNTS) {
+    // Jalen Cross (post-scandal, no longer a reactive host) and NFL Front Office (one-off
+    // official announcements) -- selectable from /tweets like a host, but never picked by the
+    // stat-reaction template engine.
+    const account = STANDALONE_ACCOUNTS[input.persona as StandaloneAccountKey];
+    handle = account.handle; displayName = account.displayName; avatarUrl = account.avatarUrl; authorKind = "host";
   } else if (input.persona === "custom") {
     const rawHandle = input.customHandle?.trim();
     if (!rawHandle) throw new ApiError(400, "A custom handle is required.");
@@ -789,6 +796,20 @@ function isOvernightQuietHoursCentral(date: Date): boolean {
   return hour >= 23 || hour < 6;
 }
 
+// Vaughn Price's total feed presence (stat-reaction takes AND his own signature one-liners,
+// combined) is capped at roughly once every 18h, per direction -- unlike every other author, who
+// posts whenever the normal 30-min/2h sweep cadence reaches their oldest pending row.
+const VAUGHN_TOTAL_PRESENCE_COOLDOWN_MS = 18 * 60 * 60 * 1000;
+
+async function isPersonaCoolingDown(leagueId: string, authorHandle: string): Promise<boolean> {
+  if (authorHandle !== TWEET_HOSTS.vaughn.handle) return false;
+  const last = await supabase.from("rec_immortality_tweet_queue")
+    .select("posted_at").eq("league_id", leagueId).eq("author_handle", authorHandle).eq("status", "posted")
+    .order("posted_at", { ascending: false }).limit(1).maybeSingle();
+  const lastAtMs = last.data?.posted_at ? new Date(last.data.posted_at as any).getTime() : 0;
+  return lastAtMs > Date.now() - VAUGHN_TOTAL_PRESENCE_COOLDOWN_MS;
+}
+
 /** Called on a plain interval sweep (apps/api/src/index.ts) -- posts at most one pending tweet
  * per league every 30 minutes (1 per 2 hours overnight, 11 PM-6 AM Central), oldest-queued
  * first. Cheap when idle: a single filtered query. Was 4 hours, then 20 minutes, then 4 minutes
@@ -814,11 +835,24 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
       const lastPostedAtMs = lastPosted.data?.posted_at ? new Date(lastPosted.data.posted_at as any).getTime() : 0;
       if (lastPostedAtMs > Date.now() - POST_COOLDOWN_MS) continue;
 
-      const next = await supabase.from("rec_immortality_tweet_queue")
+      // Fetch several oldest-pending candidates rather than just one, so a currently-cooling-down
+      // Vaughn tweet (see isPersonaCoolingDown -- his ~18h total-feed-presence cap) can be skipped
+      // in favor of the next-oldest eligible row instead of stalling the whole league's feed.
+      const candidates = await supabase.from("rec_immortality_tweet_queue")
         .select("id,author_handle,author_display_name,body,source")
         .eq("league_id", leagueId).eq("status", "pending")
-        .order("created_at", { ascending: true }).limit(1).maybeSingle();
-      if (!next.data) continue;
+        .order("created_at", { ascending: true }).limit(10);
+      const candidateRows = (candidates.data ?? []) as Array<{
+        id: string; author_handle: string; author_display_name: string; body: string; source: string | null;
+      }>;
+      if (!candidateRows.length) continue;
+      let next: (typeof candidateRows)[number] | null = null;
+      for (const row of candidateRows) {
+        if (await isPersonaCoolingDown(leagueId, String(row.author_handle))) continue;
+        next = row;
+        break;
+      }
+      if (!next) continue; // every pending row right now belongs to a persona still on cooldown
 
       const routes = await findServerRoutesForLeague(leagueId).catch(() => null);
       const channelId = (routes?.routes as any)?.tweets_channel_id as string | null | undefined;
@@ -826,7 +860,7 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
 
       const claimed = await supabase.from("rec_immortality_tweet_queue")
         .update({ status: "posted", posted_at: new Date().toISOString() })
-        .eq("id", String(next.data.id)).eq("status", "pending")
+        .eq("id", String(next.id)).eq("status", "pending")
         .select("id,author_handle,author_display_name,body,source").maybeSingle();
       if (!claimed.data) continue; // another tick already claimed this row
       try {
@@ -874,14 +908,14 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
         }).then(async (posted) => {
           if (!posted) {
             await supabase.from("rec_immortality_tweet_queue")
-              .update({ status: "pending", posted_at: null }).eq("id", String(next.data.id));
+              .update({ status: "pending", posted_at: null }).eq("id", String(next.id));
             console.error(`[ERROR] Discord returned null posting RTI tweet for league ${leagueId} (will retry)`);
           }
         });
       } catch (err) {
         // A Discord outage must not permanently consume the queue entry.
         await supabase.from("rec_immortality_tweet_queue")
-          .update({ status: "pending", posted_at: null }).eq("id", String(next.data.id));
+          .update({ status: "pending", posted_at: null }).eq("id", String(next.id));
         console.error(`[ERROR] Failed to post RTI tweet for league ${leagueId} (will retry):`, err);
       }
     } catch (err) {
@@ -891,6 +925,7 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
 
   await sweepAmbientFanChatter();
   await sweepTweetConversations();
+  await sweepPersonaAutoposts();
 }
 
 const AMBIENT_CHATTER_COOLDOWN_MS = 90 * 60 * 1000;
@@ -954,6 +989,71 @@ async function sweepAmbientFanChatter(): Promise<void> {
   for (const row of (leagues.data ?? []) as Array<{ id: string; league_id: string }>) {
     await queueAmbientFanChatterIfDue(row.league_id, row.id).catch((err) =>
       console.error(`[ERROR] Ambient fan chatter failed for league ${row.league_id} (non-fatal):`, err));
+  }
+}
+
+// Jalen Cross (post-scandal, ~every 2-3 days) and Vaughn Price's own signature one-liners
+// (~18h, on top of his normal stat-reaction takes -- see isPersonaCoolingDown above for the
+// combined total-presence cap) each get a small verbatim pool posted on their own cadence,
+// independent of any game result. Same shape as queueAmbientFanChatterIfDue, just gated by
+// source + a per-persona cooldown instead of the shared ambient-chatter cooldown.
+const JALEN_AUTOPOST_SOURCE = "persona_autopost:jalen";
+const VAUGHN_SIGNATURE_AUTOPOST_SOURCE = "persona_autopost:vaughn_signature";
+const JALEN_AUTOPOST_COOLDOWN_MS = 60 * 60 * 60 * 1000; // ~60h, "every couple of days"
+const VAUGHN_SIGNATURE_AUTOPOST_COOLDOWN_MS = 18 * 60 * 60 * 1000; // ~18h
+
+async function queuePersonaAutopostIfDue(
+  recLeagueId: string,
+  immortalityLeagueId: string,
+  input: { source: string; cooldownMs: number; pool: string[]; author: { handle: string; displayName: string } },
+): Promise<void> {
+  const last = await supabase.from("rec_immortality_tweet_queue")
+    .select("posted_at").eq("league_id", recLeagueId).eq("source", input.source)
+    .order("posted_at", { ascending: false }).limit(1).maybeSingle();
+  const lastAtMs = last.data?.posted_at ? new Date(last.data.posted_at as any).getTime() : 0;
+  if (lastAtMs > Date.now() - input.cooldownMs) return;
+
+  // Don't stack a second one behind an already-queued-but-not-yet-posted line for this persona.
+  const alreadyPending = await supabase.from("rec_immortality_tweet_queue")
+    .select("id").eq("league_id", recLeagueId).eq("source", input.source).eq("status", "pending").limit(1).maybeSingle();
+  if (alreadyPending.data) return;
+
+  let body = input.pool[Math.floor(Math.random() * input.pool.length)]!;
+  if (body.includes("{player}")) {
+    const prospects = await supabase.from("rec_immortality_prospects")
+      .select("first_name,last_name").eq("immortality_league_id", immortalityLeagueId).not("player_id", "is", null);
+    const rows = (prospects.data ?? []) as Array<{ first_name: string | null; last_name: string | null }>;
+    if (!rows.length) return;
+    const target = rows[Math.floor(Math.random() * rows.length)]!;
+    const playerName = `${target.first_name ?? ""} ${target.last_name ?? ""}`.trim() || "That player";
+    body = body.replace(/\{player\}/g, playerName);
+  }
+
+  const league = await supabase.from("rec_leagues").select("season_number,current_week").eq("id", recLeagueId).maybeSingle();
+  await supabase.from("rec_immortality_tweet_queue").insert({
+    league_id: recLeagueId,
+    season_number: Number(league.data?.season_number ?? 1),
+    week_number: Number(league.data?.current_week ?? 1),
+    author_kind: "host",
+    author_handle: input.author.handle,
+    author_display_name: input.author.displayName,
+    body,
+    status: "pending",
+    source: input.source,
+  });
+}
+
+async function sweepPersonaAutoposts(): Promise<void> {
+  const leagues = await supabase.from("rec_immortality_leagues").select("id,league_id");
+  for (const row of (leagues.data ?? []) as Array<{ id: string; league_id: string }>) {
+    await queuePersonaAutopostIfDue(row.league_id, row.id, {
+      source: JALEN_AUTOPOST_SOURCE, cooldownMs: JALEN_AUTOPOST_COOLDOWN_MS, pool: JALEN_DECLINE_LINES,
+      author: STANDALONE_ACCOUNTS.jalen,
+    }).catch((err) => console.error(`[ERROR] Jalen decline autopost failed for league ${row.league_id} (non-fatal):`, err));
+    await queuePersonaAutopostIfDue(row.league_id, row.id, {
+      source: VAUGHN_SIGNATURE_AUTOPOST_SOURCE, cooldownMs: VAUGHN_SIGNATURE_AUTOPOST_COOLDOWN_MS, pool: VAUGHN_SIGNATURE_LINES,
+      author: TWEET_HOSTS.vaughn,
+    }).catch((err) => console.error(`[ERROR] Vaughn signature autopost failed for league ${row.league_id} (non-fatal):`, err));
   }
 }
 

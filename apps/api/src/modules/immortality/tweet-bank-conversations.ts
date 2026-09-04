@@ -1,5 +1,5 @@
 // Conversation banks keyed by voice family so a film-room account never sounds like a
-// hater huddle, and a player with praise lean never reads like Jalen. tweet-generation
+// hater huddle, and a player with praise lean never reads like Vaughn. tweet-generation
 // mixes these with per-account signatures from tweet-bank-voices.ts and rejects recently
 // used template keys so the channel doesn't loop the same exchange.
 
@@ -7,7 +7,7 @@ export type ConversationKind = "reply" | "mention" | "clapback";
 export type ConversationMood =
   | "praise" | "hate" | "trash" | "angry" | "hype" | "analysis" | "vulgar" | "witty";
 export type VoiceFamily =
-  | "marcus" | "jalen" | "elliot" | "darius"
+  | "marcus" | "vaughn" | "elliot" | "darius"
   | "media" | "analyst" | "fan_hater" | "fan_homer" | "fan_stats"
   | "player_praise" | "player_instigate" | "player_mixed";
 
@@ -40,23 +40,23 @@ const MARCUS: ConversationTemplate[] = [
   line("marcus", "clapback", "praise", "{toHandle} when he stacks it, I'll be first to say so. Not before."),
 ];
 
-const JALEN: ConversationTemplate[] = [
-  line("jalen", "reply", "hype", "{toHandle} YES. Talk your shit."),
-  line("jalen", "reply", "vulgar", "{toHandle} that's nasty and I need it louder."),
-  line("jalen", "reply", "angry", "{toHandle} how is this even a debate. Watch the damn game."),
-  line("jalen", "reply", "trash", "{toHandle} somebody catch a body after this tweet."),
-  line("jalen", "reply", "hate", "{toHandle} the slander should be illegal after that."),
-  line("jalen", "reply", "vulgar", "{toHandle} sit down. You're embarrassing yourself."),
-  line("jalen", "reply", "hype", "{toHandle} I'm screaming in the car. This is it."),
-  line("jalen", "reply", "trash", "{toHandle} they got cooked and you still defending them? Wild."),
-  line("jalen", "mention", "trash", "{toHandle} come get cooked in public."),
-  line("jalen", "mention", "vulgar", "{toHandle} don't lurk. Say the disrespectful thing."),
-  line("jalen", "mention", "angry", "{toHandle} I know you saw that. Don't play cute."),
-  line("jalen", "mention", "hype", "{toHandle} we turning this into a problem on purpose."),
-  line("jalen", "clapback", "vulgar", "{toHandle} I will die on this hill and mock you from it."),
-  line("jalen", "clapback", "trash", "{toHandle} keep the essay. I brought a flamethrower."),
-  line("jalen", "clapback", "angry", "{toHandle} you thought I was playing. I'm not."),
-  line("jalen", "clapback", "hate", "{toHandle} blocked in my heart. Still reading you for sport."),
+const VAUGHN: ConversationTemplate[] = [
+  line("vaughn", "reply", "hype", "{toHandle} there it is. That's the take I was waiting on."),
+  line("vaughn", "reply", "vulgar", "{toHandle} that's nasty work and I need the film to back it up. It will."),
+  line("vaughn", "reply", "angry", "{toHandle} how is this even a debate. Go watch the tape and come back."),
+  line("vaughn", "reply", "trash", "{toHandle} I already found the flaw in that argument. Want me to say it or you gonna figure it out yourself?"),
+  line("vaughn", "reply", "hate", "{toHandle} that slander doesn't hold up once you actually check the numbers."),
+  line("vaughn", "reply", "vulgar", "{toHandle} sit down. You're one film session away from embarrassing yourself further."),
+  line("vaughn", "reply", "hype", "{toHandle} I'm pulling the clip right now. This is going in the film room."),
+  line("vaughn", "reply", "trash", "{toHandle} they got exposed and you're still defending it? That's a flaw in your own argument now."),
+  line("vaughn", "mention", "trash", "{toHandle} come get checked in public, I've got the receipts ready."),
+  line("vaughn", "mention", "vulgar", "{toHandle} don't lurk. Say the calculated thing you're actually thinking."),
+  line("vaughn", "mention", "angry", "{toHandle} I know you saw that. Don't play cute with me."),
+  line("vaughn", "mention", "hype", "{toHandle} we're turning this into a segment on purpose. Eyes peeled."),
+  line("vaughn", "clapback", "vulgar", "{toHandle} I'll die on this hill and I'll be sly about it the whole way down."),
+  line("vaughn", "clapback", "trash", "{toHandle} keep the essay. I already found the hole in it."),
+  line("vaughn", "clapback", "angry", "{toHandle} you thought I was playing. I don't play, I calculate."),
+  line("vaughn", "clapback", "hate", "{toHandle} not blocked, just filed. I'm still reading you for sport."),
 ];
 
 const ELLIOT: ConversationTemplate[] = [
@@ -250,7 +250,7 @@ const PLAYER_MIXED: ConversationTemplate[] = [
 ];
 
 export const CONVERSATION_TEMPLATES: ConversationTemplate[] = [
-  ...MARCUS, ...JALEN, ...ELLIOT, ...DARIUS, ...MEDIA, ...ANALYST,
+  ...MARCUS, ...VAUGHN, ...ELLIOT, ...DARIUS, ...MEDIA, ...ANALYST,
   ...FAN_HATER, ...FAN_HOMER, ...FAN_STATS, ...PLAYER_PRAISE, ...PLAYER_INSTIGATE, ...PLAYER_MIXED,
 ];
 

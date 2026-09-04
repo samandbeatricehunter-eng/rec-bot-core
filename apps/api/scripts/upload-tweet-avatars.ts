@@ -1,8 +1,10 @@
 // Re-runnable upload for the RTI tweet-feed avatar catalog: the 4 named host personas
-// (tweet-bank.ts's TWEET_HOSTS) and a pool of generic account headshots used by the new
-// curated 50-account catalog (media companies, analyst-archetypes, fan/hater accounts).
-// Mirrors upload-rti-headshots.ts's convention -- deterministic Cloudflare Images IDs so
-// re-running this script (e.g. swapping a photo later) updates the same URL in place.
+// (tweet-bank.ts's TWEET_HOSTS), the 2 standalone accounts (tweet-bank.ts's STANDALONE_ACCOUNTS
+// -- Jalen Cross, no longer a reactive host but still posting; NFL Front Office, one-off
+// announcements), and a pool of generic account headshots used by the curated 50-account
+// catalog (media companies, analyst-archetypes, fan/hater accounts). Mirrors
+// upload-rti-headshots.ts's convention -- deterministic Cloudflare Images IDs so re-running this
+// script (e.g. swapping a photo later) updates the same URL in place.
 import { existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import sharp from "sharp";
@@ -13,9 +15,16 @@ const dryRun = process.argv.includes("--dry-run");
 
 const hosts = [
   { file: "Marcus Vale.png", id: "rti-tweet-host-marcus" },
-  { file: "Jalen Cross.png", id: "rti-tweet-host-jalen" },
+  { file: "Vaughn Price.png", id: "rti-tweet-host-vaughn" },
   { file: "Elliott Mercer.png", id: "rti-tweet-host-elliot" },
   { file: "Darius King.png", id: "rti-tweet-host-darius" },
+] as const;
+
+// Not TWEET_HOSTS -- these are STANDALONE_ACCOUNTS (manual /tweets picker + persona-autopost
+// jobs only, never picked by the reactive stat-commentary engine).
+const standalone = [
+  { file: "Jalen Cross.png", id: "rti-tweet-standalone-jalen" },
+  { file: "nfl logo.png", id: "rti-tweet-standalone-nfl-front-office" },
 ] as const;
 
 const genericDir = resolve(process.cwd(), "../generic twitter headshots");
@@ -51,9 +60,9 @@ async function main() {
   const cfg = dryRun ? null : config();
   const results: Array<{ id: string; source: string }> = [];
 
-  for (const host of hosts) {
+  for (const host of [...hosts, ...standalone]) {
     const path = join(hostDir, host.file);
-    if (!existsSync(path)) throw new Error(`Host headshot not found: ${path}`);
+    if (!existsSync(path)) throw new Error(`Headshot not found: ${path}`);
     const bytes = await sharp(path).resize(400, 400, { fit: "cover" }).webp({ quality: 84 }).toBuffer();
     if (cfg) await upload(cfg, host.id, bytes);
     results.push({ id: host.id, source: host.file });
