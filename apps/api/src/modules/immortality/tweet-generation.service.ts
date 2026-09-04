@@ -1044,6 +1044,15 @@ async function recentAuthorUsedKeys(leagueId: string, handle: string): Promise<s
     .map((row) => conversationTemplateKey(String(row.body ?? "")));
 }
 
+const CONVERSATION_QUOTE_CONNECTORS: Array<(snippet: string, reaction: string) => string> = [
+  (snippet, reaction) => `"${snippet}" — ${reaction}`,
+  (snippet, reaction) => `On "${snippet}": ${reaction}`,
+  (snippet, reaction) => `re: "${snippet}" — ${reaction}`,
+  (snippet, reaction) => `Saw this — "${snippet}." ${reaction}`,
+  (snippet, reaction) => `${reaction} ("${snippet}")`,
+  (snippet, reaction) => `Quoting "${snippet}" here: ${reaction}`,
+];
+
 async function queueConversationTweet(input: {
   leagueId: string;
   seasonNumber: number;
@@ -1058,12 +1067,21 @@ async function queueConversationTweet(input: {
   const prior = [...input.usedKeys, ...await recentAuthorUsedKeys(input.leagueId, input.author.handle)];
   const template = lineForAccount(input.author, input.kind, prior);
   if (!template) return null;
-  const body = fillTemplate(template, {
+  const reaction = fillTemplate(template, {
     toHandle: input.target.handle,
     toName: input.target.displayName,
     fromName: input.author.displayName,
     snippet: input.snippet,
   });
+  // The authored line banks are pure reaction text ("I need a second look before I climb on
+  // that.") with nothing concrete for the reader to attach to -- none of them actually spend
+  // their {snippet} slot even though queueConversationTweet has always threaded a real one
+  // through (the tweet being replied to, or literally what the other account just said this
+  // turn). Quoting it here grounds the reaction in something real without needing to hand-author
+  // a snippet-referencing variant of every one of the ~100 lines in tweet-bank-conversations.ts.
+  const body = input.snippet && !template.includes("{snippet}")
+    ? CONVERSATION_QUOTE_CONNECTORS[Math.floor(Math.random() * CONVERSATION_QUOTE_CONNECTORS.length)]!(input.snippet, reaction)
+    : reaction;
   if (!body) return null;
   const inserted = await supabase.from("rec_immortality_tweet_queue").insert({
     league_id: input.leagueId,
