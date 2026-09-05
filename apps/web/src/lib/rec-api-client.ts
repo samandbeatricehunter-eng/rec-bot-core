@@ -199,6 +199,9 @@ export type EaConnection = {
   lastImportAt: string | null;
   lastRefreshedAt: string | null;
   createdAt: string;
+  canBootAdmins: boolean | null;
+  canRemoveAdmins: boolean | null;
+  canUnlimitedAutoPilot: boolean | null;
 };
 
 export type EaFranchise = {

@@ -12,6 +12,24 @@ function teamLabel(row: LinkedTeamRow): string {
   return row.team ? `${who} — ${row.team.name}` : who;
 }
 
+/** League-level Franchise permission flags EA reports alongside the connection (whether admins
+ * as a class can Boot/Remove *other* admins) -- not specific to who's asking. Fetched once per
+ * mount so Boot User/Remove Admin can warn up front when the target might be an admin, instead
+ * of only finding out after EA rejects the action. */
+function useEaAdminCapabilities(guildId: string, leagueId: string) {
+  const [capabilities, setCapabilities] = useState<{ canBootAdmins: boolean | null; canRemoveAdmins: boolean | null } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    recApi.getMaddenEaStatus({ guildId, leagueId }).then((result) => {
+      if (!cancelled && result.connection) {
+        setCapabilities({ canBootAdmins: result.connection.canBootAdmins, canRemoveAdmins: result.connection.canRemoveAdmins });
+      }
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [guildId, leagueId]);
+  return capabilities;
+}
+
 function useLinkedTeams(guildId: string) {
   const [teams, setTeams] = useState<LinkedTeamRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -252,6 +270,26 @@ function AutoPilotPanel({ guildId, leagueId }: { guildId: string; leagueId: stri
   );
 }
 
+function BootUserPanel(p: { guildId: string; leagueId: string }) {
+  const capabilities = useEaAdminCapabilities(p.guildId, p.leagueId);
+  const warning = capabilities?.canBootAdmins === false
+    ? " Note: this league's Franchise settings don't let admins boot other admins -- this only works if the target isn't themselves an admin."
+    : "";
+  return <TeamActionPanel {...p} icon={<UserX size={14} />} buttonLabel="Boot User"
+    description={`Removes a team's owner from the franchise in-game. Also fires automatically when a linked member leaves the Discord server.${warning}`}
+    run={(teamId) => recApi.eaAdminBootUser({ ...p, teamId })} />;
+}
+
+function RemoveAdminPanel(p: { guildId: string; leagueId: string }) {
+  const capabilities = useEaAdminCapabilities(p.guildId, p.leagueId);
+  const warning = capabilities?.canRemoveAdmins === false
+    ? " Note: this league's Franchise settings don't let admins remove other admins -- this only works if the target isn't themselves an admin."
+    : "";
+  return <TeamActionPanel {...p} icon={<ShieldOff size={14} />} buttonLabel="Remove Admin"
+    description={`Revokes a team's owner's in-game commissioner/admin status. Also fires automatically when they're demoted from Co-Commish.${warning}`}
+    run={(teamId) => recApi.eaAdminRemoveAdmin({ ...p, teamId })} />;
+}
+
 export const EA_ADMIN_TOOLS: Array<{ key: string; title: string; render: (props: { guildId: string; leagueId: string }) => React.ReactNode }> = [
   { key: "advance", title: "Advance League", render: (p) => <AdvancePanel {...p} /> },
   {
@@ -260,24 +298,14 @@ export const EA_ADMIN_TOOLS: Array<{ key: string; title: string; render: (props:
       description="Clears salary-cap penalties for a team directly in the franchise."
       run={(teamId) => recApi.eaAdminClearCapPenalties({ ...p, teamId })} />,
   },
-  {
-    key: "boot", title: "Boot User",
-    render: (p) => <TeamActionPanel {...p} icon={<UserX size={14} />} buttonLabel="Boot User"
-      description="Removes a team's owner from the franchise in-game. Also fires automatically when a linked member leaves the Discord server."
-      run={(teamId) => recApi.eaAdminBootUser({ ...p, teamId })} />,
-  },
+  { key: "boot", title: "Boot User", render: (p) => <BootUserPanel {...p} /> },
   {
     key: "add-admin", title: "Add Admin",
     render: (p) => <TeamActionPanel {...p} icon={<ShieldPlus size={14} />} buttonLabel="Add Admin"
       description="Grants a team's owner in-game commissioner/admin status. Also fires automatically when they're promoted to Co-Commish."
       run={(teamId) => recApi.eaAdminAddAdmin({ ...p, teamId })} />,
   },
-  {
-    key: "remove-admin", title: "Remove Admin",
-    render: (p) => <TeamActionPanel {...p} icon={<ShieldOff size={14} />} buttonLabel="Remove Admin"
-      description="Revokes a team's owner's in-game commissioner/admin status. Also fires automatically when they're demoted from Co-Commish."
-      run={(teamId) => recApi.eaAdminRemoveAdmin({ ...p, teamId })} />,
-  },
+  { key: "remove-admin", title: "Remove Admin", render: (p) => <RemoveAdminPanel {...p} /> },
   {
     key: "transfer-admin", title: "Transfer Admin",
     render: (p) => <TeamActionPanel {...p} icon={<ArrowRightLeft size={14} />} buttonLabel="Transfer Admin"

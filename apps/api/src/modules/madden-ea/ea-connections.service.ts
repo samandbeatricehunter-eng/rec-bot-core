@@ -43,6 +43,7 @@ import {
   eaUsernamesFromHub,
   eaOwnerUserIdsFromHub,
   eaOwnUserIdFromHub,
+  eaAdminCapabilitiesFromHub,
   parseDatasets,
   toIngestEnvelope,
   WEEKLY_DATASETS,
@@ -95,6 +96,9 @@ type EaConnectionRow = {
   ea_season_year: number | null;
   ea_own_user_id: string | null;
   ea_own_is_owner: boolean | null;
+  ea_can_boot_admins: boolean | null;
+  ea_can_remove_admins: boolean | null;
+  ea_can_unlimited_autopilot: boolean | null;
   enabled_datasets: string[] | null;
   auto_import: boolean;
   status: string;
@@ -141,6 +145,9 @@ export type EaConnectionSummary = {
   lastImportAt: string | null;
   lastRefreshedAt: string | null;
   createdAt: string;
+  canBootAdmins: boolean | null;
+  canRemoveAdmins: boolean | null;
+  canUnlimitedAutoPilot: boolean | null;
 };
 
 export type EaFranchiseSummary = {
@@ -179,6 +186,9 @@ function toSummary(row: EaConnectionRow): EaConnectionSummary {
     lastImportAt: row.last_import_at,
     lastRefreshedAt: row.last_refreshed_at,
     createdAt: row.created_at,
+    canBootAdmins: row.ea_can_boot_admins,
+    canRemoveAdmins: row.ea_can_remove_admins,
+    canUnlimitedAutoPilot: row.ea_can_unlimited_autopilot,
   };
 }
 
@@ -750,11 +760,19 @@ export async function importEaDatasetsWithProgress(
       console.error("[WARN] Failed to store imported EA gamertags (non-fatal):", error));
     await persistImportedEaOwnerUserIds(leagueId, eaOwnerUserIdsFromHub(info)).catch((error) =>
       console.error("[WARN] Failed to store imported EA owner user ids (non-fatal):", error));
-    const own = eaOwnUserIdFromHub(info, row.persona_display_name);
+    // Prefer userAdminHubInfo.userAdminInfo -- EA hands us the connected persona's own id and
+    // permissions directly there, no gamertag matching needed. Fall back to the gamertag match
+    // for older/partial payload shapes where that object is missing.
+    const capabilities = eaAdminCapabilitiesFromHub(info);
+    const own = capabilities
+      ? { userId: capabilities.ownUserId!, isOwner: capabilities.isOwner }
+      : eaOwnUserIdFromHub(info, row.persona_display_name);
     if (own) {
       await getPgPool().query(
-        `update rec_ea_connections set ea_own_user_id=$2, ea_own_is_owner=$3, updated_at=now() where id=$1`,
-        [row.id, own.userId, own.isOwner],
+        `update rec_ea_connections set ea_own_user_id=$2, ea_own_is_owner=$3,
+         ea_can_boot_admins=$4, ea_can_remove_admins=$5, ea_can_unlimited_autopilot=$6, updated_at=now() where id=$1`,
+        [row.id, own.userId, own.isOwner,
+          capabilities?.canAdminsBootAdmins ?? null, capabilities?.canAdminsRemoveAdmins ?? null, capabilities?.canEnableUnlimitedAutoPilot ?? null],
       ).catch((error) => console.error("[WARN] Failed to store the connected persona's own EA user id (non-fatal):", error));
     }
     // Field-discovery only, not used programmatically -- we've only ever typed a handful of

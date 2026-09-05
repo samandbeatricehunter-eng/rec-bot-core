@@ -220,6 +220,46 @@ export function eaOwnUserIdFromHub(
   return null;
 }
 
+export type EaAdminHubInfo = {
+  userId?: unknown;
+  isAdmin?: unknown;
+  adminLevel?: unknown;
+  canAdminsBootAdmins?: unknown;
+  canAdminsRemoveAdmins?: unknown;
+  canEnableUnlimitedAutoPilot?: unknown;
+};
+
+export type EaAdminCapabilities = {
+  /** The connected persona's own EA user id, straight from EA -- more reliable than
+   * eaOwnUserIdFromHub's gamertag match above, when this object is present. */
+  ownUserId: string | null;
+  isOwner: boolean;
+  /** League-level Franchise settings, not specific to the connected persona -- these gate
+   * whether an admin can Boot/Remove another team owner who is *also* an admin, regardless of
+   * who's asking. A regular (non-admin) team owner is unaffected either way. */
+  canAdminsBootAdmins: boolean | null;
+  canAdminsRemoveAdmins: boolean | null;
+  canEnableUnlimitedAutoPilot: boolean | null;
+};
+
+/** Reads userAdminHubInfo.userAdminInfo directly -- a distinct object from userInfoMap that
+ * describes the CONNECTED persona's own id/permissions firsthand, rather than requiring a
+ * gamertag match against userInfoMap's entries. Returns null when EA's payload doesn't include
+ * it (older/partial payload shapes), so callers should keep eaOwnUserIdFromHub as a fallback. */
+export function eaAdminCapabilitiesFromHub(
+  info: { userAdminHubInfo?: { userAdminInfo?: EaAdminHubInfo | null } | null },
+): EaAdminCapabilities | null {
+  const admin = info.userAdminHubInfo?.userAdminInfo;
+  if (!admin || typeof admin !== "object" || admin.userId == null) return null;
+  return {
+    ownUserId: String(admin.userId),
+    isOwner: admin.isAdmin === true || String(admin.adminLevel ?? "").toUpperCase() === "ADMINLEVEL_OWNER",
+    canAdminsBootAdmins: typeof admin.canAdminsBootAdmins === "boolean" ? admin.canAdminsBootAdmins : null,
+    canAdminsRemoveAdmins: typeof admin.canAdminsRemoveAdmins === "boolean" ? admin.canAdminsRemoveAdmins : null,
+    canEnableUnlimitedAutoPilot: typeof admin.canEnableUnlimitedAutoPilot === "boolean" ? admin.canEnableUnlimitedAutoPilot : null,
+  };
+}
+
 /**
  * Pull player/game rows out of an EA export. Snallabot keeps the companion envelope
  * (`{ rosterInfoList: [...] }`); REC's team-roster fetch used to flatten that into a

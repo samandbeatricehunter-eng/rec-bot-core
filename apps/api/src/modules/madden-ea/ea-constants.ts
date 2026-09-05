@@ -219,7 +219,23 @@ export type EaLeagueResponse = {
       teamName?: string;
       isOwner?: boolean;
       isCoach?: boolean;
+      isAdmin?: boolean;
+      adminLevel?: string;
     }>;
+    // The connected persona's own id/permissions, distinct from userInfoMap above (which
+    // describes every user in the franchise). League-level Franchise settings, not specific to
+    // whoever's asking -- see eaAdminCapabilitiesFromHub in ea-datasets.ts.
+    userAdminInfo?: {
+      userId?: number;
+      isAdmin?: boolean;
+      adminLevel?: string;
+      isMasterUser?: boolean;
+      isDraftActive?: boolean;
+      isLeagueStarted?: boolean;
+      canAdminsBootAdmins?: boolean;
+      canAdminsRemoveAdmins?: boolean;
+      canEnableUnlimitedAutoPilot?: boolean;
+    };
   };
   success: boolean;
   message: string;
