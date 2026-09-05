@@ -23,6 +23,7 @@ const STAT_KEY_MAP: Record<keyof WeeklyPlayerStatLine, string> = {
   sacks: "sacks", interceptions: "interceptions", forcedFumbles: "forced_fumbles",
   fumbleRecoveries: "fumble_recoveries", tacklesForLoss: "tackles_for_loss",
   defensiveTds: "defensive_tds", tackles: "tackles",
+  passDeflections: "pass_deflections", safeties: "safeties",
 };
 
 function num(value: unknown): number { return Number(value) || 0; }
@@ -55,8 +56,10 @@ function defenseLines(s: WeeklyPlayerStatLine): string[] {
   if (s.interceptions > 0) parts.push(`${s.interceptions} INT`);
   if (s.forcedFumbles > 0) parts.push(`${s.forcedFumbles} FF`);
   if (s.fumbleRecoveries > 0) parts.push(`${s.fumbleRecoveries} FR`);
+  if (s.passDeflections > 0) parts.push(`${s.passDeflections} PD`);
   if (s.tacklesForLoss > 0) parts.push(`${s.tacklesForLoss} TFL`);
   if (s.defensiveTds > 0) parts.push(`${s.defensiveTds} TD`);
+  if (s.safeties > 0) parts.push(`${s.safeties} SFTY`);
   return parts.length ? [parts.join(", ")] : ["No stats logged"];
 }
 

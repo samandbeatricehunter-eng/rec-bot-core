@@ -49,6 +49,29 @@
 // tackles included) -- not a clean win, but the tie-break happens to land on the right name here.
 // Only 2 data points for this specific weight; if a future real pick contradicts it, that's the
 // next thing to check before assuming the weight is right.
+//
+// 2026-09-04 correction: hasDefensiveStatLine() never got the memo that tackles joined the score
+// formula above -- it still only qualified a player via sacks/INTs/FF/FR/TFL/defTD, so a
+// tackles-only performance (e.g. 12 TKL, nothing else) scored a real 12 points but was filtered
+// out before ranking ever ran. Added `tackles > 0` to the qualifying check. Also: tackles-for-loss
+// has never actually populated in practice on any currently-live stat-entry path (Madden
+// Companion App's defensive payload has no TFL field at all; the CFB import and the commissioner
+// "Assign Box Score Stats" tool both lack one too -- the only "tfl" field in the UI belongs to the
+// unrelated game-chat stat-callout feature, which doesn't write to rec_player_weekly_stats), so its
+// `* 2` term in the score formula was permanently a no-op. Dropped it from both the score formula
+// and the qualifying check rather than leave a scoring category that can never fire; the field
+// stays on the stat line for display (Pro Tracker, HOF Milestones) and can be re-added to both
+// places together the day a real stat-entry path actually populates it.
+//
+// Also added pass deflections and safeties, both of which the Madden Companion App payload
+// supplies (defDeflections/defSafeties, canonical pass_deflections/safeties) but which scored
+// zero before now -- a DB with 5 tackles and 4 pass breakups scored identically to one with 5
+// tackles and 0. Weights here are first-principles estimates, not checked against a real EA
+// pick yet (no data point has featured either stat so far): pass deflections at 1.5, between a
+// plain tackle (1) and a takeaway (4) -- it prevents a completion/score but isn't a possession
+// change. Safeties at 6, level with a defensive TD -- rare enough that no game has produced one
+// in the data checked so far, and a drive-ending, scoreboard-moving play that felt wrong to value
+// below a TD. Revisit both weights if a real pick ever turns on one.
 
 export type WeeklyPlayerStatLine = {
   passYards: number;
@@ -63,10 +86,14 @@ export type WeeklyPlayerStatLine = {
   interceptions: number;
   forcedFumbles: number;
   fumbleRecoveries: number;
+  /** Not part of the score formula -- see the 2026-09-04 note above. Kept for display only
+   * (Pro Tracker, HOF Milestones); no currently-live stat-entry path ever populates it. */
   tacklesForLoss: number;
   defensiveTds: number;
-  /** Display-only -- not part of either score formula, just shown on the award card/post. */
+  /** 1 point each in the defensive formula -- see the 2026-08-27 addition above. */
   tackles: number;
+  passDeflections: number;
+  safeties: number;
 };
 
 export function emptyWeeklyPlayerStatLine(): WeeklyPlayerStatLine {
@@ -74,7 +101,7 @@ export function emptyWeeklyPlayerStatLine(): WeeklyPlayerStatLine {
     passYards: 0, rushYards: 0, receivingYards: 0, passTds: 0, rushTds: 0, receivingTds: 0,
     interceptionsThrown: 0, rushingFumbles: 0, sacks: 0, interceptions: 0,
     forcedFumbles: 0, fumbleRecoveries: 0, tacklesForLoss: 0, defensiveTds: 0,
-    tackles: 0,
+    tackles: 0, passDeflections: 0, safeties: 0,
   };
 }
 
@@ -87,7 +114,7 @@ export function offensePlayerOfWeekScore(line: WeeklyPlayerStatLine): number {
 
 export function defensePlayerOfWeekScore(line: WeeklyPlayerStatLine): number {
   return line.tackles + line.sacks * 4 + line.interceptions * 4 + line.forcedFumbles * 3 + line.fumbleRecoveries * 3
-    + line.tacklesForLoss * 2 + line.defensiveTds * 6;
+    + line.passDeflections * 1.5 + line.defensiveTds * 6 + line.safeties * 6;
 }
 
 // A defensive line with zero recorded defensive stats isn't a "defensive performance" at
@@ -95,8 +122,8 @@ export function defensePlayerOfWeekScore(line: WeeklyPlayerStatLine): number {
 // exclude it from defensive POTW consideration rather than let it win 0-0 by default when no
 // one else has a line either.
 export function hasDefensiveStatLine(line: WeeklyPlayerStatLine): boolean {
-  return line.sacks > 0 || line.interceptions > 0 || line.forcedFumbles > 0 || line.fumbleRecoveries > 0
-    || line.tacklesForLoss > 0 || line.defensiveTds > 0;
+  return line.tackles > 0 || line.sacks > 0 || line.interceptions > 0 || line.forcedFumbles > 0 || line.fumbleRecoveries > 0
+    || line.passDeflections > 0 || line.defensiveTds > 0 || line.safeties > 0;
 }
 
 export function hasOffensiveStatLine(line: WeeklyPlayerStatLine): boolean {

@@ -2115,6 +2115,7 @@ export type PlayerOfWeekStatLine = {
   interceptionsThrown: number; rushingFumbles: number;
   sacks: number; interceptions: number; forcedFumbles: number; fumbleRecoveries: number;
   tacklesForLoss: number; defensiveTds: number; tackles: number;
+  passDeflections: number; safeties: number;
 };
 
 export type PlayerOfWeekWinner = {

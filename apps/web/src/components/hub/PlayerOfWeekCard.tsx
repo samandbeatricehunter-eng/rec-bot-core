@@ -7,6 +7,7 @@ type StatLine = {
   interceptionsThrown: number; rushingFumbles: number;
   sacks: number; interceptions: number; forcedFumbles: number; fumbleRecoveries: number;
   tacklesForLoss: number; defensiveTds: number; tackles: number;
+  passDeflections: number; safeties: number;
 };
 
 export type PlayerOfWeekCardWinner = {
@@ -42,8 +43,10 @@ function defenseLines(s: StatLine): string[] {
   if (s.interceptions > 0) parts.push(`${s.interceptions} INT`);
   if (s.forcedFumbles > 0) parts.push(`${s.forcedFumbles} FF`);
   if (s.fumbleRecoveries > 0) parts.push(`${s.fumbleRecoveries} FR`);
+  if (s.passDeflections > 0) parts.push(`${s.passDeflections} PD`);
   if (s.tacklesForLoss > 0) parts.push(`${s.tacklesForLoss} TFL`);
   if (s.defensiveTds > 0) parts.push(`${s.defensiveTds} TD`);
+  if (s.safeties > 0) parts.push(`${s.safeties} SFTY`);
   return parts.length ? [parts.join(", ")] : ["No defensive stats logged"];
 }
 
