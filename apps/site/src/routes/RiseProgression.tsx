@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi, type ImmortalityProgressionState } from "../lib/site-api.js";
 
 type Side = "offense" | "defense";
+type SideState = ImmortalityProgressionState | null | undefined; // undefined = not loaded yet, null = no prospect on that side
 
 export function RiseProgressionPage() {
   const { leagueId = "" } = useParams();
@@ -14,29 +15,28 @@ export function RiseProgressionPage() {
   const unlocked = selected?.riseHubUnlocked === true;
 
   const [side, setSide] = useState<Side>("offense");
-  const [state, setState] = useState<ImmortalityProgressionState | null>(null);
+  const [states, setStates] = useState<Record<Side, SideState>>({ offense: undefined, defense: undefined });
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [teammateId, setTeammateId] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const reload = useCallback(async () => {
+  const reloadSide = useCallback(async (targetSide: Side) => {
     if (!guildId) return;
-    setLoading(true);
     try {
-      const next = await siteApi.immortalityProgression({ guildId, side });
-      setState(next);
-      setTeammateId((current) => current && next.teammates.some((row) => row.playerId === current) ? current : (next.teammates[0]?.playerId ?? ""));
+      const next = await siteApi.immortalityProgression({ guildId, side: targetSide });
+      setStates((current) => ({ ...current, [targetSide]: next }));
+      if (targetSide === side) {
+        setTeammateId((current) => current && next.teammates.some((row) => row.playerId === current) ? current : (next.teammates[0]?.playerId ?? ""));
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not load the Progression Tree.";
       if (/prospect not found/i.test(message)) {
-        setState(null);
+        setStates((current) => ({ ...current, [targetSide]: null }));
         return;
       }
       throw err;
-    } finally {
-      setLoading(false);
     }
   }, [guildId, side]);
 
@@ -49,15 +49,21 @@ export function RiseProgressionPage() {
     if (!guildId || !isRise) return;
     setError(null);
     setResult(null);
-    reload().catch((err) => setError(err instanceof Error ? err.message : "Could not load the Progression Tree."));
-  }, [guildId, isRise, reload]);
+    setLoading(true);
+    Promise.all([reloadSide("offense"), reloadSide("defense")])
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not load the Progression Tree."))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guildId, isRise]);
 
   if (selected && !isRise) return <Navigate replace to={`/l/${leagueId}/buzz`} />;
   if (selected && !unlocked) return <Navigate replace to={`/l/${leagueId}/rise`} />;
   if (!selected || !guildId) return <div className="site-page site-loading">Loading Progression Tree…</div>;
 
-  const tiers = [2, 3, 4] as const;
+  const tiers = [2, 3] as const;
+  const state = states[side];
   const teammate = state?.teammates.find((row) => row.playerId === teammateId) ?? null;
+  const availableSides = (["offense", "defense"] as const).filter((value) => states[value]);
 
   return (
     <div className="site-page rise-page">
@@ -73,21 +79,16 @@ export function RiseProgressionPage() {
 
       {error ? <p className="site-auth-error">{error}</p> : null}
 
-      <p>
-        <Link to={`/l/${leagueId}/team/upgrades`}>Upgrades</Link>
-        {" · "}
-        <Link to={`/l/${leagueId}/rise`}>Origins</Link>
-      </p>
-
-      <div className="rise-side-tabs">
-        {(["offense", "defense"] as const).map((value) => (
-          <button key={value} type="button"
-            className={`wizard-game-card ${side === value ? "wizard-game-card-active" : ""}`}
-            onClick={() => setSide(value)}>
-            {value === "offense" ? "Offense" : "Defense"}
-          </button>
-        ))}
-      </div>
+      {loading ? null : availableSides.length ? (
+        <label className="form-field" style={{ maxWidth: 320 }}>
+          <span className="form-label">Player</span>
+          <select className="form-input" value={side} onChange={(event) => setSide(event.target.value as Side)}>
+            {availableSides.map((value) => (
+              <option key={value} value={value}>{states[value]?.name} ({value === "offense" ? "Offense" : "Defense"})</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       {loading ? <p className="site-muted">Loading this player…</p> : !state ? <p className="site-muted">No prospect on this side yet. Finish Origins first.</p> : (
         <>
@@ -133,7 +134,7 @@ export function RiseProgressionPage() {
               <section key={tier} className="rise-card">
                 <h2>Tier {tier}</h2>
                 <p className="site-muted">
-                  {tier === 2 ? "Requires two Origins (Tier 1) perks." : tier === 3 ? "Requires any Tier 2 perk." : "Requires any Tier 3 perk."}
+                  {tier === 2 ? "Requires two Origins (Tier 1) perks." : "Requires any Tier 2 perk."}
                 </p>
                 <ul className="rise-ability-list">
                   {nodes.map((node) => (
@@ -218,7 +219,7 @@ export function RiseProgressionPage() {
     try {
       await siteApi.immortalityPurchasePerk({ guildId, side, key });
       setResult(`Purchased ${displayName} for ${xpCost} Player XP. Your commissioner has a pending record.`);
-      await reload();
+      await reloadSide(side);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not buy that perk.");
     } finally { setBusy(null); }
@@ -229,7 +230,7 @@ export function RiseProgressionPage() {
     try {
       const response = await siteApi.immortalityPurchaseDevPromotion({ guildId, side, teammatePlayerId });
       setResult(`Recorded ${response.targetName}: ${response.fromTrait} → ${response.toTrait} for ${response.xpCost} Player XP. Set it in Madden, then mark Applied in game.`);
-      await reload();
+      await reloadSide(side);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not buy that promotion.");
     } finally { setBusy(null); }
