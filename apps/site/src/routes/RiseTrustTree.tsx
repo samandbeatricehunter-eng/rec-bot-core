@@ -25,7 +25,7 @@ export function RiseTrustTreePage() {
         <h1>Trust Tree</h1>
         <p className="site-muted">This page is coming soon.</p>
       </header>
-      <p><Link to={`/l/${leagueId}/team/upgrades`}>Back to Player XP</Link></p>
+      <p><Link to={`/l/${leagueId}/team/upgrades`}>Back to Upgrades</Link></p>
     </div>
   );
 }

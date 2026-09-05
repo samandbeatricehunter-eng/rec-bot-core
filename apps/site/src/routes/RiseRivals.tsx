@@ -84,7 +84,7 @@ export function RiseRivalsPage() {
           </p>
         ) : null}
       </header>
-      <p><Link to={`/l/${leagueId}/team/upgrades`}>Back to Player XP</Link></p>
+      <p><Link to={`/l/${leagueId}/team/upgrades`}>Back to Upgrades</Link></p>
       {error ? <p className="site-auth-error">{error}</p> : null}
 
       <nav className="rise-stage-nav" aria-label="Rivals sections">
