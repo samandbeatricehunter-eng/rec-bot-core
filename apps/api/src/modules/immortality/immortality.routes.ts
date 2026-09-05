@@ -58,6 +58,8 @@ import {
   purchaseDevPromotion,
   resolveDevPromotion,
 } from "./progression.service.js";
+import { searchRosterCandidates, linkProspectToPlayer } from "./player-identity.service.js";
+import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { IMMORTALITY_STATES, IQ_QUESTION_COUNT } from "@rec/shared";
 
 const GuildBody = z.object({ guildId: z.string().min(1) });
@@ -347,6 +349,42 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "Prospect review requires a website session.");
       return reply.send(await reviewImmortalityProspect({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Commissioner-facing search box for the identity-issue review modal -- scoped to the
+  // prospect's team when one is given, otherwise league-wide.
+  app.post("/v1/immortality/identity/search-roster", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({
+        teamId: z.string().uuid().optional().nullable(),
+        query: z.string().min(1).max(60),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
+      const context = await getCurrentLeagueContext(body.guildId);
+      const candidates = await searchRosterCandidates({ leagueId: context.leagueId, teamId: body.teamId ?? null, query: body.query });
+      return reply.send({ candidates });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Manual identity fix from the commissioner's identity-issue review modal -- repoints the
+  // prospect at the chosen real roster player, resolves the inbox row, and regrades every
+  // completed week's challenges/XP for that prospect against the newly-linked stats.
+  app.post("/v1/immortality/identity/link", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({
+        prospectId: z.string().uuid(),
+        playerId: z.string().uuid(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Identity linking requires a website session.");
+      const context = await getCurrentLeagueContext(body.guildId);
+      await linkProspectToPlayer({
+        guildId: body.guildId, leagueId: context.leagueId,
+        prospectId: body.prospectId, playerId: body.playerId, reviewerDiscordId: auth.discordId,
+      });
+      return reply.send({ ok: true });
     } catch (error) { return sendError(reply, error); }
   });
 

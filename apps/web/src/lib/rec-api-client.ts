@@ -1163,6 +1163,12 @@ export const recApi = {
   }) => recApiFetch<any>("/v1/custom-players/review", { method: "POST", body: JSON.stringify(input) }),
   reviewImmortalityProspect: (input: { guildId: string; prospectId: string; action: "approve" | "reject"; note?: string; firstName?: string; lastName?: string }) =>
     recApiFetch<any>("/v1/immortality/prospect/review", { method: "POST", body: JSON.stringify(input) }),
+  searchImmortalityIdentityRoster: (input: { guildId: string; teamId?: string | null; query: string }) =>
+    recApiFetch<{ candidates: Array<{ id: string; fullName: string; position: string; jerseyNumber: number | null; overallRating: number | null; maddenPlayerId: string | null; teamId: string | null }> }>(
+      "/v1/immortality/identity/search-roster", { method: "POST", body: JSON.stringify(input) },
+    ),
+  linkImmortalityIdentity: (input: { guildId: string; prospectId: string; playerId: string }) =>
+    recApiFetch<{ ok: boolean }>("/v1/immortality/identity/link", { method: "POST", body: JSON.stringify(input) }),
   reviewImmortalityXpRequest: (input: { guildId: string; requestId: string; action: "approve" | "reject"; note?: string }) =>
     recApiFetch<any>("/v1/immortality/xp/review", { method: "POST", body: JSON.stringify(input) }),
   resolveImmortalityUpgradeBatch: (input: { guildId: string; requestId: string; action: "applied" | "refunded"; note?: string }) =>

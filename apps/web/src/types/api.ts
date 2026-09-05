@@ -260,7 +260,8 @@ export type CommissionerNotificationType =
   | "immortality_upgrade_batch"
   | "immortality_tree_purchase"
   | "immortality_dev_promotion"
-  | "immortality_xp_conversion";
+  | "immortality_xp_conversion"
+  | "immortality_identity_issue";
 
 export type CommissionerNotification = {
   id: string;

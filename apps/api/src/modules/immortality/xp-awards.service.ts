@@ -301,132 +301,24 @@ export async function awardImmortalityChallengesAfterAdvance(input: {
   if (!gameplaySeasonStages(input.game).has(input.seasonStage)) return;
   const immortality = await loadImmortalityLeague(input.leagueId);
   if (!immortality) return;
+  // Runs before grading so a just-adopted or just-gone-stale identity is reflected the same
+  // pass -- both the import path and the Advance-button path route through this one function,
+  // so hooking it here (rather than at each of the 3 call sites) covers all of them at once.
+  const { reconcileRtiProspectIdentities } = await import("./player-identity.service.js");
+  await reconcileRtiProspectIdentities(input.leagueId).catch((error) => {
+    console.error(`[ERROR] RTI identity reconciliation failed for league ${input.leagueId} (non-fatal):`, error);
+  });
   const prospects = await supabase.from("rec_immortality_prospects")
-    .select("id,position,player_id,user_id,side")
+    .select("id,position,player_id,user_id,side,identity_status")
     .eq("immortality_league_id", immortality.id);
   for (const prospect of prospects.data ?? []) {
     if (!prospect.player_id) continue;
-    const modifiers = await modifiersForProspect({ id: String(prospect.id), position: String(prospect.position) });
-    const weekStats = await weeklyStatsForPlayer({
+    await gradeProspectForWeek(prospect, {
       leagueId: input.leagueId,
-      playerId: String(prospect.player_id),
+      immortalityLeagueId: String(immortality.id),
       seasonNumber: input.seasonNumber,
       weekNumber: input.weekNumber,
     });
-
-    const playerTeam = await supabase.from("rec_players").select("team_id").eq("id", prospect.player_id).maybeSingle();
-    const rivalry = await rivalryContextForProspect({
-      immortalityLeagueId: immortality.id, recLeagueId: input.leagueId,
-      userId: String(prospect.user_id), side: prospect.side as "offense" | "defense",
-      myTeamId: playerTeam.data?.team_id ? String(playerTeam.data.team_id) : null,
-      seasonNumber: input.seasonNumber, weekNumber: input.weekNumber,
-    }).catch((error) => {
-      console.error(`[ERROR] Rivalry context lookup failed for prospect ${prospect.id} (non-fatal):`, error);
-      return { isRivalryGame: false, multiplier: 1, streakSeasons: 0, won: false } as RivalryContext;
-    });
-
-    const seed = `${immortality.id}:${input.seasonNumber}:${input.weekNumber}:${prospect.id}`;
-    const challengeStats = rivalry.isRivalryGame ? elevateStatsForRivalry(weekStats) : weekStats;
-    const weekly = issuedWeeklyChallenges({ position: String(prospect.position), seed, stats: challengeStats });
-    // Gold weekly challenges no longer grant an ability slot -- ability access is meant to come
-    // from progression ownership, dev trait, and Madden eligibility, not challenge completion.
-    let weeklyPointsAwarded = 0;
-    const completedWeekly = weekly.filter((row) => row.complete);
-    for (const challenge of completedWeekly) {
-      const points = Math.round(pointsForWeeklyTier(challenge.tier as "bronze" | "silver" | "gold") * rivalry.multiplier);
-      weeklyPointsAwarded += points;
-      await creditXpPoints({
-        prospectId: String(prospect.id),
-        eventType: `weekly_${challenge.tier}`,
-        sourceId: `${input.seasonNumber}:${input.weekNumber}:${challenge.tier}`,
-        points,
-        season: input.seasonNumber,
-        week: input.weekNumber,
-        modifiers,
-      });
-    }
-    if (rivalry.isRivalryGame && rivalry.won) {
-      const { creditOrBacklog } = await import("../economy/economy-backlog.js");
-      await creditOrBacklog({
-        leagueId: input.leagueId,
-        seasonNumber: input.seasonNumber,
-        userId: String(prospect.user_id),
-        amount: Math.round(RIVALRY_WIN_BONUS_COINS * rivalry.multiplier),
-        description: `Rise to Immortality rivalry win bonus — Week ${input.weekNumber} (${Math.round((rivalry.multiplier - 1) * 100)}% bonus)`,
-        transactionType: "immortality_rivalry_win",
-        source: "rivalry",
-        sourceReference: { prospectId: prospect.id, week: input.weekNumber, season: input.seasonNumber, streakSeasons: rivalry.streakSeasons },
-      }).catch((error) => console.error(`[ERROR] Rivalry win coin bonus failed for prospect ${prospect.id} (non-fatal):`, error));
-    }
-    if (rivalry.isRivalryGame) {
-      await postRivalryPromotionIfDue({
-        leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, prospectId: String(prospect.id),
-      }).catch((error) => console.error(`[ERROR] Rivalry promotion post failed for prospect ${prospect.id} (non-fatal):`, error));
-    }
-    // Universal Weekly Sweep (all 3 tiers complete -> +30%) and Competitive Drive (2+ of 3
-    // complete -> +5%) both apply as a single additive percentage on top of the completed
-    // challenges' own points -- never compounded, and never gated behind owning a specific
-    // characteristic for the Sweep bonus. Both conditions can apply the same week.
-    const sweptAll = weekly.length === 3 && completedWeekly.length === 3;
-    const competitiveDriveEligible = completedWeekly.length >= 2 && modifiers.competitiveDriveBonusPct > 0;
-    const weeklyBonusPct = (sweptAll ? WEEKLY_SWEEP_BONUS_PCT : 0) + (competitiveDriveEligible ? modifiers.competitiveDriveBonusPct : 0);
-    if (weeklyBonusPct > 0 && weeklyPointsAwarded > 0) {
-      await creditXpPoints({
-        prospectId: String(prospect.id),
-        eventType: "weekly_bonus",
-        sourceId: `${input.seasonNumber}:${input.weekNumber}:bonus`,
-        points: Math.round(weeklyPointsAwarded * weeklyBonusPct),
-        season: input.seasonNumber,
-        week: input.weekNumber,
-        modifiers,
-      });
-    }
-
-    const seasonStats = await rangeStatsForPlayer({
-      leagueId: input.leagueId,
-      playerId: String(prospect.player_id),
-      seasonNumber: input.seasonNumber,
-    });
-    const seasonSeed = `${immortality.id}:${input.seasonNumber}:${prospect.id}:season`;
-    for (const challenge of issuedSeasonChallenges(String(prospect.position), seasonStats, seasonSeed)) {
-      if (!challenge.complete) continue;
-      const tier = (challenge.tier === "tier2" || challenge.tier === "tier3" ? challenge.tier : "tier1") as "tier1" | "tier2" | "tier3";
-      await creditXpPoints({
-        prospectId: String(prospect.id),
-        eventType: `season_${tier}`,
-        sourceId: `${input.seasonNumber}:${challenge.id}`,
-        points: pointsForSeasonTier(tier),
-        season: input.seasonNumber,
-        modifiers,
-      });
-      await grantAbilitySlot({
-        prospectId: String(prospect.id),
-        eventType: `season_${tier}`,
-        sourceId: `${input.seasonNumber}:${challenge.id}`,
-      });
-    }
-
-    const careerStats = await rangeStatsForPlayer({
-      leagueId: input.leagueId,
-      playerId: String(prospect.player_id),
-    });
-    const careerSeed = `${immortality.id}:${prospect.id}:career`;
-    for (const challenge of issuedCareerChallenges(String(prospect.position), careerStats, careerSeed)) {
-      if (!challenge.complete) continue;
-      const tier = (challenge.tier === "tier2" || challenge.tier === "tier3" ? challenge.tier : "tier1") as "tier1" | "tier2" | "tier3";
-      await creditXpPoints({
-        prospectId: String(prospect.id),
-        eventType: `career_${tier}`,
-        sourceId: challenge.id,
-        points: pointsForCareerTier(tier),
-        modifiers,
-      });
-      await grantAbilitySlot({
-        prospectId: String(prospect.id),
-        eventType: `career_${tier}`,
-        sourceId: challenge.id,
-      });
-    }
   }
   const { evaluateSeasonTrendPromotionsAfterAdvance } = await import("./progression.service.js");
   await evaluateSeasonTrendPromotionsAfterAdvance({
@@ -434,6 +326,144 @@ export async function awardImmortalityChallengesAfterAdvance(input: {
     seasonNumber: input.seasonNumber,
     weekNumber: input.weekNumber,
   });
+}
+
+/** Grades one prospect's weekly/season/career challenges for one advance and credits any XP
+ * earned. Extracted from awardImmortalityChallengesAfterAdvance's per-prospect loop body so
+ * player-identity.service.ts's regradeProspectHistory can re-run the exact same grading for a
+ * single prospect across past weeks after a manual identity fix -- every credit below is
+ * idempotent via its sourceId, so re-running an already-graded week is always a safe no-op. */
+export async function gradeProspectForWeek(
+  prospect: { id: string; position: string; player_id: string; user_id: string; side: string; identity_status?: string | null },
+  input: { leagueId: string; immortalityLeagueId: string; seasonNumber: number; weekNumber: number },
+): Promise<void> {
+  // No fallback stats: a prospect whose real Madden identity isn't confirmed (or has gone stale)
+  // never gets XP credited off whatever stat line happens to be sitting at player_id today --
+  // see player-identity.service.ts for how this gets resolved and regraded once fixed.
+  if (prospect.identity_status && (prospect.identity_status === "missing" || prospect.identity_status === "ambiguous" || prospect.identity_status === "stale")) {
+    return;
+  }
+  const modifiers = await modifiersForProspect({ id: String(prospect.id), position: String(prospect.position) });
+  const weekStats = await weeklyStatsForPlayer({
+    leagueId: input.leagueId,
+    playerId: String(prospect.player_id),
+    seasonNumber: input.seasonNumber,
+    weekNumber: input.weekNumber,
+  });
+
+  const playerTeam = await supabase.from("rec_players").select("team_id").eq("id", prospect.player_id).maybeSingle();
+  const rivalry = await rivalryContextForProspect({
+    immortalityLeagueId: input.immortalityLeagueId, recLeagueId: input.leagueId,
+    userId: String(prospect.user_id), side: prospect.side as "offense" | "defense",
+    myTeamId: playerTeam.data?.team_id ? String(playerTeam.data.team_id) : null,
+    seasonNumber: input.seasonNumber, weekNumber: input.weekNumber,
+  }).catch((error) => {
+    console.error(`[ERROR] Rivalry context lookup failed for prospect ${prospect.id} (non-fatal):`, error);
+    return { isRivalryGame: false, multiplier: 1, streakSeasons: 0, won: false } as RivalryContext;
+  });
+
+  const seed = `${input.immortalityLeagueId}:${input.seasonNumber}:${input.weekNumber}:${prospect.id}`;
+  const challengeStats = rivalry.isRivalryGame ? elevateStatsForRivalry(weekStats) : weekStats;
+  const weekly = issuedWeeklyChallenges({ position: String(prospect.position), seed, stats: challengeStats });
+  // Gold weekly challenges no longer grant an ability slot -- ability access is meant to come
+  // from progression ownership, dev trait, and Madden eligibility, not challenge completion.
+  let weeklyPointsAwarded = 0;
+  const completedWeekly = weekly.filter((row) => row.complete);
+  for (const challenge of completedWeekly) {
+    const points = Math.round(pointsForWeeklyTier(challenge.tier as "bronze" | "silver" | "gold") * rivalry.multiplier);
+    weeklyPointsAwarded += points;
+    await creditXpPoints({
+      prospectId: String(prospect.id),
+      eventType: `weekly_${challenge.tier}`,
+      sourceId: `${input.seasonNumber}:${input.weekNumber}:${challenge.tier}`,
+      points,
+      season: input.seasonNumber,
+      week: input.weekNumber,
+      modifiers,
+    });
+  }
+  if (rivalry.isRivalryGame && rivalry.won) {
+    const { creditOrBacklog } = await import("../economy/economy-backlog.js");
+    await creditOrBacklog({
+      leagueId: input.leagueId,
+      seasonNumber: input.seasonNumber,
+      userId: String(prospect.user_id),
+      amount: Math.round(RIVALRY_WIN_BONUS_COINS * rivalry.multiplier),
+      description: `Rise to Immortality rivalry win bonus — Week ${input.weekNumber} (${Math.round((rivalry.multiplier - 1) * 100)}% bonus)`,
+      transactionType: "immortality_rivalry_win",
+      source: "rivalry",
+      sourceReference: { prospectId: prospect.id, week: input.weekNumber, season: input.seasonNumber, streakSeasons: rivalry.streakSeasons },
+    }).catch((error) => console.error(`[ERROR] Rivalry win coin bonus failed for prospect ${prospect.id} (non-fatal):`, error));
+  }
+  if (rivalry.isRivalryGame) {
+    await postRivalryPromotionIfDue({
+      leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, prospectId: String(prospect.id),
+    }).catch((error) => console.error(`[ERROR] Rivalry promotion post failed for prospect ${prospect.id} (non-fatal):`, error));
+  }
+  // Universal Weekly Sweep (all 3 tiers complete -> +30%) and Competitive Drive (2+ of 3
+  // complete -> +5%) both apply as a single additive percentage on top of the completed
+  // challenges' own points -- never compounded, and never gated behind owning a specific
+  // characteristic for the Sweep bonus. Both conditions can apply the same week.
+  const sweptAll = weekly.length === 3 && completedWeekly.length === 3;
+  const competitiveDriveEligible = completedWeekly.length >= 2 && modifiers.competitiveDriveBonusPct > 0;
+  const weeklyBonusPct = (sweptAll ? WEEKLY_SWEEP_BONUS_PCT : 0) + (competitiveDriveEligible ? modifiers.competitiveDriveBonusPct : 0);
+  if (weeklyBonusPct > 0 && weeklyPointsAwarded > 0) {
+    await creditXpPoints({
+      prospectId: String(prospect.id),
+      eventType: "weekly_bonus",
+      sourceId: `${input.seasonNumber}:${input.weekNumber}:bonus`,
+      points: Math.round(weeklyPointsAwarded * weeklyBonusPct),
+      season: input.seasonNumber,
+      week: input.weekNumber,
+      modifiers,
+    });
+  }
+
+  const seasonStats = await rangeStatsForPlayer({
+    leagueId: input.leagueId,
+    playerId: String(prospect.player_id),
+    seasonNumber: input.seasonNumber,
+  });
+  const seasonSeed = `${input.immortalityLeagueId}:${input.seasonNumber}:${prospect.id}:season`;
+  for (const challenge of issuedSeasonChallenges(String(prospect.position), seasonStats, seasonSeed)) {
+    if (!challenge.complete) continue;
+    const tier = (challenge.tier === "tier2" || challenge.tier === "tier3" ? challenge.tier : "tier1") as "tier1" | "tier2" | "tier3";
+    await creditXpPoints({
+      prospectId: String(prospect.id),
+      eventType: `season_${tier}`,
+      sourceId: `${input.seasonNumber}:${challenge.id}`,
+      points: pointsForSeasonTier(tier),
+      season: input.seasonNumber,
+      modifiers,
+    });
+    await grantAbilitySlot({
+      prospectId: String(prospect.id),
+      eventType: `season_${tier}`,
+      sourceId: `${input.seasonNumber}:${challenge.id}`,
+    });
+  }
+
+  const careerStats = await rangeStatsForPlayer({
+    leagueId: input.leagueId,
+    playerId: String(prospect.player_id),
+  });
+  const careerSeed = `${input.immortalityLeagueId}:${prospect.id}:career`;
+  for (const challenge of issuedCareerChallenges(String(prospect.position), careerStats, careerSeed)) {
+    if (!challenge.complete) continue;
+    const tier = (challenge.tier === "tier2" || challenge.tier === "tier3" ? challenge.tier : "tier1") as "tier1" | "tier2" | "tier3";
+    await creditXpPoints({
+      prospectId: String(prospect.id),
+      eventType: `career_${tier}`,
+      sourceId: challenge.id,
+      points: pointsForCareerTier(tier),
+      modifiers,
+    });
+    await grantAbilitySlot({
+      prospectId: String(prospect.id),
+      eventType: `career_${tier}`,
+      sourceId: challenge.id,
+    });
+  }
 }
 
 export async function grantAbilitySlotForPlayerOfWeek(playerId: string, sourceId: string): Promise<void> {

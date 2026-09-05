@@ -16,6 +16,7 @@ import { EosAwardResolveModal } from "./EosAwardResolveModal.js";
 import { EosPayoutLedgers } from "./EosPayoutLedgers.js";
 import { CustomPlayerReviewModal } from "../settings/CustomPlayerReviewQueue.js";
 import { ImmortalityProspectReviewModal } from "./ImmortalityProspectReviewModal.js";
+import { ImmortalityIdentityIssueModal } from "./ImmortalityIdentityIssueModal.js";
 
 const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   box_score: "Box Score", purchase: "Purchase", highlight: "Highlight", stream: "Stream",
@@ -29,6 +30,7 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   immortality_tree_purchase: "Progression Tree",
   immortality_dev_promotion: "Dev Trait",
   immortality_xp_conversion: "Team XP Conversion",
+  immortality_identity_issue: "Identity Issue",
   ea_auto_import: "EA Import",
   force_win_request: "Force Win Request", autopilot_request: "AutoPilot Request",
   matchup_issue_report: "Matchup Issue", trade: "Trade",
@@ -104,6 +106,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
   const [activeResolve, setActiveResolve] = useState<CommissionerNotification | null>(null);
   const [activeCustomPlayerBuildId, setActiveCustomPlayerBuildId] = useState<string | null>(null);
   const [activeImmortalityProspect, setActiveImmortalityProspect] = useState<CommissionerNotification | null>(null);
+  const [activeIdentityIssue, setActiveIdentityIssue] = useState<CommissionerNotification | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   function load() {
@@ -130,6 +133,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
     // opened inline instead of navigating away to Settings.
     if (notification.type === "custom_player" && notification.sourceId) return setActiveCustomPlayerBuildId(notification.sourceId);
     if (notification.type === "immortality_prospect") return setActiveImmortalityProspect(notification);
+    if (notification.type === "immortality_identity_issue") return setActiveIdentityIssue(notification);
     if (!notification.sourceId) return setActiveResolve(notification);
     if (notification.type === "box_score") return setActiveBoxScoreId(notification.sourceId);
     if (notification.type === "active_check") return setActiveActiveCheckId(notification.sourceId);
@@ -145,6 +149,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
     setActiveResolve(null);
     setActiveCustomPlayerBuildId(null);
     setActiveImmortalityProspect(null);
+    setActiveIdentityIssue(null);
     load();
     window.dispatchEvent(new Event("rec:notifications-changed"));
   }
@@ -218,6 +223,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
     {activeResolve && <ResolveNotificationModal notification={activeResolve} onClose={() => setActiveResolve(null)} onResolved={() => afterResolved("Resolved.")} />}
     {activeCustomPlayerBuildId && <CustomPlayerReviewModal guildId={guildId} buildId={activeCustomPlayerBuildId} onClose={() => setActiveCustomPlayerBuildId(null)} onResolved={() => afterResolved("Custom player reviewed.")} />}
     {activeImmortalityProspect && <ImmortalityProspectReviewModal guildId={guildId} notification={activeImmortalityProspect} onClose={() => setActiveImmortalityProspect(null)} onResolved={() => afterResolved("Prospect reviewed.")} />}
+    {activeIdentityIssue && <ImmortalityIdentityIssueModal guildId={guildId} notification={activeIdentityIssue} onClose={() => setActiveIdentityIssue(null)} onResolved={() => afterResolved("Identity linked.")} />}
   </>;
 }
 
