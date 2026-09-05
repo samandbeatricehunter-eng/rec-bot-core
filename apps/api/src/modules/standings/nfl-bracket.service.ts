@@ -360,10 +360,21 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
     seeds: c.seeds.map((s) => ({ ...s, team: teamSummary(s.teamId) })),
   }));
 
-  // Real games/slots for this bracket (if any), keyed for lookup by the exact matchup shape
-  // computeRoundMatchups would produce -- conference:round:homeSeed:awaySeed.
-  const realSlots = await getPgPool().query(
-    `select s.conference,s.round,s.home_seed,s.away_seed,s.home_team_id,s.away_team_id,
+  // Real games/slots for this bracket (if any), grouped by round+conference -- NOT keyed by
+  // seed number. A round's slot is created once (syncNflBracketRound) with the actual team ids
+  // that were alive at that moment, and locked the instant its game gets a result. Standings
+  // seeds keep recomputing every advance/import, though, and two teams tied on every real
+  // tiebreaker can trade seed numbers between recomputes without any actual game changing --
+  // rekeying an already-decided round by "conference:round:homeSeed:awaySeed" computed from
+  // TODAY's seed table could silently pull the right score onto the wrong pair of team logos
+  // (confirmed live 2026-09-05: NE/LV traded seeds 6/7 between the wild-card slot's creation and
+  // the divisional advance, which relabeled the wild-card round's already-completed Chiefs-over-
+  // Patriots and Raiders-over-Ravens games as Chiefs-over-Raiders and Ravens-over-Patriots on this
+  // exact page, even though neither real game nor its stored slot ever changed). A round that's
+  // already been created is ground truth -- render it verbatim; only a round with no stored slots
+  // yet is a genuine live projection worth recomputing from current standings.
+  const storedSlots = await getPgPool().query(
+    `select s.conference,s.round,s.slot_number,s.home_seed,s.away_seed,s.home_team_id,s.away_team_id,
             g.id as game_id,g.status,coalesce(g.home_score,r.home_score) as home_score,coalesce(g.away_score,r.away_score) as away_score
      from rec_nfl_bracket_slots s
      join rec_nfl_brackets b on b.id=s.bracket_id
@@ -371,12 +382,17 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
      left join rec_game_results r on r.league_id=b.league_id and r.season_number=b.season_number
        and r.week_number=g.week_number
        and r.home_team_id=s.home_team_id and r.away_team_id=s.away_team_id
-     where b.league_id=$1 and b.season_number=$2`,
+     where b.league_id=$1 and b.season_number=$2
+     order by s.conference,s.slot_number`,
     [leagueId, seasonNumber],
   );
-  const realSlotByKey = new Map<string, (typeof realSlots.rows)[number]>(
-    realSlots.rows.map((row: any) => [`${row.conference}:${row.round}:${row.home_seed}:${row.away_seed}`, row]),
-  );
+  const storedSlotsByRoundConf = new Map<string, (typeof storedSlots.rows)[number][]>();
+  for (const row of storedSlots.rows as any[]) {
+    const key = `${row.conference}:${row.round}`;
+    const list = storedSlotsByRoundConf.get(key) ?? [];
+    list.push(row);
+    storedSlotsByRoundConf.set(key, list);
+  }
 
   const rounds: NflPlayoffPicture["rounds"] = [];
   let aliveSeeds: AliveSeed[] = standings.conferences.flatMap((c) => c.seeds.map((s) => ({ seed: s.seed, teamId: s.teamId, conference: c.conference })));
@@ -409,33 +425,47 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
       }
     }
 
-    for (const matchup of matchups) {
-      const key = `${matchup.conference}:${round}:${matchup.homeSeed}:${matchup.awaySeed}`;
-      const real = realSlotByKey.get(key);
-      const homeScore = real?.home_score != null ? Number(real.home_score) : null;
-      const awayScore = real?.away_score != null ? Number(real.away_score) : null;
-      const decided = homeScore != null && awayScore != null && homeScore !== awayScore;
-      const winnerTeamId = decided ? (homeScore! > awayScore! ? matchup.homeTeamId : matchup.awayTeamId) : null;
+    const conferencesThisRound = [...new Set(matchups.map((m) => m.conference))];
+    for (const conference of conferencesThisRound) {
+      const stored = storedSlotsByRoundConf.get(`${conference}:${round}`) ?? [];
+      const conferenceMatchups = stored.length
+        ? stored.map((slot: any): RoundMatchup => ({
+          conference,
+          homeSeed: Number(slot.home_seed),
+          awaySeed: Number(slot.away_seed),
+          homeTeamId: String(slot.home_team_id),
+          awayTeamId: String(slot.away_team_id),
+        }))
+        : matchups.filter((m) => m.conference === conference);
+      const realBySlotIndex = stored;
 
-      resolved.push({
-        conference: matchup.conference,
-        homeSeed: matchup.homeSeed,
-        awaySeed: matchup.awaySeed,
-        homeTeam: teamSummary(matchup.homeTeamId),
-        awayTeam: teamSummary(matchup.awayTeamId),
-        gameId: real?.game_id ?? null,
-        status: decided ? "completed" : real?.game_id ? "scheduled" : "projected",
-        homeScore,
-        awayScore,
-        winnerTeamId,
+      conferenceMatchups.forEach((matchup, index) => {
+        const real = realBySlotIndex[index];
+        const homeScore = real?.home_score != null ? Number(real.home_score) : null;
+        const awayScore = real?.away_score != null ? Number(real.away_score) : null;
+        const decided = homeScore != null && awayScore != null && homeScore !== awayScore;
+        const winnerTeamId = decided ? (homeScore! > awayScore! ? matchup.homeTeamId : matchup.awayTeamId) : null;
+
+        resolved.push({
+          conference: matchup.conference,
+          homeSeed: matchup.homeSeed,
+          awaySeed: matchup.awaySeed,
+          homeTeam: teamSummary(matchup.homeTeamId),
+          awayTeam: teamSummary(matchup.awayTeamId),
+          gameId: real?.game_id ?? null,
+          status: decided ? "completed" : real?.game_id ? "scheduled" : "projected",
+          homeScore,
+          awayScore,
+          winnerTeamId,
+        });
+
+        const winnerSeed: AliveSeed = decided
+          ? winnerTeamId === matchup.homeTeamId
+            ? { seed: matchup.homeSeed, teamId: matchup.homeTeamId, conference: matchup.conference }
+            : { seed: matchup.awaySeed, teamId: matchup.awayTeamId, conference: matchup.conference }
+          : chalkWinner(matchup);
+        nextAlive.push(winnerSeed);
       });
-
-      const winnerSeed: AliveSeed = decided
-        ? winnerTeamId === matchup.homeTeamId
-          ? { seed: matchup.homeSeed, teamId: matchup.homeTeamId, conference: matchup.conference }
-          : { seed: matchup.awaySeed, teamId: matchup.awayTeamId, conference: matchup.conference }
-        : chalkWinner(matchup);
-      nextAlive.push(winnerSeed);
     }
 
     rounds.push({ round, matchups: resolved });

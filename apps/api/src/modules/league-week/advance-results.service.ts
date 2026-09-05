@@ -1189,7 +1189,20 @@ export async function completeAdvanceWeek(input: {
   );
   let nextAdvanceLabel = fallbackTiming;
   if (input.nextAdvance) {
-    await setNextAdvanceTime({ guildId: input.guildId, ...input.nextAdvance });
+    // Non-fatal on purpose: this is scheduling metadata for the *next* advance, requested
+    // alongside the advance that's actually running right now. By the time this line runs,
+    // setLeagueWeek has already moved the league forward and several minutes of side effects
+    // may have already posted -- everything after this point in the route (game-channel
+    // creation, the matchups-channel refresh, the Discord relay) still needs to run even if the
+    // chosen date/time turns out to be invalid or already in the past (e.g. a slow advance
+    // pushing wall-clock time past a "5 minutes from now" pick). Losing the reminder is a much
+    // smaller problem than losing game channels for the week that just started -- confirmed live
+    // (2026-09-05, "M27 - The OG REC"): this threw a 400 34s into a Divisional advance, after the
+    // week/stage had already flipped, and the whole request aborted before channel creation ever
+    // ran, leaving next_advance_at null with no channels created for an otherwise-complete advance.
+    await setNextAdvanceTime({ guildId: input.guildId, ...input.nextAdvance }).catch((err) => {
+      console.error("[ERROR] setNextAdvanceTime failed during advance (non-fatal):", err);
+    });
     const { year, month, day, hour, minute, tzLabel } = input.nextAdvance;
     const ampm = hour < 12 ? "AM" : "PM";
     const hour12 = hour % 12 === 0 ? 12 : hour % 12;
