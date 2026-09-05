@@ -833,7 +833,12 @@ export async function upsertProspectIdentity(input: {
     weight_lbs: input.identity.weightLbs,
     body_type: input.identity.bodyType ?? null,
     headshot_url: input.identity.headshotUrl ?? null,
-    origins_step: "identity",
+    // A brand-new prospect starts at "identity"; editing Identity info later (e.g. fixing a
+    // headshot or jersey number after finishing Origins) must NOT regress an already-advanced
+    // origins_step back to the first step -- that silently broke every downstream gate keyed on
+    // it (Creation Points access, Progression Tree, franchise-selection eligibility) for anyone
+    // who touched Identity again after progressing further.
+    origins_step: existing?.origins_step ?? "identity",
     updated_at: new Date().toISOString(),
   };
   const result = existing
