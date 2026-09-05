@@ -128,9 +128,13 @@ async function applyTeam(client: PoolClient, leagueId: string, record: Normalize
     return;
   }
   const eaUsername = normalizeImportedEaUsername(text(row, ["userName", "user_name", "gamertag", "gamerTag"]));
+  // Always sync to EA's current in-game abbreviation, not just fill it in when empty -- a
+  // custom-pool team's abbreviation otherwise stays pinned to whatever it happened to be at
+  // creation (e.g. the real-NFL slot it was seeded from) even after the commissioner renames
+  // the team in Madden, which is exactly the stale-value collision the note above describes.
   await client.query(
     `update rec_teams set madden_team_id=$3,
-     abbreviation=coalesce(abbreviation, $4),
+     abbreviation=coalesce($4, abbreviation),
      conference=coalesce($5,conference), division=coalesce($6,division), ea_username=$7, updated_at=now() where id=$1 and league_id=$2`,
     [target.id, leagueId, sourceId, storedAbbr, text(row, ["conference", "conferenceName"]), text(row, ["division", "divName"]), eaUsername],
   );

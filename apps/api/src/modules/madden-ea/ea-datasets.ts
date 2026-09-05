@@ -141,7 +141,11 @@ export function formatOwnerWithEaUsername(ownerName: string | null | undefined, 
 export type EaHubUserInfo = {
   userName?: unknown;
   team?: unknown;
+  /** Always false in every real payload sampled so far (including the actual league owner) --
+   * not a usable signal for "is this the league's commissioner." Use isAdmin/adminLevel instead. */
   isOwner?: unknown;
+  isAdmin?: unknown;
+  adminLevel?: unknown;
 };
 
 /** Map EA teamId → console gamertag/PSN from league-hub userInfoMap (snallabot's source). */
@@ -186,12 +190,16 @@ export function eaOwnerUserIdsFromHub(info: {
 }
 
 /**
- * Resolves the CONNECTED persona's own EA user id (and whether EA's own data flags them as
- * "isOwner", i.e. league owner/admin) by matching userInfoMap entries' gamertag against the
- * persona's known display name. Distinct from eaOwnerUserIdsFromHub above, which maps
- * teamId -> owner id for every team; this answers "which of those small user ids is *me*",
- * needed as the requestor/actor identity on write-side Blaze admin commands (a different,
- * much smaller id space than the persona's own blazeId).
+ * Resolves the CONNECTED persona's own EA user id (and whether EA's own data flags them as the
+ * league's commissioner) by matching userInfoMap entries' gamertag against the persona's known
+ * display name. Distinct from eaOwnerUserIdsFromHub above, which maps teamId -> owner id for
+ * every team; this answers "which of those small user ids is *me*", needed as the
+ * requestor/actor identity on write-side Blaze admin commands (a different, much smaller id
+ * space than the persona's own blazeId).
+ *
+ * Commissioner status is read from isAdmin/adminLevel, not isOwner -- a raw payload sample
+ * showed every entry (including the actual league owner, adminLevel "ADMINLEVEL_OWNER") with
+ * isOwner: false, so that field carries no real signal here despite the name.
  */
 export function eaOwnUserIdFromHub(
   info: { userAdminHubInfo?: { userInfoMap?: Record<string, EaHubUserInfo> | null } | null },
@@ -205,7 +213,8 @@ export function eaOwnUserIdFromHub(
     if (!entry || typeof entry !== "object") continue;
     const username = normalizeImportedEaUsername(entry.userName);
     if (username && username.trim().toLowerCase() === target) {
-      return { userId: eaUserId, isOwner: entry.isOwner === true };
+      const isOwner = entry.isAdmin === true || String(entry.adminLevel ?? "").toUpperCase() === "ADMINLEVEL_OWNER";
+      return { userId: eaUserId, isOwner };
     }
   }
   return null;
