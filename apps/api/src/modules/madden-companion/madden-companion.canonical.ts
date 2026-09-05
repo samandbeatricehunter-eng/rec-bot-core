@@ -66,6 +66,19 @@ async function teamId(client: PoolClient, leagueId: string, sourceTeamId: string
   return (await client.query<{ id: string }>("select id from rec_teams where league_id=$1 and madden_team_id=$2 limit 1", [leagueId, sourceTeamId])).rows[0]?.id ?? null;
 }
 
+/** Rise to Immortality's "custom_32" team pool renames a team's display identity but
+ * deliberately keeps `rec_teams.abbreviation` pinned to the real-NFL slot it was seeded from
+ * (see seedLeagueTeamIdentities) -- a REC-internal anchor, unrelated to whatever in-game
+ * abbreviation the *renamed* Madden team currently uses. applyTeam below must not match on it
+ * for these leagues (see the caller for the incident this caused). */
+async function isCustomTeamPoolLeague(client: PoolClient, leagueId: string): Promise<boolean> {
+  const result = await client.query<{ team_pool: string | null }>(
+    "select team_pool from rec_immortality_leagues where league_id=$1 limit 1",
+    [leagueId],
+  );
+  return result.rows[0]?.team_pool === "custom_32";
+}
+
 async function applyTeam(client: PoolClient, leagueId: string, record: NormalizedCompanionRecord) {
   const row = record.rawData;
   const sourceId = record.sourceTeamId ?? text(row, ["teamId", "team_id"]);
@@ -77,8 +90,17 @@ async function applyTeam(client: PoolClient, leagueId: string, record: Normalize
   const cityNick = cityName && (nickName || name) ? `${cityName} ${nickName || name}` : null;
   const abbrAliases = abbreviationMatchValues(abbreviation);
   const storedAbbr = preferredRecAbbreviation(abbreviation);
-  const existing = await client.query<{ id: string }>(
-    `select id from rec_teams
+
+  // Incident (2026-09-05): a custom-pool team originally seeded from the Washington NFL slot
+  // (abbreviation "WAS", later renamed to "Raleigh Reapers") got wrongly linked to an unrelated
+  // real Madden team that independently also uses "WAS" as its current in-game abbreviation --
+  // the two values only coincided, they don't identify the same team. Never trust the
+  // abbreviation clause for custom-pool leagues.
+  const customPool = await isCustomTeamPoolLeague(client, leagueId);
+  const abbreviationForMatch = customPool ? null : abbreviation;
+
+  const existing = await client.query<{ id: string; madden_team_id: string | null }>(
+    `select id, madden_team_id from rec_teams
       where league_id=$1 and (
         madden_team_id=$2
         or ($3::text is not null and upper(abbreviation) = any($6::text[]))
@@ -89,27 +111,36 @@ async function applyTeam(client: PoolClient, leagueId: string, record: Normalize
              or lower(coalesce(display_nick, '')) = lower($5)
            ))
         or ($7::text is not null and lower(name) = lower($7))
-      )
-      order by (madden_team_id=$2) desc
-      limit 1`,
-    [leagueId, sourceId, abbreviation, name, nickName || name, abbrAliases, cityNick],
+      )`,
+    [leagueId, sourceId, abbreviationForMatch, name, nickName || name, abbrAliases, cityNick],
   );
-  if (existing.rows[0]) {
-    const eaUsername = normalizeImportedEaUsername(text(row, ["userName", "user_name", "gamertag", "gamerTag"]));
-    await client.query(
-      `update rec_teams set madden_team_id=$3,
-       abbreviation=coalesce(abbreviation, $4),
-       conference=coalesce($5,conference), division=coalesce($6,division), ea_username=$7, updated_at=now() where id=$1 and league_id=$2`,
-      [existing.rows[0].id, leagueId, sourceId, storedAbbr, text(row, ["conference", "conferenceName"]), text(row, ["division", "divName"]), eaUsername],
-    );
-    // The identity manifest follows the provider ID discovered by import, while its display
-    // branding and inherited franchise slot remain league-specific and unchanged.
-    await client.query(
-      `update rec_league_team_identities set madden_team_id=$3, updated_at=now()
-       where team_id=$1 and league_id=$2`,
-      [existing.rows[0].id, leagueId, sourceId],
-    );
+  // An existing row already correctly linked to this exact source team is always authoritative.
+  // Otherwise, only apply the match if it's unambiguous -- multiple candidate rows means the
+  // fuzzy name/nickname clauses caught more than one team, and guessing which one is right is
+  // exactly how the Raleigh/Washington incident happened. Skip and log rather than picking
+  // arbitrarily; a commissioner can link the team manually.
+  const authoritative = existing.rows.find((r) => r.madden_team_id === sourceId);
+  const target = authoritative ?? (existing.rows.length === 1 ? existing.rows[0] : null);
+  if (!target) {
+    if (existing.rows.length > 1) {
+      console.warn(`[EA import] Team match for source team ${sourceId} ("${name}") is ambiguous across ${existing.rows.length} existing rows in league ${leagueId} -- skipping the link rather than guessing.`);
+    }
+    return;
   }
+  const eaUsername = normalizeImportedEaUsername(text(row, ["userName", "user_name", "gamertag", "gamerTag"]));
+  await client.query(
+    `update rec_teams set madden_team_id=$3,
+     abbreviation=coalesce(abbreviation, $4),
+     conference=coalesce($5,conference), division=coalesce($6,division), ea_username=$7, updated_at=now() where id=$1 and league_id=$2`,
+    [target.id, leagueId, sourceId, storedAbbr, text(row, ["conference", "conferenceName"]), text(row, ["division", "divName"]), eaUsername],
+  );
+  // The identity manifest follows the provider ID discovered by import, while its display
+  // branding and inherited franchise slot remain league-specific and unchanged.
+  await client.query(
+    `update rec_league_team_identities set madden_team_id=$3, updated_at=now()
+     where team_id=$1 and league_id=$2`,
+    [target.id, leagueId, sourceId],
+  );
 }
 
 async function applyRosterPlayer(client: PoolClient, leagueId: string, record: NormalizedCompanionRecord) {
