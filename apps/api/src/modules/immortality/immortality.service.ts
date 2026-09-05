@@ -2046,8 +2046,16 @@ export async function reviewImmortalityProspect(input: {
     .eq("id", input.prospectId).eq("immortality_league_id", league.id).maybeSingle();
   if (prospect.error || !prospect.data) throw new ApiError(404, "Prospect not found in this league.");
 
+  // Scoped by queue_type, not just (source_table, source_id) -- a prospect can carry other
+  // rec_commissioners_inbox rows against the same source_id (an old immortality_xp_spend
+  // request, a newer immortality_identity_issue) that share source_table/source_id but are a
+  // completely different queue. Without the queue_type filter, .maybeSingle() throws "Expected
+  // zero or one row" the moment a prospect has more than one such row -- confirmed live: two
+  // prospects each carried a leftover denied immortality_xp_spend row alongside their pending
+  // immortality_prospect review, and approving/rejecting the review 500'd every time.
   const inboxRow = await supabase.from("rec_commissioners_inbox").select("id,status")
-    .eq("source_table", "rec_immortality_prospects").eq("source_id", input.prospectId).maybeSingle();
+    .eq("source_table", "rec_immortality_prospects").eq("source_id", input.prospectId)
+    .eq("queue_type", "immortality_prospect").maybeSingle();
   if (inboxRow.error) throw new ApiError(500, "Could not load that review item.", inboxRow.error);
   if (inboxRow.data && inboxRow.data.status !== "pending") throw new ApiError(409, `This item is already ${inboxRow.data.status}.`);
   if (input.action === "reject" && !input.note?.trim()) throw new ApiError(400, "A reason is required to reject and remove this player from the league.");
@@ -2064,11 +2072,14 @@ export async function reviewImmortalityProspect(input: {
   }).eq("id", input.prospectId).select("*").single();
   if (updated.error) throw new ApiError(500, "Could not save that review decision.", updated.error);
 
+  // Same queue_type scoping as the lookup above -- without it this would also silently
+  // overwrite an unrelated inbox row (e.g. an old immortality_xp_spend request) that happens to
+  // share this prospect's source_id.
   await supabase.from("rec_commissioners_inbox").update({
     status: input.action === "approve" ? "approved" : "denied",
     reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString(),
     review_reason: input.note?.trim() ?? null,
-  }).eq("source_table", "rec_immortality_prospects").eq("source_id", input.prospectId);
+  }).eq("source_table", "rec_immortality_prospects").eq("source_id", input.prospectId).eq("queue_type", "immortality_prospect");
 
   if (input.action === "reject" && prospect.data.user_id) {
     const ownerDiscordId = await discordIdForRecUser(String(prospect.data.user_id));
