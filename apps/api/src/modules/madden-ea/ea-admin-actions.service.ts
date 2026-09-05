@@ -110,22 +110,50 @@ async function requireSeasonGameKey(leagueId: string, gameId: string): Promise<s
   return row.ea_season_game_key;
 }
 
-export type ForceableMatch = { gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string };
+export type ForceStatus = "home_win" | "away_win" | "cleared";
+export type ForceableMatch = {
+  gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string;
+  lastForceStatus: ForceStatus | null; lastForceAt: string | null;
+};
+
+const FORCE_COMMAND_TO_STATUS: Record<string, ForceStatus> = {
+  Mobile_GameSchedule_ForceHomeWin: "home_win",
+  Mobile_GameSchedule_ForceAwayWin: "away_win",
+  Mobile_GameSchedule_ForceNoWin: "cleared",
+};
 
 /** Games this league has actually imported from EA for the CURRENT week only -- the only ones
  *  Force Win/Clear Result can target, and a past week's result can't be force-changed. Scoped
  *  separately from the hub's matchup schedule (which shows every scheduled game across every
  *  week regardless of import status) so the Tools-menu picker can't offer a matchup that's
- *  guaranteed to 409 or belongs to a week that's already over. */
+ *  guaranteed to 409 or belongs to a week that's already over.
+ *
+ *  lastForceStatus/lastForceAt reflect REC's own audit trail (rec_ea_admin_actions) -- the most
+ *  recent successful Force Home Win/Force Away Win/Clear Forced Result command *we* sent for
+ *  this game, not a live read of EA's own internal forced-result state (the schedule export has
+ *  no confirmed field for that -- nothing in this codebase has verified one against a real
+ *  payload). If a forced result was set or cleared some other way (directly in the Companion
+ *  App, outside REC), this won't reflect that. */
 export async function listForceableMatches(leagueId: string): Promise<ForceableMatch[]> {
-  const result = await getPgPool().query<{ id: string; week_number: number; away_name: string | null; home_name: string | null }>(
+  const result = await getPgPool().query<{
+    id: string; week_number: number; away_name: string | null; home_name: string | null;
+    last_command: string | null; last_at: string | null;
+  }>(
     `select g.id, g.week_number,
             coalesce(at.display_city || ' ' || at.display_nick, at.name) as away_name,
-            coalesce(ht.display_city || ' ' || ht.display_nick, ht.name) as home_name
+            coalesce(ht.display_city || ' ' || ht.display_nick, ht.name) as home_name,
+            last_force.command_name as last_command, last_force.created_at as last_at
        from rec_games g
        left join rec_teams at on at.id = g.away_team_id
        left join rec_teams ht on ht.id = g.home_team_id
        inner join rec_leagues l on l.id = g.league_id
+       left join lateral (
+         select command_name, created_at from rec_ea_admin_actions
+          where league_id = g.league_id and target_description = g.id::text and status = 'success'
+            and command_name in ('Mobile_GameSchedule_ForceHomeWin', 'Mobile_GameSchedule_ForceAwayWin', 'Mobile_GameSchedule_ForceNoWin')
+          order by created_at desc
+          limit 1
+       ) last_force on true
       where g.league_id=$1 and g.ea_season_game_key is not null and g.week_number = l.current_week
       order by away_name asc`,
     [leagueId],
@@ -135,6 +163,8 @@ export async function listForceableMatches(leagueId: string): Promise<ForceableM
     weekNumber: Number(row.week_number),
     awayTeamName: row.away_name ?? "TBD",
     homeTeamName: row.home_name ?? "TBD",
+    lastForceStatus: row.last_command ? FORCE_COMMAND_TO_STATUS[row.last_command] ?? null : null,
+    lastForceAt: row.last_at,
   }));
 }
 

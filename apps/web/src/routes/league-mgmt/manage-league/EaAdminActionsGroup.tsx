@@ -47,8 +47,10 @@ function useLinkedTeams(guildId: string) {
 // Result need an EA scheduleId, which only exists once a matchup has been pulled from EA
 // (dedicated endpoint, not the hub's matchup schedule, which shows every scheduled game
 // regardless of import status and would let a commish pick one that's guaranteed to fail).
+type ForceableGame = { gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string; lastForceStatus: "home_win" | "away_win" | "cleared" | null; lastForceAt: string | null };
+
 function useForceableGames(guildId: string, leagueId: string) {
-  const [games, setGames] = useState<Array<{ gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string }>>([]);
+  const [games, setGames] = useState<ForceableGame[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -111,6 +113,13 @@ function TeamActionPanel({
 
 type ForceChoice = "home" | "away" | "clear";
 
+function forceStatusLabel(game: ForceableGame): string {
+  if (game.lastForceStatus === "home_win") return `Forced: ${game.homeTeamName} win`;
+  if (game.lastForceStatus === "away_win") return `Forced: ${game.awayTeamName} win`;
+  if (game.lastForceStatus === "cleared") return "No result forced (last cleared)";
+  return "No force action sent yet";
+}
+
 function ForceResultPanel({ guildId, leagueId }: { guildId: string; leagueId: string }) {
   const { games, loaded, error: loadError } = useForceableGames(guildId, leagueId);
   const [gameId, setGameId] = useState("");
@@ -143,7 +152,10 @@ function ForceResultPanel({ guildId, leagueId }: { guildId: string; leagueId: st
       <p className="form-hint" style={{ marginTop: 0 }}>
         Pick a matchup, then force the result for one side or clear a previously forced result —
         changes the actual game outcome in the franchise. Also fires automatically whenever a
-        Force Win or Fair Sim is granted for this matchup, from Discord or the site.
+        Force Win or Fair Sim is granted for this matchup, from Discord or the site. Status shown
+        below reflects REC's own record of the last force command sent for a game -- if EA's own
+        forced-result state was changed some other way (directly in the Companion App), this
+        won't know about it.
       </p>
       <label className="form-field">
         <span className="form-label">Matchup</span>
@@ -152,9 +164,12 @@ function ForceResultPanel({ guildId, leagueId }: { guildId: string; leagueId: st
           <option value="">
             {games.length ? "Select a matchup" : loaded ? "No EA-imported games for the current week yet" : "Loading matchups…"}
           </option>
-          {games.map((game) => <option key={game.gameId} value={game.gameId}>{game.awayTeamName} at {game.homeTeamName}</option>)}
+          {games.map((game) => <option key={game.gameId} value={game.gameId}>{game.awayTeamName} at {game.homeTeamName}{game.lastForceStatus ? ` — ${forceStatusLabel(game)}` : ""}</option>)}
         </select>
       </label>
+      {selectedGame && (
+        <p className="form-hint">{forceStatusLabel(selectedGame)}{selectedGame.lastForceAt ? ` (${new Date(selectedGame.lastForceAt).toLocaleString()})` : ""}</p>
+      )}
       {selectedGame && (
         <label className="form-field">
           <span className="form-label">Result</span>

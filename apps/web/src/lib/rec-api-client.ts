@@ -337,7 +337,7 @@ export const recApi = {
   eaAdminAdvance: (input: { guildId: string; leagueId: string; action: string }) =>
     recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/advance", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, action: input.action }) }),
   eaAdminListForceableMatches: (input: { guildId: string; leagueId: string }) =>
-    recApiFetch<{ matches: Array<{ gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string }> }>(
+    recApiFetch<{ matches: Array<{ gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string; lastForceStatus: "home_win" | "away_win" | "cleared" | null; lastForceAt: string | null }> }>(
       "/v1/madden/ea/admin/forceable-matches", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) },
     ),
   eaAdminClearCapPenalties: (input: { guildId: string; leagueId: string; teamId: string }) =>
