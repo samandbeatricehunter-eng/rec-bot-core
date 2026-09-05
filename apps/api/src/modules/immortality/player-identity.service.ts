@@ -15,7 +15,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getPgPool } from "../../db/client.js";
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
-import { discordIdForRecUser, loadImmortalityLeague } from "./immortality.service.js";
+import { discordIdForRecUser, loadImmortalityLeague, resolveProspectTeamName } from "./immortality.service.js";
 
 export type IdentityStatus = "synthetic" | "verified" | "missing" | "ambiguous" | "stale";
 
@@ -71,7 +71,7 @@ export function nextIdentityStatus(input: {
 }
 
 async function writeIdentityIssue(input: {
-  guildId: string; leagueId: string; prospect: ProspectIdentityRow; status: "missing" | "ambiguous" | "stale"; note: string;
+  guildId: string; leagueId: string; prospect: ProspectIdentityRow; status: "missing" | "ambiguous" | "stale"; note: string; teamName: string | null;
 }): Promise<void> {
   const existing = await supabase.from("rec_commissioners_inbox")
     .select("id")
@@ -93,7 +93,7 @@ async function writeIdentityIssue(input: {
     queue_type: "immortality_identity_issue",
     status: "pending",
     priority: input.status === "ambiguous" ? 1 : 0,
-    header: `Identity ${input.status === "missing" ? "Not Found" : input.status === "ambiguous" ? "Ambiguous" : "Went Stale"}: ${name} (${input.prospect.position})`,
+    header: `Identity ${input.status === "missing" ? "Not Found" : input.status === "ambiguous" ? "Ambiguous" : "Went Stale"}: ${name} (${input.prospect.position})${input.teamName ? ` — ${input.teamName}` : ""}`,
     summary: input.note,
     requester_user_id: input.prospect.user_id,
     requester_discord_id: discordId,
@@ -192,7 +192,8 @@ export async function reconcileRtiProspectIdentities(leagueId: string): Promise<
     if (target === "verified") {
       await resolveIdentityIssue(guildId, prospect.id);
     } else {
-      await writeIdentityIssue({ guildId, leagueId, prospect, status: target, note });
+      const teamName = await resolveProspectTeamName(leagueId, { player_id: prospect.player_id, user_id: prospect.user_id });
+      await writeIdentityIssue({ guildId, leagueId, prospect, status: target, note, teamName });
     }
   }
 }

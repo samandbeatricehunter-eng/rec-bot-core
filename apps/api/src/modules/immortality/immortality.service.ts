@@ -155,6 +155,33 @@ export async function discordIdForRecUser(userId: string): Promise<string> {
   return siteOnlyDiscordId(userId);
 }
 
+/** Team name for a prospect's commissioner-inbox card -- so a pending item reads "Upgrades:
+ * John Doe (QB) — Kansas City Chiefs" instead of leaving the commissioner to guess which
+ * franchise it's for. Prefers the roster team (rec_players.team_id, once the prospect has a
+ * player_id) since that's the team actually playing; falls back to the user's currently
+ * assigned team (rec_team_assignments) for a prospect that hasn't been placed on a roster yet.
+ * Returns null only if neither resolves (e.g. mid-Origins, before team selection). */
+export async function resolveProspectTeamName(
+  leagueId: string,
+  prospect: { player_id: string | null; user_id: string },
+): Promise<string | null> {
+  let teamId: string | null = null;
+  if (prospect.player_id) {
+    const player = await supabase.from("rec_players").select("team_id").eq("id", prospect.player_id).maybeSingle();
+    teamId = player.data?.team_id ? String(player.data.team_id) : null;
+  }
+  if (!teamId) {
+    const assignment = await supabase.from("rec_team_assignments")
+      .select("team_id").eq("league_id", leagueId).eq("user_id", prospect.user_id)
+      .eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+    teamId = assignment.data?.team_id ? String(assignment.data.team_id) : null;
+  }
+  if (!teamId) return null;
+  const team = await supabase.from("rec_teams").select("name,abbreviation,display_city,display_nick,is_relocated").eq("id", teamId).maybeSingle();
+  if (!team.data) return null;
+  return formatTeamDisplayName(team.data) ?? team.data.name ?? null;
+}
+
 function membershipAuthority(role: unknown): "member" | "commissioner" | "co_commissioner" {
   const value = String(role ?? "").toLowerCase();
   if (value === "co_commissioner") return "co_commissioner";
@@ -1889,13 +1916,14 @@ async function submitProspectForReview(input: {
     .maybeSingle();
   if (existingInboxRow.error) throw new ApiError(500, "Failed to submit prospect for review.", existingInboxRow.error);
 
+  const teamName = await resolveProspectTeamName(input.leagueId, { player_id: prospect.player_id ?? null, user_id: input.userId });
   const inboxPayload = {
     guild_id: input.guildId,
     league_id: input.leagueId,
     queue_type: "immortality_prospect",
     status: "pending",
     priority: 0,
-    header: `${prospect.side === "offense" ? "Offensive" : "Defensive"} Prospect: ${name} (${position})`,
+    header: `${prospect.side === "offense" ? "Offensive" : "Defensive"} Prospect: ${name} (${position})${teamName ? ` — ${teamName}` : ""}`,
     summary,
     requester_user_id: input.userId,
     requester_discord_id: discordId,
@@ -3724,10 +3752,11 @@ export async function convertXp(input: { guildId: string; discordId: string; sid
 
   const discordId = await discordIdForRecUser(userId).catch(() => null);
   const name = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Unnamed Prospect";
+  const teamName = await resolveProspectTeamName(context.leagueId, { player_id: prospect.player_id ?? null, user_id: userId });
   const inboxInsert = await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId, league_id: context.leagueId, queue_type: "immortality_xp_conversion",
     status: "pending", priority: 0,
-    header: `Team XP Conversion: ${name} (${prospect.position})`,
+    header: `Team XP Conversion: ${name} (${prospect.position})${teamName ? ` — ${teamName}` : ""}`,
     summary: `Requesting to convert ${input.playerXp} Player XP into Team XP.`,
     requester_user_id: userId, requester_discord_id: discordId,
     source_table: "rec_immortality_prospects", source_id: prospect.id,
@@ -3860,10 +3889,11 @@ export async function submitImmortalityUpgrades(input: {
 
   const discordId = await discordIdForRecUser(userId).catch(() => null);
   const name = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Unnamed Prospect";
+  const teamName = await resolveProspectTeamName(context.leagueId, { player_id: prospect.player_id ?? null, user_id: userId });
   const inboxInsert = await supabase.from("rec_commissioners_inbox").insert({
     guild_id: input.guildId, league_id: context.leagueId, queue_type: "immortality_upgrade_batch",
     status: "pending", priority: 0,
-    header: `Upgrades: ${name} (${prospect.position})`,
+    header: `Upgrades: ${name} (${prospect.position})${teamName ? ` — ${teamName}` : ""}`,
     summary: `${upgrades.length} attribute upgrade${upgrades.length === 1 ? "" : "s"}, ${totalXpCost} Player XP already spent.`,
     requester_user_id: userId, requester_discord_id: discordId,
     source_table: "rec_immortality_prospects", source_id: prospect.id,

@@ -27,6 +27,7 @@ import {
   loadImmortalityLeague,
   recUserIdFromDiscordId,
   requireImmortalityLeague,
+  resolveProspectTeamName,
 } from "./immortality.service.js";
 
 const SELF_PROMOTION_SOURCES = ["season_trend", "self_purchase"] as const;
@@ -320,12 +321,13 @@ export async function purchaseProgressionPerk(input: {
     throw new ApiError(500, "Could not save that Progression Tree perk.", inserted.error);
   }
   const name = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Unnamed Prospect";
+  const teamName = await resolveProspectTeamName(context.leagueId, { player_id: prospect.player_id ?? null, user_id: userId });
   const requestId = await insertCommissionerRecord({
     guildId: input.guildId,
     leagueId: context.leagueId,
     userId,
     queueType: "immortality_tree_purchase",
-    header: `Progression Tree: ${name} — ${definition.displayName}`,
+    header: `Progression Tree: ${name}${teamName ? ` (${teamName})` : ""} — ${definition.displayName}`,
     summary: `Tier ${definition.tier} perk purchased for ${purchased.xpCost} Player XP (already spent). Confirm it's noted; refund if you need to reverse it.`,
     sourceTable: "rec_immortality_prospect_characteristics",
     sourceId: String(inserted.data.id),
@@ -459,12 +461,13 @@ export async function purchaseDevPromotion(input: {
     throw new ApiError(500, "Could not record that promotion.", inserted.error);
   }
 
+  const teamName = await resolveProspectTeamName(context.leagueId, { player_id: prospect.player_id ?? null, user_id: userId });
   const requestId = await insertCommissionerRecord({
     guildId: input.guildId,
     leagueId: context.leagueId,
     userId,
     queueType: "immortality_dev_promotion",
-    header: `Dev trait: ${targetName} ${fromTrait} → ${purchased.nextDevTrait}`,
+    header: `Dev trait: ${targetName} ${fromTrait} → ${purchased.nextDevTrait}${teamName ? ` — ${teamName}` : ""}`,
     summary: `${purchased.cost} Player XP already spent. Set this development trait in your Madden save, then mark Applied in game.`,
     sourceTable: "rec_immortality_dev_promotions",
     sourceId: String(inserted.data.id),
@@ -575,13 +578,14 @@ export async function evaluateSeasonTrendPromotionsAfterAdvance(input: {
     }
     if (!inserted.data) continue;
     const name = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Prospect";
+    const teamName = await resolveProspectTeamName(input.leagueId, { player_id: prospect.player_id ?? null, user_id: String(prospect.user_id) });
     try {
       await insertCommissionerRecord({
         guildId,
         leagueId: input.leagueId,
         userId: String(prospect.user_id),
         queueType: "immortality_dev_promotion",
-        header: `Season trend: ${name} ${currentDevTrait} → ${trend.nextDevTrait}`,
+        header: `Season trend: ${name} ${currentDevTrait} → ${trend.nextDevTrait}${teamName ? ` — ${teamName}` : ""}`,
         summary: `${trend.reason} Set this development trait in your Madden save, then mark Applied in game. No Player XP was spent.`,
         sourceTable: "rec_immortality_dev_promotions",
         sourceId: String(inserted.data.id),
