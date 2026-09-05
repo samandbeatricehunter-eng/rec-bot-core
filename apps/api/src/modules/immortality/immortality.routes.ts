@@ -16,6 +16,8 @@ import {
   getImmortalityRivals,
   getWeeklyMatchupInterview,
   submitWeeklyMatchupInterview,
+  getOwnerWeeklyInterview,
+  submitOwnerWeeklyInterview,
   getStageInterview,
   submitStageInterview,
   markImmortalityIntroVideoWatched,
@@ -512,6 +514,27 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
       return reply.send(await submitStageInterview({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Owner-side Media Day counterpart -- owners aren't tied to a specific weekly matchup, so one
+  // endpoint pair covers every league stage (getOwnerWeeklyInterview picks the stage-appropriate
+  // question bucket internally; no separate "stage" vs "weekly" split the way prospects have).
+  app.post("/v1/immortality/owner/interview", async (request, reply) => {
+    try {
+      const body = GuildBody.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
+      return reply.send(await getOwnerWeeklyInterview({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/owner/interview/submit", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ questionId: z.number().int(), optionIndex: z.number().int().min(0) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "This is website-only.");
+      return reply.send(await submitOwnerWeeklyInterview({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

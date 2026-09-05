@@ -72,6 +72,7 @@ export const FORMULA_VERSIONS = {
   matchupInterview: "immortality-matchup-interview-v1",
   abilityMastery: "immortality-ability-mastery-v1",
   stageInterview: "immortality-stage-interview-v1",
+  ownerInterview: "immortality-owner-interview-v1",
 } as const;
 
 export type AttributeCode = string;

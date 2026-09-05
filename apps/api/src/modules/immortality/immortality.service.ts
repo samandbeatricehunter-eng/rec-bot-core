@@ -85,6 +85,12 @@ import {
   XP_POINTS_PER_LEVEL,
   RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT,
   RISE_TO_IMMORTALITY_COMMISSIONER_BONUS_AMOUNT,
+  RISE_TO_IMMORTALITY_OWNER_INTERVIEW_PAYOUT,
+  OWNER_INTERVIEW_POOL,
+  selectOwnerInterviewQuestions,
+  scoreOwnerInterviewAnswer,
+  ownerInterviewGroupFor,
+  type OwnerInterviewGroup,
   personaDnaQuestions,
   personaDnaCatalog,
   mindsetFocusCatalog,
@@ -2837,6 +2843,116 @@ export async function submitWeeklyMatchupInterview(input: {
   return { question, answer: saved.data, slot: nextSlot, complete: nextSlot >= MEDIA_DAY_SLOTS };
 }
 
+const OWNER_INTERVIEW_SLOTS = 3;
+
+/** Owner-side counterpart to getWeeklyMatchupInterview -- an owner isn't tied to a specific
+ * weekly matchup/opponent the way a prospect is, so this skips the reactive-question/bonus-claim/
+ * rivalry mechanics entirely and just serves 3 stage-appropriate ownership-perspective questions
+ * per advance. Unlike getStageInterview (which only covers non-gameplay stages, leaving gameplay
+ * weeks to the matchup-interview flow), owners have content for every stage -- ownerInterviewGroupFor
+ * splits gameplay itself into "regular_season" vs "playoffs" -- so this is the only owner
+ * interview endpoint needed regardless of where the league currently is. "week_number" doubles as
+ * the per-stage advance counter the same way stage-interview's advance_index does; season_stage is
+ * part of the row's identity so two different stages that each start counting from week/advance 1
+ * (e.g. free_agency and draft) can't collide. */
+export async function getOwnerWeeklyInterview(input: { guildId: string; discordId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const owner = await supabase.from("rec_immortality_owners").select("id,first_name,last_name")
+    .eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle();
+  if (!owner.data) throw new ApiError(400, "Create your owner first.");
+  const season = Number(context.rec_leagues.season_number ?? 1);
+  const seasonStage = String(context.rec_leagues.season_stage ?? "");
+  const advanceIndex = Number(context.rec_leagues.current_week ?? 1);
+  const group = ownerInterviewGroupFor(seasonStage, context.rec_leagues.game);
+  if (!group) throw new ApiError(400, "No owner interview is available for this season stage yet.");
+
+  const existing = await supabase.from("rec_immortality_owner_interview_answers")
+    .select("*").eq("owner_id", owner.data.id).eq("season_stage", seasonStage).eq("week_number", advanceIndex).order("slot", { ascending: true });
+  if (existing.error) throw new ApiError(500, "Could not load this week's owner interview.", existing.error);
+  const answered = existing.data ?? [];
+  if (answered.length >= OWNER_INTERVIEW_SLOTS) {
+    return { season, seasonStage, group, complete: true, questions: answered.map((row) => row.rendered_question), answers: answered };
+  }
+
+  const remainingSlots = OWNER_INTERVIEW_SLOTS - answered.length;
+  const nextQuestions = selectOwnerInterviewQuestions({
+    pool: OWNER_INTERVIEW_POOL,
+    group,
+    seed: `${league.id}:${owner.data.id}:${seasonStage}:${advanceIndex}`,
+    count: remainingSlots,
+    excludeIds: answered.map((row) => Number(row.question_id)),
+  });
+
+  return {
+    season, seasonStage, group, complete: false,
+    questions: [...answered.map((row) => row.rendered_question), ...nextQuestions],
+    answers: answered,
+  };
+}
+
+export async function submitOwnerWeeklyInterview(input: {
+  guildId: string;
+  discordId: string;
+  questionId: number;
+  optionIndex: number;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const owner = await supabase.from("rec_immortality_owners").select("id,first_name,last_name")
+    .eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle();
+  if (!owner.data) throw new ApiError(400, "Create your owner first.");
+  const season = Number(context.rec_leagues.season_number ?? 1);
+  const seasonStage = String(context.rec_leagues.season_stage ?? "");
+  const advanceIndex = Number(context.rec_leagues.current_week ?? 1);
+  const group = ownerInterviewGroupFor(seasonStage, context.rec_leagues.game);
+  if (!group) throw new ApiError(400, "No owner interview is available for this season stage yet.");
+
+  const existing = await supabase.from("rec_immortality_owner_interview_answers")
+    .select("id,slot,rendered_question,option_index").eq("owner_id", owner.data.id).eq("season_stage", seasonStage).eq("week_number", advanceIndex).order("slot", { ascending: true });
+  if (existing.error) throw new ApiError(500, "Could not load this week's owner interview.", existing.error);
+  const answeredCount = existing.data?.length ?? 0;
+  if (answeredCount >= OWNER_INTERVIEW_SLOTS) throw new ApiError(409, "This week's owner interview is already complete.");
+  const nextSlot = answeredCount + 1;
+
+  const question = OWNER_INTERVIEW_POOL.find((item) => item.id === input.questionId && item.group === group);
+  if (!question) throw new ApiError(404, "That question isn't in this week's pool.");
+  const result = scoreOwnerInterviewAnswer({ question, optionIndex: input.optionIndex });
+
+  const saved = await supabase.from("rec_immortality_owner_interview_answers").insert({
+    immortality_league_id: league.id,
+    owner_id: owner.data.id,
+    season,
+    season_stage: seasonStage,
+    week_number: advanceIndex,
+    slot: nextSlot,
+    question_id: question.id,
+    rendered_question: question,
+    option_index: input.optionIndex,
+    dna_points: result.dnaPoints,
+    formula_version: result.formulaVersion,
+  }).select("*").single();
+  if (saved.error) {
+    if (saved.error.code === "23505") throw new ApiError(409, "This week's owner interview is already answered.");
+    throw new ApiError(500, "Could not save that answer.", saved.error);
+  }
+
+  await driftPersonaFromOwnerInterviewAnswer(owner.data.id).catch((error) =>
+    console.error(`[WARN] Owner persona drift failed for owner ${owner.data.id} (non-fatal):`, error));
+
+  if (nextSlot >= OWNER_INTERVIEW_SLOTS) {
+    const allAnswers = [...(existing.data ?? []), saved.data].sort((a, b) => Number(a.slot) - Number(b.slot));
+    await queueOwnerInterviewTweet({ leagueId: context.leagueId, season, week: advanceIndex, owner: owner.data, answers: allAnswers })
+      .catch((error) => console.error(`[WARN] Could not queue owner interview tweet (non-fatal):`, error));
+    await payOwnerInterviewCompletionCoins({ leagueId: context.leagueId, season, week: advanceIndex, ownerId: owner.data.id, userId })
+      .catch((error) => console.error(`[WARN] Could not pay owner interview coins for owner ${owner.data.id} (non-fatal):`, error));
+  }
+
+  return { question, answer: saved.data, slot: nextSlot, complete: nextSlot >= OWNER_INTERVIEW_SLOTS };
+}
+
 /** Media Day's matchup-interview flow assumes a real scheduled game (opponent, week, bonus
  * claims) -- there's no matchup during preseason/training camp or any offseason stage. This is
  * the parallel 3-question-per-advance flow for exactly those stages: questions drawn from
@@ -2997,6 +3113,28 @@ async function driftPersonaFromInterviewAnswer(prospectId: string): Promise<void
   await supabase.from("rec_immortality_persona_results").update({
     primary_dimension: next.primary, secondary_dimension: next.secondary, label: next.label,
   }).eq("prospect_id", prospectId);
+}
+
+/** Owner-side counterpart to driftPersonaFromInterviewAnswer -- same weighted-cumulative approach,
+ * but owners only ever answer one interview system (no stage-interview equivalent), so this only
+ * sums rec_immortality_owner_interview_answers. */
+async function driftPersonaFromOwnerInterviewAnswer(ownerId: string): Promise<void> {
+  const persona = await supabase.from("rec_immortality_owner_persona_results").select("scores,primary_dimension,secondary_dimension").eq("owner_id", ownerId).maybeSingle();
+  if (!persona.data) return; // no baseline Persona yet -- nothing to drift
+  const baseScores = (persona.data.scores ?? emptyPersonaScores()) as PersonaScores;
+  const ORIGINAL_INTERVIEW_WEIGHT = 3;
+  let cumulative = emptyPersonaScores();
+  for (const dimension of Object.keys(cumulative) as Array<keyof PersonaScores>) {
+    cumulative[dimension] = baseScores[dimension] * ORIGINAL_INTERVIEW_WEIGHT;
+  }
+  const answers = await supabase.from("rec_immortality_owner_interview_answers").select("dna_points").eq("owner_id", ownerId);
+  for (const row of answers.data ?? []) cumulative = addPersonaPoints(cumulative, (row.dna_points ?? {}) as Partial<PersonaScores>);
+
+  const next = resolvePersona(cumulative);
+  if (next.primary === persona.data.primary_dimension && next.secondary === persona.data.secondary_dimension) return;
+  await supabase.from("rec_immortality_owner_persona_results").update({
+    primary_dimension: next.primary, secondary_dimension: next.secondary, label: next.label,
+  }).eq("owner_id", ownerId);
 }
 
 /** Resolves team name + persona dimension and hands off to interview-headline.ts -- shared by
@@ -3177,6 +3315,60 @@ const MEDIA_DAY_REACTION_TEMPLATES: Array<(name: string, quote: string) => strin
   (name, quote) => `"${quote}" -- ${name} said that with his whole chest at Media Day. bold.`,
   (name, quote) => `${name} didn't have to say "${quote}" but he did anyway. love that for him.`,
 ];
+
+/** Owner-side counterpart to queueMediaDayPlayerTweet -- no opponent line (owners don't have a
+ * weekly opponent), otherwise the same highlighted-quotes tweet shape. */
+async function queueOwnerInterviewTweet(input: {
+  leagueId: string; season: number; week: number;
+  owner: { id: string; first_name: string | null; last_name: string | null };
+  answers: Array<{ rendered_question: unknown; option_index: number }>;
+}): Promise<void> {
+  const { handle, displayName } = twitterHandleForProspect(input.owner);
+
+  const quotes = input.answers.map((row) => {
+    const question = row.rendered_question as { question: string; options: Array<{ text: string }> };
+    return { question: question.question, answer: question.options[row.option_index]?.text ?? "" };
+  }).filter((q) => q.answer);
+  if (!quotes.length) return;
+
+  const highlighted = quotes.length > 1 ? [quotes[0]!, quotes[quotes.length - 1]!] : quotes;
+  const quoteLines = highlighted.map((q) => `On "${q.question}" — "${q.answer}"`).join(" ");
+  const intro = OWNER_INTERVIEW_TWEET_INTROS[Math.floor(Math.random() * OWNER_INTERVIEW_TWEET_INTROS.length)]!(displayName);
+
+  const body = `${intro} ${quoteLines}`.replace(/\s+/g, " ").trim();
+  const { pickCatalogTweetAuthor } = await import("./tweet-generation.service.js");
+  const author = pickCatalogTweetAuthor([...String(input.owner.id ?? handle), String(input.week)].reduce((sum, char) => sum + char.charCodeAt(0), 0));
+
+  await supabase.from("rec_immortality_tweet_queue").insert({
+    league_id: input.leagueId, season_number: input.season, week_number: input.week,
+    author_kind: author.authorKind, author_handle: author.handle, author_display_name: author.displayName,
+    body, status: "pending", source: "owner_interview",
+  });
+}
+
+const OWNER_INTERVIEW_TWEET_INTROS: Array<(name: string) => string> = [
+  (name) => `${name} sat down for this week's owner check-in.`,
+  (name) => `Straight from the owner's box -- ${name} didn't hold back this week.`,
+  (name) => `${name} on where this franchise stands right now:`,
+  (name) => `${name} addressed the fanbase directly this week.`,
+  (name) => `A few honest words from ${name} this week:`,
+];
+
+async function payOwnerInterviewCompletionCoins(input: {
+  leagueId: string; season: number; week: number; ownerId: string; userId: string;
+}): Promise<void> {
+  const { creditOrBacklog } = await import("../economy/economy-backlog.js");
+  await creditOrBacklog({
+    leagueId: input.leagueId,
+    seasonNumber: input.season,
+    userId: input.userId,
+    amount: RISE_TO_IMMORTALITY_OWNER_INTERVIEW_PAYOUT,
+    description: `Rise to Immortality Owner Interview — Week ${input.week} interview completed`,
+    transactionType: "immortality_owner_interview_payout",
+    source: "owner_interview",
+    sourceReference: { ownerId: input.ownerId, week: input.week, season: input.season },
+  });
+}
 
 async function payMediaDayCompletionCoins(input: {
   leagueId: string; season: number; week: number; prospect: Record<string, any>; userId: string;

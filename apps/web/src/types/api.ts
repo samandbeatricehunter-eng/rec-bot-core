@@ -552,6 +552,7 @@ export type HubResponse = {
     pendingContracts: number;
     weeklyChallenges: Array<{ prospectId: string; side: string; name: string; position: string; challenges: Array<{ id: string; tier: string; label: string; complete: boolean }> }>;
     playerSnapshots: Array<{ playerId: string; playerName: string; position: string | null; side: string; headshotUrl: string | null; teamName: string; teamAbbr: string | null; teamLogoUrl: string | null; seasonLines: string[]; positionRank: number | null; positionCount: number | null; hofProgress: number; xpProgressPct: number; playerXpTotal: number }>;
+    owner: { name: string; headshotUrl: string | null } | null;
   } | null };
   canManageLeague: boolean;
   commissionerTier: "commissioner" | "co_commissioner" | null;

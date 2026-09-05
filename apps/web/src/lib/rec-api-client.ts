@@ -1229,6 +1229,27 @@ export const recApi = {
   submitImmortalityStageInterview: (input: { guildId: string; side: "offense" | "defense"; questionId: number; optionIndex: number }) =>
     recApiFetch<{ question: unknown; answer: Record<string, unknown>; slot?: number; complete: boolean }>("/v1/immortality/interview/stage/submit", { method: "POST", body: JSON.stringify(input) }),
 
+  // Owner interview — Overview page's middle owner panel (RiseOverviewMediaDay.tsx). One
+  // endpoint pair for every league stage; the server picks the stage-appropriate bucket.
+  getImmortalityOwnerInterview: (input: { guildId: string }) =>
+    recApiFetch<{
+      season: number;
+      seasonStage: string;
+      group: string;
+      complete: boolean;
+      questions: Array<{ id: number; group: string; question: string; options: Array<{ text: string }> }>;
+      answers: Array<{ slot: number; question_id: number; option_index: number }>;
+    }>("/v1/immortality/owner/interview", { method: "POST", body: JSON.stringify(input) }),
+  submitImmortalityOwnerInterview: (input: { guildId: string; questionId: number; optionIndex: number }) =>
+    recApiFetch<{ question: unknown; answer: Record<string, unknown>; slot: number; complete: boolean }>("/v1/immortality/owner/interview/submit", { method: "POST", body: JSON.stringify(input) }),
+
+  // Custom headshot upload — tap-to-upload panel on the Overview page's three portraits
+  // (offense prospect, owner, defense prospect).
+  uploadImmortalityProspectHeadshot: (input: { guildId: string; side: "offense" | "defense"; contentType: string; imageBase64: string }) =>
+    recApiFetch<{ headshotUrl: string }>("/v1/immortality/prospect/headshot/upload", { method: "POST", body: JSON.stringify(input) }),
+  uploadImmortalityOwnerHeadshot: (input: { guildId: string; contentType: string; imageBase64: string }) =>
+    recApiFetch<{ headshotUrl: string }>("/v1/immortality/owner/headshot/upload", { method: "POST", body: JSON.stringify(input) }),
+
   // Fantasy/offseason draft turn-order coordinator — all actions require a website session.
   getFantasyDraftState: (guildId: string) =>
     recApiFetch<FantasyDraftState>("/v1/fantasy-draft/state", { method: "POST", body: JSON.stringify({ guildId }) }),

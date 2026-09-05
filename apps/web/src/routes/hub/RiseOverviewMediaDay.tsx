@@ -158,6 +158,74 @@ function StageSideMediaDay({ guildId, side, label }: { guildId: string; side: Si
   );
 }
 
+type OwnerInterview = Awaited<ReturnType<typeof recApi.getImmortalityOwnerInterview>>;
+
+function OwnerMediaDay({ guildId }: { guildId: string }) {
+  const [data, setData] = useState<OwnerInterview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const next = await recApi.getImmortalityOwnerInterview({ guildId });
+    setData(next);
+  }, [guildId]);
+
+  useEffect(() => {
+    load().catch(() => setData(null));
+  }, [load]);
+
+  if (!data) return null;
+  const currentQuestion = data.questions[data.answers.length] ?? null;
+
+  return (
+    <div className="hub-media-day-side hub-media-day-owner">
+      <h4>Owner</h4>
+      {data.answers.map((answer) => {
+        const question = data.questions[answer.slot - 1];
+        if (!question) return null;
+        return (
+          <div key={answer.slot} className="hub-media-day-answered">
+            <p className="hub-muted">{question.question}</p>
+            <p><strong>{question.options[answer.option_index]?.text ?? "Answered"}</strong></p>
+          </div>
+        );
+      })}
+      {data.complete ? (
+        <p className="hub-muted">Owner interview complete for this week — 100 coins earned.</p>
+      ) : currentQuestion ? (
+        <div className="hub-media-day-question">
+          <p>{currentQuestion.question}</p>
+          <div className="hub-media-day-options">
+            {currentQuestion.options.map((option, index) => (
+              <button
+                key={index}
+                type="button"
+                className="hub-my-team-btn"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    await recApi.submitImmortalityOwnerInterview({ guildId, questionId: currentQuestion.id, optionIndex: index });
+                    await load();
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Could not save that answer.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {option.text}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {error ? <p className="hub-error">{error}</p> : null}
+    </div>
+  );
+}
+
 export function RiseOverviewMediaDayCard({ guildId, seasonStage, game }: { guildId: string; seasonStage: string; game: LeagueGame }) {
   const inGameplayStage = stageHasScheduledGames(seasonStage, game);
   return (
@@ -165,15 +233,15 @@ export function RiseOverviewMediaDayCard({ guildId, seasonStage, game }: { guild
       <p className="hub-eyebrow">Media Day</p>
       <div className="hub-media-day-grid">
         {inGameplayStage ? (
-          <>
-            <SideMediaDay guildId={guildId} side="offense" label="Offense" />
-            <SideMediaDay guildId={guildId} side="defense" label="Defense" />
-          </>
+          <SideMediaDay guildId={guildId} side="offense" label="Offense" />
         ) : (
-          <>
-            <StageSideMediaDay guildId={guildId} side="offense" label="Offense" />
-            <StageSideMediaDay guildId={guildId} side="defense" label="Defense" />
-          </>
+          <StageSideMediaDay guildId={guildId} side="offense" label="Offense" />
+        )}
+        <OwnerMediaDay guildId={guildId} />
+        {inGameplayStage ? (
+          <SideMediaDay guildId={guildId} side="defense" label="Defense" />
+        ) : (
+          <StageSideMediaDay guildId={guildId} side="defense" label="Defense" />
         )}
       </div>
     </section>

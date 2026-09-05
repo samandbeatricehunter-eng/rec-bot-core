@@ -34,6 +34,9 @@ export const RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT = 100;
  * award for a member's participation in extra opportunities (not tied to any specific in-game
  * event), so it isn't computed from anything else the way the payouts above are. */
 export const RISE_TO_IMMORTALITY_COMMISSIONER_BONUS_AMOUNT = 100;
+/** Paid once per week when an owner completes that week's 3-question owner interview -- the
+ * owner-side counterpart to RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT. */
+export const RISE_TO_IMMORTALITY_OWNER_INTERVIEW_PAYOUT = 100;
 
 export const RISE_TO_IMMORTALITY_TEAM_POOLS = ["default_nfl", "custom_32"] as const;
 export type RiseToImmortalityTeamPool = (typeof RISE_TO_IMMORTALITY_TEAM_POOLS)[number];
@@ -60,6 +63,7 @@ export const RISE_TO_IMMORTALITY_ALLOWED_COIN_SOURCES = [
   "gotw",
   "interview",
   "media_day",
+  "owner_interview",
   "commissioner_bonus",
 ] as const;
 

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, regularSeasonWeeks, stageHasScheduledGames, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
+import { HeadshotUploadOverlay } from "../../components/hub/HeadshotUploadOverlay.js";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
@@ -1792,19 +1793,42 @@ export function HubHome() {
                   </div>
                 ) : null;
               })() : null}
-              {isRise && rtiGates?.playerSnapshots?.length ? <div className="hub-rti-player-snapshot-grid">
-                {rtiGates.playerSnapshots.map((player) => <article key={player.playerId} className="hub-rti-player-snapshot-card">
-                  <div className="hub-rti-player-portrait">
-                    {player.headshotUrl ? <img src={player.headshotUrl} alt={`${player.playerName} headshot`} /> : <span>{player.playerName.slice(0, 1)}</span>}
-                    {player.teamLogoUrl ? <img className="hub-rti-player-team-logo" src={player.teamLogoUrl} alt="" /> : null}
-                  </div>
-                  <div className="hub-rti-player-copy">
-                    <p>{player.teamAbbr ?? player.teamName} · {player.position ?? "Player"}</p>
-                    <h3>{player.playerName}</h3>
-                    <div className="hub-rti-player-rank"><strong>{player.positionRank ? `#${player.positionRank}` : "—"}</strong><span>{player.position ?? "POS"} league rank{player.positionCount ? ` · ${player.positionCount} ranked` : ""}</span></div>
-                    <ul>{player.seasonLines.map((line, index) => <li key={`${player.playerId}-${index}`}>{line}</li>)}</ul>
-                  </div>
-                </article>)}
+              {isRise && rtiGates?.playerSnapshots?.length ? <div className={`hub-rti-player-snapshot-grid${rtiGates.owner ? " has-owner" : ""}`}>
+                {rtiGates.playerSnapshots.map((player, index) => <Fragment key={player.playerId}>
+                  <article className="hub-rti-player-snapshot-card">
+                    <HeadshotUploadOverlay disabled={!readyGuildId} onUpload={async (resized) => {
+                      if (!readyGuildId) return;
+                      await recApi.uploadImmortalityProspectHeadshot({ guildId: readyGuildId, side: player.side === "defense" ? "defense" : "offense", ...resized });
+                      await load();
+                    }}>
+                      <div className="hub-rti-player-portrait">
+                        {player.headshotUrl ? <img src={player.headshotUrl} alt={`${player.playerName} headshot`} /> : <span>{player.playerName.slice(0, 1)}</span>}
+                        {player.teamLogoUrl ? <img className="hub-rti-player-team-logo" src={player.teamLogoUrl} alt="" /> : null}
+                      </div>
+                    </HeadshotUploadOverlay>
+                    <div className="hub-rti-player-copy">
+                      <p>{player.teamAbbr ?? player.teamName} · {player.position ?? "Player"}</p>
+                      <h3>{player.playerName}</h3>
+                      <div className="hub-rti-player-rank"><strong>{player.positionRank ? `#${player.positionRank}` : "—"}</strong><span>{player.position ?? "POS"} league rank{player.positionCount ? ` · ${player.positionCount} ranked` : ""}</span></div>
+                      <ul>{player.seasonLines.map((line, lineIndex) => <li key={`${player.playerId}-${lineIndex}`}>{line}</li>)}</ul>
+                    </div>
+                  </article>
+                  {index === 0 && rtiGates.owner ? <article className="hub-rti-player-snapshot-card hub-rti-owner-snapshot-card">
+                    <HeadshotUploadOverlay disabled={!readyGuildId} onUpload={async (resized) => {
+                      if (!readyGuildId) return;
+                      await recApi.uploadImmortalityOwnerHeadshot({ guildId: readyGuildId, ...resized });
+                      await load();
+                    }}>
+                      <div className="hub-rti-player-portrait">
+                        {rtiGates.owner.headshotUrl ? <img src={rtiGates.owner.headshotUrl} alt={`${rtiGates.owner.name} headshot`} /> : <span>{rtiGates.owner.name.slice(0, 1)}</span>}
+                      </div>
+                    </HeadshotUploadOverlay>
+                    <div className="hub-rti-player-copy">
+                      <p>Owner</p>
+                      <h3>{rtiGates.owner.name}</h3>
+                    </div>
+                  </article> : null}
+                </Fragment>)}
               </div> : null}
               {isRise && rtiGates?.playerSnapshots?.length ? <div className="hub-rti-hof-progress-grid">
                 {rtiGates.playerSnapshots.map((player) => <article key={`hof-${player.playerId}`}>

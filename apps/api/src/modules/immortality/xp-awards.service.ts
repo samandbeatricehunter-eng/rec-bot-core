@@ -462,6 +462,7 @@ export async function loadRtiMemberGates(input: {
     xpProgressPct: number;
   }>;
   pendingContracts: number;
+  owner: { name: string; headshotUrl: string | null } | null;
 }> {
   const storeUnlocked = gameplaySeasonStages(input.game).has(input.seasonStage);
   const imported = await supabase.from("rec_players")
@@ -477,10 +478,17 @@ export async function loadRtiMemberGates(input: {
     weeklyChallenges: [] as WeeklyChallengeView[],
     playerSnapshots: [],
     pendingContracts: 0,
+    owner: null,
   };
   if (!input.userId) return empty;
   const immortality = await loadImmortalityLeague(input.leagueId);
   if (!immortality) return empty;
+  const ownerRow = await supabase.from("rec_immortality_owners")
+    .select("first_name,last_name,headshot_url")
+    .eq("immortality_league_id", immortality.id).eq("user_id", input.userId).maybeSingle();
+  const owner = ownerRow.data
+    ? { name: `${ownerRow.data.first_name ?? ""} ${ownerRow.data.last_name ?? ""}`.trim() || "Owner", headshotUrl: ownerRow.data.headshot_url ?? null }
+    : null;
   const prospects = await supabase.from("rec_immortality_prospects")
     .select("id,side,position,player_id,headshot_url,xp_points_balance")
     .eq("immortality_league_id", immortality.id)
@@ -555,5 +563,6 @@ export async function loadRtiMemberGates(input: {
     weeklyChallenges,
     playerSnapshots: playerSnapshots.filter((row): row is NonNullable<typeof row> => Boolean(row)),
     pendingContracts: Number(pending.count ?? 0),
+    owner,
   };
 }
