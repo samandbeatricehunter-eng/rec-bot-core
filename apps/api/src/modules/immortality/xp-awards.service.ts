@@ -13,6 +13,7 @@ import {
   pointsTowardNextLevel,
   positionGroupFor,
   RECORD_SET_BONUS_POINTS,
+  WEEKLY_SWEEP_BONUS_PCT,
   XP_POINTS_PER_LEVEL,
   type CharacteristicModifiers,
   type ImmortalityPosition,
@@ -327,9 +328,13 @@ export async function awardImmortalityChallengesAfterAdvance(input: {
     const seed = `${immortality.id}:${input.seasonNumber}:${input.weekNumber}:${prospect.id}`;
     const challengeStats = rivalry.isRivalryGame ? elevateStatsForRivalry(weekStats) : weekStats;
     const weekly = issuedWeeklyChallenges({ position: String(prospect.position), seed, stats: challengeStats });
-    for (const challenge of weekly) {
-      if (!challenge.complete) continue;
+    // Gold weekly challenges no longer grant an ability slot -- ability access is meant to come
+    // from progression ownership, dev trait, and Madden eligibility, not challenge completion.
+    let weeklyPointsAwarded = 0;
+    const completedWeekly = weekly.filter((row) => row.complete);
+    for (const challenge of completedWeekly) {
       const points = Math.round(pointsForWeeklyTier(challenge.tier as "bronze" | "silver" | "gold") * rivalry.multiplier);
+      weeklyPointsAwarded += points;
       await creditXpPoints({
         prospectId: String(prospect.id),
         eventType: `weekly_${challenge.tier}`,
@@ -339,13 +344,6 @@ export async function awardImmortalityChallengesAfterAdvance(input: {
         week: input.weekNumber,
         modifiers,
       });
-      if (challenge.tier === "gold") {
-        await grantAbilitySlot({
-          prospectId: String(prospect.id),
-          eventType: "weekly_gold",
-          sourceId: `${input.seasonNumber}:${input.weekNumber}`,
-        });
-      }
     }
     if (rivalry.isRivalryGame && rivalry.won) {
       const { creditOrBacklog } = await import("../economy/economy-backlog.js");
@@ -365,12 +363,19 @@ export async function awardImmortalityChallengesAfterAdvance(input: {
         leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, prospectId: String(prospect.id),
       }).catch((error) => console.error(`[ERROR] Rivalry promotion post failed for prospect ${prospect.id} (non-fatal):`, error));
     }
-    if (weekly.length === 3 && weekly.every((row) => row.complete) && modifiers.weeklySweepBonusXp > 0) {
+    // Universal Weekly Sweep (all 3 tiers complete -> +30%) and Competitive Drive (2+ of 3
+    // complete -> +5%) both apply as a single additive percentage on top of the completed
+    // challenges' own points -- never compounded, and never gated behind owning a specific
+    // characteristic for the Sweep bonus. Both conditions can apply the same week.
+    const sweptAll = weekly.length === 3 && completedWeekly.length === 3;
+    const competitiveDriveEligible = completedWeekly.length >= 2 && modifiers.competitiveDriveBonusPct > 0;
+    const weeklyBonusPct = (sweptAll ? WEEKLY_SWEEP_BONUS_PCT : 0) + (competitiveDriveEligible ? modifiers.competitiveDriveBonusPct : 0);
+    if (weeklyBonusPct > 0 && weeklyPointsAwarded > 0) {
       await creditXpPoints({
         prospectId: String(prospect.id),
-        eventType: "weekly_sweep_bonus",
-        sourceId: `${input.seasonNumber}:${input.weekNumber}:sweep`,
-        points: modifiers.weeklySweepBonusXp * XP_POINTS_PER_LEVEL,
+        eventType: "weekly_bonus",
+        sourceId: `${input.seasonNumber}:${input.weekNumber}:bonus`,
+        points: Math.round(weeklyPointsAwarded * weeklyBonusPct),
         season: input.seasonNumber,
         week: input.weekNumber,
         modifiers,

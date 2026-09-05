@@ -23,7 +23,10 @@ export type CharacteristicModifiers = {
   negotiatorMultiplier: number;
   knownCommodityFloor: boolean;
   startDevStar: boolean;
-  weeklySweepBonusXp: number;
+  /** Completing at least 2 of the week's 3 weekly challenges gives this % bonus (additive with
+   * the universal Weekly Sweep bonus, applied to the same completed-challenge point total) --
+   * see WEEKLY_SWEEP_BONUS_PCT in xp.ts and awardImmortalityChallengesAfterAdvance. */
+  competitiveDriveBonusPct: number;
   devTraitPurchaseUnlocked: boolean;
   teammateDevPurchaseUnlocked: boolean;
   tradeAccess: boolean;
@@ -77,7 +80,7 @@ export function emptyModifiers(): CharacteristicModifiers {
     negotiatorMultiplier: 1,
     knownCommodityFloor: false,
     startDevStar: false,
-    weeklySweepBonusXp: 0,
+    competitiveDriveBonusPct: 0,
     devTraitPurchaseUnlocked: false,
     teammateDevPurchaseUnlocked: false,
     tradeAccess: false,
@@ -127,7 +130,7 @@ export function modifiersFromDefinition(input: {
       modifiers.startDevStar = true;
       break;
     case "competitive_drive":
-      modifiers.weeklySweepBonusXp = 2;
+      modifiers.competitiveDriveBonusPct = 0.05;
       break;
     case "self_made":
       modifiers.devTraitPurchaseUnlocked = true;
@@ -147,8 +150,11 @@ export function modifiersFromDefinition(input: {
   return modifiers;
 }
 
+/** Post-draft/Progression-Tree attribute-upgrade discount -- unlike creation discounts, these
+ * stack additively with no percentage cap (any per-upgrade floor is enforced separately by
+ * discountedXpCost's Math.max(1, ...) in xp.ts, not here). */
 export function xpDiscountForAttribute(modifiers: CharacteristicModifiers, attributeCode: string): number {
-  return stackDiscounts([modifiers.xpDiscounts[attributeCode] ?? 0, modifiers.xpDiscounts[ALL_ATTRIBUTES_DISCOUNT_CODE] ?? 0]);
+  return stackPostDraftDiscounts([modifiers.xpDiscounts[attributeCode] ?? 0, modifiers.xpDiscounts[ALL_ATTRIBUTES_DISCOUNT_CODE] ?? 0]);
 }
 
 export function creationDiscountForAttribute(modifiers: CharacteristicModifiers, attributeCode: string): number {
@@ -162,6 +168,9 @@ export function attributeCodesFor(definition: Pick<CharacteristicDefinition, "mo
   return Object.keys(definition.modifiers.creationDiscounts);
 }
 
+/** Creation-time discount stacking only (Origins characteristics against baseline Creation
+ * Points cost) -- capped, with diminishing returns on overlapping perks. Post-draft/Progression-
+ * Tree attribute-upgrade discounts use stackPostDraftDiscounts below instead, which is uncapped. */
 export function stackDiscounts(rates: number[]): number {
   const sorted = [...rates].filter((rate) => rate > 0).sort((a, b) => b - a);
   if (!sorted.length) return 0;
@@ -172,6 +181,14 @@ export function stackDiscounts(rates: number[]): number {
     total += sorted[index] * weight;
   }
   return Math.min(MAX_ATTRIBUTE_DISCOUNT, total);
+}
+
+/** Post-draft/Progression-Tree attribute-upgrade discount stacking -- plain additive sum, no
+ * percentage cap and no diminishing weight on overlapping perks (unlike the creation-time
+ * stackDiscounts above). A per-upgrade cost floor is still enforced downstream by
+ * discountedXpCost's Math.max(1, ...) in xp.ts, so this can legitimately exceed 100%. */
+export function stackPostDraftDiscounts(rates: number[]): number {
+  return rates.reduce((total, rate) => total + Math.max(0, rate), 0);
 }
 
 export function combinedModifiers(selected: CharacteristicDefinition[]): CharacteristicModifiers {
@@ -185,7 +202,7 @@ export function combinedModifiers(selected: CharacteristicDefinition[]): Charact
     combined.negotiatorMultiplier *= item.modifiers.negotiatorMultiplier;
     combined.knownCommodityFloor = combined.knownCommodityFloor || item.modifiers.knownCommodityFloor;
     combined.startDevStar = combined.startDevStar || item.modifiers.startDevStar;
-    combined.weeklySweepBonusXp += item.modifiers.weeklySweepBonusXp;
+    combined.competitiveDriveBonusPct += item.modifiers.competitiveDriveBonusPct;
     combined.devTraitPurchaseUnlocked = combined.devTraitPurchaseUnlocked || item.modifiers.devTraitPurchaseUnlocked;
     combined.teammateDevPurchaseUnlocked = combined.teammateDevPurchaseUnlocked || item.modifiers.teammateDevPurchaseUnlocked;
     combined.tradeAccess = combined.tradeAccess || item.modifiers.tradeAccess;
@@ -200,7 +217,7 @@ export function combinedModifiers(selected: CharacteristicDefinition[]): Charact
     combined.creationDiscounts[code] = stackDiscounts(rates);
   }
   for (const [code, rates] of Object.entries(xpRates)) {
-    combined.xpDiscounts[code] = stackDiscounts(rates);
+    combined.xpDiscounts[code] = stackPostDraftDiscounts(rates);
   }
   return combined;
 }

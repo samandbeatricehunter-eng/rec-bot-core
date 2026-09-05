@@ -183,7 +183,7 @@
     {
       "name": "Competitive Drive",
       "slot_cost": 1,
-      "effect": "Completing all three issued weekly challenges grants +2 bonus Player XP, once per league week.",
+      "effect": "Completing at least 2 of the week's 3 weekly challenges gives the completed challenges' points a +5% bonus.",
       "why_it_costs_that": "Requires performance rather than granting passive ratings.",
       "tags": "xp",
       "synergy": []

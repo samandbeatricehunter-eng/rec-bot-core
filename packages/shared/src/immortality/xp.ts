@@ -20,6 +20,13 @@ export const DEV_OVR_CEILING: Record<ImmortalityDevTrait, number> = {
 // of 20-25 XP, and an all-time season that also breaks a record lands just over it.
 export const XP_POINTS_PER_LEVEL = 6000;
 
+/** Sweeping all 3 weekly tiers (bronze+silver+gold) in one week always applies this bonus to
+ * that week's combined completed-challenge points, regardless of any equipped characteristic --
+ * see awardImmortalityChallengesAfterAdvance. Stacks additively with Competitive Drive's
+ * completed-challenge bonus (CharacteristicModifiers.competitiveDriveBonusPct), never
+ * compounded. */
+export const WEEKLY_SWEEP_BONUS_PCT = 0.3;
+
 export const WEEKLY_CHALLENGE_POINTS = { bronze: 1000, silver: 2500, gold: 5000 } as const;
 export const SEASON_MILESTONE_POINTS = { tier1: 10000, tier2: 25000, tier3: 50000 } as const;
 export const CAREER_MILESTONE_POINTS = { minor: 200000, major: 400000, historic: 700000 } as const;
@@ -44,9 +51,13 @@ export function xpCostForPlusOne(currentValue: number): number {
   return 30;
 }
 
+/** Post-draft attribute-upgrade cost, given an uncapped discount (see
+ * characteristics.ts:stackPostDraftDiscounts -- Origins/Progression-Tree discounts stack
+ * additively here with no percentage ceiling). The only floor is the final 1-XP minimum below;
+ * a discount at or above 100% still costs 1 XP, never 0 or negative. */
 export function discountedXpCost(currentValue: number, discount: number): number {
   const raw = xpCostForPlusOne(currentValue);
-  return Math.max(1, Math.round(raw * (1 - Math.min(0.3, Math.max(0, discount)))));
+  return Math.max(1, Math.round(raw * (1 - Math.max(0, discount))));
 }
 
 export function ledgerXpBalance(rows: Array<{ player_xp_delta?: number | null; team_xp_delta?: number | null }>): { playerXp: number; teamXp: number } {

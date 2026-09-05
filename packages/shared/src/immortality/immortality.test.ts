@@ -61,6 +61,9 @@ import {
   effectiveDevTrait,
   purchaseDevTraitPromotion,
   purchaseTeammateDevTraitPromotion,
+  combinedModifiers,
+  stackPostDraftDiscounts,
+  WEEKLY_SWEEP_BONUS_PCT,
 } from "./index.js";
 
 test("Rise to Immortality is a Madden 27 template that disables store purchases", () => {
@@ -545,6 +548,37 @@ test("Self-Made unlocks self promotion; Development Staff unlocks teammate promo
   assert.equal(blockedSelf.ok, false);
   const teammate = purchaseTeammateDevTraitPromotion({ currentDevTrait: "star", availableXp: 30, teammateDevPurchaseUnlocked: true });
   assert.equal(teammate.ok, true);
+});
+
+test("post-draft attribute discounts stack additively with no cap; creation discounts stay capped", () => {
+  // Post-draft/Progression-Tree path: plain sum, no ceiling.
+  assert.ok(Math.abs(stackPostDraftDiscounts([0.15, 0.08, 0.05, 0.05]) - 0.33) < 1e-9);
+  assert.ok(Math.abs(stackPostDraftDiscounts([0.5, 0.4, 0.3]) - 1.2) < 1e-9);
+  // Creation path is unaffected by the split -- still capped at 30% with diminishing weights.
+  const creationStacked = stackDiscounts([0.2, 0.2, 0.2]);
+  assert.ok(creationStacked <= MAX_ATTRIBUTE_DISCOUNT);
+});
+
+test("discountedXpCost floors at 1 XP even when the post-draft discount exceeds 100%", () => {
+  const zeroDiscount = discountedXpCost(90, 0);
+  assert.equal(zeroDiscount, 12);
+  const halved = discountedXpCost(90, 0.5);
+  assert.equal(halved, 6);
+  const over100 = discountedXpCost(90, 1.5);
+  assert.equal(over100, 1);
+  const negative = discountedXpCost(90, -0.5);
+  assert.equal(negative, 12);
+});
+
+test("Competitive Drive contributes a completed-challenge % bonus via combinedModifiers, not a flat XP amount", () => {
+  const catalog = characteristicCatalog("QB");
+  const competitiveDrive = catalog.find((item) => item.key === "competitive_drive");
+  assert.ok(competitiveDrive);
+  assert.equal(competitiveDrive!.modifiers.competitiveDriveBonusPct, 0.05);
+  const combined = combinedModifiers([competitiveDrive!]);
+  assert.equal(combined.competitiveDriveBonusPct, 0.05);
+  // Weekly Sweep itself is a fixed constant, not tied to any equipped characteristic.
+  assert.equal(WEEKLY_SWEEP_BONUS_PCT, 0.3);
 });
 
 test("Progression Tree purchases are additive, gated by tier, and never Origins-only perks", () => {
