@@ -4330,6 +4330,63 @@ h1, h2, h3, .site-wordmark {
 .rise-ability-item { display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); }
 .rise-ability-locked { max-height: 280px; overflow: auto; }
 
+/* Progression Tree skill-tree layout -- a vertical trunk with each tier's nodes fanned out in a
+   wrapping row underneath, connected by short stub lines up to a shared horizontal rung. Stays
+   naturally mobile-friendly since it's fundamentally one column that grows downward (unlike the
+   wide side-by-side trees this was modeled on) -- narrow screens just wrap each row to fewer
+   nodes per line rather than needing horizontal scroll. */
+.rise-tree-card { align-items: stretch; }
+.rise-tree { display: flex; flex-direction: column; align-items: center; width: 100%; }
+.rise-tree-trunk-segment {
+  width: 2px; height: 26px;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 65%, transparent), transparent);
+}
+.rise-tree-tier { position: relative; display: flex; flex-direction: column; align-items: center; width: 100%; }
+.rise-tree-tier-label {
+  margin: 6px 0 2px; font-family: var(--font-display, inherit); font-size: 12px; font-weight: 900;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--accent-bright);
+}
+.rise-tree-tier-hint { margin: 0 0 14px; font-size: 12px; text-align: center; }
+.rise-tree-row {
+  position: relative; display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start;
+  gap: 20px 22px; width: 100%; padding-top: 16px;
+}
+.rise-tree-row-origins { padding-top: 4px; }
+.rise-tree-row:not(.rise-tree-row-origins)::before {
+  content: ""; position: absolute; top: 0; left: 50%; width: min(60%, 420px); height: 1px;
+  background: color-mix(in srgb, var(--accent) 40%, transparent); transform: translateX(-50%);
+}
+.rise-tree-node {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: 100px; padding: 0; border: 0; background: none; text-align: center; cursor: pointer; font: inherit; color: inherit;
+}
+.rise-tree-row:not(.rise-tree-row-origins) > .rise-tree-node::before {
+  content: ""; position: absolute; top: -16px; left: 50%; width: 1px; height: 16px;
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.rise-tree-node-badge {
+  width: 60px; height: 60px; border-radius: 16px; display: grid; place-items: center;
+  border: 2px solid color-mix(in srgb, var(--accent) 32%, var(--border)); background: rgba(8, 8, 10, .92);
+  font-family: var(--font-display, inherit); font-size: 22px; font-weight: 900; color: var(--muted, #9aa3b2);
+  transition: border-color .15s ease, box-shadow .15s ease, color .15s ease, background .15s ease;
+}
+.rise-tree-node.is-root .rise-tree-node-badge { width: 48px; height: 48px; font-size: 17px; border-radius: 12px; }
+.rise-tree-node.is-owned .rise-tree-node-badge,
+.rise-tree-node.is-root .rise-tree-node-badge {
+  border-color: var(--accent); color: var(--accent-bright);
+  background: color-mix(in srgb, var(--accent) 20%, rgba(8, 8, 10, .92));
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.rise-tree-node.is-available .rise-tree-node-badge { border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); color: var(--text); }
+.rise-tree-node.is-locked .rise-tree-node-badge { opacity: .4; }
+.rise-tree-node.is-selected .rise-tree-node-badge { box-shadow: 0 0 0 2px var(--accent-bright), 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent); }
+.rise-tree-node:hover:not(.is-root) .rise-tree-node-badge { border-color: var(--accent-bright); }
+.rise-tree-node-name { font-size: 11px; font-weight: 800; line-height: 1.25; }
+.rise-tree-node-cost { font-size: 10px; font-weight: 800; color: var(--accent-bright); text-transform: uppercase; letter-spacing: .04em; }
+.rise-tree-detail { margin-top: var(--space-2); padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: rgba(0, 0, 0, .18); }
+.rise-tree-detail-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: 4px; }
+.rise-tree-detail-hint { text-align: center; margin-top: var(--space-2); }
+
 /* Full-viewport-ish centered stage for the pre-Origins moments (video gate, split chooser) --
    deliberately sparser than .rise-page's normal top-down flow so "title, video, and that's it"
    reads as a real cinematic beat instead of a form page. Negative margins pull it past the page

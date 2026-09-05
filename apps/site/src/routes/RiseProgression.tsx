@@ -21,6 +21,7 @@ export function RiseProgressionPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [teammateId, setTeammateId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
 
   const reloadSide = useCallback(async (targetSide: Side) => {
     if (!guildId) return;
@@ -82,7 +83,7 @@ export function RiseProgressionPage() {
       {loading ? null : availableSides.length ? (
         <label className="form-field" style={{ maxWidth: 320 }}>
           <span className="form-label">Player</span>
-          <select className="form-input" value={side} onChange={(event) => setSide(event.target.value as Side)}>
+          <select className="form-input" value={side} onChange={(event) => { setSide(event.target.value as Side); setSelectedNodeKey(null); }}>
             {availableSides.map((value) => (
               <option key={value} value={value}>{states[value]?.name} ({value === "offense" ? "Offense" : "Defense"})</option>
             ))}
@@ -112,8 +113,12 @@ export function RiseProgressionPage() {
           <section className="rise-card">
             <h2>Season trend</h2>
             <p className="site-muted">
-              Automatic promotions watch weekly-challenge medals this season — not career milestones.
-              Gold is 3 points, silver 2, bronze 1. One automatic promotion per season.
+              A free, automatic path to your next Dev Trait ({labelTrait(state.currentDevTrait)}
+              {state.nextDevTrait ? ` → ${labelTrait(state.nextDevTrait)}` : ""}) — no Player XP spent, separate from
+              Self-Made/Development Staff above. It watches your recent weekly-challenge medals (not career
+              milestones): gold is 3 points, silver 2, bronze 1. Get hot enough over a trailing stretch of
+              recent weeks and the promotion fires on its own after the next advance. Only one automatic
+              promotion can fire per season.
             </p>
             <p>
               {state.trend.medals.length
@@ -127,40 +132,81 @@ export function RiseProgressionPage() {
             <p className="site-muted">{state.trend.reason}</p>
           </section>
 
-          {tiers.map((tier) => {
-            const nodes = state.nodes.filter((node) => node.tier === tier);
-            if (!nodes.length) return null;
-            return (
-              <section key={tier} className="rise-card">
-                <h2>Tier {tier}</h2>
-                <p className="site-muted">
-                  {tier === 2 ? "Requires two Origins (Tier 1) perks." : "Requires any Tier 2 perk."}
-                </p>
-                <ul className="rise-ability-list">
-                  {nodes.map((node) => (
-                    <li key={node.key} className="rise-ability-item">
-                      <div>
-                        <strong>{node.displayName}</strong>
-                        {" "}
-                        <span className={`rise-stock ${node.owned ? "rise-stock-rising" : "rise-stock-holding"}`}>
-                          {node.owned ? "Owned" : `${node.xpCost} XP`}
-                        </span>
-                        <p className="site-muted">{node.effect}</p>
-                        {node.blockedReason ? <p className="site-muted">{node.blockedReason}</p> : null}
-                      </div>
-                      {node.owned ? null : (
-                        <button type="button" className="site-btn site-btn-primary"
-                          disabled={busy !== null || !node.canPurchase}
-                          onClick={() => void buyPerk(node.key, node.displayName, node.xpCost)}>
-                          {busy === node.key ? "Buying…" : "Buy"}
+          <section className="rise-card rise-tree-card">
+            <h2>Skill Tree</h2>
+            <p className="site-muted">Tap a node to see what it does.</p>
+            <div className="rise-tree">
+              <div className="rise-tree-tier">
+                <p className="rise-tree-tier-label">Tier 1 · Origins</p>
+                <div className="rise-tree-row rise-tree-row-origins">
+                  {state.origins.length ? state.origins.map((origin) => (
+                    <div key={origin.key} className="rise-tree-node is-owned is-root" title={origin.effect}>
+                      <span className="rise-tree-node-badge">{origin.displayName.slice(0, 1)}</span>
+                      <span className="rise-tree-node-name">{origin.displayName}</span>
+                    </div>
+                  )) : (
+                    <p className="site-muted">No Origins natural characteristics picked yet.</p>
+                  )}
+                </div>
+              </div>
+
+              {tiers.map((tier) => {
+                const nodes = state.nodes.filter((node) => node.tier === tier);
+                if (!nodes.length) return null;
+                return (
+                  <div key={tier} className="rise-tree-tier">
+                    <div className="rise-tree-trunk-segment" />
+                    <p className="rise-tree-tier-label">Tier {tier}</p>
+                    <p className="rise-tree-tier-hint">
+                      {tier === 2 ? "Requires two Origins (Tier 1) perks." : "Requires any Tier 2 perk."}
+                    </p>
+                    <div className="rise-tree-row">
+                      {nodes.map((node) => (
+                        <button
+                          key={node.key}
+                          type="button"
+                          className={[
+                            "rise-tree-node",
+                            node.owned ? "is-owned" : node.canPurchase ? "is-available" : "is-locked",
+                            selectedNodeKey === node.key ? "is-selected" : "",
+                          ].filter(Boolean).join(" ")}
+                          onClick={() => setSelectedNodeKey((current) => current === node.key ? null : node.key)}
+                        >
+                          <span className="rise-tree-node-badge">{node.displayName.slice(0, 1)}</span>
+                          <span className="rise-tree-node-name">{node.displayName}</span>
+                          <span className="rise-tree-node-cost">{node.owned ? "Owned" : `${node.xpCost} XP`}</span>
                         </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            );
-          })}
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {(() => {
+              const detail = state.nodes.find((node) => node.key === selectedNodeKey) ?? null;
+              if (!detail) return <p className="site-muted rise-tree-detail-hint">Select a Tier 2 or Tier 3 node above for details.</p>;
+              return (
+                <div className="rise-tree-detail">
+                  <div className="rise-tree-detail-head">
+                    <strong>{detail.displayName}</strong>
+                    <span className={`rise-stock ${detail.owned ? "rise-stock-rising" : "rise-stock-holding"}`}>
+                      {detail.owned ? "Owned" : `${detail.xpCost} XP`}
+                    </span>
+                  </div>
+                  <p className="site-muted">{detail.effect}</p>
+                  {detail.blockedReason ? <p className="site-muted">{detail.blockedReason}</p> : null}
+                  {detail.owned ? null : (
+                    <button type="button" className="site-btn site-btn-primary"
+                      disabled={busy !== null || !detail.canPurchase}
+                      onClick={() => void buyPerk(detail.key, detail.displayName, detail.xpCost)}>
+                      {busy === detail.key ? "Buying…" : `Buy — ${detail.xpCost} XP`}
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+          </section>
 
           <section className="rise-card">
             <h2>Development trait</h2>
