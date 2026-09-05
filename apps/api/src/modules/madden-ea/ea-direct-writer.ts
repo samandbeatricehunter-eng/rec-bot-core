@@ -147,6 +147,15 @@ export async function directWriteSchedule(
 
     const homeUuid = homeTeamId != null ? teamUuidFromMap(teamByMaddenId, String(homeTeamId)) : null;
     const awayUuid = awayTeamId != null ? teamUuidFromMap(teamByMaddenId, String(awayTeamId)) : null;
+    // Resolved once here (not just at the rec_game_results write further down) so every rec_games
+    // row this function touches -- including a freshly scheduled, not-yet-played future week --
+    // carries its real owners. Without this, a newly inserted schedule row sits with null
+    // home_user_id/away_user_id even when both teams have an active assignment, which makes it
+    // invisible to anything that reads rec_games directly for "real H2H matchup" (confirmed live:
+    // the game-channel repair tool's eligibility filter silently skipped two Divisional-round
+    // games whose owners were both already assigned).
+    const homeUserId = homeUuid ? userByTeam.get(homeUuid) ?? null : null;
+    const awayUserId = awayUuid ? userByTeam.get(awayUuid) ?? null : null;
 
     const legacyExternalId = scheduleId != null ? String(scheduleId) : null;
     const externalId = scheduleId != null ? eaScheduleExternalId(displayWeek, scheduleId) : null;
@@ -199,17 +208,18 @@ export async function directWriteSchedule(
     if (gameId) {
       await pool.query(
         `update rec_games set home_score=$2, away_score=$3, status=$4, phase=$5, source='madden_companion_export',
-           import_verified=true, external_game_id=$6, ea_season_game_key=coalesce($7, ea_season_game_key), updated_at=now()
+           import_verified=true, external_game_id=$6, ea_season_game_key=coalesce($7, ea_season_game_key),
+           home_user_id=coalesce($8, home_user_id), away_user_id=coalesce($9, away_user_id), updated_at=now()
          where id=$1`,
-        [gameId, finalHomeScore, finalAwayScore, completed ? "completed" : "scheduled", phase, externalId, seasonGameKey],
+        [gameId, finalHomeScore, finalAwayScore, completed ? "completed" : "scheduled", phase, externalId, seasonGameKey, homeUserId, awayUserId],
       );
     } else {
       const gameRow = await pool.query<{ id: string }>(
         `insert into rec_games
            (league_id, week_number, phase, home_team_id, away_team_id, home_score, away_score,
             status, source, import_verified, manual_entered, result_payout_eligible,
-            eos_payout_eligible, external_game_id, ea_season_game_key, updated_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,'madden_companion_export',true,false,true,true,$9,$10,now())
+            eos_payout_eligible, external_game_id, ea_season_game_key, home_user_id, away_user_id, updated_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,'madden_companion_export',true,false,true,true,$9,$10,$11,$12,now())
          on conflict (league_id, external_game_id) where external_game_id is not null do update set
            week_number=excluded.week_number,
            home_team_id=coalesce(excluded.home_team_id, rec_games.home_team_id),
@@ -221,10 +231,12 @@ export async function directWriteSchedule(
            source='madden_companion_export',
            import_verified=true,
            ea_season_game_key=coalesce(excluded.ea_season_game_key, rec_games.ea_season_game_key),
+           home_user_id=coalesce(excluded.home_user_id, rec_games.home_user_id),
+           away_user_id=coalesce(excluded.away_user_id, rec_games.away_user_id),
            updated_at=now()
          returning id`,
         [leagueId, displayWeek, phase, homeUuid, awayUuid, finalHomeScore, finalAwayScore,
-         completed ? "completed" : "scheduled", externalId, seasonGameKey],
+         completed ? "completed" : "scheduled", externalId, seasonGameKey, homeUserId, awayUserId],
       );
       gameId = gameRow.rows[0]?.id ?? null;
     }
@@ -234,12 +246,7 @@ export async function directWriteSchedule(
     if (completed && homeUuid && awayUuid && homeScore != null && awayScore != null) {
       const isTie = homeScore === awayScore;
       const homeWon = homeScore > awayScore;
-      // Resolve the human user (if any) currently assigned to each team. Without this, every
-      // row written here has null home_user_id/away_user_id, which is invisible to W/L record
-      // aggregation (rebuildLeagueOfficialRecords etc. key off these columns, not team_id) —
-      // silently dropping every EA-direct-imported game from everyone's record.
-      const homeUserId = userByTeam.get(homeUuid) ?? null;
-      const awayUserId = userByTeam.get(awayUuid) ?? null;
+      // homeUserId/awayUserId already resolved above (now also stamped onto rec_games itself).
       // Shared dedup key (also used by box score, manual entry, and week-advance) so this
       // same game never gets double-counted in official records if it's later re-confirmed
       // through a different source — an EA-only ad hoc key here used to let that happen.
@@ -434,15 +441,20 @@ export async function directWriteRoster(
     // below then updates the existing EA row instead.
     const rosterIdText = String(rosterId);
     if (teamUuid && shouldAdoptNamePlaceholder(existingNumericEaIds, rosterIdText)) {
+      // limit 2, not 1: if two placeholders on this team share the exact same name, there's no
+      // way to tell which one this real roster row actually represents. Guessing (picking
+      // whichever sorts first) risks silently adopting the wrong identity onto the wrong
+      // player -- the same class of bug already found and fixed for team identity matching.
+      // Skip adoption entirely when it's ambiguous; leave both placeholders as-is.
       const placeholder = await pool.query<{ id: string }>(
         `select id from rec_players
          where league_id=$1 and team_id=$2 and lower(full_name)=lower($3)
            and (madden_player_id is null or madden_player_id !~ '^[0-9]+$')
          order by (player_source='legend') desc, created_at asc
-         limit 1`,
+         limit 2`,
         [leagueId, teamUuid, fullName],
       );
-      if (placeholder.rows[0]) {
+      if (placeholder.rows.length === 1) {
         await pool.query(
           `update rec_players set madden_player_id=$2, updated_at=now()
            where id=$1
