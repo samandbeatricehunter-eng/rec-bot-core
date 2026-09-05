@@ -426,6 +426,7 @@ export type RosterTeam = {
   ties?: number | null;
   pointDifferential?: number | null;
   recordText?: string | null;
+  teamOverall?: number | null;
 };
 
 // A team is "open" to request only if nobody's linked to it AND nobody else has a pending
@@ -450,8 +451,9 @@ function maddenTeamLine(team: RosterTeam) {
   const record = team.recordText ?? `${team.wins ?? 0}-${team.losses ?? 0}-${team.ties ?? 0}`;
   const label = String(team.name ?? "Team").trim() || "Team";
   const teamText = team.linkedDiscordId ? `~~${label}~~` : label;
+  const ovr = team.teamOverall != null ? ` [${team.teamOverall} OVR]` : "";
   const coach = team.linkedDiscordId ? ` (<@${team.linkedDiscordId}>)` : "";
-  return `${teamText} (${record})${coach}`;
+  return `${teamText}${ovr} (${record})${coach}`;
 }
 
 // Re-bucket every team into its real conference so the grid always renders exactly the

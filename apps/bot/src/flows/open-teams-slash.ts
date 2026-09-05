@@ -38,11 +38,13 @@ function formatTeamLine(team: {
   losses?: number | null;
   ties?: number | null;
   recordText?: string | null;
+  teamOverall?: number | null;
 }) {
   const record = team.recordText ?? `${team.wins ?? 0}-${team.losses ?? 0}-${team.ties ?? 0}`;
-  if (team.linkedDiscordId) return `~~${team.name}~~ (${record}) (<@${team.linkedDiscordId}>)`;
-  if (team.hasPendingRequest) return `~~${team.name}~~ (${record}) (request pending)`;
-  return `**${team.name}** (${record})`;
+  const ovr = team.teamOverall != null ? ` [${team.teamOverall} OVR]` : "";
+  if (team.linkedDiscordId) return `~~${team.name}~~${ovr} (${record}) (<@${team.linkedDiscordId}>)`;
+  if (team.hasPendingRequest) return `~~${team.name}~~${ovr} (${record}) (request pending)`;
+  return `**${team.name}**${ovr} (${record})`;
 }
 
 function conferenceFields(conference: RosterConference) {
