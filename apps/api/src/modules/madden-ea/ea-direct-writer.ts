@@ -16,6 +16,7 @@ import { extractEaEnvelopeRows } from "./ea-datasets.js";
 import { isNumericEaPlayerId, shouldAdoptNamePlaceholder } from "./ea-roster-reconcile.js";
 import { rosterUnchangedWrite, rosterWriteResult, type RosterWriteResult } from "./ea-roster-progress.js";
 import { eaScheduleExternalId } from "./ea-weeks.js";
+import { resolveSeasonId } from "../league-context/season.service.js";
 
 type Json = Record<string, unknown>;
 
@@ -117,6 +118,13 @@ export async function directWriteSchedule(
     [leagueId],
   );
   const seasonNumber = leagueSeason.rows[0]?.season_number ?? 1;
+  // rec_games.season_id must be set too, not just rec_game_results' season_number above -- every
+  // season-scoped reader (advance's own week/matchup load, the game-channel repair picker, GOTW,
+  // standings) goes through leagueWeekGamesQuery, which filters strictly on season_id. A freshly
+  // inserted schedule row that skips this stays permanently invisible to all of them even once
+  // home_user_id/away_user_id are correct (confirmed live: two Divisional games sat with
+  // season_id null and never appeared in the game-channel repair picker's candidate list).
+  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
   for (const row of rawRows) {
     const homeTeamId = num(row, ["homeTeamId", "home_team_id"]);
@@ -209,17 +217,18 @@ export async function directWriteSchedule(
       await pool.query(
         `update rec_games set home_score=$2, away_score=$3, status=$4, phase=$5, source='madden_companion_export',
            import_verified=true, external_game_id=$6, ea_season_game_key=coalesce($7, ea_season_game_key),
-           home_user_id=coalesce($8, home_user_id), away_user_id=coalesce($9, away_user_id), updated_at=now()
+           home_user_id=coalesce($8, home_user_id), away_user_id=coalesce($9, away_user_id),
+           season_id=coalesce(season_id, $10), updated_at=now()
          where id=$1`,
-        [gameId, finalHomeScore, finalAwayScore, completed ? "completed" : "scheduled", phase, externalId, seasonGameKey, homeUserId, awayUserId],
+        [gameId, finalHomeScore, finalAwayScore, completed ? "completed" : "scheduled", phase, externalId, seasonGameKey, homeUserId, awayUserId, seasonId],
       );
     } else {
       const gameRow = await pool.query<{ id: string }>(
         `insert into rec_games
            (league_id, week_number, phase, home_team_id, away_team_id, home_score, away_score,
             status, source, import_verified, manual_entered, result_payout_eligible,
-            eos_payout_eligible, external_game_id, ea_season_game_key, home_user_id, away_user_id, updated_at)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,'madden_companion_export',true,false,true,true,$9,$10,$11,$12,now())
+            eos_payout_eligible, external_game_id, ea_season_game_key, home_user_id, away_user_id, season_id, updated_at)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,'madden_companion_export',true,false,true,true,$9,$10,$11,$12,$13,now())
          on conflict (league_id, external_game_id) where external_game_id is not null do update set
            week_number=excluded.week_number,
            home_team_id=coalesce(excluded.home_team_id, rec_games.home_team_id),
@@ -233,10 +242,11 @@ export async function directWriteSchedule(
            ea_season_game_key=coalesce(excluded.ea_season_game_key, rec_games.ea_season_game_key),
            home_user_id=coalesce(excluded.home_user_id, rec_games.home_user_id),
            away_user_id=coalesce(excluded.away_user_id, rec_games.away_user_id),
+           season_id=coalesce(rec_games.season_id, excluded.season_id),
            updated_at=now()
          returning id`,
         [leagueId, displayWeek, phase, homeUuid, awayUuid, finalHomeScore, finalAwayScore,
-         completed ? "completed" : "scheduled", externalId, seasonGameKey, homeUserId, awayUserId],
+         completed ? "completed" : "scheduled", externalId, seasonGameKey, homeUserId, awayUserId, seasonId],
       );
       gameId = gameRow.rows[0]?.id ?? null;
     }
