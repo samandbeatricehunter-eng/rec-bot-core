@@ -223,10 +223,10 @@
       "xp_cost": 90
     },
     {
-      "name": "Ball Hawk",
+      "name": "Ball Hawk Instincts",
       "slot_cost": 2,
       "effect": "PRC, MCV and ZCV each cost 8% less Player XP.",
-      "why_it_costs_that": "Coverage processor identity; Progression Tree Tier 2.",
+      "why_it_costs_that": "Coverage processor identity; Progression Tree Tier 2. Distinct from Origins' Ball Hawk (same catalog, different perk) -- same flavor, different key, so the two don't collide.",
       "tags": "progression",
       "synergy": [],
       "tier": 2,

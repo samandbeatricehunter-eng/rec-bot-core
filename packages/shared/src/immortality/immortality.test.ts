@@ -651,12 +651,15 @@ test("Progression Tree purchases are additive, gated by tier, and never Origins-
     positionGroup: "QB", catalog, ownedKeys: [...t1, "personnel_chief"], key: "self_made", availableXp: 90,
   });
   assert.equal(t3.ok, true);
+  // Pass 6: Immortal Arm is the Precision Passer branch's Tier 4 capstone -- it requires the
+  // specific chain (Pocket Architect -> Clutch Gene), not just "any Tier 3 owned."
   const t4locked = purchaseCharacteristic({
-    positionGroup: "QB", catalog, ownedKeys: [...t1, "personnel_chief"], key: "immortal_arm", availableXp: 999,
+    positionGroup: "QB", catalog, ownedKeys: [...t1, "personnel_chief", "self_made"], key: "immortal_arm", availableXp: 999,
   });
   assert.equal(t4locked.ok, false);
+  if (!t4locked.ok) { assert.equal(t4locked.error, "prerequisite_locked"); assert.deepEqual(t4locked.missingKeys, ["clutch_gene"]); }
   const t4 = purchaseCharacteristic({
-    positionGroup: "QB", catalog, ownedKeys: [...t1, "personnel_chief", "self_made"], key: "immortal_arm", availableXp: 120,
+    positionGroup: "QB", catalog, ownedKeys: [...t1, "pocket_architect", "clutch_gene"], key: "immortal_arm", availableXp: 120,
   });
   assert.equal(t4.ok, true);
   assert.equal(isProgressionTreePerk(catalog.find((item) => item.key === "personnel_chief")!), true);
@@ -729,6 +732,43 @@ test("every position group has a deeper Progression Tree than the original 2-3 n
     assert.ok(tree.length >= 7, `${group} tree is too thin (${tree.length})`);
     assert.ok(tiers.has(2) && tiers.has(3) && tiers.has(4), `${group} is missing a tree tier`);
   }
+});
+
+test("no position catalog has two characteristics that collapse to the same key (characteristicKey strips punctuation)", () => {
+  for (const group of ["QB", "HB", "WR_TE", "DB", "LB"] as const) {
+    const keys = characteristicCatalog(group).map((item) => item.key);
+    const dupes = keys.filter((key, index) => keys.indexOf(key) !== index);
+    assert.deepEqual(dupes, [], `${group} has colliding characteristic keys: ${dupes.join(", ")}`);
+  }
+});
+
+test("QB and MIKE (Pass 6) each have 4 distinct branches at Tiers 2-4, plus 4 branch-less universal nodes", () => {
+  for (const [group, branches] of [
+    ["QB", ["precision_passer", "field_general", "gunslinger", "dual_threat"]],
+    ["LB", ["run_enforcer", "coverage_commander", "disruptor", "defensive_field_general"]],
+  ] as const) {
+    const tree = characteristicCatalog(group).filter((item) => isProgressionTreePerk(item));
+    const universal = tree.filter((item) => !item.branch);
+    assert.deepEqual(new Set(universal.map((item) => item.key)), new Set(["complete_package", "self_made", "personnel_chief", "spotlight"]), `${group} universal nodes changed`);
+    for (const branch of branches) {
+      const nodes = tree.filter((item) => item.branch === branch).sort((a, b) => a.tier - b.tier);
+      assert.deepEqual(nodes.map((item) => item.tier), [2, 3, 4], `${group}'s ${branch} branch isn't a clean T2-T3-T4 chain`);
+      assert.equal(nodes[1].requires?.[0], nodes[0].key, `${group}'s ${branch} T3 doesn't require its own T2`);
+      assert.equal(nodes[2].requires?.[0], nodes[1].key, `${group}'s ${branch} T4 doesn't require its own T3`);
+    }
+  }
+});
+
+test("Pass 6 branch chains gate on the specific prior node, not a sibling branch's node at the same tier", () => {
+  const catalog = characteristicCatalog("QB");
+  const t1 = ["born_with_quick_feet", "faster_developer"];
+  // Owning Cannon Arm (Gunslinger T2) does not unlock Total Command (Field General T3) --
+  // branches are independent chains, not just "any Tier 2."
+  const crossBranch = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: [...t1, "cannon_arm"], key: "total_command", availableXp: 999 });
+  assert.equal(crossBranch.ok, false);
+  if (!crossBranch.ok) assert.equal(crossBranch.error, "prerequisite_locked");
+  const sameBranch = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: [...t1, "film_room_commander"], key: "total_command", availableXp: 90 });
+  assert.equal(sameBranch.ok, true);
 });
 
 test("season-trend promotions need a real hot streak, not a single gold week", () => {
