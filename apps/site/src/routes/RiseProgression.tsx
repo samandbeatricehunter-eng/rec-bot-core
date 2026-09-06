@@ -113,13 +113,19 @@ export function RiseProgressionPage() {
           <section className="rise-card">
             <h2>Season trend</h2>
             <p className="site-muted">
-              A free, automatic path to your next Dev Trait ({labelTrait(state.currentDevTrait)}
+              A free path to your next Dev Trait ({labelTrait(state.currentDevTrait)}
               {state.nextDevTrait ? ` → ${labelTrait(state.nextDevTrait)}` : ""}) — no Player XP spent, separate from
               Self-Made/Development Staff above. It watches your recent weekly-challenge medals (not career
-              milestones): gold is 3 points, silver 2, bronze 1. Get hot enough over a trailing stretch of
-              recent weeks and the promotion fires on its own after the next advance. Only one automatic
-              promotion can fire per season.
+              milestones): gold is 3 points, silver 2, bronze 1. Get hot enough over a trailing stretch of recent
+              weeks and you earn an <strong>opportunity</strong> — an elevated, much harder challenge assigned to
+              your very next game. Beat that specific challenge and the promotion is earned; miss it and you keep
+              your current trait, but can earn a fresh opportunity again later if you heat back up.
             </p>
+            {state.promotionOpportunity ? (
+              <p className="rise-stock rise-stock-rising" style={{ display: "inline-block" }}>
+                Opportunity live — deliver in Week {state.promotionOpportunity.targetWeekNumber} to earn {labelTrait(state.promotionOpportunity.toTrait)}.
+              </p>
+            ) : null}
             <p>
               {state.trend.medals.length
                 ? state.trend.medals.map((medal, index) => (

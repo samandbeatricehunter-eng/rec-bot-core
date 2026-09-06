@@ -419,6 +419,7 @@ export type ImmortalityProgressionState = {
     golds: number;
     nextDevTrait: string | null;
   };
+  promotionOpportunity: { toTrait: string; targetWeekNumber: number } | null;
   nodes: ImmortalityProgressionNode[];
   teammates: Array<{
     playerId: string;

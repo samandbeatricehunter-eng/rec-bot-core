@@ -182,6 +182,8 @@ export async function getProgressionState(input: { guildId: string; discordId: s
   const teammates = modifiers.teammateDevPurchaseUnlocked
     ? await loadTeammates(context.leagueId, String(prospect.player_id ?? ""), userId)
     : [];
+  const pendingOpportunity = await supabase.from("rec_immortality_promotion_opportunities")
+    .select("to_trait,target_week_number").eq("prospect_id", prospect.id).eq("status", "pending").maybeSingle();
   return {
     prospectId: String(prospect.id),
     name: `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Prospect",
@@ -203,6 +205,9 @@ export async function getProgressionState(input: { guildId: string; discordId: s
       golds: trend.golds,
       nextDevTrait: trend.nextDevTrait,
     },
+    promotionOpportunity: pendingOpportunity.data
+      ? { toTrait: String(pendingOpportunity.data.to_trait), targetWeekNumber: Number(pendingOpportunity.data.target_week_number) }
+      : null,
     nodes,
     teammates,
     origins: selected.filter((item) => item.tier === 1).map((item) => ({
@@ -516,6 +521,7 @@ export async function resolveDevPromotion(input: {
   if (request.data.status !== "pending") throw new ApiError(409, `Request is already ${request.data.status}.`);
   const payload = (request.data.payload ?? {}) as {
     promotionId: string; prospectId: string; xpCost: number; spendSourceId: string; source: string;
+    fromTrait?: string; toTrait?: string;
   };
   if (input.action === "refunded") {
     await supabase.from("rec_immortality_dev_promotions")
@@ -536,6 +542,18 @@ export async function resolveDevPromotion(input: {
     await supabase.from("rec_immortality_dev_promotions")
       .update({ status: "applied", resolved_at: new Date().toISOString() })
       .eq("id", payload.promotionId);
+    // Real Madden: Superstar dev unlocks the first ability slots, X-Factor unlocks the 4th (see
+    // abilitySlotState's doc comment in abilities.ts) -- this was never wired to anything before,
+    // so promoting into either tier granted no ability access at all. Reuses the same idempotent
+    // ledger grantAbilitySlot already uses for season/career/POTW sources, not a new mechanism.
+    if (payload.toTrait === "superstar" || payload.toTrait === "xfactor") {
+      const { grantAbilitySlot } = await import("./xp-awards.service.js");
+      await grantAbilitySlot({
+        prospectId: payload.prospectId,
+        eventType: "dev_trait_promotion",
+        sourceId: payload.promotionId,
+      }).catch((error) => console.error(`[ERROR] Could not grant ability slot for promotion ${payload.promotionId} (non-fatal):`, error));
+    }
   }
   const updated = await supabase.from("rec_commissioners_inbox").update({
     status: input.action === "applied" ? "approved" : "denied",
@@ -547,6 +565,79 @@ export async function resolveDevPromotion(input: {
   return { request: updated.data };
 }
 
+/** Actually records a dev-trait promotion (rec_immortality_dev_promotions row + commissioner
+ * inbox item) -- extracted so both the season-trend opportunity resolution
+ * (xp-awards.service.ts's gradeProspectForWeek, once an elevated challenge is beaten) and any
+ * future direct-promotion source can reuse the exact same recording logic. Resolves its own
+ * guildId (via findServerRoutesForLeague) rather than requiring the caller to pass one, since
+ * callers in xp-awards.service.ts don't otherwise need it. */
+export async function createSeasonTrendPromotion(input: {
+  leagueId: string;
+  immortalityLeagueId: string;
+  prospect: { id: string; user_id: string; position: string; first_name: string | null; last_name: string | null; player_id: string | null; side: string };
+  fromTrait: ImmortalityDevTrait;
+  toTrait: ImmortalityDevTrait;
+  seasonNumber: number;
+  reason: string;
+}): Promise<void> {
+  const routes = await findServerRoutesForLeague(input.leagueId);
+  const guildId = routes?.guildId;
+  if (!guildId) return;
+  const inserted = await supabase.from("rec_immortality_dev_promotions").insert({
+    immortality_league_id: input.immortalityLeagueId,
+    prospect_id: input.prospect.id,
+    target_player_id: null,
+    target_name: `${input.prospect.first_name ?? ""} ${input.prospect.last_name ?? ""}`.trim() || "Prospect",
+    from_trait: input.fromTrait,
+    to_trait: input.toTrait,
+    source: "season_trend",
+    season_number: input.seasonNumber,
+    xp_spent: 0,
+    status: "pending",
+  }).select("id").maybeSingle();
+  if (inserted.error) {
+    if (inserted.error.code === "23505") return;
+    console.error(`[ERROR] Could not record season-trend promotion for ${input.prospect.id}:`, inserted.error);
+    return;
+  }
+  if (!inserted.data) return;
+  const name = `${input.prospect.first_name ?? ""} ${input.prospect.last_name ?? ""}`.trim() || "Prospect";
+  const teamName = await resolveProspectTeamName(input.leagueId, { player_id: input.prospect.player_id ?? null, user_id: String(input.prospect.user_id) });
+  try {
+    await insertCommissionerRecord({
+      guildId,
+      leagueId: input.leagueId,
+      userId: String(input.prospect.user_id),
+      queueType: "immortality_dev_promotion",
+      header: `Season trend: ${name} ${input.fromTrait} → ${input.toTrait}${teamName ? ` — ${teamName}` : ""}`,
+      summary: `${input.reason} Set this development trait in your Madden save, then mark Applied in game. No Player XP was spent.`,
+      sourceTable: "rec_immortality_dev_promotions",
+      sourceId: String(inserted.data.id),
+      payload: {
+        promotionId: inserted.data.id,
+        prospectId: input.prospect.id,
+        targetPlayerId: null,
+        targetName: name,
+        fromTrait: input.fromTrait,
+        toTrait: input.toTrait,
+        xpCost: 0,
+        spendSourceId: `trend:${input.seasonNumber}:${input.prospect.id}`,
+        source: "season_trend",
+        side: input.prospect.side,
+      },
+    });
+  } catch (error) {
+    console.error(`[ERROR] Could not inbox season-trend promotion for ${input.prospect.id}:`, error);
+  }
+}
+
+/** Clearing the Season Trend hot-streak bar no longer auto-promotes -- it grants an OPPORTUNITY
+ * (rec_immortality_promotion_opportunities), an elevated challenge assigned to the prospect's
+ * very next game. Beating that specific challenge is what actually earns the promotion -- see
+ * xp-awards.service.ts's gradeProspectForWeek, which resolves a pending opportunity the moment
+ * its target week is graded, using that week's already-issued Gold weekly challenge evaluated
+ * against elevated stats (no new content authored). This function only grants; it never promotes
+ * directly. */
 export async function evaluateSeasonTrendPromotionsAfterAdvance(input: {
   leagueId: string;
   seasonNumber: number;
@@ -554,9 +645,6 @@ export async function evaluateSeasonTrendPromotionsAfterAdvance(input: {
 }): Promise<void> {
   const immortality = await loadImmortalityLeague(input.leagueId);
   if (!immortality) return;
-  const routes = await findServerRoutesForLeague(input.leagueId);
-  const guildId = routes?.guildId;
-  if (!guildId) return;
   const prospects = await supabase.from("rec_immortality_prospects")
     .select("id,user_id,position,first_name,last_name,player_id,side")
     .eq("immortality_league_id", immortality.id);
@@ -571,51 +659,41 @@ export async function evaluateSeasonTrendPromotionsAfterAdvance(input: {
       promotionCheckBonus: modifiers.promotionCheckBonus,
     });
     if (!trend.promote) continue;
-    const inserted = await supabase.from("rec_immortality_dev_promotions").insert({
-      immortality_league_id: immortality.id,
-      prospect_id: prospect.id,
-      target_player_id: null,
-      target_name: `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Prospect",
-      from_trait: currentDevTrait,
-      to_trait: trend.nextDevTrait,
-      source: "season_trend",
-      season_number: input.seasonNumber,
-      xp_spent: 0,
-      status: "pending",
-    }).select("id").maybeSingle();
-    if (inserted.error) {
-      if (inserted.error.code === "23505") continue;
-      console.error(`[ERROR] Could not record season-trend promotion for ${prospect.id}:`, inserted.error);
+
+    // Never stack a second opportunity while one is already pending for this prospect.
+    const existing = await supabase.from("rec_immortality_promotion_opportunities")
+      .select("id").eq("prospect_id", prospect.id).eq("status", "pending").maybeSingle();
+    if (existing.error) {
+      console.error(`[ERROR] Could not check existing promotion opportunity for ${prospect.id}:`, existing.error);
       continue;
     }
-    if (!inserted.data) continue;
-    const name = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Prospect";
-    const teamName = await resolveProspectTeamName(input.leagueId, { player_id: prospect.player_id ?? null, user_id: String(prospect.user_id) });
-    try {
-      await insertCommissionerRecord({
-        guildId,
-        leagueId: input.leagueId,
-        userId: String(prospect.user_id),
-        queueType: "immortality_dev_promotion",
-        header: `Season trend: ${name} ${currentDevTrait} → ${trend.nextDevTrait}${teamName ? ` — ${teamName}` : ""}`,
-        summary: `${trend.reason} Set this development trait in your Madden save, then mark Applied in game. No Player XP was spent.`,
-        sourceTable: "rec_immortality_dev_promotions",
-        sourceId: String(inserted.data.id),
-        payload: {
-          promotionId: inserted.data.id,
-          prospectId: prospect.id,
-          targetPlayerId: null,
-          targetName: name,
-          fromTrait: currentDevTrait,
-          toTrait: trend.nextDevTrait,
-          xpCost: 0,
-          spendSourceId: `trend:${input.seasonNumber}:${prospect.id}`,
-          source: "season_trend",
-          side: prospect.side,
-        },
-      });
-    } catch (error) {
-      console.error(`[ERROR] Could not inbox season-trend promotion for ${prospect.id}:`, error);
+    if (existing.data) continue;
+
+    const targetWeekNumber = input.weekNumber + 1;
+    const created = await supabase.from("rec_immortality_promotion_opportunities").insert({
+      prospect_id: prospect.id,
+      from_trait: currentDevTrait,
+      to_trait: trend.nextDevTrait,
+      target_season_number: input.seasonNumber,
+      target_week_number: targetWeekNumber,
+    }).select("id").maybeSingle();
+    if (created.error) {
+      console.error(`[ERROR] Could not grant promotion opportunity for ${prospect.id}:`, created.error);
+      continue;
     }
+
+    // Player-facing notice, not a commissioner-inbox row -- this is an opportunity to earn a
+    // promotion, not yet a decision needing commissioner action.
+    const name = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "This prospect";
+    await supabase.from("rec_site_notifications").insert({
+      user_id: prospect.user_id,
+      league_id: input.leagueId,
+      kind: "immortality_promotion_opportunity",
+      title: `${name} has a shot at ${trend.nextDevTrait}`,
+      body: `${trend.reason} Deliver an elevated performance in Week ${targetWeekNumber} to lock in the promotion.`,
+      href: `/l/${input.leagueId}/team/progression?side=${prospect.side}`,
+    }).then(({ error }) => {
+      if (error) console.error(`[ERROR] Could not notify ${prospect.id} of promotion opportunity (non-fatal):`, error);
+    });
   }
 }

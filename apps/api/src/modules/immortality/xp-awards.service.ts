@@ -1,6 +1,7 @@
 import {
   characteristicCatalog,
   combinedModifiers,
+  evaluateChallengeCondition,
   FORMULA_VERSIONS,
   gameplaySeasonStages,
   pointsForCareerTier,
@@ -13,6 +14,7 @@ import {
   WEEKLY_SWEEP_BONUS_PCT,
   XP_POINTS_PER_LEVEL,
   type CharacteristicModifiers,
+  type ImmortalityDevTrait,
   type ImmortalityPosition,
   type IssuedChallenge,
   type LeagueGame,
@@ -213,6 +215,12 @@ const RIVALRY_STREAK_BONUS_PER_SEASON_PCT = 0.10;
 const RIVALRY_STREAK_BONUS_CAP_PCT = 0.50;
 const RIVALRY_CHALLENGE_ELEVATION = 1.15;
 const RIVALRY_WIN_BONUS_COINS = 500;
+// Season Trend promotion opportunities (see createSeasonTrendPromotion in progression.service.ts):
+// a much steeper version of the same stat-elevation trick above, applied to that week's
+// already-issued Gold weekly challenge rather than authoring bespoke "elevated" content. First-
+// pass number, same as every other unreleased threshold in this system -- Pass 11's simulation
+// work is where this actually gets calibrated against real data.
+const PROMOTION_OPPORTUNITY_ELEVATION = 1.5;
 
 function rivalryMultiplier(streakSeasons: number): number {
   const streakBonus = Math.min(RIVALRY_STREAK_BONUS_PER_SEASON_PCT * Math.max(0, streakSeasons - 1), RIVALRY_STREAK_BONUS_CAP_PCT);
@@ -425,6 +433,45 @@ export async function gradeProspectForWeek(
       week: input.weekNumber,
       modifiers,
     });
+  }
+
+  // Season Trend promotion-opportunity resolution: if a prior advance granted this prospect an
+  // opportunity targeting exactly this (season, week) -- see createSeasonTrendPromotion's doc
+  // comment in progression.service.ts -- check it now against this week's already-issued Gold
+  // weekly challenge, evaluated against elevated stats. No new content authored; this reuses the
+  // same challenge every other player at this position saw this week, just at a steeper bar.
+  const opportunity = await supabase.from("rec_immortality_promotion_opportunities")
+    .select("id,from_trait,to_trait")
+    .eq("prospect_id", prospect.id)
+    .eq("status", "pending")
+    .eq("target_season_number", input.seasonNumber)
+    .eq("target_week_number", input.weekNumber)
+    .maybeSingle();
+  if (!opportunity.error && opportunity.data) {
+    const goldChallenge = weekly.find((row) => row.tier === "gold");
+    const elevatedStats: Record<string, number> = {};
+    for (const [key, value] of Object.entries(challengeStats)) elevatedStats[key] = value / PROMOTION_OPPORTUNITY_ELEVATION;
+    const met = Boolean(goldChallenge?.label && evaluateChallengeCondition(goldChallenge.condition, elevatedStats));
+    await supabase.from("rec_immortality_promotion_opportunities")
+      .update({ status: met ? "met" : "missed", resolved_at: new Date().toISOString() })
+      .eq("id", opportunity.data.id);
+    if (met) {
+      const name = await supabase.from("rec_immortality_prospects").select("first_name,last_name").eq("id", prospect.id).maybeSingle();
+      const { createSeasonTrendPromotion } = await import("./progression.service.js");
+      await createSeasonTrendPromotion({
+        leagueId: input.leagueId,
+        immortalityLeagueId: input.immortalityLeagueId,
+        prospect: {
+          id: String(prospect.id), user_id: String(prospect.user_id), position: String(prospect.position),
+          first_name: name.data?.first_name ?? null, last_name: name.data?.last_name ?? null,
+          player_id: String(prospect.player_id), side: String(prospect.side),
+        },
+        fromTrait: opportunity.data.from_trait as ImmortalityDevTrait,
+        toTrait: opportunity.data.to_trait as ImmortalityDevTrait,
+        seasonNumber: input.seasonNumber,
+        reason: `Delivered an elevated Week ${input.weekNumber} performance to convert their promotion opportunity.`,
+      }).catch((error) => console.error(`[ERROR] Could not record earned season-trend promotion for ${prospect.id} (non-fatal):`, error));
+    }
   }
 
   const seasonStats = await rangeStatsForPlayer({
