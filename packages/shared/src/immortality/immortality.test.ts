@@ -12,7 +12,9 @@ import {
   canTransition,
   riseHubUnlocked,
   hubUnlockStateFrom,
-  challengeComplete,
+  evaluateChallengeCondition,
+  derivedChallengeStats,
+  SUPPORTED_CHALLENGE_STATS,
   issuedWeeklyChallenges,
   issuedSeasonChallenges,
   issuedCareerChallenges,
@@ -473,21 +475,62 @@ test("franchise pick can unlock the hub from registration or origins", () => {
   assert.equal(hubUnlockStateFrom("FRANCHISE_ACTIVE"), null);
 });
 
-test("weekly challenge strings evaluate against canonical stat keys", () => {
-  assert.equal(challengeComplete("250 passing yards", { pass_yards: 250 }), true);
-  assert.equal(challengeComplete("250 passing yards", { pass_yards: 249 }), false);
-  assert.equal(challengeComplete("65% completion on 20+ attempts", { completion_pct: 70, pass_attempts: 25 }), true);
-  assert.equal(challengeComplete("300 passing yards + 2 TD", { pass_yards: 310, pass_tds: 2 }), true);
-  const weekly = issuedWeeklyChallenges({ position: "QB", seed: "league:week:prospect", stats: { pass_yards: 400, pass_tds: 4, pass_attempts: 30, completion_pct: 70 } });
+test("structured conditions evaluate against canonical stat keys", () => {
+  assert.equal(evaluateChallengeCondition({ stat: "pass_yards", op: "gte", value: 250 }, { pass_yards: 250 }), true);
+  assert.equal(evaluateChallengeCondition({ stat: "pass_yards", op: "gte", value: 250 }, { pass_yards: 249 }), false);
+  assert.equal(
+    evaluateChallengeCondition({ all: [{ stat: "completion_pct", op: "gte", value: 65 }, { stat: "pass_attempts", op: "gte", value: 20 }] }, { completion_pct: 70, pass_attempts: 25 }),
+    true,
+  );
+  assert.equal(
+    evaluateChallengeCondition({ all: [{ stat: "pass_yards", op: "gte", value: 300 }, { stat: "pass_tds", op: "gte", value: 2 }] }, { pass_yards: 310, pass_tds: 2 }),
+    true,
+  );
+  const weekly = issuedWeeklyChallenges({ position: "QB", seed: "league:week:prospect", stats: { pass_yards: 400, pass_tds: 4, pass_attempts: 30, pass_completions: 21 } });
   assert.equal(weekly.length, 3);
   assert.deepEqual(weekly.map((row) => row.tier), ["bronze", "silver", "gold"]);
 });
 
+test("evaluateChallengeCondition fails closed on an unsupported or missing stat, never silently passes", () => {
+  // @ts-expect-error -- deliberately an unsupported key, mirroring a malformed/removed catalog entry
+  assert.equal(evaluateChallengeCondition({ stat: "tackles_for_loss", op: "gte", value: 1 }, { tackles_for_loss: 5 }), false);
+  assert.equal(evaluateChallengeCondition({ stat: "pass_yards", op: "gte", value: 1 }, {}), false);
+  assert.equal(evaluateChallengeCondition({ any: [{ stat: "takeaways", op: "gte", value: 1 }, { stat: "sacks", op: "gte", value: 1 }] }, { takeaways: 0, sacks: 1 }), true);
+  assert.equal(evaluateChallengeCondition({ any: [{ stat: "takeaways", op: "gte", value: 1 }, { stat: "sacks", op: "gte", value: 1 }] }, { takeaways: 0, sacks: 0 }), false);
+});
+
+test("derivedChallengeStats computes total_tds/takeaways/turnovers/scrimmage_yards/ypc/ypr, rate stats absent with no attempts", () => {
+  const derived = derivedChallengeStats({ pass_tds: 1, rush_tds: 1, receiving_tds: 1, defensive_tds: 1, interceptions: 2, forced_fumbles: 1, fumble_recoveries: 1, interceptions_thrown: 1, rushing_fumbles: 1, rush_yards: 100, rush_attempts: 20, receiving_yards: 50, receptions: 5 });
+  assert.equal(derived.total_tds, 4);
+  assert.equal(derived.takeaways, 4);
+  assert.equal(derived.turnovers, 2);
+  assert.equal(derived.scrimmage_yards, 150);
+  assert.equal(derived.ypc, 5);
+  assert.equal(derived.ypr, 10);
+  const noVolume = derivedChallengeStats({});
+  assert.equal(noVolume.ypc, undefined);
+  assert.equal(noVolume.ypr, undefined);
+});
+
 test("pass deflection challenges read the canonical pass_deflections stat", () => {
-  assert.equal(challengeComplete("1 pass deflection", { pass_deflections: 1 }), true);
-  assert.equal(challengeComplete("1 pass deflection", { pass_deflections: 0 }), false);
-  // The takeaway fallback still applies for a player who didn't log a PD but did make a play.
-  assert.equal(challengeComplete("1 pass deflection", { interceptions: 1 }), true);
+  assert.equal(evaluateChallengeCondition({ stat: "pass_deflections", op: "gte", value: 1 }, { pass_deflections: 1 }), true);
+  assert.equal(evaluateChallengeCondition({ stat: "pass_deflections", op: "gte", value: 1 }, { pass_deflections: 0 }), false);
+});
+
+test("no condition in the live catalog references a stat outside SUPPORTED_CHALLENGE_STATS (guards against tackles_for_loss sneaking back in)", () => {
+  function checkCondition(condition: unknown): void {
+    if (!condition || typeof condition !== "object") return;
+    if ("all" in condition) return void (condition as { all: unknown[] }).all.forEach(checkCondition);
+    if ("any" in condition) return void (condition as { any: unknown[] }).any.forEach(checkCondition);
+    const stat = (condition as { stat?: string }).stat;
+    assert.ok(stat && SUPPORTED_CHALLENGE_STATS.has(stat as never), `unsupported stat in catalog: ${stat}`);
+  }
+  for (const position of ["QB", "HB", "WR", "TE", "CB", "FS", "SS", "MIKE"]) {
+    const weekly = issuedWeeklyChallenges({ position, seed: `${position}:catalog-check`, stats: {} });
+    const season = issuedSeasonChallenges(position, {}, `${position}:catalog-check`);
+    const career = issuedCareerChallenges(position, {}, `${position}:catalog-check`);
+    for (const row of [...weekly, ...season, ...career]) checkCondition(row.condition);
+  }
 });
 
 test("QB and MIKE weekly/season/career pools tripled to 54 challenges each, still 3-tiered", () => {

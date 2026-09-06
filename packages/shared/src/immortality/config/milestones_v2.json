@@ -1,0 +1,361 @@
+{
+  "_readme": "Structured-condition replacement for milestones_v1.json (RTI Legacy System Pass 3). Every entry is {label, condition}; condition is evaluated by evaluateChallengeCondition in challenges.ts against a whitelisted stat set (see SUPPORTED_CHALLENGE_STATS). Entries carrying a '_note' documents a deliberate change from the original v1 string during translation -- either a TFL removal (tackles_for_loss is never populated by any live import) or a genuine parser-bug fix found while translating (a clause the old regex parser silently mishandled). No numeric threshold was re-tuned in this pass beyond what a '_note' calls out; real completion-rate calibration is Pass 4's job.",
+  "rules": {
+    "weekly_challenges_per_player": 3,
+    "weekly_xp": { "bronze": 1, "silver": 2, "gold": 3 },
+    "seasonal_xp": { "tier1": 8, "tier2": 15, "tier3": 25 },
+    "career_xp": { "minor": 20, "major": 35, "historic": 50 }
+  },
+  "QB": {
+    "weekly": {
+      "bronze": [
+        { "label": "250 passing yards", "condition": { "stat": "pass_yards", "op": "gte", "value": 250 } },
+        { "label": "2 passing TD", "condition": { "stat": "pass_tds", "op": "gte", "value": 2 } },
+        { "label": "65% completion on 20+ attempts", "condition": { "all": [{ "stat": "completion_pct", "op": "gte", "value": 65 }, { "stat": "pass_attempts", "op": "gte", "value": 20 }] } },
+        { "label": "25 rushing yards", "condition": { "stat": "rush_yards", "op": "gte", "value": 25 } },
+        { "label": "200 passing yards + 1 TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 200 }, { "stat": "pass_tds", "op": "gte", "value": 1 }] } },
+        { "label": "3 total TD", "condition": { "stat": "total_tds", "op": "gte", "value": 3 } },
+        { "label": "60% completion on 15+ attempts", "condition": { "all": [{ "stat": "completion_pct", "op": "gte", "value": 60 }, { "stat": "pass_attempts", "op": "gte", "value": 15 }] } },
+        { "label": "1 rushing TD", "condition": { "stat": "rush_tds", "op": "gte", "value": 1 } },
+        { "label": "225 passing yards", "condition": { "stat": "pass_yards", "op": "gte", "value": 225 } },
+        { "label": "2 total TD + 200 passing yards", "condition": { "all": [{ "stat": "total_tds", "op": "gte", "value": 2 }, { "stat": "pass_yards", "op": "gte", "value": 200 }] } },
+        { "label": "50 rushing yards", "condition": { "stat": "rush_yards", "op": "gte", "value": 50 } },
+        { "label": "275 passing yards with 0 INT", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 275 }, { "stat": "turnovers", "op": "lte", "value": 0 }] } }
+      ],
+      "silver": [
+        { "label": "300 passing yards + 2 TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 300 }, { "stat": "pass_tds", "op": "gte", "value": 2 }] } },
+        { "label": "3 total TD", "condition": { "stat": "total_tds", "op": "gte", "value": 3 } },
+        { "label": "70% completion on 20+ attempts", "condition": { "all": [{ "stat": "completion_pct", "op": "gte", "value": 70 }, { "stat": "pass_attempts", "op": "gte", "value": 20 }] } },
+        { "label": "0 turnovers on 20+ attempts", "condition": { "all": [{ "stat": "turnovers", "op": "lte", "value": 0 }, { "stat": "pass_attempts", "op": "gte", "value": 20 }] }, "_note": "v1's parser matched only the '0 turnovers' substring here and silently dropped the 20+ attempts qualifier entirely -- fixed to enforce both, no value changed." },
+        { "label": "275 passing yards + 3 TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 275 }, { "stat": "pass_tds", "op": "gte", "value": 3 }] } },
+        { "label": "4 total TD", "condition": { "stat": "total_tds", "op": "gte", "value": 4 } },
+        { "label": "65% completion on 25+ attempts", "condition": { "all": [{ "stat": "completion_pct", "op": "gte", "value": 65 }, { "stat": "pass_attempts", "op": "gte", "value": 25 }] } },
+        { "label": "2 rushing TD", "condition": { "stat": "rush_tds", "op": "gte", "value": 2 } },
+        { "label": "325 passing yards", "condition": { "stat": "pass_yards", "op": "gte", "value": 325 } },
+        { "label": "100 rushing yards", "condition": { "stat": "rush_yards", "op": "gte", "value": 100 } },
+        { "label": "90+ passer rating with 2 TD", "condition": { "all": [{ "stat": "passer_rating", "op": "gte", "value": 90 }, { "stat": "total_tds", "op": "gte", "value": 2 }] } },
+        { "label": "3 total TD + 0 turnovers", "condition": { "all": [{ "stat": "total_tds", "op": "gte", "value": 3 }, { "stat": "turnovers", "op": "lte", "value": 0 }] } }
+      ],
+      "gold": [
+        { "label": "350 passing yards + 3 TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 350 }, { "stat": "pass_tds", "op": "gte", "value": 3 }] } },
+        { "label": "4 total TD", "condition": { "stat": "total_tds", "op": "gte", "value": 4 } },
+        { "label": "300+ passing yards with 0 INT", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 300 }, { "stat": "turnovers", "op": "lte", "value": 0 }] } },
+        { "label": "100+ passer rating with 3 TD", "condition": { "all": [{ "stat": "passer_rating", "op": "gte", "value": 100 }, { "stat": "total_tds", "op": "gte", "value": 3 }] } },
+        { "label": "400 passing yards", "condition": { "stat": "pass_yards", "op": "gte", "value": 400 } },
+        { "label": "5 total TD", "condition": { "stat": "total_tds", "op": "gte", "value": 5 } },
+        { "label": "75% completion on 25+ attempts", "condition": { "all": [{ "stat": "completion_pct", "op": "gte", "value": 75 }, { "stat": "pass_attempts", "op": "gte", "value": 25 }] } },
+        { "label": "3 rushing TD", "condition": { "stat": "rush_tds", "op": "gte", "value": 3 } },
+        { "label": "350 passing yards + 0 turnovers", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 350 }, { "stat": "turnovers", "op": "lte", "value": 0 }] } },
+        { "label": "150 rushing yards", "condition": { "stat": "rush_yards", "op": "gte", "value": 150 } },
+        { "label": "4 total TD + 0 turnovers", "condition": { "all": [{ "stat": "total_tds", "op": "gte", "value": 4 }, { "stat": "turnovers", "op": "lte", "value": 0 }] } },
+        { "label": "120+ passer rating with 4 TD", "condition": { "all": [{ "stat": "passer_rating", "op": "gte", "value": 120 }, { "stat": "total_tds", "op": "gte", "value": 4 }] } }
+      ]
+    },
+    "season": [
+      [
+        { "label": "3,500 pass yds / 25 pass TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 3500 }, { "stat": "pass_tds", "op": "gte", "value": 25 }] } },
+        { "label": "3,200 pass yds / 28 pass TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 3200 }, { "stat": "pass_tds", "op": "gte", "value": 28 }] } },
+        { "label": "3,000 pass yds / 20 pass TD / 500 rush yds", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 3000 }, { "stat": "pass_tds", "op": "gte", "value": 20 }, { "stat": "rush_yards", "op": "gte", "value": 500 }] } }
+      ],
+      [
+        { "label": "4,000 pass yds / 35 pass TD / 65% completion", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 4000 }, { "stat": "pass_tds", "op": "gte", "value": 35 }, { "stat": "completion_pct", "op": "gte", "value": 65 }] } },
+        { "label": "3,800 pass yds / 32 pass TD / 8 rush TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 3800 }, { "stat": "pass_tds", "op": "gte", "value": 32 }, { "stat": "rush_tds", "op": "gte", "value": 8 }] } },
+        { "label": "4,200 pass yds / 30 pass TD / 700 rush yds", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 4200 }, { "stat": "pass_tds", "op": "gte", "value": 30 }, { "stat": "rush_yards", "op": "gte", "value": 700 }] } }
+      ],
+      [
+        { "label": "4,500 pass yds / 45 pass TD / 40 total TD with <=10 turnovers", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 4500 }, { "stat": "pass_tds", "op": "gte", "value": 45 }, { "stat": "total_tds", "op": "gte", "value": 40 }, { "stat": "turnovers", "op": "lte", "value": 10 }] } },
+        { "label": "5,000 pass yds / 40 pass TD / 70% completion", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 5000 }, { "stat": "pass_tds", "op": "gte", "value": 40 }, { "stat": "completion_pct", "op": "gte", "value": 70 }] } },
+        { "label": "4,200 pass yds / 35 pass TD / 1,000 rush yds / 12 rush TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 4200 }, { "stat": "pass_tds", "op": "gte", "value": 35 }, { "stat": "rush_yards", "op": "gte", "value": 1000 }, { "stat": "rush_tds", "op": "gte", "value": 12 }] } }
+      ]
+    ],
+    "career": [
+      [
+        { "label": "20,000 pass yds / 150 pass TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 20000 }, { "stat": "pass_tds", "op": "gte", "value": 150 }] } },
+        { "label": "18,000 pass yds / 160 pass TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 18000 }, { "stat": "pass_tds", "op": "gte", "value": 160 }] } },
+        { "label": "15,000 pass yds / 120 pass TD / 2,000 rush yds", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 15000 }, { "stat": "pass_tds", "op": "gte", "value": 120 }, { "stat": "rush_yards", "op": "gte", "value": 2000 }] } }
+      ],
+      [
+        { "label": "30,000 pass yds / 250 pass TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 30000 }, { "stat": "pass_tds", "op": "gte", "value": 250 }] } },
+        { "label": "27,000 pass yds / 240 pass TD / 3,000 rush yds", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 27000 }, { "stat": "pass_tds", "op": "gte", "value": 240 }, { "stat": "rush_yards", "op": "gte", "value": 3000 }] } },
+        { "label": "32,000 pass yds / 220 pass TD / 40 rush TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 32000 }, { "stat": "pass_tds", "op": "gte", "value": 220 }, { "stat": "rush_tds", "op": "gte", "value": 40 }] } }
+      ],
+      [
+        { "label": "40,000 pass yds / 350 pass TD / 4,000 rush yds", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 40000 }, { "stat": "pass_tds", "op": "gte", "value": 350 }, { "stat": "rush_yards", "op": "gte", "value": 4000 }] } },
+        { "label": "45,000 pass yds / 320 pass TD / 60 rush TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 45000 }, { "stat": "pass_tds", "op": "gte", "value": 320 }, { "stat": "rush_tds", "op": "gte", "value": 60 }] } },
+        { "label": "38,000 pass yds / 300 pass TD / 6,000 rush yds / 50 rush TD", "condition": { "all": [{ "stat": "pass_yards", "op": "gte", "value": 38000 }, { "stat": "pass_tds", "op": "gte", "value": 300 }, { "stat": "rush_yards", "op": "gte", "value": 6000 }, { "stat": "rush_tds", "op": "gte", "value": 50 }] } }
+      ]
+    ]
+  },
+  "HB": {
+    "weekly": {
+      "bronze": [
+        { "label": "75 rushing yards", "condition": { "stat": "rush_yards", "op": "gte", "value": 75 } },
+        { "label": "100 scrimmage yards", "condition": { "stat": "scrimmage_yards", "op": "gte", "value": 100 } },
+        { "label": "1 TD", "condition": { "stat": "total_tds", "op": "gte", "value": 1 } },
+        { "label": "4 receptions", "condition": { "stat": "receptions", "op": "gte", "value": 4 } }
+      ],
+      "silver": [
+        { "label": "100 rushing yards", "condition": { "stat": "rush_yards", "op": "gte", "value": 100 } },
+        { "label": "125 scrimmage yards", "condition": { "stat": "scrimmage_yards", "op": "gte", "value": 125 } },
+        { "label": "2 TD", "condition": { "stat": "total_tds", "op": "gte", "value": 2 } },
+        { "label": "5.0 YPC on 15+ carries", "condition": { "all": [{ "stat": "ypc", "op": "gte", "value": 5.0 }, { "stat": "rush_attempts", "op": "gte", "value": 15 }] } }
+      ],
+      "gold": [
+        { "label": "150 rushing yards", "condition": { "stat": "rush_yards", "op": "gte", "value": 150 } },
+        { "label": "175 scrimmage yards", "condition": { "stat": "scrimmage_yards", "op": "gte", "value": 175 } },
+        { "label": "3 total TD", "condition": { "stat": "total_tds", "op": "gte", "value": 3 } },
+        { "label": "100 rush + 50 receiving yards", "condition": { "all": [{ "stat": "rush_yards", "op": "gte", "value": 100 }, { "stat": "receiving_yards", "op": "gte", "value": 50 }] } }
+      ]
+    },
+    "season": [
+      { "label": "1,000 rush yds / 10 total TD", "condition": { "all": [{ "stat": "rush_yards", "op": "gte", "value": 1000 }, { "stat": "total_tds", "op": "gte", "value": 10 }] } },
+      { "label": "1,500 scrimmage yds / 15 total TD / 50 receptions", "condition": { "all": [{ "stat": "scrimmage_yards", "op": "gte", "value": 1500 }, { "stat": "total_tds", "op": "gte", "value": 15 }, { "stat": "receptions", "op": "gte", "value": 50 }] } },
+      { "label": "1,500 rush yds / 2,000 scrimmage yds / 20 total TD", "condition": { "all": [{ "stat": "rush_yards", "op": "gte", "value": 1500 }, { "stat": "scrimmage_yards", "op": "gte", "value": 2000 }, { "stat": "total_tds", "op": "gte", "value": 20 }] } }
+    ],
+    "career": [
+      { "label": "5,000 rush yds / 50 total TD", "condition": { "all": [{ "stat": "rush_yards", "op": "gte", "value": 5000 }, { "stat": "total_tds", "op": "gte", "value": 50 }] } },
+      { "label": "8,000 rush yds / 80 total TD", "condition": { "all": [{ "stat": "rush_yards", "op": "gte", "value": 8000 }, { "stat": "total_tds", "op": "gte", "value": 80 }] } },
+      { "label": "12,000 rush yds / 100 total TD / 15,000 scrimmage yds", "condition": { "all": [{ "stat": "rush_yards", "op": "gte", "value": 12000 }, { "stat": "total_tds", "op": "gte", "value": 100 }, { "stat": "scrimmage_yards", "op": "gte", "value": 15000 }] } }
+    ]
+  },
+  "WR": {
+    "weekly": {
+      "bronze": [
+        { "label": "5 receptions", "condition": { "stat": "receptions", "op": "gte", "value": 5 } },
+        { "label": "75 receiving yards", "condition": { "stat": "receiving_yards", "op": "gte", "value": 75 } },
+        { "label": "1 TD", "condition": { "stat": "total_tds", "op": "gte", "value": 1 } },
+        { "label": "20 YPR on 3+ catches", "condition": { "all": [{ "stat": "ypr", "op": "gte", "value": 20 }, { "stat": "receptions", "op": "gte", "value": 3 }] } }
+      ],
+      "silver": [
+        { "label": "100 receiving yards", "condition": { "stat": "receiving_yards", "op": "gte", "value": 100 } },
+        { "label": "7 receptions", "condition": { "stat": "receptions", "op": "gte", "value": 7 } },
+        { "label": "2 TD", "condition": { "stat": "total_tds", "op": "gte", "value": 2 } },
+        { "label": "125 scrimmage yards", "condition": { "stat": "scrimmage_yards", "op": "gte", "value": 125 } }
+      ],
+      "gold": [
+        { "label": "150 receiving yards", "condition": { "stat": "receiving_yards", "op": "gte", "value": 150 } },
+        { "label": "10 receptions", "condition": { "stat": "receptions", "op": "gte", "value": 10 } },
+        { "label": "150 receiving yards + 2 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 150 }, { "stat": "total_tds", "op": "gte", "value": 2 }] }, "_note": "v1's label was bare '150 yards + 2 TD' -- the parser had no bare-'yards' branch, so that clause silently fell through to the always-true default and this challenge was really just '2 TD' before. Fixed to require the receiving yards too; relabeled for clarity." },
+        { "label": "3 receiving TD", "condition": { "stat": "receiving_tds", "op": "gte", "value": 3 } }
+      ]
+    },
+    "season": [
+      { "label": "1,000 rec yds / 8 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 1000 }, { "stat": "total_tds", "op": "gte", "value": 8 }] } },
+      { "label": "1,300 rec yds / 80 rec / 12 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 1300 }, { "stat": "receptions", "op": "gte", "value": 80 }, { "stat": "total_tds", "op": "gte", "value": 12 }] } },
+      { "label": "1,600 rec yds / 100 rec / 15 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 1600 }, { "stat": "receptions", "op": "gte", "value": 100 }, { "stat": "total_tds", "op": "gte", "value": 15 }] } }
+    ],
+    "career": [
+      { "label": "6,000 rec yds / 50 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 6000 }, { "stat": "total_tds", "op": "gte", "value": 50 }] } },
+      { "label": "10,000 rec yds / 75 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 10000 }, { "stat": "total_tds", "op": "gte", "value": 75 }] } },
+      { "label": "14,000 rec yds / 100 TD / 1,000 receptions", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 14000 }, { "stat": "total_tds", "op": "gte", "value": 100 }, { "stat": "receptions", "op": "gte", "value": 1000 }] } }
+    ]
+  },
+  "TE": {
+    "weekly": {
+      "bronze": [
+        { "label": "4 receptions", "condition": { "stat": "receptions", "op": "gte", "value": 4 } },
+        { "label": "50 receiving yards", "condition": { "stat": "receiving_yards", "op": "gte", "value": 50 } },
+        { "label": "1 TD", "condition": { "stat": "total_tds", "op": "gte", "value": 1 } },
+        { "label": "3 receptions", "condition": { "stat": "receptions", "op": "gte", "value": 3 }, "_note": "v1's label was '3 first-down receptions if stat is available' -- first-down receptions aren't a tracked stat, and the parser already reduced this to plain receptions>=3; relabeled to match actual behavior." }
+      ],
+      "silver": [
+        { "label": "75 receiving yards", "condition": { "stat": "receiving_yards", "op": "gte", "value": 75 } },
+        { "label": "6 receptions", "condition": { "stat": "receptions", "op": "gte", "value": 6 } },
+        { "label": "2 TD", "condition": { "stat": "total_tds", "op": "gte", "value": 2 } },
+        { "label": "100 scrimmage yards", "condition": { "stat": "scrimmage_yards", "op": "gte", "value": 100 } }
+      ],
+      "gold": [
+        { "label": "100 receiving yards", "condition": { "stat": "receiving_yards", "op": "gte", "value": 100 } },
+        { "label": "8 receptions", "condition": { "stat": "receptions", "op": "gte", "value": 8 } },
+        { "label": "100 receiving yards + 2 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 100 }, { "stat": "total_tds", "op": "gte", "value": 2 }] }, "_note": "Same bare-'yards' parser gap as WR gold -- v1's '100 yards + 2 TD' was really just '2 TD' before. Fixed and relabeled." },
+        { "label": "3 TD", "condition": { "stat": "total_tds", "op": "gte", "value": 3 } }
+      ]
+    },
+    "season": [
+      { "label": "700 rec yds / 6 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 700 }, { "stat": "total_tds", "op": "gte", "value": 6 }] } },
+      { "label": "900 rec yds / 70 rec / 9 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 900 }, { "stat": "receptions", "op": "gte", "value": 70 }, { "stat": "total_tds", "op": "gte", "value": 9 }] } },
+      { "label": "1,100 rec yds / 85 rec / 12 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 1100 }, { "stat": "receptions", "op": "gte", "value": 85 }, { "stat": "total_tds", "op": "gte", "value": 12 }] } }
+    ],
+    "career": [
+      { "label": "4,000 rec yds / 35 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 4000 }, { "stat": "total_tds", "op": "gte", "value": 35 }] } },
+      { "label": "7,000 rec yds / 60 TD", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 7000 }, { "stat": "total_tds", "op": "gte", "value": 60 }] } },
+      { "label": "10,000 rec yds / 80 TD / 800 receptions", "condition": { "all": [{ "stat": "receiving_yards", "op": "gte", "value": 10000 }, { "stat": "total_tds", "op": "gte", "value": 80 }, { "stat": "receptions", "op": "gte", "value": 800 }] } }
+    ]
+  },
+  "CB": {
+    "weekly": {
+      "bronze": [
+        { "label": "1 pass deflection", "condition": { "stat": "pass_deflections", "op": "gte", "value": 1 } },
+        { "label": "4 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 4 } },
+        { "label": "1 forced fumble", "condition": { "stat": "forced_fumbles", "op": "gte", "value": 1 }, "_note": "v1 was '1 TFL' -- tackles_for_loss is never populated by any live import, replaced with an already-supported stat at a comparable bronze bar." },
+        { "label": "1 sack", "condition": { "stat": "sacks", "op": "gte", "value": 1 } }
+      ],
+      "silver": [
+        { "label": "1 INT", "condition": { "stat": "interceptions", "op": "gte", "value": 1 } },
+        { "label": "2 pass deflections", "condition": { "stat": "pass_deflections", "op": "gte", "value": 2 } },
+        { "label": "1 forced fumble", "condition": { "stat": "forced_fumbles", "op": "gte", "value": 1 } },
+        { "label": "6 tackles + 1 impact play", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 6 }, { "any": [{ "stat": "takeaways", "op": "gte", "value": 1 }, { "stat": "sacks", "op": "gte", "value": 1 }] }] } }
+      ],
+      "gold": [
+        { "label": "2 INT", "condition": { "stat": "interceptions", "op": "gte", "value": 2 } },
+        { "label": "defensive TD", "condition": { "stat": "defensive_tds", "op": "gte", "value": 1 } },
+        { "label": "3 PD + INT", "condition": { "all": [{ "stat": "pass_deflections", "op": "gte", "value": 3 }, { "stat": "interceptions", "op": "gte", "value": 1 }] } },
+        { "label": "2 total takeaways", "condition": { "stat": "takeaways", "op": "gte", "value": 2 } }
+      ]
+    },
+    "season": [
+      { "label": "4 INT / 10 PD", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 4 }, { "stat": "pass_deflections", "op": "gte", "value": 10 }] } },
+      { "label": "6 INT / 15 PD / 3 forced turnovers", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 6 }, { "stat": "pass_deflections", "op": "gte", "value": 15 }, { "stat": "forced_fumbles", "op": "gte", "value": 3 }] } },
+      { "label": "8 INT / 20 PD / 2 defensive TD", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 8 }, { "stat": "pass_deflections", "op": "gte", "value": 20 }, { "stat": "defensive_tds", "op": "gte", "value": 2 }] } }
+    ],
+    "career": [
+      { "label": "15 INT / 50 PD", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 15 }, { "stat": "pass_deflections", "op": "gte", "value": 50 }] } },
+      { "label": "25 INT / 100 PD", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 25 }, { "stat": "pass_deflections", "op": "gte", "value": 100 }] } },
+      { "label": "40 INT / 150 PD / 10 defensive TD", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 40 }, { "stat": "pass_deflections", "op": "gte", "value": 150 }, { "stat": "defensive_tds", "op": "gte", "value": 10 }] } }
+    ]
+  },
+  "FS": {
+    "weekly": {
+      "bronze": [
+        { "label": "5 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 5 } },
+        { "label": "1 pass deflection", "condition": { "stat": "pass_deflections", "op": "gte", "value": 1 } },
+        { "label": "1 forced fumble", "condition": { "stat": "forced_fumbles", "op": "gte", "value": 1 }, "_note": "v1 was '1 TFL' -- replaced (tackles_for_loss is never populated by any live import)." },
+        { "label": "1 sack", "condition": { "stat": "sacks", "op": "gte", "value": 1 }, "_note": "v1 was '1 sack/pressure if available' -- the 'pressure if available' fragment matched nothing in the old parser and silently defaulted to true, so this was already just '1 sack' in practice; relabeled to match actual behavior." }
+      ],
+      "silver": [
+        { "label": "1 INT", "condition": { "stat": "interceptions", "op": "gte", "value": 1 } },
+        { "label": "7 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 7 } },
+        { "label": "1 forced fumble", "condition": { "stat": "forced_fumbles", "op": "gte", "value": 1 } },
+        { "label": "2 pass deflections", "condition": { "stat": "pass_deflections", "op": "gte", "value": 2 } }
+      ],
+      "gold": [
+        { "label": "2 INT", "condition": { "stat": "interceptions", "op": "gte", "value": 2 } },
+        { "label": "defensive TD", "condition": { "stat": "defensive_tds", "op": "gte", "value": 1 } },
+        { "label": "INT + forced fumble", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 1 }, { "stat": "forced_fumbles", "op": "gte", "value": 1 }] } },
+        { "label": "10 tackles + takeaway", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 10 }, { "stat": "takeaways", "op": "gte", "value": 1 }] } }
+      ]
+    },
+    "season": [
+      { "label": "4 INT / 70 tackles", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 4 }, { "stat": "tackles", "op": "gte", "value": 70 }] } },
+      { "label": "6 INT / 90 tackles / 3 forced turnovers", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 6 }, { "stat": "tackles", "op": "gte", "value": 90 }, { "stat": "forced_fumbles", "op": "gte", "value": 3 }] } },
+      { "label": "8 INT / 100 tackles / 2 defensive TD", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 8 }, { "stat": "tackles", "op": "gte", "value": 100 }, { "stat": "defensive_tds", "op": "gte", "value": 2 }] } }
+    ],
+    "career": [
+      { "label": "15 INT / 500 tackles", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 15 }, { "stat": "tackles", "op": "gte", "value": 500 }] } },
+      { "label": "25 INT / 750 tackles", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 25 }, { "stat": "tackles", "op": "gte", "value": 750 }] } },
+      { "label": "40 INT / 1,000 tackles / 10 defensive TD", "condition": { "all": [{ "stat": "interceptions", "op": "gte", "value": 40 }, { "stat": "tackles", "op": "gte", "value": 1000 }, { "stat": "defensive_tds", "op": "gte", "value": 10 }] } }
+    ]
+  },
+  "SS": {
+    "weekly": {
+      "bronze": [
+        { "label": "5 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 5 } },
+        { "label": "1 forced fumble", "condition": { "stat": "forced_fumbles", "op": "gte", "value": 1 }, "_note": "v1 was '1 TFL' -- replaced (tackles_for_loss is never populated by any live import)." },
+        { "label": "1 pass deflection", "condition": { "stat": "pass_deflections", "op": "gte", "value": 1 } },
+        { "label": "1 impact play", "condition": { "any": [{ "stat": "takeaways", "op": "gte", "value": 1 }, { "stat": "sacks", "op": "gte", "value": 1 }] } }
+      ],
+      "silver": [
+        { "label": "8 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 8 } },
+        { "label": "1 INT", "condition": { "stat": "interceptions", "op": "gte", "value": 1 } },
+        { "label": "1 forced fumble", "condition": { "stat": "forced_fumbles", "op": "gte", "value": 1 } },
+        { "label": "2 pass deflections", "condition": { "stat": "pass_deflections", "op": "gte", "value": 2 }, "_note": "v1 was '2 TFL' -- replaced (tackles_for_loss is never populated by any live import)." }
+      ],
+      "gold": [
+        { "label": "12 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 12 } },
+        { "label": "2 takeaways", "condition": { "stat": "takeaways", "op": "gte", "value": 2 } },
+        { "label": "defensive TD", "condition": { "stat": "defensive_tds", "op": "gte", "value": 1 } },
+        { "label": "sack + takeaway + 6 tackles", "condition": { "all": [{ "stat": "sacks", "op": "gte", "value": 1 }, { "stat": "takeaways", "op": "gte", "value": 1 }, { "stat": "tackles", "op": "gte", "value": 6 }] } }
+      ]
+    },
+    "season": [
+      { "label": "80 tackles / 3 forced turnovers", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 80 }, { "stat": "forced_fumbles", "op": "gte", "value": 3 }] } },
+      { "label": "100 tackles / 5 INT", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 100 }, { "stat": "interceptions", "op": "gte", "value": 5 }] }, "_note": "v1 was '100 tackles / 5 INT / 10 TFL' -- the TFL fragment dropped (tackles_for_loss is never populated); remaining requirements unchanged." },
+      { "label": "120 tackles / 8 combined sacks+INT / 5 forced turnovers", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 120 }, { "stat": "sacks_plus_interceptions", "op": "gte", "value": 8 }, { "stat": "forced_fumbles", "op": "gte", "value": 5 }] } }
+    ],
+    "career": [
+      { "label": "500 tackles / 10 INT", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 500 }, { "stat": "interceptions", "op": "gte", "value": 10 }] } },
+      { "label": "750 tackles / 20 INT", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 750 }, { "stat": "interceptions", "op": "gte", "value": 20 }] } },
+      { "label": "1,000 tackles / 30 INT / 30 FF+sacks combined", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 1000 }, { "stat": "interceptions", "op": "gte", "value": 30 }, { "stat": "forced_fumbles_plus_sacks", "op": "gte", "value": 30 }] } }
+    ]
+  },
+  "MIKE": {
+    "weekly": {
+      "bronze": [
+        { "label": "7 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 7 } },
+        { "label": "1 pass deflection", "condition": { "stat": "pass_deflections", "op": "gte", "value": 1 }, "_note": "v1 was '1 TFL' -- replaced." },
+        { "label": "1 pass deflection", "condition": { "stat": "pass_deflections", "op": "gte", "value": 1 } },
+        { "label": "0.5-1 sack", "condition": { "stat": "sacks", "op": "gte", "value": 0.5 } },
+        { "label": "5 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 5 }, "_note": "v1 was '5 tackles + 1 TFL' -- TFL fragment dropped, tackles requirement unchanged." },
+        { "label": "1 sack", "condition": { "stat": "sacks", "op": "gte", "value": 1 } },
+        { "label": "6 tackles + 1 pass deflection", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 6 }, { "stat": "pass_deflections", "op": "gte", "value": 1 }] } },
+        { "label": "1 takeaway", "condition": { "stat": "takeaways", "op": "gte", "value": 1 } },
+        { "label": "8 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 8 } },
+        { "label": "2 pass deflections", "condition": { "stat": "pass_deflections", "op": "gte", "value": 2 }, "_note": "v1 was '2 TFL' -- replaced." },
+        { "label": "1 forced fumble", "condition": { "stat": "forced_fumbles", "op": "gte", "value": 1 } },
+        { "label": "6 tackles + 1 sack", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 6 }, { "stat": "sacks", "op": "gte", "value": 1 }] } }
+      ],
+      "silver": [
+        { "label": "10 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 10 } },
+        { "label": "2 pass deflections", "condition": { "stat": "pass_deflections", "op": "gte", "value": 2 }, "_note": "v1 was '2 TFL' -- replaced." },
+        { "label": "1 sack", "condition": { "stat": "sacks", "op": "gte", "value": 1 } },
+        { "label": "1 takeaway", "condition": { "stat": "takeaways", "op": "gte", "value": 1 } },
+        { "label": "8 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 8 }, "_note": "v1 was '8 tackles + 1 TFL' -- TFL fragment dropped, tackles requirement unchanged." },
+        { "label": "1.5 sacks", "condition": { "stat": "sacks", "op": "gte", "value": 1.5 } },
+        { "label": "2 pass deflections", "condition": { "stat": "pass_deflections", "op": "gte", "value": 2 } },
+        { "label": "2 takeaways", "condition": { "stat": "takeaways", "op": "gte", "value": 2 } },
+        { "label": "12 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 12 } },
+        { "label": "1 forced fumble", "condition": { "stat": "forced_fumbles", "op": "gte", "value": 1 }, "_note": "v1 was '3 TFL' -- replaced at a modest bronze/silver-adjacent bar; real re-tuning is Pass 4's job." },
+        { "label": "1 forced fumble + 1 sack", "condition": { "all": [{ "stat": "forced_fumbles", "op": "gte", "value": 1 }, { "stat": "sacks", "op": "gte", "value": 1 }] } },
+        { "label": "9 tackles + 1 takeaway", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 9 }, { "stat": "takeaways", "op": "gte", "value": 1 }] } }
+      ],
+      "gold": [
+        { "label": "15 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 15 } },
+        { "label": "3 pass deflections", "condition": { "stat": "pass_deflections", "op": "gte", "value": 3 }, "_note": "v1 was '3 TFL' -- replaced." },
+        { "label": "2 sacks", "condition": { "stat": "sacks", "op": "gte", "value": 2 } },
+        { "label": "10 tackles + sack + takeaway", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 10 }, { "stat": "sacks", "op": "gte", "value": 1 }, { "stat": "takeaways", "op": "gte", "value": 1 }] } },
+        { "label": "12 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 12 }, "_note": "v1 was '12 tackles + 2 TFL' -- TFL fragment dropped, tackles requirement unchanged." },
+        { "label": "3 sacks", "condition": { "stat": "sacks", "op": "gte", "value": 3 } },
+        { "label": "3 pass deflections", "condition": { "stat": "pass_deflections", "op": "gte", "value": 3 } },
+        { "label": "2 takeaways + 1 sack", "condition": { "all": [{ "stat": "takeaways", "op": "gte", "value": 2 }, { "stat": "sacks", "op": "gte", "value": 1 }] } },
+        { "label": "18 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 18 } },
+        { "label": "2 forced fumbles", "condition": { "stat": "forced_fumbles", "op": "gte", "value": 2 }, "_note": "v1 was '4 TFL' -- replaced at a modest gold-adjacent bar; real re-tuning is Pass 4's job." },
+        { "label": "2 forced fumbles", "condition": { "stat": "forced_fumbles", "op": "gte", "value": 2 } },
+        { "label": "12 tackles + 2 sacks", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 12 }, { "stat": "sacks", "op": "gte", "value": 2 }] } }
+      ]
+    },
+    "season": [
+      [
+        { "label": "100 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 100 }, "_note": "v1 was '100 tackles / 10 TFL' -- TFL fragment dropped." },
+        { "label": "90 tackles / 8 sacks", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 90 }, { "stat": "sacks", "op": "gte", "value": 8 }] } },
+        { "label": "80 tackles / 4 forced turnovers", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 80 }, { "stat": "forced_fumbles", "op": "gte", "value": 4 }] }, "_note": "v1 was '80 tackles / 12 TFL / 4 forced turnovers' -- TFL fragment dropped." }
+      ],
+      [
+        { "label": "120 tackles / 6 sacks", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 120 }, { "stat": "sacks", "op": "gte", "value": 6 }] }, "_note": "v1 was '120 tackles / 15 TFL / 6 sacks' -- TFL fragment dropped." },
+        { "label": "110 tackles / 10 sacks / 3 forced turnovers", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 110 }, { "stat": "sacks", "op": "gte", "value": 10 }, { "stat": "forced_fumbles", "op": "gte", "value": 3 }] } },
+        { "label": "130 tackles / 10 pass deflections", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 130 }, { "stat": "pass_deflections", "op": "gte", "value": 10 }] }, "_note": "v1 was '130 tackles / 18 TFL / 10 pass deflections' -- TFL fragment dropped." }
+      ],
+      [
+        { "label": "140 tackles / 10 sacks / 5 forced turnovers", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 140 }, { "stat": "sacks", "op": "gte", "value": 10 }, { "stat": "forced_fumbles", "op": "gte", "value": 5 }] }, "_note": "v1 was '140 tackles / 20 TFL / 10 sacks / 5 forced turnovers' -- TFL fragment dropped." },
+        { "label": "150 tackles / 15 sacks / 8 forced turnovers", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 150 }, { "stat": "sacks", "op": "gte", "value": 15 }, { "stat": "forced_fumbles", "op": "gte", "value": 8 }] } },
+        { "label": "135 tackles / 15 pass deflections / 6 sacks", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 135 }, { "stat": "pass_deflections", "op": "gte", "value": 15 }, { "stat": "sacks", "op": "gte", "value": 6 }] }, "_note": "v1 was '135 tackles / 25 TFL / 15 pass deflections / 6 sacks' -- TFL fragment dropped." }
+      ]
+    ],
+    "career": [
+      [
+        { "label": "600 tackles", "condition": { "stat": "tackles", "op": "gte", "value": 600 }, "_note": "v1 was '600 tackles / 50 TFL' -- TFL fragment dropped." },
+        { "label": "550 tackles / 40 sacks", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 550 }, { "stat": "sacks", "op": "gte", "value": 40 }] } },
+        { "label": "500 tackles / 20 forced turnovers", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 500 }, { "stat": "forced_fumbles", "op": "gte", "value": 20 }] }, "_note": "v1 was '500 tackles / 60 TFL / 20 forced turnovers' -- TFL fragment dropped." }
+      ],
+      [
+        { "label": "900 tackles / 30 sacks", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 900 }, { "stat": "sacks", "op": "gte", "value": 30 }] }, "_note": "v1 was '900 tackles / 80 TFL / 30 sacks' -- TFL fragment dropped." },
+        { "label": "850 tackles / 60 sacks / 15 forced turnovers", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 850 }, { "stat": "sacks", "op": "gte", "value": 60 }, { "stat": "forced_fumbles", "op": "gte", "value": 15 }] } },
+        { "label": "950 tackles / 50 pass deflections", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 950 }, { "stat": "pass_deflections", "op": "gte", "value": 50 }] }, "_note": "v1 was '950 tackles / 100 TFL / 50 pass deflections' -- TFL fragment dropped." }
+      ],
+      [
+        { "label": "1,200 tackles / 50 sacks / 20 forced turnovers", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 1200 }, { "stat": "sacks", "op": "gte", "value": 50 }, { "stat": "forced_fumbles", "op": "gte", "value": 20 }] }, "_note": "v1 was '1,200 tackles / 120 TFL / 50 sacks / 20 forced turnovers' -- TFL fragment dropped." },
+        { "label": "1,300 tackles / 90 sacks / 30 forced turnovers", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 1300 }, { "stat": "sacks", "op": "gte", "value": 90 }, { "stat": "forced_fumbles", "op": "gte", "value": 30 }] } },
+        { "label": "1,150 tackles / 80 pass deflections / 60 sacks", "condition": { "all": [{ "stat": "tackles", "op": "gte", "value": 1150 }, { "stat": "pass_deflections", "op": "gte", "value": 80 }, { "stat": "sacks", "op": "gte", "value": 60 }] }, "_note": "v1 was '1,150 tackles / 150 TFL / 80 pass deflections / 60 sacks' -- TFL fragment dropped." }
+      ]
+    ]
+  }
+}

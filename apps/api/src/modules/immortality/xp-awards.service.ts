@@ -3,9 +3,6 @@ import {
   combinedModifiers,
   FORMULA_VERSIONS,
   gameplaySeasonStages,
-  issuedCareerChallenges,
-  issuedSeasonChallenges,
-  issuedWeeklyChallenges,
   pointsForCareerTier,
   pointsForSeasonTier,
   pointsForWeeklyTier,
@@ -187,12 +184,19 @@ export async function weeklyChallengesForUser(input: {
       })
       : {};
     const seed = `${immortality.id}:${input.seasonNumber}:${input.weekNumber}:${prospect.id}`;
+    // Resolves through the same frozen-issuance path gradeProspectForWeek grades against, so the
+    // display view here and the eventual grading pass always agree on which challenge was shown.
+    const { resolveIssuedWeeklyChallenges } = await import("./challenge-issuance.service.js");
+    const challenges = await resolveIssuedWeeklyChallenges({
+      prospectId: String(prospect.id), position: String(prospect.position), seed,
+      seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, stats,
+    });
     views.push({
       prospectId: String(prospect.id),
       side: String(prospect.side),
       name: `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Player",
       position: String(prospect.position),
-      challenges: issuedWeeklyChallenges({ position: String(prospect.position), seed, stats }),
+      challenges,
     });
   }
   return views;
@@ -364,7 +368,11 @@ export async function gradeProspectForWeek(
 
   const seed = `${input.immortalityLeagueId}:${input.seasonNumber}:${input.weekNumber}:${prospect.id}`;
   const challengeStats = rivalry.isRivalryGame ? elevateStatsForRivalry(weekStats) : weekStats;
-  const weekly = issuedWeeklyChallenges({ position: String(prospect.position), seed, stats: challengeStats });
+  const { resolveIssuedWeeklyChallenges, resolveIssuedSeasonChallenges, resolveIssuedCareerChallenges } = await import("./challenge-issuance.service.js");
+  const weekly = await resolveIssuedWeeklyChallenges({
+    prospectId: String(prospect.id), position: String(prospect.position), seed,
+    seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, stats: challengeStats,
+  });
   // Gold weekly challenges no longer grant an ability slot -- ability access is meant to come
   // from progression ownership, dev trait, and Madden eligibility, not challenge completion.
   let weeklyPointsAwarded = 0;
@@ -425,7 +433,11 @@ export async function gradeProspectForWeek(
     seasonNumber: input.seasonNumber,
   });
   const seasonSeed = `${input.immortalityLeagueId}:${input.seasonNumber}:${prospect.id}:season`;
-  for (const challenge of issuedSeasonChallenges(String(prospect.position), seasonStats, seasonSeed)) {
+  const seasonChallenges = await resolveIssuedSeasonChallenges({
+    prospectId: String(prospect.id), position: String(prospect.position), seed: seasonSeed,
+    seasonNumber: input.seasonNumber, stats: seasonStats,
+  });
+  for (const challenge of seasonChallenges) {
     if (!challenge.complete) continue;
     const tier = (challenge.tier === "tier2" || challenge.tier === "tier3" ? challenge.tier : "tier1") as "tier1" | "tier2" | "tier3";
     await creditXpPoints({
@@ -448,7 +460,10 @@ export async function gradeProspectForWeek(
     playerId: String(prospect.player_id),
   });
   const careerSeed = `${input.immortalityLeagueId}:${prospect.id}:career`;
-  for (const challenge of issuedCareerChallenges(String(prospect.position), careerStats, careerSeed)) {
+  const careerChallenges = await resolveIssuedCareerChallenges({
+    prospectId: String(prospect.id), position: String(prospect.position), seed: careerSeed, stats: careerStats,
+  });
+  for (const challenge of careerChallenges) {
     if (!challenge.complete) continue;
     const tier = (challenge.tier === "tier2" || challenge.tier === "tier3" ? challenge.tier : "tier1") as "tier1" | "tier2" | "tier3";
     await creditXpPoints({

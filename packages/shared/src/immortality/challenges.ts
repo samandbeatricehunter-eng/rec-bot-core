@@ -12,23 +12,57 @@ import type { ImmortalityPosition } from "./types.js";
 export type ChallengeTier = "bronze" | "silver" | "gold";
 export type ChallengeScope = "weekly" | "season" | "career";
 
+/** Whitelisted stat keys a structured condition may reference. The first block is raw stats as
+ * they arrive from Madden/box-score import (see rec_player_weekly_stats.stats); the second block
+ * is derived once per grading pass by derivedChallengeStats() below. Anything outside this set
+ * fails closed in evaluateChallengeCondition rather than silently passing -- see that function's
+ * doc comment for why this replaced the old regex parser's `return true` fallthrough. Deliberately
+ * excludes tackles_for_loss: Madden never populates it (confirmed against live rec_player_weekly_stats
+ * data), so any condition that somehow referenced it would be permanently uncompletable anyway --
+ * excluding it here means that mistake fails closed instead of just failing forever.
+ */
+export type StatKey =
+  | "pass_yards" | "pass_tds" | "pass_attempts" | "pass_completions" | "completion_pct" | "passer_rating"
+  | "rush_yards" | "rush_tds" | "rush_attempts"
+  | "receiving_yards" | "receiving_tds" | "receptions"
+  | "tackles" | "sacks" | "forced_fumbles" | "fumble_recoveries" | "interceptions" | "interceptions_thrown"
+  | "pass_deflections" | "defensive_tds" | "rushing_fumbles"
+  | "total_tds" | "takeaways" | "turnovers" | "scrimmage_yards" | "ypc" | "ypr"
+  | "sacks_plus_interceptions" | "forced_fumbles_plus_sacks";
+
+export const SUPPORTED_CHALLENGE_STATS: ReadonlySet<StatKey> = new Set<StatKey>([
+  "pass_yards", "pass_tds", "pass_attempts", "pass_completions", "completion_pct", "passer_rating",
+  "rush_yards", "rush_tds", "rush_attempts",
+  "receiving_yards", "receiving_tds", "receptions",
+  "tackles", "sacks", "forced_fumbles", "fumble_recoveries", "interceptions", "interceptions_thrown",
+  "pass_deflections", "defensive_tds", "rushing_fumbles",
+  "total_tds", "takeaways", "turnovers", "scrimmage_yards", "ypc", "ypr",
+  "sacks_plus_interceptions", "forced_fumbles_plus_sacks",
+]);
+
+export type StatCondition = { stat: StatKey; op: "gte" | "lte"; value: number };
+export type ChallengeCondition = StatCondition | { all: ChallengeCondition[] } | { any: ChallengeCondition[] };
+
+export type ChallengeEntry = { label: string; condition: ChallengeCondition };
+
 export type IssuedChallenge = {
   id: string;
   scope: ChallengeScope;
   tier: ChallengeTier | "tier1" | "tier2" | "tier3";
   label: string;
+  condition: ChallengeCondition;
   complete: boolean;
 };
 
-// Each season/career tier slot is either a single label (the original 6 positions, unchanged)
-// or an array of interchangeable variant labels (QB/MIKE's tripled pools) -- one variant gets
+// Each season/career tier slot is either a single entry (the original 6 positions, unchanged)
+// or an array of interchangeable variant entries (QB/MIKE's tripled pools) -- one variant gets
 // picked per (position, prospect, season|career) via the same seeded pickIndex weekly already
 // uses, so the shown label stays stable across repeated grading passes within that scope instead
 // of reshuffling every advance.
 type MilestonePosition = {
-  weekly: { bronze: string[]; silver: string[]; gold: string[] };
-  season: Array<string | string[]>;
-  career: Array<string | string[]>;
+  weekly: { bronze: ChallengeEntry[]; silver: ChallengeEntry[]; gold: ChallengeEntry[] };
+  season: Array<ChallengeEntry | ChallengeEntry[]>;
+  career: Array<ChallengeEntry | ChallengeEntry[]>;
 };
 
 function milestoneFor(position: string): MilestonePosition | null {
@@ -42,74 +76,48 @@ function num(stats: Record<string, number>, key: string): number {
   return Number(stats[key] ?? 0) || 0;
 }
 
-function totalTd(stats: Record<string, number>): number {
-  return num(stats, "pass_tds") + num(stats, "rush_tds") + num(stats, "receiving_tds") + num(stats, "defensive_tds");
+/** Computed once per grading pass and merged into the raw stats map before evaluation -- mirrors
+ * what the old regex parser derived ad hoc per clause (totalTd/takeaways/turnovers/scrimmage),
+ * plus two rate stats (ypc/ypr) the old parser handled via its own regex branches. A rate stat is
+ * only set when its denominator is > 0, so a condition referencing it naturally fails closed
+ * (stats[stat] == null in evaluateChallengeCondition) instead of dividing by zero into NaN. */
+export function derivedChallengeStats(raw: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = { ...raw };
+  out.total_tds = num(raw, "pass_tds") + num(raw, "rush_tds") + num(raw, "receiving_tds") + num(raw, "defensive_tds");
+  out.takeaways = num(raw, "interceptions") + num(raw, "forced_fumbles") + num(raw, "fumble_recoveries");
+  out.turnovers = num(raw, "interceptions_thrown") + num(raw, "rushing_fumbles");
+  out.scrimmage_yards = num(raw, "rush_yards") + num(raw, "receiving_yards");
+  const rushAttempts = num(raw, "rush_attempts");
+  if (rushAttempts > 0) out.ypc = num(raw, "rush_yards") / rushAttempts;
+  const receptions = num(raw, "receptions");
+  if (receptions > 0) out.ypr = num(raw, "receiving_yards") / receptions;
+  // Two catalog entries (SS season tier2, SS career tier3) phrase a genuinely combined
+  // threshold ("8 combined sacks+INT", "30 FF+sacks combined") rather than two separate
+  // requirements -- narrow derived stats for exactly those two cases, not general-purpose.
+  out.sacks_plus_interceptions = num(raw, "sacks") + num(raw, "interceptions");
+  out.forced_fumbles_plus_sacks = num(raw, "forced_fumbles") + num(raw, "sacks");
+  return out;
 }
 
-function takeaways(stats: Record<string, number>): number {
-  return num(stats, "interceptions") + num(stats, "forced_fumbles") + num(stats, "fumble_recoveries");
+/** Evaluates a structured challenge condition against already-derived stats (see
+ * derivedChallengeStats). Fails CLOSED: a condition referencing a stat outside
+ * SUPPORTED_CHALLENGE_STATS, or one the stats map has no value for, returns false rather than
+ * true. This replaces the old string parser's `return true` fallthrough for any clause it
+ * couldn't recognize -- confirmed live, that let malformed catalog entries (e.g. "pressure if
+ * available") silently auto-complete regardless of actual stats. */
+export function evaluateChallengeCondition(condition: ChallengeCondition, stats: Record<string, number>): boolean {
+  if ("all" in condition) return condition.all.every((c) => evaluateChallengeCondition(c, stats));
+  if ("any" in condition) return condition.any.some((c) => evaluateChallengeCondition(c, stats));
+  if (!SUPPORTED_CHALLENGE_STATS.has(condition.stat)) return false;
+  const actual = stats[condition.stat];
+  if (actual == null || !Number.isFinite(actual)) return false;
+  return condition.op === "gte" ? actual >= condition.value : actual <= condition.value;
 }
 
-function turnovers(stats: Record<string, number>): number {
-  return num(stats, "interceptions_thrown") + num(stats, "rushing_fumbles");
-}
-
-function scrimmage(stats: Record<string, number>): number {
-  return num(stats, "rush_yards") + num(stats, "receiving_yards");
-}
-
-/** Best-effort evaluator for the human-readable milestone strings in milestones_v1.json. */
-export function challengeComplete(label: string, stats: Record<string, number>): boolean {
-  const text = label.toLowerCase().replace(/,/g, "");
-  const clauses = text.split(/\s*(?:\+|\/| and | with |,)\s*/).map((part) => part.trim()).filter(Boolean);
-  if (!clauses.length) return false;
-  return clauses.every((clause) => clauseComplete(clause, stats, text));
-}
-
-function clauseComplete(clause: string, stats: Record<string, number>, full: string): boolean {
-  const lte = clause.match(/<=\s*(\d+)\s*(turnovers?|ints?)/);
-  if (lte) return (lte[2].startsWith("int") ? num(stats, "interceptions_thrown") : turnovers(stats)) <= Number(lte[1]);
-  if (/0 turnovers/.test(clause) || /0 int\b/.test(clause)) return turnovers(stats) <= 0 && num(stats, "interceptions_thrown") <= 0;
-
-  const ypc = clause.match(/(\d+(?:\.\d+)?)\s*ypc on (\d+)\+ carries/);
-  if (ypc) {
-    const att = num(stats, "rush_attempts");
-    return att >= Number(ypc[2]) && att > 0 && num(stats, "rush_yards") / att >= Number(ypc[1]);
-  }
-  const ypr = clause.match(/(\d+(?:\.\d+)?)\s*ypr on (\d+)\+ (?:catches|receptions)/);
-  if (ypr) {
-    const rec = num(stats, "receptions");
-    return rec >= Number(ypr[2]) && rec > 0 && num(stats, "receiving_yards") / rec >= Number(ypr[1]);
-  }
-  const comp = clause.match(/(\d+)% completion on (\d+)\+ attempts/);
-  if (comp) return num(stats, "completion_pct") >= Number(comp[1]) && num(stats, "pass_attempts") >= Number(comp[2]);
-  const rating = clause.match(/(\d+)\+? passer rating/);
-  if (rating) return num(stats, "passer_rating") >= Number(rating[1]);
-
-  const n = clause.match(/(\d+(?:\.\d+)?)/);
-  const value = n ? Number(n[1]) : 1;
-  if (/passing yards|pass yds/.test(clause)) return num(stats, "pass_yards") >= value;
-  if (/passing td|pass td/.test(clause)) return num(stats, "pass_tds") >= value;
-  if (/rushing yards|rush yds/.test(clause)) return num(stats, "rush_yards") >= value;
-  if (/rushing td|rush td/.test(clause)) return num(stats, "rush_tds") >= value;
-  if (/receiving yards|rec yds/.test(clause)) return num(stats, "receiving_yards") >= value;
-  if (/receiving td|rec td/.test(clause)) return num(stats, "receiving_tds") >= value;
-  if (/scrimmage/.test(clause)) return scrimmage(stats) >= value;
-  if (/receptions|\brec\b/.test(clause) && !/rec yds|receiving/.test(clause)) return num(stats, "receptions") >= value;
-  if (/total td/.test(clause)) return totalTd(stats) >= value;
-  if (/\btd\b/.test(clause) && !/passing|rush|rec|defensive/.test(clause)) return totalTd(stats) >= value;
-  if (/combined tackles|tackles|\btkl\b/.test(clause)) return num(stats, "tackles") >= value;
-  if (/\btfl\b/.test(clause)) return num(stats, "tackles_for_loss") >= value;
-  if (/sacks?/.test(clause)) return num(stats, "sacks") >= value;
-  if (/takeaways?/.test(clause)) return takeaways(stats) >= value;
-  if (/forced turnovers|forced fumble|\bff\b/.test(clause)) return num(stats, "forced_fumbles") >= value;
-  if (/pass deflection/.test(clause)) return num(stats, "pass_deflections") >= value || takeaways(stats) >= value;
-  if (/defensive td|def td/.test(clause)) return num(stats, "defensive_tds") >= value;
-  if (/\bint\b|interceptions?/.test(clause) && !/thrown/.test(clause)) return num(stats, "interceptions") >= value;
-  if (/impact play/.test(clause)) return takeaways(stats) >= 1 || num(stats, "sacks") >= 1;
-  if (/attempts/.test(clause) && /pass/.test(full)) return num(stats, "pass_attempts") >= value;
-  return true;
-}
+// Never satisfiable -- only used as a defensive fallback if a catalog pool is ever empty
+// (shouldn't happen; every position's pools are always populated), so grading fails closed
+// instead of crashing on an undefined entry.
+const UNREACHABLE_CONDITION: ChallengeCondition = { stat: "tackles", op: "gte", value: Number.MAX_SAFE_INTEGER };
 
 function pickIndex(seed: string, length: number, salt: number): number {
   let hash = salt >>> 0;
@@ -124,37 +132,41 @@ export function issuedWeeklyChallenges(input: {
 }): IssuedChallenge[] {
   const row = milestoneFor(input.position);
   if (!row) return [];
+  const derived = derivedChallengeStats(input.stats);
   const tiers: ChallengeTier[] = ["bronze", "silver", "gold"];
   return tiers.map((tier, index) => {
     const pool = row.weekly[tier];
-    const label = pool[pickIndex(input.seed, pool.length, index + 1)] ?? pool[0] ?? "";
+    const entry = pool[pickIndex(input.seed, pool.length, index + 1)] ?? pool[0];
     return {
       id: `weekly:${tier}`,
       scope: "weekly",
       tier,
-      label,
-      complete: label ? challengeComplete(label, input.stats) : false,
+      label: entry?.label ?? "",
+      condition: entry?.condition ?? UNREACHABLE_CONDITION,
+      complete: entry?.label ? evaluateChallengeCondition(entry.condition, derived) : false,
     };
   });
 }
 
-function resolveLabel(entry: string | string[], seed: string, salt: number): string {
-  if (typeof entry === "string") return entry;
-  return entry[pickIndex(seed, entry.length, salt)] ?? entry[0] ?? "";
+function resolveEntry(entry: ChallengeEntry | ChallengeEntry[], seed: string, salt: number): ChallengeEntry | undefined {
+  if (Array.isArray(entry)) return entry[pickIndex(seed, entry.length, salt)] ?? entry[0];
+  return entry;
 }
 
 export function issuedSeasonChallenges(position: string, stats: Record<string, number>, seed = position): IssuedChallenge[] {
   const row = milestoneFor(position);
   if (!row) return [];
+  const derived = derivedChallengeStats(stats);
   const tiers = ["tier1", "tier2", "tier3"] as const;
-  return row.season.map((entry, index) => {
-    const label = resolveLabel(entry, seed, index + 1);
+  return row.season.map((raw, index) => {
+    const entry = resolveEntry(raw, seed, index + 1);
     return {
       id: `season:${tiers[index] ?? "tier1"}`,
       scope: "season" as const,
       tier: tiers[index] ?? "tier1",
-      label,
-      complete: label ? challengeComplete(label, stats) : false,
+      label: entry?.label ?? "",
+      condition: entry?.condition ?? UNREACHABLE_CONDITION,
+      complete: entry?.label ? evaluateChallengeCondition(entry.condition, derived) : false,
     };
   });
 }
@@ -162,15 +174,17 @@ export function issuedSeasonChallenges(position: string, stats: Record<string, n
 export function issuedCareerChallenges(position: string, stats: Record<string, number>, seed = position): IssuedChallenge[] {
   const row = milestoneFor(position);
   if (!row) return [];
+  const derived = derivedChallengeStats(stats);
   const tiers = ["tier1", "tier2", "tier3"] as const;
-  return row.career.map((entry, index) => {
-    const label = resolveLabel(entry, seed, index + 1);
+  return row.career.map((raw, index) => {
+    const entry = resolveEntry(raw, seed, index + 1);
     return {
       id: `career:${tiers[index] ?? "tier1"}`,
       scope: "career" as const,
       tier: tiers[index] ?? "tier1",
-      label,
-      complete: label ? challengeComplete(label, stats) : false,
+      label: entry?.label ?? "",
+      condition: entry?.condition ?? UNREACHABLE_CONDITION,
+      complete: entry?.label ? evaluateChallengeCondition(entry.condition, derived) : false,
     };
   });
 }

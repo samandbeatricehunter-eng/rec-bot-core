@@ -11,7 +11,7 @@ import wrTeJson from "./config/characteristics_WR_TE.json" with { type: "json" }
 import dbJson from "./config/characteristics_DB.json" with { type: "json" };
 import lbJson from "./config/characteristics_LB.json" with { type: "json" };
 import synergiesJson from "./config/characteristic_synergies.json" with { type: "json" };
-import milestonesJson from "./config/milestones_v1.json" with { type: "json" };
+import milestonesJson from "./config/milestones_v2.json" with { type: "json" };
 import contractsJson from "./config/contracts_v1.json" with { type: "json" };
 import matchupInterviewJson from "./config/matchup_interview_pool.json" with { type: "json" };
 import matchupInterviewWave2Json from "./config/matchup_interview_wave2.json" with { type: "json" };

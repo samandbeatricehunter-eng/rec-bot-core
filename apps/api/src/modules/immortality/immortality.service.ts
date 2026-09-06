@@ -81,7 +81,6 @@ import {
   addPersonaPoints,
   emptyPersonaScores,
   type PersonaScores,
-  issuedWeeklyChallenges,
   XP_POINTS_PER_LEVEL,
   RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT,
   RISE_TO_IMMORTALITY_COMMISSIONER_BONUS_AMOUNT,
@@ -3564,7 +3563,15 @@ export async function resolvePendingMediaDayClaimsForGame(gameId: string): Promi
       const weekStats = await supabase.from("rec_player_weekly_stats").select("stats")
         .eq("league_id", game.data.league_id).eq("player_id", prospect.data.player_id).eq("week_number", row.week_number).eq("season_number", row.season).maybeSingle();
       const stats = (weekStats.data?.stats ?? {}) as Record<string, number>;
-      const challenges = issuedWeeklyChallenges({ position: String(prospect.data.position ?? ""), seed: `${row.prospect_id}:${row.week_number}`, stats });
+      // Resolved through the same frozen-issuance path (and the same seed format) real weekly
+      // grading uses -- this used to build its own independent seed here, which could silently
+      // check a *different* challenge than the one actually graded for this prospect/week.
+      const { resolveIssuedWeeklyChallenges } = await import("./challenge-issuance.service.js");
+      const challenges = await resolveIssuedWeeklyChallenges({
+        prospectId: String(row.prospect_id), position: String(prospect.data.position ?? ""),
+        seed: `${row.immortality_league_id}:${row.season}:${row.week_number}:${row.prospect_id}`,
+        seasonNumber: Number(row.season), weekNumber: Number(row.week_number), stats,
+      });
       const hadGoldWeek = challenges.some((c) => c.tier === "gold" && c.complete);
 
       const outcome = evaluateMatchupInterviewClaim({ hint: String(row.bonus_stat_category_hint), won, marginAbs, hadGoldWeek });
