@@ -4352,6 +4352,20 @@ h1, h2, h3, .site-wordmark {
   gap: 20px 22px; width: 100%; padding-top: 16px;
 }
 .rise-tree-row-origins { padding-top: 4px; }
+/* Pass 5 (Progression Engine V2): side-by-side lane columns for a tier where at least one node
+   carries a branch id -- no live catalog uses this yet (Pass 6/7 author the QB/MIKE/Owner lane
+   trees), so this never renders today. Pass 10 owns the full multi-lane visual treatment; this
+   is the minimal functional version reusing the existing node/row classes as-is. */
+.rise-tree-lanes {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start;
+  gap: 28px; width: 100%; padding-top: 12px;
+}
+.rise-tree-lane { display: flex; flex-direction: column; align-items: center; min-width: 120px; }
+.rise-tree-lane-label {
+  margin: 0 0 8px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted, #9aa3b2);
+}
+.rise-tree-row-lane { padding-top: 0; gap: 16px; }
 .rise-tree-row:not(.rise-tree-row-origins)::before {
   content: ""; position: absolute; top: 0; left: 50%; width: min(60%, 420px); height: 1px;
   background: color-mix(in srgb, var(--accent) 40%, transparent); transform: translateX(-50%);

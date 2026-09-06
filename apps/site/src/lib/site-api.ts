@@ -391,6 +391,8 @@ export type ImmortalityProgressionNode = {
   tier: number;
   xpCost: number;
   owned: boolean;
+  branch: string | null;
+  requires: string[];
   source: string | null;
   canPurchase: boolean;
   blockedReason: string | null;

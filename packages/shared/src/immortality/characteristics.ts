@@ -32,6 +32,25 @@ export type CharacteristicModifiers = {
   tradeAccess: boolean;
 };
 
+/** Rise to Immortality Pass 5 (Progression Engine V2): one variant per existing
+ * CharacteristicModifiers field. A definition that declares an explicit `effects` array is
+ * folded through applyEffect() instead of the legacy name-matched switch in
+ * modifiersFromDefinition -- see that function's doc comment. `attribute` on the two discount
+ * variants is either a real attribute code or ALL_ATTRIBUTES_DISCOUNT_CODE ("ALL"). */
+export type EffectSpec =
+  | { type: "attribute_creation_discount"; attribute: string; rate: number }
+  | { type: "attribute_xp_discount"; attribute: string; rate: number }
+  | { type: "xp_earn_bonus"; value: number }
+  | { type: "promotion_check_bonus"; value: number }
+  | { type: "team_xp_from_season_1" }
+  | { type: "negotiator_multiplier"; value: number }
+  | { type: "known_commodity_floor" }
+  | { type: "start_dev_star" }
+  | { type: "competitive_drive_bonus_pct"; value: number }
+  | { type: "dev_trait_purchase_unlocked" }
+  | { type: "teammate_dev_purchase_unlocked" }
+  | { type: "trade_access" };
+
 export type CharacteristicDefinition = {
   key: string;
   displayName: string;
@@ -43,6 +62,15 @@ export type CharacteristicDefinition = {
   configurationVersion: typeof FORMULA_VERSIONS.characteristics;
   tier: CharacteristicTier;
   xpCost: number;
+  /** Pass 5: specific prerequisite catalog keys (AND -- all must be owned), authored per-node
+   * for a real lane chain. Absent/empty on every node in all 5 live catalogs today, in which
+   * case purchaseCharacteristic falls back to the original flat tier-count rule unchanged --
+   * see that function's doc comment. Pass 6/7 populate this when authoring QB/MIKE/Owner lanes. */
+  requires?: string[];
+  /** Pass 5: opaque lane-grouping id (e.g. "gunslinger") for the QB/MIKE/Owner branch trees
+   * Pass 6/7 author. Null/absent for every node in all 5 live catalogs today -- the frontend
+   * renders a tier with no branched nodes exactly as it does now, a single flat row. */
+  branch?: string | null;
 };
 
 export type CharacteristicSelectionError =
@@ -58,6 +86,7 @@ export type CharacteristicPurchaseError =
   | "wrong_position_group"
   | "already_owned"
   | "tier_locked"
+  | "prerequisite_locked"
   | "origins_only"
   | "insufficient_xp";
 
@@ -104,11 +133,67 @@ function parsePercentDiscounts(effect: string): Record<string, number> {
   return discounts;
 }
 
+/** Pass 5: folds one structured EffectSpec into an already-initialized CharacteristicModifiers,
+ * mutating in place. One case per variant -- every consumer file (xp.ts, contracts.ts,
+ * xp-awards.service.ts, creation-points.ts, draft-stock.ts, ...) keeps reading the exact same
+ * named CharacteristicModifiers fields it does today; this only changes how those fields get
+ * populated for a node that declares explicit effects instead of relying on name-matching. */
+export function applyEffect(modifiers: CharacteristicModifiers, effect: EffectSpec): void {
+  switch (effect.type) {
+    case "attribute_creation_discount":
+      modifiers.creationDiscounts[effect.attribute] = Math.max(modifiers.creationDiscounts[effect.attribute] ?? 0, effect.rate);
+      break;
+    case "attribute_xp_discount":
+      modifiers.xpDiscounts[effect.attribute] = Math.max(modifiers.xpDiscounts[effect.attribute] ?? 0, effect.rate);
+      break;
+    case "xp_earn_bonus":
+      modifiers.xpEarnBonus += effect.value;
+      break;
+    case "promotion_check_bonus":
+      modifiers.promotionCheckBonus += effect.value;
+      break;
+    case "team_xp_from_season_1":
+      modifiers.teamXpFromSeason1 = true;
+      break;
+    case "negotiator_multiplier":
+      modifiers.negotiatorMultiplier *= effect.value;
+      break;
+    case "known_commodity_floor":
+      modifiers.knownCommodityFloor = true;
+      break;
+    case "start_dev_star":
+      modifiers.startDevStar = true;
+      break;
+    case "competitive_drive_bonus_pct":
+      modifiers.competitiveDriveBonusPct += effect.value;
+      break;
+    case "dev_trait_purchase_unlocked":
+      modifiers.devTraitPurchaseUnlocked = true;
+      break;
+    case "teammate_dev_purchase_unlocked":
+      modifiers.teammateDevPurchaseUnlocked = true;
+      break;
+    case "trade_access":
+      modifiers.tradeAccess = true;
+      break;
+    default:
+      break;
+  }
+}
+
 export function modifiersFromDefinition(input: {
   name: string;
   effect: string;
+  effects?: EffectSpec[];
 }): CharacteristicModifiers {
   const modifiers = emptyModifiers();
+  // Pass 5: explicit effects skip the legacy name-matched switch entirely -- see EffectSpec's
+  // doc comment. Every node in all 5 live catalogs today has no `effects` array, so this is a
+  // pure no-op branch until Pass 6/7 authors new lane content that declares one.
+  if (input.effects?.length) {
+    for (const effect of input.effects) applyEffect(modifiers, effect);
+    return modifiers;
+  }
   const discounts = parsePercentDiscounts(input.effect);
   modifiers.creationDiscounts = { ...discounts };
   modifiers.xpDiscounts = { ...discounts };
@@ -255,7 +340,9 @@ export function purchaseCharacteristic(input: {
   ownedKeys: string[];
   key: string;
   availableXp: number;
-}): { ok: true; xpCost: number; slotCost: number } | { ok: false; error: CharacteristicPurchaseError } {
+}):
+  | { ok: true; xpCost: number; slotCost: number }
+  | { ok: false; error: CharacteristicPurchaseError; missingKeys?: string[] } {
   const definition = input.catalog.find((item) => item.key === input.key);
   if (!definition) return { ok: false, error: "unknown_characteristic" };
   if (definition.positionGroup !== input.positionGroup) return { ok: false, error: "wrong_position_group" };
@@ -263,13 +350,18 @@ export function purchaseCharacteristic(input: {
   if (!isProgressionTreePerk(definition)) return { ok: false, error: "origins_only" };
 
   const owned = input.catalog.filter((item) => input.ownedKeys.includes(item.key));
-  if (definition.tier === 2 && owned.filter((item) => item.tier === 1).length < 2) {
+  // Pass 5: a node with explicit `requires` is gated by those specific keys (AND) instead of the
+  // original flat tier-count rule below -- every node in all 5 live catalogs today has no
+  // `requires`, so this branch is a no-op until Pass 6/7 authors real lane chains.
+  if (definition.requires?.length) {
+    const ownedSet = new Set(input.ownedKeys);
+    const missingKeys = definition.requires.filter((key) => !ownedSet.has(key));
+    if (missingKeys.length) return { ok: false, error: "prerequisite_locked", missingKeys };
+  } else if (definition.tier === 2 && owned.filter((item) => item.tier === 1).length < 2) {
     return { ok: false, error: "tier_locked" };
-  }
-  if (definition.tier === 3 && !owned.some((item) => item.tier === 2)) {
+  } else if (definition.tier === 3 && !owned.some((item) => item.tier === 2)) {
     return { ok: false, error: "tier_locked" };
-  }
-  if (definition.tier === 4 && !owned.some((item) => item.tier === 3)) {
+  } else if (definition.tier === 4 && !owned.some((item) => item.tier === 3)) {
     return { ok: false, error: "tier_locked" };
   }
 

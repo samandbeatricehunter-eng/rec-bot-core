@@ -1,5 +1,5 @@
 import { FORMULA_VERSIONS, type AttributeMap, type ImmortalityDevTrait, type ImmortalityPosition } from "./types.js";
-import type { CharacteristicModifiers } from "./characteristics.js";
+import { ALL_ATTRIBUTES_DISCOUNT_CODE, stackDiscounts, type CharacteristicModifiers } from "./characteristics.js";
 
 export const DEFAULT_CREATION_POINT_BUDGET = 175;
 export const CREATION_POINT_CALIBRATION_BUDGETS = [145, 160, 175, 190, 205] as const;
@@ -61,7 +61,10 @@ export function spendCreationPoints(input: {
     if (delta < 0) return { ok: false, error: `${code} cannot be lowered below the generated baseline.` };
     const target = baseline + delta;
     if (target > 99) return { ok: false, error: `${code} cannot exceed 99.` };
-    const discount = input.discounts?.[code] ?? 0;
+    // Pass 5 bug fix: folds in the "ALL" sentinel discount (e.g. Complete Package's "ALL
+    // attributes cost X% less") -- a plain input.discounts?.[code] lookup here silently ignored
+    // any perk that discounts every attribute instead of one specific code.
+    const discount = stackDiscounts([input.discounts?.[code] ?? 0, input.discounts?.[ALL_ATTRIBUTES_DISCOUNT_CODE] ?? 0]);
     for (let value = baseline + 1; value <= target; value += 1) {
       spentPoints += discountedCreationCost(value, discount, code);
     }

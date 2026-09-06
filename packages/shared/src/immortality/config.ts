@@ -23,6 +23,7 @@ import {
   DEFAULT_XP_COST_BY_SLOT,
   type CharacteristicDefinition,
   type CharacteristicTier,
+  type EffectSpec,
 } from "./characteristics.js";
 import type { IqBankQuestion } from "./iq.js";
 import type { PersonaQuestion } from "./persona.js";
@@ -124,6 +125,12 @@ type RawCharacteristic = {
   synergy?: unknown[];
   tier?: CharacteristicTier;
   xp_cost?: number;
+  // Pass 5 (Progression Engine V2): none of the 5 live catalogs use these yet -- Pass 6/7
+  // populate them when authoring the QB/MIKE/Owner lane trees. See characteristics.ts's
+  // EffectSpec/requires/branch doc comments for what each one does.
+  requires?: string[];
+  branch?: string | null;
+  effects?: EffectSpec[];
 };
 
 function catalogFrom(raw: { position_group: string; characteristics: RawCharacteristic[] }): CharacteristicDefinition[] {
@@ -135,10 +142,12 @@ function catalogFrom(raw: { position_group: string; characteristics: RawCharacte
     slotCost: item.slot_cost,
     effect: item.effect,
     tags: String(item.tags ?? "").split(/[,\s]+/).filter(Boolean),
-    modifiers: modifiersFromDefinition({ name: item.name, effect: item.effect }),
+    modifiers: modifiersFromDefinition({ name: item.name, effect: item.effect, effects: item.effects }),
     configurationVersion: FORMULA_VERSIONS.characteristics,
     tier: item.tier ?? 1,
     xpCost: item.xp_cost ?? DEFAULT_XP_COST_BY_SLOT[item.slot_cost] ?? item.slot_cost * 40,
+    requires: item.requires,
+    branch: item.branch ?? null,
   }));
 }
 

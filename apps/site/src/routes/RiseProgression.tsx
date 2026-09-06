@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { useHub } from "../lib/hub-context.js";
-import { siteApi, type ImmortalityProgressionState } from "../lib/site-api.js";
+import { siteApi, type ImmortalityProgressionState, type ImmortalityProgressionNode } from "../lib/site-api.js";
 
 type Side = "offense" | "defense";
 type SideState = ImmortalityProgressionState | null | undefined; // undefined = not loaded yet, null = no prospect on that side
@@ -61,7 +61,7 @@ export function RiseProgressionPage() {
   if (selected && !unlocked) return <Navigate replace to={`/l/${leagueId}/rise`} />;
   if (!selected || !guildId) return <div className="site-page site-loading">Loading Progression Tree…</div>;
 
-  const tiers = [2, 3] as const;
+  const tiers = [2, 3, 4] as const;
   const state = states[side];
   const teammate = state?.teammates.find((row) => row.playerId === teammateId) ?? null;
   const availableSides = (["offense", "defense"] as const).filter((value) => states[value]);
@@ -153,31 +153,39 @@ export function RiseProgressionPage() {
               {tiers.map((tier) => {
                 const nodes = state.nodes.filter((node) => node.tier === tier);
                 if (!nodes.length) return null;
+                // Pass 5: a tier with at least one branch-tagged node renders as side-by-side
+                // lanes (QB/MIKE/Owner trees, once Pass 6/7 author them); every node in all 5
+                // live catalogs today has no branch, so this is exactly today's flat single row.
+                const laneEntries = nodes.some((node) => node.branch)
+                  ? Object.entries(nodes.reduce<Record<string, typeof nodes>>((acc, node) => {
+                    const laneKey = node.branch ?? "General";
+                    (acc[laneKey] ??= []).push(node);
+                    return acc;
+                  }, {}))
+                  : null;
                 return (
                   <div key={tier} className="rise-tree-tier">
                     <div className="rise-tree-trunk-segment" />
                     <p className="rise-tree-tier-label">Tier {tier}</p>
                     <p className="rise-tree-tier-hint">
-                      {tier === 2 ? "Requires two Origins (Tier 1) perks." : "Requires any Tier 2 perk."}
+                      {tier === 2 ? "Requires two Origins (Tier 1) perks." : tier === 3 ? "Requires any Tier 2 perk." : "Requires any Tier 3 perk."}
                     </p>
-                    <div className="rise-tree-row">
-                      {nodes.map((node) => (
-                        <button
-                          key={node.key}
-                          type="button"
-                          className={[
-                            "rise-tree-node",
-                            node.owned ? "is-owned" : node.canPurchase ? "is-available" : "is-locked",
-                            selectedNodeKey === node.key ? "is-selected" : "",
-                          ].filter(Boolean).join(" ")}
-                          onClick={() => setSelectedNodeKey((current) => current === node.key ? null : node.key)}
-                        >
-                          <span className="rise-tree-node-badge">{node.displayName.slice(0, 1)}</span>
-                          <span className="rise-tree-node-name">{node.displayName}</span>
-                          <span className="rise-tree-node-cost">{node.owned ? "Owned" : `${node.xpCost} XP`}</span>
-                        </button>
-                      ))}
-                    </div>
+                    {laneEntries ? (
+                      <div className="rise-tree-lanes">
+                        {laneEntries.map(([laneKey, laneNodes]) => (
+                          <div key={laneKey} className="rise-tree-lane">
+                            <p className="rise-tree-lane-label">{laneKey}</p>
+                            <div className="rise-tree-row rise-tree-row-lane">
+                              {laneNodes.map((node) => renderTreeNode(node))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rise-tree-row">
+                        {nodes.map((node) => renderTreeNode(node))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -259,6 +267,25 @@ export function RiseProgressionPage() {
       )}
     </div>
   );
+
+  function renderTreeNode(node: ImmortalityProgressionNode) {
+    return (
+      <button
+        key={node.key}
+        type="button"
+        className={[
+          "rise-tree-node",
+          node.owned ? "is-owned" : node.canPurchase ? "is-available" : "is-locked",
+          selectedNodeKey === node.key ? "is-selected" : "",
+        ].filter(Boolean).join(" ")}
+        onClick={() => setSelectedNodeKey((current) => current === node.key ? null : node.key)}
+      >
+        <span className="rise-tree-node-badge">{node.displayName.slice(0, 1)}</span>
+        <span className="rise-tree-node-name">{node.displayName}</span>
+        <span className="rise-tree-node-cost">{node.owned ? "Owned" : `${node.xpCost} XP`}</span>
+      </button>
+    );
+  }
 
   async function buyPerk(key: string, displayName: string, xpCost: number) {
     setBusy(key); setError(null); setResult(null);

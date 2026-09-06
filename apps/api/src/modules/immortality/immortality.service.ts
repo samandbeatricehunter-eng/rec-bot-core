@@ -115,6 +115,7 @@ import {
   REC_ATTRIBUTE_DISPLAY_ORDER,
   getRecAttributeDisplayName,
   sortRecAttributeCodes,
+  xpDiscountForAttribute,
 } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -3875,8 +3876,13 @@ export async function submitImmortalityUpgrades(input: {
     let currentValue = previousRating;
     let xpCost = 0;
     while (currentValue < targetRating) {
+      // Pass 5 bug fix: xpDiscountForAttribute folds in the "ALL" sentinel discount (e.g.
+      // Complete Package's "ALL attributes cost 5% less Player XP") -- a plain
+      // modifiers.xpDiscounts[code] lookup here silently ignored any perk that discounts every
+      // attribute instead of one specific code, making that whole class of perk dead for real
+      // attribute-XP purchases.
       const step = spendAttributePlusOne({
-        currentValue, discount: modifiers.xpDiscounts[code] ?? 0, currentOvr, ceiling, availableXp: remainingXp,
+        currentValue, discount: xpDiscountForAttribute(modifiers, code), currentOvr, ceiling, availableXp: remainingXp,
       });
       if (!step.ok) throw new ApiError(400, `${attrName}: ${step.error}`);
       remainingXp -= step.cost;

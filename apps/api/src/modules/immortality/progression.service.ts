@@ -14,6 +14,7 @@ import {
   purchaseDevTraitPromotion,
   purchaseTeammateDevTraitPromotion,
   startingDevTrait,
+  type CharacteristicDefinition,
   type ImmortalityDevTrait,
   type ImmortalityPosition,
   type TrendMedal,
@@ -171,9 +172,11 @@ export async function getProgressionState(input: { guildId: string; discordId: s
       tier: item.tier,
       xpCost: item.xpCost,
       owned,
+      branch: item.branch ?? null,
+      requires: item.requires ?? [],
       source: (traits.find((row) => row.characteristic_key === item.key) as { source?: string } | undefined)?.source ?? null,
       canPurchase: check.ok && !owned,
-      blockedReason: owned ? null : (check.ok ? (playerXp < item.xpCost ? `Need ${item.xpCost} Player XP.` : null) : humanPurchaseError(check.error)),
+      blockedReason: owned ? null : (check.ok ? (playerXp < item.xpCost ? `Need ${item.xpCost} Player XP.` : null) : humanPurchaseError(check, catalog)),
     };
   });
   const teammates = modifiers.teammateDevPurchaseUnlocked
@@ -210,12 +213,21 @@ export async function getProgressionState(input: { guildId: string; discordId: s
   };
 }
 
-function humanPurchaseError(error: string): string {
-  if (error === "tier_locked") return "Unlock the previous tree tier first.";
-  if (error === "already_owned") return "Already owned.";
-  if (error === "insufficient_xp") return "Not enough Player XP.";
-  if (error === "origins_only") return "That perk is an Origins pick, not a tree purchase.";
-  return error.replaceAll("_", " ");
+function humanPurchaseError(
+  check: { error: string; missingKeys?: string[] },
+  catalog?: CharacteristicDefinition[],
+): string {
+  if (check.error === "prerequisite_locked") {
+    // Pass 5: specific-key gating -- name the actual missing perks instead of a generic
+    // "unlock the previous tier" message, since this node's prerequisite isn't tier-based.
+    const names = (check.missingKeys ?? []).map((key) => catalog?.find((item) => item.key === key)?.displayName ?? key);
+    return names.length ? `Requires: ${names.join(", ")}.` : "Missing a required perk.";
+  }
+  if (check.error === "tier_locked") return "Unlock the previous tree tier first.";
+  if (check.error === "already_owned") return "Already owned.";
+  if (check.error === "insufficient_xp") return "Not enough Player XP.";
+  if (check.error === "origins_only") return "That perk is an Origins pick, not a tree purchase.";
+  return check.error.replaceAll("_", " ");
 }
 
 async function loadTeammates(leagueId: string, prospectPlayerId: string, userId: string) {
@@ -289,7 +301,7 @@ export async function purchaseProgressionPerk(input: {
     key: input.key,
     availableXp: playerXp,
   });
-  if (!purchased.ok) throw new ApiError(400, humanPurchaseError(purchased.error));
+  if (!purchased.ok) throw new ApiError(400, humanPurchaseError(purchased, catalog));
   const definition = catalog.find((item) => item.key === input.key)!;
   const sourceId = `tree:${randomUUID()}`;
   const spent = await supabase.rpc("rec_immortality_spend_xp", {

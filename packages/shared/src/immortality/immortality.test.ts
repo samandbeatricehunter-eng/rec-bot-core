@@ -66,6 +66,13 @@ import {
   combinedModifiers,
   stackPostDraftDiscounts,
   WEEKLY_SWEEP_BONUS_PCT,
+  applyEffect,
+  modifiersFromDefinition,
+  emptyModifiers,
+  creationDiscountForAttribute,
+  xpDiscountForAttribute,
+  ALL_ATTRIBUTES_DISCOUNT_CODE,
+  type CharacteristicDefinition,
 } from "./index.js";
 
 test("Rise to Immortality is a Madden 27 template that disables store purchases", () => {
@@ -654,6 +661,65 @@ test("Progression Tree purchases are additive, gated by tier, and never Origins-
   assert.equal(t4.ok, true);
   assert.equal(isProgressionTreePerk(catalog.find((item) => item.key === "personnel_chief")!), true);
   assert.equal(isProgressionTreePerk(catalog.find((item) => item.key === "faster_developer")!), false);
+});
+
+test("applyEffect folds structured effects into CharacteristicModifiers -- discount, boolean flag, and numeric bonus", () => {
+  const modifiers = emptyModifiers();
+  applyEffect(modifiers, { type: "attribute_xp_discount", attribute: "ALL", rate: 0.05 });
+  applyEffect(modifiers, { type: "trade_access" });
+  applyEffect(modifiers, { type: "xp_earn_bonus", value: 0.1 });
+  assert.equal(modifiers.xpDiscounts[ALL_ATTRIBUTES_DISCOUNT_CODE], 0.05);
+  assert.equal(modifiers.tradeAccess, true);
+  assert.equal(modifiers.xpEarnBonus, 0.1);
+});
+
+test("modifiersFromDefinition uses explicit effects when present, else falls back to the legacy name-matched switch unchanged", () => {
+  const explicit = modifiersFromDefinition({ name: "Some New Lane Perk", effect: "Unlocks the Trade Center.", effects: [{ type: "trade_access" }] });
+  assert.equal(explicit.tradeAccess, true);
+  assert.equal(explicit.xpEarnBonus, 0); // nothing else declared, so nothing else set
+  // No `effects` array -- Personnel Chief still resolves via the untouched name-matched switch.
+  const legacy = modifiersFromDefinition({ name: "Personnel Chief", effect: "Unlocks the Trade Center after the perk is purchased." });
+  assert.equal(legacy.tradeAccess, true);
+});
+
+test("purchaseCharacteristic with explicit requires gates on specific keys (AND), not a tier count", () => {
+  const catalog: CharacteristicDefinition[] = [
+    { key: "lane_t1", displayName: "Lane T1", positionGroup: "QB", slotCost: 1, effect: "", tags: [], modifiers: emptyModifiers(), configurationVersion: "immortality-characteristics-v1" as never, tier: 1, xpCost: 15 },
+    { key: "lane_t2a", displayName: "Lane T2A", positionGroup: "QB", slotCost: 1, effect: "", tags: [], modifiers: emptyModifiers(), configurationVersion: "immortality-characteristics-v1" as never, tier: 2, xpCost: 50, requires: ["lane_t1"] },
+    { key: "lane_t2b", displayName: "Lane T2B", positionGroup: "QB", slotCost: 1, effect: "", tags: [], modifiers: emptyModifiers(), configurationVersion: "immortality-characteristics-v1" as never, tier: 2, xpCost: 50, requires: ["lane_t1", "other_lane_anchor"] },
+  ];
+  const missingPrereq = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: [], key: "lane_t2a", availableXp: 999 });
+  assert.equal(missingPrereq.ok, false);
+  if (!missingPrereq.ok) assert.equal(missingPrereq.error, "prerequisite_locked");
+  const met = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: ["lane_t1"], key: "lane_t2a", availableXp: 999 });
+  assert.equal(met.ok, true);
+  const partiallyMet = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: ["lane_t1"], key: "lane_t2b", availableXp: 999 });
+  assert.equal(partiallyMet.ok, false);
+  if (!partiallyMet.ok) {
+    assert.equal(partiallyMet.error, "prerequisite_locked");
+    assert.deepEqual(partiallyMet.missingKeys, ["other_lane_anchor"]);
+  }
+});
+
+test("creationDiscountForAttribute and xpDiscountForAttribute fold in the ALL sentinel", () => {
+  const modifiers = emptyModifiers();
+  modifiers.creationDiscounts.AGI = 0.1;
+  modifiers.creationDiscounts[ALL_ATTRIBUTES_DISCOUNT_CODE] = 0.05;
+  modifiers.xpDiscounts.SPD = 0.08;
+  modifiers.xpDiscounts[ALL_ATTRIBUTES_DISCOUNT_CODE] = 0.05;
+  assert.ok(creationDiscountForAttribute(modifiers, "AGI") > 0.1); // stacked with ALL, capped at 30%
+  assert.ok(creationDiscountForAttribute(modifiers, "COD") > 0); // no direct COD discount, only ALL
+  assert.ok(Math.abs(xpDiscountForAttribute(modifiers, "SPD") - 0.13) < 1e-9); // uncapped additive
+  assert.ok(Math.abs(xpDiscountForAttribute(modifiers, "AWR") - 0.05) < 1e-9); // ALL only
+});
+
+test("spendCreationPoints applies an ALL-keyed discount, not just a specific-code one (Pass 5 bug fix regression)", () => {
+  const baseline = { SPD: 80 };
+  const noDiscount = spendCreationPoints({ baseline, spent: { SPD: 1 } });
+  const withAllDiscount = spendCreationPoints({ baseline, spent: { SPD: 1 }, discounts: { [ALL_ATTRIBUTES_DISCOUNT_CODE]: 0.2 } });
+  assert.equal(noDiscount.ok, true);
+  assert.equal(withAllDiscount.ok, true);
+  if (noDiscount.ok && withAllDiscount.ok) assert.ok(withAllDiscount.spentPoints < noDiscount.spentPoints);
 });
 
 test("every position group has a deeper Progression Tree than the original 2-3 nodes", () => {
