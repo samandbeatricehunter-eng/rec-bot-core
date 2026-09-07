@@ -226,7 +226,7 @@ function AbilityPanel({
       <p className="site-muted">
         Assign up to {state?.maxEquipped ?? 4} Madden 27 abilities once this player's OVR and playstyle meet the franchise floor.
         REC only chooses which ability is on the card — Madden still sets Bronze/Silver/Gold from in-game ratings.
-        Current build: {ovr || "—"} OVR · {archetype}.
+        Current build: {ovr || "—"} OVR · {archetype}. Applies immediately; your commissioner gets a record to confirm.
       </p>
       <h3>Assigned</h3>
       {!equipped.length ? <p className="site-muted">None yet. Raise OVR with Player XP or pick abilities that match this playstyle.</p> : (

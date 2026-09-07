@@ -191,3 +191,56 @@ export function abilitySlotState(input: { devTrait: ImmortalityDevTrait; estimat
   const hasXFactorSlot = isXFactor && ovr >= XFACTOR_SLOT_OVR;
   return { superstarSlots, lockedSuperstarSlots, hasXFactorSlot, xFactorLocked: hasXFactorSlot };
 }
+
+// --- Pass 8 (Ability Lab): real per-slot state straight from the EA Companion export ------
+//
+// rec_players.abilities stores EA's raw signatureSlotList verbatim for a real roster-imported
+// player: one entry per ability slot, each carrying its OWN real ovrThreshold (varies per
+// player/slot -- not a fixed constant) and whether that slot is currently empty. This is a real
+// ground-truth alternative to abilitySlotState's guessed OVR constants above, available the
+// moment a prospect's placeholder is adopted onto a real EA roster row with a populated export.
+// Falls back to null (never guesses) when the column doesn't look like this shape -- e.g. still
+// null before adoption, or a legend/custom-player row using the older simple {name,description}
+// shape -- so callers can fall back to the ledger/OVR-constant model instead.
+export type RealAbilitySlot = {
+  ovrThreshold: number;
+  unlocked: boolean;
+  empty: boolean;
+  rank: string | null;
+  title: string | null;
+  description: string | null;
+};
+
+export type RealAbilitySlotState = {
+  totalSlots: number;
+  unlockedSlots: number;
+  equippedSlots: number;
+  slots: RealAbilitySlot[];
+};
+
+function isRichAbilitySlotShape(value: unknown): value is { ovrThreshold: unknown; isEmpty: unknown; signatureAbility?: Record<string, unknown> } {
+  return Boolean(value) && typeof value === "object" && "ovrThreshold" in (value as object) && "isEmpty" in (value as object);
+}
+
+/** Returns null (not a real-shape column, or no rows) so callers fall back to the ledger/OVR-
+ * constant model -- this never guesses a slot count from a shape it doesn't recognize. */
+export function realAbilitySlotState(rawAbilities: unknown, overallRating: number | null): RealAbilitySlotState | null {
+  if (!Array.isArray(rawAbilities) || !rawAbilities.length) return null;
+  if (!rawAbilities.every(isRichAbilitySlotShape)) return null;
+  const ovr = Number(overallRating ?? 0) || 0;
+  const slots: RealAbilitySlot[] = rawAbilities.map((row) => {
+    const threshold = Number(row.ovrThreshold ?? 0) || 0;
+    const sig = (row.signatureAbility ?? {}) as Record<string, unknown>;
+    return {
+      ovrThreshold: threshold,
+      unlocked: ovr >= threshold,
+      empty: Boolean(row.isEmpty),
+      rank: typeof sig.rank === "string" ? sig.rank : null,
+      title: typeof sig.signatureTitle === "string" ? sig.signatureTitle : null,
+      description: typeof sig.signatureDescription === "string" ? sig.signatureDescription : null,
+    };
+  });
+  const unlockedSlots = slots.filter((slot) => slot.unlocked).length;
+  const equippedSlots = slots.filter((slot) => slot.unlocked && !slot.empty).length;
+  return { totalSlots: slots.length, unlockedSlots, equippedSlots, slots };
+}

@@ -339,7 +339,12 @@ function resolveModeFor(type: string): ResolveMode {
       return { kind: "approve_deny", reasonField: false, approveLabel: "Applied in game", denyLabel: "Refunded" };
     case "immortality_tree_purchase":
     case "immortality_dev_promotion":
+    case "immortality_owner_tree_purchase":
       return { kind: "approve_deny", reasonField: false, approveLabel: "Applied in game", denyLabel: "Refunded" };
+    case "immortality_ability_change":
+      // No Madden action needed -- Madden itself decides which abilities actually activate
+      // from ratings; this is just a log of the site-side pick, refundable if it was a mistake.
+      return { kind: "approve_deny", reasonField: false, approveLabel: "Acknowledge", denyLabel: "Undo" };
     case "autopilot_request":
     case "matchup_issue_report":
     case "ea_auto_import":
@@ -405,6 +410,10 @@ async function resolveAction(
       return recApi.resolveImmortalityTreePurchase({ guildId, requestId: notification.id, action: action === "approve" ? "applied" : "refunded", note: reason || undefined });
     case "immortality_dev_promotion":
       return recApi.resolveImmortalityDevPromotion({ guildId, requestId: notification.id, action: action === "approve" ? "applied" : "refunded", note: reason || undefined });
+    case "immortality_owner_tree_purchase":
+      return recApi.resolveImmortalityOwnerTreePurchase({ guildId, requestId: notification.id, action: action === "approve" ? "applied" : "refunded", note: reason || undefined });
+    case "immortality_ability_change":
+      return recApi.resolveImmortalityAbilityChange({ guildId, requestId: notification.id, action: action === "approve" ? "applied" : "refunded", note: reason || undefined });
     case "custom_team":
       return recApi.reviewCustomTeamIdentity({ guildId, inboxId: notification.id, action, deniedReason: reason || undefined });
     case "autopilot_request":

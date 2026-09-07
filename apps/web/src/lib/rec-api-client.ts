@@ -1177,6 +1177,10 @@ export const recApi = {
     recApiFetch<any>("/v1/immortality/progression/resolve", { method: "POST", body: JSON.stringify(input) }),
   resolveImmortalityDevPromotion: (input: { guildId: string; requestId: string; action: "applied" | "refunded"; note?: string }) =>
     recApiFetch<any>("/v1/immortality/progression/dev-promotion/resolve", { method: "POST", body: JSON.stringify(input) }),
+  resolveImmortalityOwnerTreePurchase: (input: { guildId: string; requestId: string; action: "applied" | "refunded"; note?: string }) =>
+    recApiFetch<any>("/v1/immortality/owner-progression/resolve", { method: "POST", body: JSON.stringify(input) }),
+  resolveImmortalityAbilityChange: (input: { guildId: string; requestId: string; action: "applied" | "refunded"; note?: string }) =>
+    recApiFetch<any>("/v1/immortality/abilities/resolve", { method: "POST", body: JSON.stringify(input) }),
   listCustomReplacementCandidates: (input: { guildId: string; buildId: string }) =>
     recApiFetch<{
       isMadden: boolean;

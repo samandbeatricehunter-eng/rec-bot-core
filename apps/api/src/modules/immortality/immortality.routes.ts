@@ -42,6 +42,7 @@ import {
   upsertProspectIdentity,
   selectImmortalityAbility,
   removeImmortalityAbility,
+  resolveImmortalityAbilityChange,
   reissueImmortalityProspectArtifacts,
   reopenImmortalityOriginsIfPrematurelyAdvanced,
   reviewImmortalityProspect,
@@ -368,6 +369,15 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Ability selection is website-only.");
       return reply.send(await removeImmortalityAbility({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/abilities/resolve", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ requestId: z.string().uuid(), action: z.enum(["applied", "refunded"]), note: z.string().max(1000).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Resolving ability changes requires a website session.");
+      return reply.send(await resolveImmortalityAbilityChange({ ...body, reviewerDiscordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

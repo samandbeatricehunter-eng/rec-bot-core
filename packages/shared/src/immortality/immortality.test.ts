@@ -41,6 +41,7 @@ import {
   canSelectAbility,
   madden27AbilityCatalog,
   matchingAbilityGate,
+  realAbilitySlotState,
   rtiAbilitiesForPosition,
   validateCharacteristicSelection,
   purchaseCharacteristic,
@@ -406,6 +407,29 @@ test("Madden 27 abilities assign from franchise OVR gates, not REC-controlled ti
     equippedCount: 0,
     alreadyEquipped: false,
   }).ok, true);
+});
+
+test("realAbilitySlotState reads real per-slot OVR thresholds from an EA-imported signatureSlotList, never guessing", () => {
+  const rich = [
+    { locked: false, isEmpty: false, ovrThreshold: 75, signatureAbility: { rank: "ABILITY_BRONZE", signatureTitle: "Resistant", signatureDescription: "d1" } },
+    { locked: false, isEmpty: true, ovrThreshold: 85, signatureAbility: { rank: "ABILITY_GOLD", signatureTitle: "Run Protector", signatureDescription: "d2" } },
+    { locked: false, isEmpty: false, ovrThreshold: 95, signatureAbility: { rank: "ABILITY_GOLD", signatureTitle: "Tough Nut", signatureDescription: "d3" } },
+  ];
+  const at80 = realAbilitySlotState(rich, 80);
+  assert.ok(at80);
+  assert.equal(at80!.totalSlots, 3);
+  assert.equal(at80!.unlockedSlots, 1, "only the 75-threshold slot is unlocked at 80 OVR");
+  assert.equal(at80!.slots[0].unlocked, true);
+  assert.equal(at80!.slots[1].unlocked, false);
+  assert.equal(at80!.equippedSlots, 1, "the one unlocked slot is filled (isEmpty:false)");
+
+  const at90 = realAbilitySlotState(rich, 90);
+  assert.equal(at90!.unlockedSlots, 2);
+  assert.equal(at90!.equippedSlots, 1, "the 85-threshold slot is unlocked but isEmpty, so not counted as equipped");
+
+  // Falls back to null (never guesses) for the older simple {name,description} shape or absent data.
+  assert.equal(realAbilitySlotState(null, 90), null);
+  assert.equal(realAbilitySlotState([{ name: "Bazooka", description: "x", type: "xFactor" }], 90), null);
 });
 
 test("matchup interview pool has real volume and every option is well-formed", () => {

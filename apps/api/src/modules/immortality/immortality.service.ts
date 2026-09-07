@@ -51,6 +51,8 @@ import {
   abilityById,
   canSelectAbility,
   playerArchetypes,
+  realAbilitySlotState,
+  type Madden27Ability,
   rtiAbilitiesForPosition,
   matchingAbilityGate,
   MAX_EQUIPPED_ABILITIES,
@@ -488,9 +490,15 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
   // Before that first import, overall_rating is null and nothing OVR-gated is available yet.
   const materializedPlayerIds = (prospects.data ?? []).map((row) => row.player_id).filter((id): id is string => Boolean(id));
   const realPlayers = materializedPlayerIds.length
-    ? await supabase.from("rec_players").select("id,overall_rating").in("id", materializedPlayerIds)
-    : { data: [] as Array<{ id: string; overall_rating: number | null }> };
+    ? await supabase.from("rec_players").select("id,overall_rating,abilities").in("id", materializedPlayerIds)
+    : { data: [] as Array<{ id: string; overall_rating: number | null; abilities: unknown }> };
   const realOvrByPlayerId = new Map<string, number | null>((realPlayers.data ?? []).map((row) => [String(row.id), row.overall_rating == null ? null : Number(row.overall_rating)]));
+  // Pass 8: real per-slot ability state straight from the EA export, when the shape is
+  // recognized -- see realAbilitySlotState's doc comment. null (not this shape, or not yet
+  // imported) means "fall back to the ledger-based earnedSlots count" below, unchanged.
+  const realAbilitiesByPlayerId = new Map<string, ReturnType<typeof realAbilitySlotState>>(
+    (realPlayers.data ?? []).map((row) => [String(row.id), realAbilitySlotState(row.abilities, row.overall_rating)]),
+  );
   const chapterState = league.chapter_state as ImmortalityState;
   const [poolMembers, linkedAssignments, storedGrades, teamIdentities, ownerRow, allFranchiseClaims, introView] = await Promise.all([
     supabase.from("rec_league_memberships").select("user_id,role").eq("league_id", context.leagueId).eq("status", "active"),
@@ -699,9 +707,15 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
         playstyle?.secondary_archetype ? String(playstyle.secondary_archetype) : null,
       );
       const equippedRows = (equippedAbilities.data ?? []).filter((item) => String(item.prospect_id) === id);
-      const earnedSlots = Math.min(MAX_EQUIPPED_ABILITIES, (abilityGrants.data ?? [])
-        .filter((item) => String(item.prospect_id) === id)
-        .reduce((sum, item) => sum + Number(item.slots ?? 0), 0));
+      // Pass 8: prefer the real per-slot count straight from this player's EA export (ground
+      // truth) over the ledger-based grant count, when the import has that shape -- see
+      // realAbilitySlotState's doc comment. Falls back to the ledger unchanged otherwise.
+      const realSlots = row.player_id ? realAbilitiesByPlayerId.get(String(row.player_id)) ?? null : null;
+      const earnedSlots = realSlots
+        ? Math.min(MAX_EQUIPPED_ABILITIES, realSlots.unlockedSlots)
+        : Math.min(MAX_EQUIPPED_ABILITIES, (abilityGrants.data ?? [])
+          .filter((item) => String(item.prospect_id) === id)
+          .reduce((sum, item) => sum + Number(item.slots ?? 0), 0));
       const equipped = equippedRows.map((item) => {
         const ability = abilityById(String(item.ability_id));
         const gate = ability ? matchingAbilityGate({ ability, position, archetypes, estimatedOvr }) : null;
@@ -3636,21 +3650,22 @@ export async function creditXpEvent(input: {
   return { duplicate: false, row: inserted.data };
 }
 
-async function syncProspectAbilitiesToPlayer(prospect: { id: string; player_id?: string | null }) {
-  if (!prospect.player_id) return;
-  const equipped = await supabase.from("rec_immortality_prospect_abilities").select("ability_id,ability_name,kind").eq("prospect_id", prospect.id);
-  const payload = (equipped.data ?? []).map((row) => {
-    const ability = abilityById(String(row.ability_id));
-    return {
-      name: String(row.ability_name),
-      description: ability?.description ?? "",
-      type: String(row.kind),
-    };
-  });
-  await supabase.from("rec_players").update({
-    abilities: payload,
-    updated_at: new Date().toISOString(),
-  }).eq("id", prospect.player_id);
+/** Pass 8 note: this used to also overwrite rec_players.abilities with a simplified
+ * {name,description,type} shape after every equip/remove -- deleted. That column is EA's own
+ * export data (rec_players.abilities carries the real signatureSlotList straight from the
+ * Companion App, read by realAbilitySlotState above), not something the site should overwrite;
+ * doing so corrupted the real per-slot data on every re-import until the next real import
+ * happened to overwrite it back. rec_immortality_prospect_abilities is already the correct,
+ * independent source of truth for "what REC recorded this prospect as having equipped." */
+
+async function earnedAbilitySlotsForProspect(prospectId: string, playerId: string | null): Promise<number> {
+  if (playerId) {
+    const player = await supabase.from("rec_players").select("overall_rating,abilities").eq("id", playerId).maybeSingle();
+    const real = player.data ? realAbilitySlotState(player.data.abilities, player.data.overall_rating) : null;
+    if (real) return Math.min(MAX_EQUIPPED_ABILITIES, real.unlockedSlots);
+  }
+  const grants = await supabase.from("rec_immortality_ability_grants").select("slots").eq("prospect_id", prospectId);
+  return Math.min(MAX_EQUIPPED_ABILITIES, (grants.data ?? []).reduce((sum, row) => sum + Number(row.slots ?? 0), 0));
 }
 
 export async function selectImmortalityAbility(input: {
@@ -3666,12 +3681,11 @@ export async function selectImmortalityAbility(input: {
   if (!prospect) throw new ApiError(400, "Prospect not found.");
   const ability = abilityById(input.abilityId);
   if (!ability) throw new ApiError(404, "Unknown Madden 27 ability.");
-  const [player, playstyle, branchingPlaystyle, equipped, grants] = await Promise.all([
+  const [player, playstyle, branchingPlaystyle, equipped] = await Promise.all([
     prospect.player_id ? supabase.from("rec_players").select("overall_rating").eq("id", prospect.player_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("rec_immortality_playstyle_results").select("primary_archetype,secondary_archetype").eq("prospect_id", prospect.id).maybeSingle(),
     supabase.from("rec_immortality_branching_playstyle_results").select("primary_archetype,secondary_archetype").eq("prospect_id", prospect.id).maybeSingle(),
     supabase.from("rec_immortality_prospect_abilities").select("ability_id").eq("prospect_id", prospect.id),
-    supabase.from("rec_immortality_ability_grants").select("slots").eq("prospect_id", prospect.id),
   ]);
   // Real OVR from the latest EA roster import, not a Creation Points estimate -- nothing
   // OVR-gated is selectable until this prospect's franchise is live and has actually imported.
@@ -3680,7 +3694,7 @@ export async function selectImmortalityAbility(input: {
     branchingPlaystyle.data?.primary_archetype ? String(branchingPlaystyle.data.primary_archetype) : playstyle.data ? String(playstyle.data.primary_archetype) : null,
     branchingPlaystyle.data?.secondary_archetype ? String(branchingPlaystyle.data.secondary_archetype) : playstyle.data?.secondary_archetype ? String(playstyle.data.secondary_archetype) : null,
   );
-  const earnedSlots = Math.min(MAX_EQUIPPED_ABILITIES, (grants.data ?? []).reduce((sum, row) => sum + Number(row.slots ?? 0), 0));
+  const earnedSlots = await earnedAbilitySlotsForProspect(String(prospect.id), prospect.player_id ?? null);
   if ((equipped.data ?? []).length >= earnedSlots) {
     throw new ApiError(400, earnedSlots ? "All earned ability slots are already filled." : "Earn an ability slot before assigning an ability.");
   }
@@ -3700,8 +3714,10 @@ export async function selectImmortalityAbility(input: {
     kind: ability.kind,
   }).select("*").single();
   if (saved.error) throw new ApiError(500, "Could not equip that ability.", saved.error);
-  await syncProspectAbilitiesToPlayer(prospect);
-  return { equipped: saved.data, gate: check.gate };
+  const requestId = await recordAbilityChangeForCommissioner({
+    guildId: input.guildId, leagueId: context.leagueId, userId, prospect, action: "equip", ability,
+  });
+  return { equipped: saved.data, gate: check.gate, requestId };
 }
 
 export async function removeImmortalityAbility(input: {
@@ -3715,13 +3731,78 @@ export async function removeImmortalityAbility(input: {
   const userId = await recUserIdFromDiscordId(input.discordId);
   const prospect = await loadProspectForUser(league.id, userId, input.side);
   if (!prospect) throw new ApiError(400, "Prospect not found.");
+  const ability = abilityById(input.abilityId);
+  if (!ability) throw new ApiError(404, "Unknown Madden 27 ability.");
   const removed = await supabase.from("rec_immortality_prospect_abilities")
     .delete()
     .eq("prospect_id", prospect.id)
     .eq("ability_id", input.abilityId);
   if (removed.error) throw new ApiError(500, "Could not remove that ability.", removed.error);
-  await syncProspectAbilitiesToPlayer(prospect);
-  return { ok: true };
+  const requestId = await recordAbilityChangeForCommissioner({
+    guildId: input.guildId, leagueId: context.leagueId, userId, prospect, action: "remove", ability,
+  });
+  return { ok: true, requestId };
+}
+
+/** Records a lightweight commissioner-inbox item after an ability equip/remove already applied
+ * (same "apply immediately, keep a refundable paper trail" pattern as submitImmortalityUpgrades
+ * -- not a pending-approval gate). Refunding reverses the specific action: an "equip" refund
+ * removes the ability again, a "remove" refund re-adds it. Best-effort -- a failed insert here
+ * doesn't undo the already-applied ability change, matching every other RTI action's contract
+ * (surfacing the same "applied, but the commissioner record failed" message). */
+async function recordAbilityChangeForCommissioner(input: {
+  guildId: string; leagueId: string; userId: string;
+  prospect: { id: string; player_id: string | null; side: string; position: string; first_name: string | null; last_name: string | null };
+  action: "equip" | "remove";
+  ability: Madden27Ability;
+}): Promise<string | null> {
+  try {
+    const name = `${input.prospect.first_name ?? ""} ${input.prospect.last_name ?? ""}`.trim() || "Unnamed Prospect";
+    const discordId = await discordIdForRecUser(input.userId).catch(() => null);
+    const teamName = await resolveProspectTeamName(input.leagueId, { player_id: input.prospect.player_id, user_id: input.userId });
+    const verb = input.action === "equip" ? "Equipped" : "Removed";
+    const inserted = await supabase.from("rec_commissioners_inbox").insert({
+      guild_id: input.guildId, league_id: input.leagueId, queue_type: "immortality_ability_change",
+      status: "pending", priority: 0,
+      header: `${verb} ability: ${name} (${input.prospect.position})${teamName ? ` — ${teamName}` : ""} — ${input.ability.name}`,
+      summary: `${verb} "${input.ability.name}" (${input.ability.kind}). No Madden action needed -- Madden itself decides which abilities actually activate from ratings; this is a log of the site-side pick.`,
+      requester_user_id: input.userId, requester_discord_id: discordId,
+      source_table: "rec_immortality_prospects", source_id: input.prospect.id,
+      payload: { prospectId: input.prospect.id, side: input.prospect.side, name, position: input.prospect.position, action: input.action, abilityId: input.ability.id, abilityName: input.ability.name, kind: input.ability.kind },
+    }).select("id").single();
+    if (inserted.error) return null;
+    await notifyLeagueCommissionersOfPendingItem(input.leagueId);
+    return String(inserted.data.id);
+  } catch {
+    return null;
+  }
+}
+
+export async function resolveImmortalityAbilityChange(input: {
+  guildId: string; requestId: string; action: "applied" | "refunded"; reviewerDiscordId: string; note?: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const request = await supabase.from("rec_commissioners_inbox").select("*").eq("id", input.requestId).eq("league_id", context.leagueId).maybeSingle();
+  if (request.error || !request.data) throw new ApiError(404, "Request not found in this league.");
+  if (String(request.data.queue_type) !== "immortality_ability_change") throw new ApiError(400, "That request isn't an ability change.");
+  if (request.data.status !== "pending") throw new ApiError(409, `Request is already ${request.data.status}.`);
+  const payload = (request.data.payload ?? {}) as { prospectId: string; action: "equip" | "remove"; abilityId: string; abilityName: string; kind: string };
+  if (input.action === "refunded") {
+    if (payload.action === "equip") {
+      await supabase.from("rec_immortality_prospect_abilities").delete().eq("prospect_id", payload.prospectId).eq("ability_id", payload.abilityId);
+    } else {
+      await supabase.from("rec_immortality_prospect_abilities").insert({
+        prospect_id: payload.prospectId, ability_id: payload.abilityId, ability_name: payload.abilityName, kind: payload.kind,
+      }).select("id").maybeSingle();
+    }
+  }
+  const updated = await supabase.from("rec_commissioners_inbox").update({
+    status: input.action === "applied" ? "approved" : "denied",
+    reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString(),
+    review_reason: input.note?.trim() ?? null,
+  }).eq("id", input.requestId).select("*").single();
+  if (updated.error) throw new ApiError(500, "Could not save that review decision.", updated.error);
+  return { request: updated.data };
 }
 
 /** The actual Team XP conversion, only ever run once a commissioner approves the pending
