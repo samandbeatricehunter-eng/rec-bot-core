@@ -17,7 +17,7 @@ import { findServerRoutesForLeague } from "../league-context/league-context.serv
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { discordIdForRecUser, loadImmortalityLeague, resolveProspectTeamName } from "./immortality.service.js";
 
-export type IdentityStatus = "synthetic" | "verified" | "missing" | "ambiguous" | "stale";
+export type IdentityStatus = "synthetic" | "verified" | "missing" | "ambiguous" | "stale" | "matched_pending_apply";
 
 type ProspectIdentityRow = {
   id: string;
@@ -28,6 +28,8 @@ type ProspectIdentityRow = {
   side: string;
   player_id: string | null;
   identity_status: IdentityStatus | null;
+  review_status: string | null;
+  reviewed_at: string | null;
 };
 
 function isNumericId(id: string | null | undefined): boolean {
@@ -50,13 +52,27 @@ export function nextIdentityStatus(input: {
   isNumericId: boolean;
   rosterStatus: string | null;
   siblingCount: number;
+  appliedInGame: boolean;
 }): { status: Exclude<IdentityStatus, "synthetic">; note: string } {
   if (input.isNumericId) {
-    if (input.rosterStatus === "active") return { status: "verified", note: "" };
-    return {
-      status: "stale",
-      note: `${input.name}'s linked player is no longer active on the imported roster (status: ${input.rosterStatus ?? "unknown"}). Re-link them to their current roster entry.`,
-    };
+    if (input.rosterStatus !== "active") {
+      return {
+        status: "stale",
+        note: `${input.name}'s linked player is no longer active on the imported roster (status: ${input.rosterStatus ?? "unknown"}). Re-link them to their current roster entry.`,
+      };
+    }
+    // A real roster-name match by itself isn't enough -- the commissioner also has to have
+    // actually clicked "Applied In Game" on the original prospect review (review_status
+    // ='approved' AND reviewed_at set by reviewImmortalityProspect; review_status alone is not
+    // the real signal, since it's also auto-set to 'approved' the instant Creation Points is
+    // submitted, with reviewed_at left null -- see reviewImmortalityProspect's doc comment).
+    if (!input.appliedInGame) {
+      return {
+        status: "matched_pending_apply",
+        note: `A roster match was found for ${input.name}, but this build hasn't been marked "Applied In Game" yet. Approve the original prospect review to confirm you've created them in Madden.`,
+      };
+    }
+    return { status: "verified", note: "" };
   }
   if (input.siblingCount >= 2) {
     return {
@@ -71,7 +87,7 @@ export function nextIdentityStatus(input: {
 }
 
 async function writeIdentityIssue(input: {
-  guildId: string; leagueId: string; prospect: ProspectIdentityRow; status: "missing" | "ambiguous" | "stale"; note: string; teamName: string | null;
+  guildId: string; leagueId: string; prospect: ProspectIdentityRow; status: "missing" | "ambiguous" | "stale" | "matched_pending_apply"; note: string; teamName: string | null;
 }): Promise<void> {
   const existing = await supabase.from("rec_commissioners_inbox")
     .select("id")
@@ -93,7 +109,7 @@ async function writeIdentityIssue(input: {
     queue_type: "immortality_identity_issue",
     status: "pending",
     priority: input.status === "ambiguous" ? 1 : 0,
-    header: `Identity ${input.status === "missing" ? "Not Found" : input.status === "ambiguous" ? "Ambiguous" : "Went Stale"}: ${name} (${input.prospect.position})${input.teamName ? ` — ${input.teamName}` : ""}`,
+    header: `Identity ${input.status === "missing" ? "Not Found" : input.status === "ambiguous" ? "Ambiguous" : input.status === "matched_pending_apply" ? "Awaiting Applied In Game" : "Went Stale"}: ${name} (${input.prospect.position})${input.teamName ? ` — ${input.teamName}` : ""}`,
     summary: input.note,
     requester_user_id: input.prospect.user_id,
     requester_discord_id: discordId,
@@ -139,7 +155,7 @@ export async function reconcileRtiProspectIdentities(leagueId: string): Promise<
   if (!immortality) return;
 
   const prospects = await supabase.from("rec_immortality_prospects")
-    .select("id,user_id,first_name,last_name,position,side,player_id,identity_status")
+    .select("id,user_id,first_name,last_name,position,side,player_id,identity_status,review_status,reviewed_at")
     .eq("immortality_league_id", immortality.id)
     .not("player_id", "is", null);
   if (prospects.error || !prospects.data?.length) return;
@@ -169,8 +185,9 @@ export async function reconcileRtiProspectIdentities(leagueId: string): Promise<
       // placeholder plus at least one other share the name," i.e. genuinely ambiguous.
       siblingCount = siblings.rows.filter((row) => !isNumericId(row.madden_player_id)).length;
     }
+    const appliedInGame = prospect.review_status === "approved" && prospect.reviewed_at != null;
     const { status: target, note } = nextIdentityStatus({
-      name: fullNameFor(prospect), isNumericId: numericId, rosterStatus: player.data.roster_status, siblingCount,
+      name: fullNameFor(prospect), isNumericId: numericId, rosterStatus: player.data.roster_status, siblingCount, appliedInGame,
     });
 
     if (target === wasStatus) {

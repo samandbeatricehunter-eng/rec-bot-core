@@ -221,19 +221,28 @@ export async function proposeTrade(input: {
 
   const config = await supabase.from("rec_league_configuration").select("roster_type,trade_approval_policy,cpu_trading_policy,cpu_trades_season_cap").eq("league_id", context.leagueId).maybeSingle();
   if (config.error) throw new ApiError(500, "We couldn't load trade settings. Please try again.", config.error);
-  if (isRiseToImmortalityLeagueType(String(config.data?.roster_type ?? ""))) {
-    throw new ApiError(400, "Trades are not available in Rise to Immortality.");
-  }
+  const isRti = isRiseToImmortalityLeagueType(String(config.data?.roster_type ?? ""));
   const approvalPolicy = config.data?.trade_approval_policy ?? "competition_committee_review";
-  const cpuPolicy = config.data?.cpu_trading_policy ?? "allowed";
 
   const receivingUserId = await userForTeam(context.leagueId, input.receivingTeamId);
+  // Rise to Immortality has no GM-to-GM trade economy (no salary cap, no normal contracts) --
+  // only CPU trades are ever possible there, and only once the proposing team's Owner has
+  // unlocked Personnel Council on the Franchise Pillar tree (see ownerTradePolicyTierForTeam).
+  if (isRti && receivingUserId) {
+    throw new ApiError(400, "Trades are not available in Rise to Immortality — only CPU trades, once Personnel Council is unlocked on the Franchise Pillar tree.");
+  }
+  let cpuPolicy = config.data?.cpu_trading_policy ?? "allowed";
+  if (isRti) {
+    const { ownerTradePolicyTierForTeam } = await import("../immortality/owner-progression.service.js");
+    const tier = await ownerTradePolicyTierForTeam(context.leagueId, proposingTeamId);
+    cpuPolicy = tier >= 2 ? "allowed" : tier >= 1 ? "restricted" : "not_allowed";
+  }
   const receivingHasSiteAccount = receivingUserId ? await hasSiteAccount(receivingUserId) : false;
   if (receivingUserId && !receivingHasSiteAccount && (input.offeredCoins > 0 || input.requestedCoins > 0)) {
     throw new ApiError(400, "Coins can't be included until the other coach has registered on the REC site.");
   }
   if (!receivingUserId) {
-    if (cpuPolicy === "not_allowed") throw new ApiError(400, "This league does not allow trades with CPU-controlled teams.");
+    if (cpuPolicy === "not_allowed") throw new ApiError(400, isRti ? "Unlock Personnel Council on the Franchise Pillar tree (Owner Tree) to make CPU trades." : "This league does not allow trades with CPU-controlled teams.");
     const cpuTradeCap = Number(config.data?.cpu_trades_season_cap ?? 0);
     if (cpuTradeCap > 0) {
       const used = await supabase.from("rec_trades").select("id", { count: "exact", head: true })

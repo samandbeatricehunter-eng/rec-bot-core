@@ -398,6 +398,22 @@ export type ImmortalityProgressionNode = {
   blockedReason: string | null;
 };
 
+export type OwnerProgressionState = {
+  ownerId: string;
+  name: string;
+  ownerXp: number;
+  personnelCouncilTier: number;
+  releaseAuthorityUnlocked: boolean;
+  franchiseInvestmentsUnlocked: boolean;
+  investmentRoiBonus: number;
+  teammatePromotionDiscountRate: number;
+  nodes: ImmortalityProgressionNode[];
+  investments: Array<{
+    id: string; xpInvested: number; investedSeasonNumber: number; maturesSeasonNumber: number;
+    roiRate: number; status: "active" | "matured";
+  }>;
+};
+
 export type ImmortalityProgressionState = {
   prospectId: string;
   name: string;
@@ -1363,6 +1379,15 @@ export const siteApi = {
   },
   immortalityProgression(input: { guildId: string; side: "offense" | "defense" }) {
     return request<ImmortalityProgressionState>("/v1/immortality/progression", input);
+  },
+  ownerProgression(input: { guildId: string }) {
+    return request<OwnerProgressionState>("/v1/immortality/owner-progression", input);
+  },
+  ownerPurchasePerk(input: { guildId: string; key: string }) {
+    return request<{ applied: true; key: string; displayName: string; xpCost: number; requestId: string }>("/v1/immortality/owner-progression/purchase", input);
+  },
+  ownerInvestFranchiseXp(input: { guildId: string; amount: number }) {
+    return request<{ invested: number; maturesSeasonNumber: number; roiRate: number }>("/v1/immortality/owner-progression/invest", input);
   },
   immortalityPurchasePerk(input: { guildId: string; side: "offense" | "defense"; key: string }) {
     return request<{ applied: true; key: string; displayName: string; xpCost: number; requestId: string }>("/v1/immortality/progression/purchase", input);

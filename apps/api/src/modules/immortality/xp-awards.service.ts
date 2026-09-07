@@ -338,6 +338,16 @@ export async function awardImmortalityChallengesAfterAdvance(input: {
     seasonNumber: input.seasonNumber,
     weekNumber: input.weekNumber,
   });
+
+  const { awardOwnerXpForWeek } = await import("./owner-progression.service.js");
+  await awardOwnerXpForWeek({
+    leagueId: input.leagueId,
+    immortalityLeagueId: String(immortality.id),
+    seasonNumber: input.seasonNumber,
+    weekNumber: input.weekNumber,
+  }).catch((error) => {
+    console.error(`[ERROR] Owner XP award failed for league ${input.leagueId} (non-fatal):`, error);
+  });
 }
 
 /** Grades one prospect's weekly/season/career challenges for one advance and credits any XP
@@ -352,7 +362,7 @@ export async function gradeProspectForWeek(
   // No fallback stats: a prospect whose real Madden identity isn't confirmed (or has gone stale)
   // never gets XP credited off whatever stat line happens to be sitting at player_id today --
   // see player-identity.service.ts for how this gets resolved and regraded once fixed.
-  if (prospect.identity_status && (prospect.identity_status === "missing" || prospect.identity_status === "ambiguous" || prospect.identity_status === "stale")) {
+  if (prospect.identity_status && ["missing", "ambiguous", "stale", "matched_pending_apply"].includes(prospect.identity_status)) {
     return;
   }
   const modifiers = await modifiersForProspect({ id: String(prospect.id), position: String(prospect.position) });

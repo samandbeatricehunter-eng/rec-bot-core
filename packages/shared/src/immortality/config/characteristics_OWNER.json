@@ -1,0 +1,112 @@
+{
+  "position_group": "OWNER",
+  "_note": "Pass 7 (Owner Tree / Franchise Pillar). Owners have no Tier-1 Origins phase -- unlike QB/MIKE/HB/WR_TE/DB, this catalog starts at Tier 2, and every lane-opener node carries an explicit `requires: []` (gated by Owner XP only, no prerequisite key) rather than relying on the flat tier-count fallback, since that fallback assumes 2 owned Tier-1 picks that will never exist here. Three lanes (Player Development / Organizational Influence / Personnel Authority), each Tier 2 -> Tier 3, converging into one shared Tier 4 capstone -- matches the Pass 10 UI mockup's 3-lanes-to-1-capstone shape (QB/MIKE, by contrast, get one capstone PER branch). xp_cost matches the QB/MIKE Tier 2/3/4 convention (50/90/120) -- pacing is tuned on the earn side instead (see OWNER_WIN_XP/OWNER_SEASON_COMPLETION_XP in owner-progression.service.ts): an average team nets roughly one Tier-2 node per season and finishes the whole tree (3 lanes + capstone, 540 XP) in the neighborhood of the Pass 11 seven-season horizon for an average franchise, faster for a winning one.",
+  "characteristics": [
+    {
+      "name": "Front Office Access",
+      "slot_cost": 2,
+      "effect": "Unlocks standing authority to release (cut) players without a per-move commissioner sign-off, and opens restricted CPU trading (Personnel Council Tier 1).",
+      "why_it_costs_that": "First real organizational trust milestone; Player Development / Personnel Authority lane, Tier 2.",
+      "tags": "personnel",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50,
+      "branch": "personnel_authority",
+      "requires": [],
+      "effects": [
+        { "type": "release_authority_unlocked" },
+        { "type": "personnel_council_tier", "value": 1 }
+      ]
+    },
+    {
+      "name": "Personnel Council",
+      "slot_cost": 2,
+      "effect": "Full CPU trading authority is unlocked league-wide for this franchise (Personnel Council Tier 2).",
+      "why_it_costs_that": "Personnel Authority lane, Tier 3 -- requires Front Office Access.",
+      "tags": "personnel",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 90,
+      "branch": "personnel_authority",
+      "requires": ["front_office_access"],
+      "effects": [
+        { "type": "personnel_council_tier", "value": 2 }
+      ]
+    },
+    {
+      "name": "Development Program",
+      "slot_cost": 2,
+      "effect": "Teammate development-trait promotions cost 20% less Player XP.",
+      "why_it_costs_that": "Player Development lane, Tier 2 -- funds the roster's dev-trait promotion pipeline.",
+      "tags": "development",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50,
+      "branch": "player_development",
+      "requires": [],
+      "effects": [
+        { "type": "teammate_promotion_discount", "rate": 0.20 }
+      ]
+    },
+    {
+      "name": "Elite Development Pipeline",
+      "slot_cost": 2,
+      "effect": "Teammate development-trait promotions cost 35% less Player XP (supersedes Development Program, does not stack with it).",
+      "why_it_costs_that": "Player Development lane, Tier 3 -- requires Development Program.",
+      "tags": "development",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 90,
+      "branch": "player_development",
+      "requires": ["development_program"],
+      "effects": [
+        { "type": "teammate_promotion_discount", "rate": 0.35 }
+      ]
+    },
+    {
+      "name": "Investment Office",
+      "slot_cost": 2,
+      "effect": "Unlocks Franchise Investments -- invest Owner XP now, mature it into more Owner XP one season later.",
+      "why_it_costs_that": "Organizational Influence lane, Tier 2.",
+      "tags": "investment",
+      "synergy": [],
+      "tier": 2,
+      "xp_cost": 50,
+      "branch": "organizational_influence",
+      "requires": [],
+      "effects": [
+        { "type": "franchise_investments_unlocked" }
+      ]
+    },
+    {
+      "name": "Aggressive Investor",
+      "slot_cost": 2,
+      "effect": "Franchise Investments mature at a 15-point-higher return.",
+      "why_it_costs_that": "Organizational Influence lane, Tier 3 -- requires Investment Office.",
+      "tags": "investment",
+      "synergy": [],
+      "tier": 3,
+      "xp_cost": 90,
+      "branch": "organizational_influence",
+      "requires": ["investment_office"],
+      "effects": [
+        { "type": "investment_roi_bonus", "value": 0.15 }
+      ]
+    },
+    {
+      "name": "Franchise Pillar",
+      "slot_cost": 3,
+      "effect": "Earn +15% Owner XP from all eligible sources.",
+      "why_it_costs_that": "Shared capstone -- requires the Tier 3 node in all three lanes, matching the Pass 10 UI's 3-lanes-to-1-capstone shape.",
+      "tags": "capstone",
+      "synergy": [],
+      "tier": 4,
+      "xp_cost": 120,
+      "branch": null,
+      "requires": ["personnel_council", "elite_development_pipeline", "aggressive_investor"],
+      "effects": [
+        { "type": "xp_earn_bonus", "value": 0.15 }
+      ]
+    }
+  ]
+}

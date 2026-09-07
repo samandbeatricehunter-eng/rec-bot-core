@@ -4,6 +4,7 @@
 // regular-season/postseason/Super Bowl record (the record of whichever user currently owns this
 // player's team, via rec_league_user_records -- the same career W-L ledger the site's own
 // records pages already read).
+import { gameplaySeasonStages, type LeagueGame } from "@rec/shared";
 import { postDiscordChannelMessage, editDiscordMessage } from "../../lib/discord-guild.js";
 import { supabase } from "../../lib/supabase.js";
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
@@ -73,8 +74,12 @@ export async function postOrRefreshHofMilestoneCard(prospectId: string): Promise
 }
 
 /** Called once per advance -- refreshes every already-posted HOF Milestones card for the
- * league. No-ops instantly for non-RTI leagues. */
-export async function refreshHofMilestonesForLeague(leagueId: string): Promise<void> {
+ * league. No-ops instantly for non-RTI leagues, and for preseason/offseason (career totals
+ * already exclude preseason stat rows -- see league-stats.service.ts -- so skipping the refresh
+ * itself here just avoids a pointless Discord edit when nothing could have changed). */
+export async function refreshHofMilestonesForLeague(input: { leagueId: string; seasonStage: string; game: LeagueGame }): Promise<void> {
+  if (!gameplaySeasonStages(input.game).has(input.seasonStage)) return;
+  const { leagueId } = input;
   const immortalityLeague = await loadImmortalityLeague(leagueId);
   if (!immortalityLeague) return;
   const posted = await supabase.from("rec_immortality_prospects").select("id")

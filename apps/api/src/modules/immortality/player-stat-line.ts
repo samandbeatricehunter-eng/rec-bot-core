@@ -32,10 +32,13 @@ function skillStatLines(totals: Record<string, unknown>): string[] {
   return lines.length ? lines : ["No offensive production logged."];
 }
 
-/** CB/FS/SS/MIKE/other defensive positions. */
+/** CB/FS/SS/MIKE/other defensive positions. No TFL -- no live Madden Companion import has ever
+ * populated a tackles_for_loss stat key (confirmed via a live jsonb_object_keys scan across
+ * every RTI player's imported weekly stats during Pass 3), so it always rendered as a dead "0
+ * TFL" here. */
 function defenseStatLines(totals: Record<string, unknown>): string[] {
   return [
-    `${num(totals, "tackles")} TKL, ${num(totals, "tackles_for_loss")} TFL, ${num(totals, "sacks")} SACK`,
+    `${num(totals, "tackles")} TKL, ${num(totals, "sacks")} SACK`,
     `${num(totals, "interceptions")} INT, ${num(totals, "forced_fumbles")} FF, ${num(totals, "fumble_recoveries")} FR, ${num(totals, "defensive_tds")} DEF TD`,
   ];
 }

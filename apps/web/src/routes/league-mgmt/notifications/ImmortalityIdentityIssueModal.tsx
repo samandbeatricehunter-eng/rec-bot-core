@@ -7,7 +7,7 @@ import { ErrorState } from "../../../components/ui/ErrorState.js";
 
 type IdentityIssuePayload = {
   prospectId: string;
-  status: "missing" | "ambiguous" | "stale";
+  status: "missing" | "ambiguous" | "stale" | "matched_pending_apply";
   name: string;
   position: string;
   side: "offense" | "defense";
@@ -18,6 +18,7 @@ const STATUS_LABEL: Record<IdentityIssuePayload["status"], string> = {
   missing: "Not Found",
   ambiguous: "Ambiguous Match",
   stale: "Went Stale",
+  matched_pending_apply: "Awaiting Applied In Game",
 };
 
 // Opened from a Notifications pending item (type "immortality_identity_issue") -- fires when
@@ -77,41 +78,52 @@ export function ImmortalityIdentityIssueModal({
         </p>
         <p className="form-hint" style={{ margin: "0 0 12px" }}>{data.note}</p>
 
-        <label className="form-label" htmlFor="identity-issue-search">Search the current roster</label>
-        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-          <input
-            id="identity-issue-search"
-            className="form-input"
-            style={{ flex: 1 }}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") void search(); }}
-            placeholder="In-game player name"
-          />
-          <Button variant="secondary" disabled={searching || !query.trim()} onClick={() => void search()}>
-            {searching ? "Searching…" : "Search"}
-          </Button>
-        </div>
+        {data.status === "matched_pending_apply" ? (
+          <p className="form-hint">
+            Nothing to search here — the roster match is already correct. Find this player's original
+            prospect-build review in your pending items and click <strong>Applied In Game</strong> on it
+            to confirm you've created them in the Madden save; identity verification finishes automatically
+            on the next import.
+          </p>
+        ) : (
+          <>
+            <label className="form-label" htmlFor="identity-issue-search">Search the current roster</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <input
+                id="identity-issue-search"
+                className="form-input"
+                style={{ flex: 1 }}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void search(); }}
+                placeholder="In-game player name"
+              />
+              <Button variant="secondary" disabled={searching || !query.trim()} onClick={() => void search()}>
+                {searching ? "Searching…" : "Search"}
+              </Button>
+            </div>
 
-        {searched && candidates.length === 0 && (
-          <p className="form-hint">No active roster players match that name.</p>
-        )}
+            {searched && candidates.length === 0 && (
+              <p className="form-hint">No active roster players match that name.</p>
+            )}
 
-        {candidates.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {candidates.map((candidate) => (
-              <div key={candidate.id} className="pending-item-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                <span>
-                  {candidate.fullName} — {candidate.position}
-                  {candidate.jerseyNumber != null ? ` #${candidate.jerseyNumber}` : ""}
-                  {candidate.overallRating != null ? ` · ${candidate.overallRating} OVR` : ""}
-                </span>
-                <Button variant="primary" disabled={linkingId != null} onClick={() => void link(candidate.id)}>
-                  {linkingId === candidate.id ? "Linking…" : "Link"}
-                </Button>
+            {candidates.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {candidates.map((candidate) => (
+                  <div key={candidate.id} className="pending-item-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <span>
+                      {candidate.fullName} — {candidate.position}
+                      {candidate.jerseyNumber != null ? ` #${candidate.jerseyNumber}` : ""}
+                      {candidate.overallRating != null ? ` · ${candidate.overallRating} OVR` : ""}
+                    </span>
+                    <Button variant="primary" disabled={linkingId != null} onClick={() => void link(candidate.id)}>
+                      {linkingId === candidate.id ? "Linking…" : "Link"}
+                    </Button>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </Modal>

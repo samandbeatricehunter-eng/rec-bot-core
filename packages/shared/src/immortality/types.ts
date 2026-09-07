@@ -38,7 +38,10 @@ export type ImmortalityDefensePosition = (typeof IMMORTALITY_DEFENSE_POSITIONS)[
 export type ImmortalityPosition = ImmortalityOffensePosition | ImmortalityDefensePosition;
 export type ImmortalitySide = "offense" | "defense";
 
-export const IMMORTALITY_POSITION_GROUPS = ["QB", "HB", "WR_TE", "DB", "LB"] as const;
+// "OWNER" is not a player position -- it's the Franchise Pillar (Owner) tree's catalog group,
+// reusing the same CharacteristicDefinition/purchaseCharacteristic engine prospects use (see
+// characteristics_OWNER.json) rather than inventing a parallel one.
+export const IMMORTALITY_POSITION_GROUPS = ["QB", "HB", "WR_TE", "DB", "LB", "OWNER"] as const;
 export type ImmortalityPositionGroup = (typeof IMMORTALITY_POSITION_GROUPS)[number];
 
 export const PERSONA_DIMENSIONS = [

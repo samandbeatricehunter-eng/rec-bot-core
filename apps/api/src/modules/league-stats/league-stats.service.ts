@@ -44,6 +44,8 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
     "select id,name,abbreviation,conference,division from rec_teams where league_id=$1 and coalesce(is_schedule_placeholder,false)=false order by name", [leagueId],
   );
   const params: unknown[] = [leagueId];
+  // Preseason stats are excluded unconditionally below (not just for "career") -- preseason is a
+  // roster-evaluation stage, never real production, for either scope.
   const seasonFilter = input.scope === "career" ? "" : ` and s.season_number=$${params.push(league.season_number)}`;
   let filter = "";
   if (input.teamId) { params.push(input.teamId); filter += ` and p.team_id=$${params.length}`; }
@@ -74,7 +76,7 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
        select s.player_id,e.key,
          case when e.key = any($${maxKeysParam}::text[]) then max(e.value::numeric) else sum(e.value::numeric) end as total
        from rec_player_weekly_stats s cross join lateral jsonb_each_text(s.stats) e
-       where s.league_id=$1${seasonFilter} and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$' and e.key <> all($${nonAggregableKeysParam}::text[])
+       where s.league_id=$1${seasonFilter} and s.season_stage <> 'preseason' and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$' and e.key <> all($${nonAggregableKeysParam}::text[])
        group by s.player_id,e.key
      ), totals as (
        select player_id,jsonb_object_agg(key,total order by key) as stats from numeric_stats group by player_id

@@ -30,6 +30,25 @@ export type CharacteristicModifiers = {
   devTraitPurchaseUnlocked: boolean;
   teammateDevPurchaseUnlocked: boolean;
   tradeAccess: boolean;
+  /** Pass 7 (Owner Tree / Franchise Pillar), Personnel Authority lane -- 0 = no CPU-trade
+   * access, 1 = Front Office Access (restricted CPU trading), 2 = Personnel Council (full CPU
+   * trading). Owner-scoped only; a prospect's own catalog never sets this. Combined as a max,
+   * not a sum -- see combinedModifiers. */
+  personnelCouncilTier: number;
+  /** Pass 7: Front Office Access also grants standing authority to release (cut) players --
+   * distinct from trade tier because a front office can clean up a bench before it's trusted
+   * with league-wide trades. Owner-scoped only. */
+  releaseAuthorityUnlocked: boolean;
+  /** Pass 7, Organizational Influence lane: unlocks Franchise Investments (see
+   * owner-progression.service.ts) and bonus-stacks the ROI multiplier those investments mature
+   * at. Owner-scoped only. */
+  franchiseInvestmentsUnlocked: boolean;
+  investmentRoiBonus: number;
+  /** Pass 7, Player Development lane: discounts a teammate dev-trait promotion's Player XP cost
+   * (see purchaseTeammateDevTraitPromotion in xp.ts). Owner-scoped only; combined as a max, not
+   * a sum, since Elite Development Pipeline supersedes Development Program rather than stacking
+   * with it. */
+  teammatePromotionDiscountRate: number;
 };
 
 /** Rise to Immortality Pass 5 (Progression Engine V2): one variant per existing
@@ -49,7 +68,12 @@ export type EffectSpec =
   | { type: "competitive_drive_bonus_pct"; value: number }
   | { type: "dev_trait_purchase_unlocked" }
   | { type: "teammate_dev_purchase_unlocked" }
-  | { type: "trade_access" };
+  | { type: "trade_access" }
+  | { type: "personnel_council_tier"; value: number }
+  | { type: "release_authority_unlocked" }
+  | { type: "franchise_investments_unlocked" }
+  | { type: "investment_roi_bonus"; value: number }
+  | { type: "teammate_promotion_discount"; rate: number };
 
 export type CharacteristicDefinition = {
   key: string;
@@ -63,9 +87,11 @@ export type CharacteristicDefinition = {
   tier: CharacteristicTier;
   xpCost: number;
   /** Pass 5: specific prerequisite catalog keys (AND -- all must be owned), authored per-node
-   * for a real lane chain. Absent/empty on every node in all 5 live catalogs today, in which
-   * case purchaseCharacteristic falls back to the original flat tier-count rule unchanged --
-   * see that function's doc comment. Pass 6/7 populate this when authoring QB/MIKE/Owner lanes. */
+   * for a real lane chain. `undefined` (every node in the 5 original catalogs) falls back to the
+   * original flat tier-count rule unchanged -- see purchaseCharacteristic's doc comment. An
+   * empty array (Pass 7's lane-opener Owner nodes, which have no prerequisite at all but still
+   * need to skip the flat tier-count rule since Owner has no Tier-1 Origins content) means
+   * "gated by XP only." Pass 6/7 populate this when authoring QB/MIKE/Owner lanes. */
   requires?: string[];
   /** Pass 5: opaque lane-grouping id (e.g. "gunslinger") for the QB/MIKE/Owner branch trees
    * Pass 6/7 author. Null/absent for every node in all 5 live catalogs today -- the frontend
@@ -113,6 +139,11 @@ export function emptyModifiers(): CharacteristicModifiers {
     devTraitPurchaseUnlocked: false,
     teammateDevPurchaseUnlocked: false,
     tradeAccess: false,
+    personnelCouncilTier: 0,
+    releaseAuthorityUnlocked: false,
+    franchiseInvestmentsUnlocked: false,
+    investmentRoiBonus: 0,
+    teammatePromotionDiscountRate: 0,
   };
 }
 
@@ -175,6 +206,21 @@ export function applyEffect(modifiers: CharacteristicModifiers, effect: EffectSp
       break;
     case "trade_access":
       modifiers.tradeAccess = true;
+      break;
+    case "personnel_council_tier":
+      modifiers.personnelCouncilTier = Math.max(modifiers.personnelCouncilTier, effect.value);
+      break;
+    case "release_authority_unlocked":
+      modifiers.releaseAuthorityUnlocked = true;
+      break;
+    case "franchise_investments_unlocked":
+      modifiers.franchiseInvestmentsUnlocked = true;
+      break;
+    case "investment_roi_bonus":
+      modifiers.investmentRoiBonus += effect.value;
+      break;
+    case "teammate_promotion_discount":
+      modifiers.teammatePromotionDiscountRate = Math.max(modifiers.teammatePromotionDiscountRate, effect.rate);
       break;
     default:
       break;
@@ -291,6 +337,11 @@ export function combinedModifiers(selected: CharacteristicDefinition[]): Charact
     combined.devTraitPurchaseUnlocked = combined.devTraitPurchaseUnlocked || item.modifiers.devTraitPurchaseUnlocked;
     combined.teammateDevPurchaseUnlocked = combined.teammateDevPurchaseUnlocked || item.modifiers.teammateDevPurchaseUnlocked;
     combined.tradeAccess = combined.tradeAccess || item.modifiers.tradeAccess;
+    combined.personnelCouncilTier = Math.max(combined.personnelCouncilTier, item.modifiers.personnelCouncilTier);
+    combined.releaseAuthorityUnlocked = combined.releaseAuthorityUnlocked || item.modifiers.releaseAuthorityUnlocked;
+    combined.franchiseInvestmentsUnlocked = combined.franchiseInvestmentsUnlocked || item.modifiers.franchiseInvestmentsUnlocked;
+    combined.investmentRoiBonus += item.modifiers.investmentRoiBonus;
+    combined.teammatePromotionDiscountRate = Math.max(combined.teammatePromotionDiscountRate, item.modifiers.teammatePromotionDiscountRate);
     for (const [code, rate] of Object.entries(item.modifiers.creationDiscounts)) {
       (creationRates[code] ??= []).push(rate);
     }
@@ -350,10 +401,13 @@ export function purchaseCharacteristic(input: {
   if (!isProgressionTreePerk(definition)) return { ok: false, error: "origins_only" };
 
   const owned = input.catalog.filter((item) => input.ownedKeys.includes(item.key));
-  // Pass 5: a node with explicit `requires` is gated by those specific keys (AND) instead of the
-  // original flat tier-count rule below -- every node in all 5 live catalogs today has no
-  // `requires`, so this branch is a no-op until Pass 6/7 authors real lane chains.
-  if (definition.requires?.length) {
+  // Pass 5: a node with an explicit `requires` array (even an empty one -- see that field's doc
+  // comment, added in Pass 7 for Owner's lane-opener nodes) is gated by those specific keys (AND)
+  // instead of the original flat tier-count rule below. Every node in the 5 original catalogs
+  // has `requires` entirely absent (undefined), so this branch was a no-op there until Pass 6
+  // authored real lane chains; `undefined !== []`, so this check is unaffected by the empty-array
+  // case newly introduced for Owner.
+  if (definition.requires !== undefined) {
     const ownedSet = new Set(input.ownedKeys);
     const missingKeys = definition.requires.filter((key) => !ownedSet.has(key));
     if (missingKeys.length) return { ok: false, error: "prerequisite_locked", missingKeys };

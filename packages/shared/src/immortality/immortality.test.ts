@@ -726,7 +726,7 @@ test("spendCreationPoints applies an ALL-keyed discount, not just a specific-cod
 });
 
 test("every position group has a deeper Progression Tree than the original 2-3 nodes", () => {
-  for (const group of ["QB", "HB", "WR_TE", "DB", "LB"] as const) {
+  for (const group of ["QB", "HB", "WR_TE", "DB", "LB", "OWNER"] as const) {
     const tree = characteristicCatalog(group).filter((item) => isProgressionTreePerk(item));
     const tiers = new Set(tree.map((item) => item.tier));
     assert.ok(tree.length >= 7, `${group} tree is too thin (${tree.length})`);
@@ -735,7 +735,7 @@ test("every position group has a deeper Progression Tree than the original 2-3 n
 });
 
 test("no position catalog has two characteristics that collapse to the same key (characteristicKey strips punctuation)", () => {
-  for (const group of ["QB", "HB", "WR_TE", "DB", "LB"] as const) {
+  for (const group of ["QB", "HB", "WR_TE", "DB", "LB", "OWNER"] as const) {
     const keys = characteristicCatalog(group).map((item) => item.key);
     const dupes = keys.filter((key, index) => keys.indexOf(key) !== index);
     assert.deepEqual(dupes, [], `${group} has colliding characteristic keys: ${dupes.join(", ")}`);
@@ -769,6 +769,31 @@ test("Pass 6 branch chains gate on the specific prior node, not a sibling branch
   if (!crossBranch.ok) assert.equal(crossBranch.error, "prerequisite_locked");
   const sameBranch = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: [...t1, "film_room_commander"], key: "total_command", availableXp: 90 });
   assert.equal(sameBranch.ok, true);
+});
+
+test("Owner Tree (Pass 7) has 3 lanes converging on one shared Tier-4 capstone, unlike QB/MIKE's per-branch capstones", () => {
+  const tree = characteristicCatalog("OWNER").filter((item) => isProgressionTreePerk(item));
+  const lanes = ["personnel_authority", "player_development", "organizational_influence"] as const;
+  const t3Keys: string[] = [];
+  for (const lane of lanes) {
+    const nodes = tree.filter((item) => item.branch === lane).sort((a, b) => a.tier - b.tier);
+    assert.deepEqual(nodes.map((item) => item.tier), [2, 3], `Owner's ${lane} lane isn't a clean T2-T3 chain`);
+    assert.deepEqual(nodes[0].requires, [], `Owner's ${lane} T2 (lane opener) should have no prerequisite`);
+    assert.equal(nodes[1].requires?.[0], nodes[0].key, `Owner's ${lane} T3 doesn't require its own T2`);
+    t3Keys.push(nodes[1].key);
+  }
+  const capstones = tree.filter((item) => item.tier === 4);
+  assert.equal(capstones.length, 1, "Owner Tree should have exactly one shared capstone");
+  assert.deepEqual(new Set(capstones[0].requires), new Set(t3Keys), "Owner capstone must require all three lanes' T3 nodes");
+});
+
+test("Owner Tree gates on XP alone at Tier 2 (no Origins content exists for owners to satisfy a flat tier-count rule)", () => {
+  const catalog = characteristicCatalog("OWNER");
+  const purchase = purchaseCharacteristic({ positionGroup: "OWNER", catalog, ownedKeys: [], key: "front_office_access", availableXp: 50 });
+  assert.equal(purchase.ok, true);
+  const short = purchaseCharacteristic({ positionGroup: "OWNER", catalog, ownedKeys: [], key: "front_office_access", availableXp: 10 });
+  assert.equal(short.ok, false);
+  if (!short.ok) assert.equal(short.error, "insufficient_xp");
 });
 
 test("season-trend promotions need a real hot streak, not a single gold week", () => {

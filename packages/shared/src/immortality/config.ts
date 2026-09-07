@@ -10,6 +10,7 @@ import hbJson from "./config/characteristics_HB.json" with { type: "json" };
 import wrTeJson from "./config/characteristics_WR_TE.json" with { type: "json" };
 import dbJson from "./config/characteristics_DB.json" with { type: "json" };
 import lbJson from "./config/characteristics_LB.json" with { type: "json" };
+import ownerJson from "./config/characteristics_OWNER.json" with { type: "json" };
 import synergiesJson from "./config/characteristic_synergies.json" with { type: "json" };
 import milestonesJson from "./config/milestones_v2.json" with { type: "json" };
 import contractsJson from "./config/contracts_v1.json" with { type: "json" };
@@ -157,6 +158,7 @@ const CHARACTERISTIC_CATALOGS: Record<ImmortalityPositionGroup, CharacteristicDe
   WR_TE: catalogFrom(wrTeJson as { position_group: string; characteristics: RawCharacteristic[] }),
   DB: catalogFrom(dbJson as { position_group: string; characteristics: RawCharacteristic[] }),
   LB: catalogFrom(lbJson as { position_group: string; characteristics: RawCharacteristic[] }),
+  OWNER: catalogFrom(ownerJson as { position_group: string; characteristics: RawCharacteristic[] }),
 };
 
 export function characteristicCatalog(group: ImmortalityPositionGroup): CharacteristicDefinition[] {

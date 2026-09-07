@@ -58,6 +58,12 @@ import {
   purchaseDevPromotion,
   resolveDevPromotion,
 } from "./progression.service.js";
+import {
+  getOwnerProgressionState,
+  purchaseOwnerPerk,
+  resolveOwnerPerk,
+  investFranchiseXp,
+} from "./owner-progression.service.js";
 import { searchRosterCandidates, linkProspectToPlayer } from "./player-identity.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { IMMORTALITY_STATES, IQ_QUESTION_COUNT } from "@rec/shared";
@@ -298,6 +304,42 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode !== "user") throw new ApiError(400, "Resolving promotions requires a website session.");
       return reply.send(await resolveDevPromotion({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/owner-progression", async (request, reply) => {
+    try {
+      const body = GuildBody.parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "The Franchise Pillar tree is website-only.");
+      return reply.send(await getOwnerProgressionState({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/owner-progression/purchase", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ key: z.string().trim().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Franchise Pillar purchases are website-only.");
+      return reply.send(await purchaseOwnerPerk({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/owner-progression/resolve", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ requestId: z.string().uuid(), action: z.enum(["applied", "refunded"]), note: z.string().max(1000).optional() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode !== "user") throw new ApiError(400, "Resolving Franchise Pillar purchases requires a website session.");
+      return reply.send(await resolveOwnerPerk({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/owner-progression/invest", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ amount: z.number().int().positive() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Franchise Investments are website-only.");
+      return reply.send(await investFranchiseXp({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 
