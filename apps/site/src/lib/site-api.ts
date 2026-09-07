@@ -548,6 +548,7 @@ export type ImmortalityHubResponse = {
   };
   prospects: Array<Record<string, unknown>>;
   builds?: Array<Record<string, unknown>>;
+  traits?: Array<{ prospect_id: string; characteristic_key: string }>;
   xp?: Record<string, { playerXp: number; teamXp: number }>;
   pool?: { registeredCount: number; linkedCount: number };
   draftStatus?: string | null;

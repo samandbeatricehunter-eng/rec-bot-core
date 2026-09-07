@@ -117,8 +117,7 @@ export function LeagueRow3({ leagueId, isCommissioner, rosterType, riseHubUnlock
             <>
               {!rtiOriginsComplete ? <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/rise`); }}>Origins / Class</button> : null}
               <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/team/upgrades`); }}>Upgrades</button>
-              <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/team/progression`); }}>Progression Tree</button>
-              <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/team/trust`); }}>Trust Tree</button>
+              <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/team/progression`); }}>Build Your Legacy</button>
               {rtiTradesUnlocked === true ? (
                 <button type="button" role="menuitem" className="site-account-menu-item" onClick={() => { close(); navigate(`${base}/trades`); }}>Trade Center</button>
               ) : null}

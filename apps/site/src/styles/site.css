@@ -4254,6 +4254,19 @@ h1, h2, h3, .site-wordmark {
    own instead of the shared token. */
 .rise-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: var(--card-border); border-radius: var(--radius-lg); background: rgba(8, 8, 10, 0.97); backdrop-filter: blur(6px); }
 .rise-side-tabs, .rise-actions, .rise-options { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* "Build Your Legacy" (Pass 10) identity switcher -- 3 cards (Offense/Defense/Owner), the
+   selected one gets a gold border matching the tree node's own selected-state treatment. */
+.rise-identity-switcher { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4); }
+.rise-identity-card {
+  flex: 1 1 180px; display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  padding: var(--space-3) var(--space-4); border: var(--card-border); border-radius: var(--radius-lg);
+  background: rgba(8, 8, 10, 0.97); color: var(--text); cursor: pointer; text-align: left; font: inherit;
+}
+.rise-identity-card:disabled { opacity: 0.5; cursor: not-allowed; }
+.rise-identity-card:hover:not(:disabled):not(.is-selected) { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.rise-identity-card.is-selected { border-color: var(--accent-bright); box-shadow: 0 0 0 1px var(--accent-bright), 0 0 18px color-mix(in srgb, var(--accent) 40%, transparent); }
+.rise-identity-card-label { font-size: 15px; font-weight: 800; }
 .rise-stage-nav { display: flex; flex-wrap: wrap; gap: 4px; }
 .rise-stage-nav button { border: var(--card-border); background: rgba(8, 8, 10, 0.97); color: var(--text); border-radius: var(--radius-md); padding: 8px 12px; cursor: pointer; }
 .rise-stage-nav button.is-active { border-color: var(--gold, #d4a843); }

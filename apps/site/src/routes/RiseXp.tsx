@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { MADDEN_ATTRIBUTE_DEFINITIONS, xpCostForPlusOne } from "@rec/shared";
+import {
+  MADDEN_ATTRIBUTE_DEFINITIONS, discountedXpCost, characteristicCatalog, combinedModifiers,
+  positionGroupFor, xpDiscountForAttribute, type ImmortalityPosition,
+} from "@rec/shared";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi, type ImmortalityAbilityCard, type ImmortalityAbilityState, type ImmortalityHubResponse } from "../lib/site-api.js";
 
 type Side = "offense" | "defense";
 
-/** Client-side preview only (undiscounted ramp) -- equipped-characteristic discounts and the
- * dev-trait OVR ceiling are re-checked server-side at submit time, which is authoritative on the
- * real amount charged. Close enough for a live running total while dragging. */
-function previewCost(current: number, target: number): number {
+/** Client-side preview -- re-checked server-side at submit time, which is authoritative on the
+ * real amount charged. Pass 10: now applies the prospect's real, already-owned Progression Tree
+ * discounts (the same uncapped stackPostDraftDiscounts model xp-awards.service.ts uses), not
+ * just the undiscounted ramp -- the preview used to overstate cost for anyone who'd bought a
+ * discount perk. */
+function previewCost(current: number, target: number, discount: number): number {
   let cost = 0;
   let value = current;
-  while (value < target) { cost += xpCostForPlusOne(value); value += 1; }
+  while (value < target) { cost += discountedXpCost(value, discount); value += 1; }
   return cost;
 }
 
@@ -64,10 +69,22 @@ export function RiseXpPage() {
     [sideCategory],
   );
 
+  // Pass 10: real, already-owned discount, not the undiscounted ramp -- see previewCost's doc
+  // comment. Purely a client-side pure-function mirror of the same @rec/shared model the server
+  // already prices with; nothing here is authoritative, the submit call still is.
+  const modifiers = useMemo(() => {
+    if (!position) return null;
+    const ownedKeys = (hub?.traits ?? []).filter((row) => row.prospect_id === prospectId).map((row) => row.characteristic_key);
+    const catalog = characteristicCatalog(positionGroupFor(position as ImmortalityPosition));
+    const selected = catalog.filter((item) => ownedKeys.includes(item.key));
+    return combinedModifiers(selected);
+  }, [hub?.traits, prospectId, position]);
+
   const rows = availableAttributes.map((def) => {
     const base = attributes[def.code] ?? 0;
     const target = targets[def.code] ?? base;
-    const cost = previewCost(base, target);
+    const discount = modifiers ? xpDiscountForAttribute(modifiers, def.code) : 0;
+    const cost = previewCost(base, target, discount);
     return { def, base, target, cost };
   });
   const totalCost = rows.reduce((sum, row) => sum + row.cost, 0);
