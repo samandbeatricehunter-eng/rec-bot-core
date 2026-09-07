@@ -210,7 +210,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50
+      "xp_cost": 3
     },
     {
       "name": "Self-Made",
@@ -220,7 +220,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90
+      "xp_cost": 5
     },
     {
       "name": "Personnel Chief",
@@ -230,7 +230,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50
+      "xp_cost": 3
     },
     {
       "name": "Spotlight",
@@ -240,7 +240,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90
+      "xp_cost": 5
     },
     {
       "name": "Run Stuffer",
@@ -250,7 +250,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50,
+      "xp_cost": 3,
       "branch": "run_enforcer"
     },
     {
@@ -261,9 +261,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90,
+      "xp_cost": 5,
       "branch": "run_enforcer",
-      "requires": ["run_stuffer"]
+      "requires": [
+        "run_stuffer"
+      ]
     },
     {
       "name": "Heart of the Defense",
@@ -273,9 +275,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 4,
-      "xp_cost": 120,
+      "xp_cost": 7,
       "branch": "run_enforcer",
-      "requires": ["tone_setter"]
+      "requires": [
+        "tone_setter"
+      ]
     },
     {
       "name": "Coverage Range",
@@ -285,7 +289,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50,
+      "xp_cost": 3,
       "branch": "coverage_commander"
     },
     {
@@ -296,9 +300,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90,
+      "xp_cost": 5,
       "branch": "coverage_commander",
-      "requires": ["coverage_range"]
+      "requires": [
+        "coverage_range"
+      ]
     },
     {
       "name": "Coverage Commander",
@@ -308,9 +314,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 4,
-      "xp_cost": 120,
+      "xp_cost": 7,
       "branch": "coverage_commander",
-      "requires": ["coverage_linebacker"]
+      "requires": [
+        "coverage_linebacker"
+      ]
     },
     {
       "name": "Havoc Threat",
@@ -320,7 +328,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50,
+      "xp_cost": 3,
       "branch": "disruptor"
     },
     {
@@ -331,9 +339,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90,
+      "xp_cost": 5,
       "branch": "disruptor",
-      "requires": ["havoc_threat"]
+      "requires": [
+        "havoc_threat"
+      ]
     },
     {
       "name": "Disruptor",
@@ -343,9 +353,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 4,
-      "xp_cost": 120,
+      "xp_cost": 7,
       "branch": "disruptor",
-      "requires": ["backfield_menace"]
+      "requires": [
+        "backfield_menace"
+      ]
     },
     {
       "name": "Coordinators Eye",
@@ -355,7 +367,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50,
+      "xp_cost": 3,
       "branch": "defensive_field_general"
     },
     {
@@ -366,9 +378,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90,
+      "xp_cost": 5,
       "branch": "defensive_field_general",
-      "requires": ["coordinators_eye"]
+      "requires": [
+        "coordinators_eye"
+      ]
     },
     {
       "name": "Defensive Field General",
@@ -378,9 +392,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 4,
-      "xp_cost": 120,
+      "xp_cost": 7,
       "branch": "defensive_field_general",
-      "requires": ["pre_snap_read"]
+      "requires": [
+        "pre_snap_read"
+      ]
     }
   ]
 }

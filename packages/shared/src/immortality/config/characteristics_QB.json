@@ -212,7 +212,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50
+      "xp_cost": 3
     },
     {
       "name": "Self-Made",
@@ -222,7 +222,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90
+      "xp_cost": 5
     },
     {
       "name": "Personnel Chief",
@@ -232,7 +232,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50
+      "xp_cost": 3
     },
     {
       "name": "Spotlight",
@@ -242,7 +242,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90
+      "xp_cost": 5
     },
     {
       "name": "Pocket Architect",
@@ -252,7 +252,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50,
+      "xp_cost": 3,
       "branch": "precision_passer"
     },
     {
@@ -263,9 +263,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90,
+      "xp_cost": 5,
       "branch": "precision_passer",
-      "requires": ["pocket_architect"]
+      "requires": [
+        "pocket_architect"
+      ]
     },
     {
       "name": "Immortal Arm",
@@ -275,9 +277,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 4,
-      "xp_cost": 120,
+      "xp_cost": 7,
       "branch": "precision_passer",
-      "requires": ["clutch_gene"]
+      "requires": [
+        "clutch_gene"
+      ]
     },
     {
       "name": "Film Room Commander",
@@ -287,7 +291,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50,
+      "xp_cost": 3,
       "branch": "field_general"
     },
     {
@@ -298,9 +302,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90,
+      "xp_cost": 5,
       "branch": "field_general",
-      "requires": ["film_room_commander"]
+      "requires": [
+        "film_room_commander"
+      ]
     },
     {
       "name": "Field General",
@@ -310,9 +316,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 4,
-      "xp_cost": 120,
+      "xp_cost": 7,
       "branch": "field_general",
-      "requires": ["total_command"]
+      "requires": [
+        "total_command"
+      ]
     },
     {
       "name": "Cannon Arm",
@@ -322,7 +330,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50,
+      "xp_cost": 3,
       "branch": "gunslinger"
     },
     {
@@ -333,9 +341,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90,
+      "xp_cost": 5,
       "branch": "gunslinger",
-      "requires": ["cannon_arm"]
+      "requires": [
+        "cannon_arm"
+      ]
     },
     {
       "name": "Gunslinger",
@@ -345,9 +355,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 4,
-      "xp_cost": 120,
+      "xp_cost": 7,
       "branch": "gunslinger",
-      "requires": ["deep_strike"]
+      "requires": [
+        "deep_strike"
+      ]
     },
     {
       "name": "Dual-Threat Engine",
@@ -357,7 +369,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50,
+      "xp_cost": 3,
       "branch": "dual_threat"
     },
     {
@@ -368,9 +380,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90,
+      "xp_cost": 5,
       "branch": "dual_threat",
-      "requires": ["dual_threat_engine"]
+      "requires": [
+        "dual_threat_engine"
+      ]
     },
     {
       "name": "Dual Threat",
@@ -380,9 +394,11 @@
       "tags": "progression",
       "synergy": [],
       "tier": 4,
-      "xp_cost": 120,
+      "xp_cost": 7,
       "branch": "dual_threat",
-      "requires": ["off_script"]
+      "requires": [
+        "off_script"
+      ]
     }
   ]
 }

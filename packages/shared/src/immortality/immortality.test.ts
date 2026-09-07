@@ -657,33 +657,38 @@ test("Competitive Drive contributes a completed-challenge % bonus via combinedMo
 
 test("Progression Tree purchases are additive, gated by tier, and never Origins-only perks", () => {
   const catalog = characteristicCatalog("QB");
+  // Real node costs are Pass 11-calibrated against real Madden season data (see
+  // simulate-seven-season-progression.ts) and are expected to keep moving as more real seasons
+  // accumulate -- read them from the catalog itself rather than hardcoding a value that goes
+  // stale every time this pass re-tunes.
+  const costOf = (key: string) => catalog.find((item) => item.key === key)!.xpCost;
   const t1 = ["born_with_quick_feet", "faster_developer"];
-  const originsOnly = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: t1, key: "known_commodity", availableXp: 999 });
+  const originsOnly = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: t1, key: "known_commodity", availableXp: 999999 });
   assert.equal(originsOnly.ok, false);
   if (!originsOnly.ok) assert.equal(originsOnly.error, "origins_only");
-  const locked = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: ["born_with_quick_feet"], key: "personnel_chief", availableXp: 999 });
+  const locked = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: ["born_with_quick_feet"], key: "personnel_chief", availableXp: 999999 });
   assert.equal(locked.ok, false);
   if (!locked.ok) assert.equal(locked.error, "tier_locked");
-  const t2 = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: t1, key: "personnel_chief", availableXp: 50 });
+  const t2 = purchaseCharacteristic({ positionGroup: "QB", catalog, ownedKeys: t1, key: "personnel_chief", availableXp: costOf("personnel_chief") });
   assert.equal(t2.ok, true);
-  if (t2.ok) assert.equal(t2.xpCost, 50);
+  if (t2.ok) assert.equal(t2.xpCost, costOf("personnel_chief"));
   const t3locked = purchaseCharacteristic({
-    positionGroup: "QB", catalog, ownedKeys: t1, key: "self_made", availableXp: 999,
+    positionGroup: "QB", catalog, ownedKeys: t1, key: "self_made", availableXp: 999999,
   });
   assert.equal(t3locked.ok, false);
   const t3 = purchaseCharacteristic({
-    positionGroup: "QB", catalog, ownedKeys: [...t1, "personnel_chief"], key: "self_made", availableXp: 90,
+    positionGroup: "QB", catalog, ownedKeys: [...t1, "personnel_chief"], key: "self_made", availableXp: costOf("self_made"),
   });
   assert.equal(t3.ok, true);
   // Pass 6: Immortal Arm is the Precision Passer branch's Tier 4 capstone -- it requires the
   // specific chain (Pocket Architect -> Clutch Gene), not just "any Tier 3 owned."
   const t4locked = purchaseCharacteristic({
-    positionGroup: "QB", catalog, ownedKeys: [...t1, "personnel_chief", "self_made"], key: "immortal_arm", availableXp: 999,
+    positionGroup: "QB", catalog, ownedKeys: [...t1, "personnel_chief", "self_made"], key: "immortal_arm", availableXp: 999999,
   });
   assert.equal(t4locked.ok, false);
   if (!t4locked.ok) { assert.equal(t4locked.error, "prerequisite_locked"); assert.deepEqual(t4locked.missingKeys, ["clutch_gene"]); }
   const t4 = purchaseCharacteristic({
-    positionGroup: "QB", catalog, ownedKeys: [...t1, "pocket_architect", "clutch_gene"], key: "immortal_arm", availableXp: 120,
+    positionGroup: "QB", catalog, ownedKeys: [...t1, "pocket_architect", "clutch_gene"], key: "immortal_arm", availableXp: costOf("immortal_arm"),
   });
   assert.equal(t4.ok, true);
   assert.equal(isProgressionTreePerk(catalog.find((item) => item.key === "personnel_chief")!), true);
