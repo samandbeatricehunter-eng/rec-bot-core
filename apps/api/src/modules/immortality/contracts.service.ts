@@ -33,6 +33,15 @@ async function modifiersForProspect(prospect: { id: string; position: string }) 
   return combinedModifiers(selected);
 }
 
+async function resolveOwnerNegotiatorMultiplier(leagueId: string, playerId: string | null): Promise<number> {
+  if (!playerId) return 1;
+  const player = await supabase.from("rec_players").select("team_id").eq("id", playerId).maybeSingle();
+  if (!player.data?.team_id) return 1;
+  const { ownerAuthorityForTeam } = await import("./owner-progression.service.js");
+  const authority = await ownerAuthorityForTeam(leagueId, String(player.data.team_id)).catch(() => null);
+  return authority?.negotiatorMultiplier || 1;
+}
+
 async function productionScore(input: {
   leagueId: string;
   playerId: string;
@@ -155,10 +164,15 @@ export async function offerDuePerformanceContracts(input: {
           ...window,
         })
         : 0.5;
+      // Master Facilitator (Owner Tree, Pass 9) stacks the same negotiator-multiplier mechanic
+      // Great Negotiator uses at the prospect level -- resolved via the prospect's real team,
+      // not the prospect's own perks, so it's a no-op (multiplier 1) if the team has no owner
+      // record yet or the owner hasn't bought it.
+      const ownerNegotiatorMultiplier = await resolveOwnerNegotiatorMultiplier(input.leagueId, prospect.player_id ? String(prospect.player_id) : null);
       const payout = performanceContractPayout({
         contractNumber,
         percentile,
-        negotiatorMultiplier: modifiers.negotiatorMultiplier,
+        negotiatorMultiplier: modifiers.negotiatorMultiplier * ownerNegotiatorMultiplier,
         knownCommodityFloor: modifiers.knownCommodityFloor,
       });
       await insertOffer({

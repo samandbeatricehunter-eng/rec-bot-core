@@ -49,6 +49,16 @@ export type CharacteristicModifiers = {
    * a sum, since Elite Development Pipeline supersedes Development Program rather than stacking
    * with it. */
   teammatePromotionDiscountRate: number;
+  /** Pass 9 (Advanced Owner Systems), post-capstone: Roster Architect raises this team's
+   * effective CPU-trade season cap (see trades.service.ts's cpuTradeCap check). Owner-scoped
+   * only. */
+  cpuTradeSeasonCapBonus: number;
+  /** Pass 9: Culture Builder adds this on top of OWNER_SEASON_COMPLETION_XP specifically (not
+   * every Owner XP source, unlike the capstone's general xpEarnBonus). Owner-scoped only. */
+  ownerSeasonCompletionBonusPct: number;
+  /** Pass 9: Master Ability Coach unlocks a once-per-season manual ability-slot grant to a
+   * chosen prospect on the owner's team (see grantOwnerAbilitySlot). Owner-scoped only. */
+  masterAbilityCoachUnlocked: boolean;
 };
 
 /** Rise to Immortality Pass 5 (Progression Engine V2): one variant per existing
@@ -73,7 +83,10 @@ export type EffectSpec =
   | { type: "release_authority_unlocked" }
   | { type: "franchise_investments_unlocked" }
   | { type: "investment_roi_bonus"; value: number }
-  | { type: "teammate_promotion_discount"; rate: number };
+  | { type: "teammate_promotion_discount"; rate: number }
+  | { type: "cpu_trade_season_cap_bonus"; value: number }
+  | { type: "owner_season_completion_bonus_pct"; value: number }
+  | { type: "master_ability_coach_unlocked" };
 
 export type CharacteristicDefinition = {
   key: string;
@@ -144,6 +157,9 @@ export function emptyModifiers(): CharacteristicModifiers {
     franchiseInvestmentsUnlocked: false,
     investmentRoiBonus: 0,
     teammatePromotionDiscountRate: 0,
+    cpuTradeSeasonCapBonus: 0,
+    ownerSeasonCompletionBonusPct: 0,
+    masterAbilityCoachUnlocked: false,
   };
 }
 
@@ -221,6 +237,15 @@ export function applyEffect(modifiers: CharacteristicModifiers, effect: EffectSp
       break;
     case "teammate_promotion_discount":
       modifiers.teammatePromotionDiscountRate = Math.max(modifiers.teammatePromotionDiscountRate, effect.rate);
+      break;
+    case "cpu_trade_season_cap_bonus":
+      modifiers.cpuTradeSeasonCapBonus += effect.value;
+      break;
+    case "owner_season_completion_bonus_pct":
+      modifiers.ownerSeasonCompletionBonusPct += effect.value;
+      break;
+    case "master_ability_coach_unlocked":
+      modifiers.masterAbilityCoachUnlocked = true;
       break;
     default:
       break;
@@ -342,6 +367,9 @@ export function combinedModifiers(selected: CharacteristicDefinition[]): Charact
     combined.franchiseInvestmentsUnlocked = combined.franchiseInvestmentsUnlocked || item.modifiers.franchiseInvestmentsUnlocked;
     combined.investmentRoiBonus += item.modifiers.investmentRoiBonus;
     combined.teammatePromotionDiscountRate = Math.max(combined.teammatePromotionDiscountRate, item.modifiers.teammatePromotionDiscountRate);
+    combined.cpuTradeSeasonCapBonus += item.modifiers.cpuTradeSeasonCapBonus;
+    combined.ownerSeasonCompletionBonusPct += item.modifiers.ownerSeasonCompletionBonusPct;
+    combined.masterAbilityCoachUnlocked = combined.masterAbilityCoachUnlocked || item.modifiers.masterAbilityCoachUnlocked;
     for (const [code, rate] of Object.entries(item.modifiers.creationDiscounts)) {
       (creationRates[code] ??= []).push(rate);
     }

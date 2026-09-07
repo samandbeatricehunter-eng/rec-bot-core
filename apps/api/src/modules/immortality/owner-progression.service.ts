@@ -17,7 +17,6 @@ import {
   characteristicCatalog,
   combinedModifiers,
   FORMULA_VERSIONS,
-  ledgerXpBalance,
   purchaseCharacteristic,
   type CharacteristicDefinition,
   type CharacteristicModifiers,
@@ -102,6 +101,38 @@ export async function getOwnerProgressionState(input: { guildId: string; discord
     .select("id,xp_invested,invested_season_number,matures_season_number,roi_rate,status")
     .eq("owner_id", owner.id).order("created_at", { ascending: false });
 
+  let abilityCoachUsedThisSeason = false;
+  const eligibleAbilityCoachTargets: Array<{ prospectId: string; name: string; devTrait: string }> = [];
+  if (modifiers.masterAbilityCoachUnlocked) {
+    const recLeague = await supabase.from("rec_leagues").select("season_number").eq("id", context.leagueId).maybeSingle();
+    const seasonNumber = Number(recLeague.data?.season_number ?? 1);
+    const already = await supabase.from("rec_immortality_ability_grants").select("id")
+      .eq("event_type", "owner_mastery_grant").eq("source_id", `owner_mastery:${owner.id}:${seasonNumber}`).limit(1);
+    abilityCoachUsedThisSeason = Boolean(already.data?.length);
+    const assignment = await supabase.from("rec_team_assignments").select("team_id")
+      .eq("league_id", context.leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+    const teamId = assignment.data?.team_id ? String(assignment.data.team_id) : null;
+    if (teamId && !abilityCoachUsedThisSeason) {
+      const prospects = await supabase.from("rec_immortality_prospects")
+        .select("id,first_name,last_name,player_id").eq("immortality_league_id", league.id).not("player_id", "is", null);
+      for (const prospect of prospects.data ?? []) {
+        const player = await supabase.from("rec_players").select("team_id,dev_trait").eq("id", prospect.player_id).maybeSingle();
+        if (!player.data || String(player.data.team_id) !== teamId) continue;
+        const promo = await supabase.from("rec_immortality_dev_promotions").select("to_trait")
+          .eq("target_player_id", prospect.player_id).in("status", ["pending", "applied"])
+          .order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const devTrait = (promo.data?.to_trait as string | undefined) ?? String(player.data.dev_trait ?? "normal");
+        if (devTrait === "superstar" || devTrait === "xfactor") {
+          eligibleAbilityCoachTargets.push({
+            prospectId: String(prospect.id),
+            name: `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Prospect",
+            devTrait,
+          });
+        }
+      }
+    }
+  }
+
   return {
     ownerId: String(owner.id),
     name: `${owner.first_name ?? ""} ${owner.last_name ?? ""}`.trim() || "Owner",
@@ -111,6 +142,9 @@ export async function getOwnerProgressionState(input: { guildId: string; discord
     franchiseInvestmentsUnlocked: modifiers.franchiseInvestmentsUnlocked,
     investmentRoiBonus: modifiers.investmentRoiBonus,
     teammatePromotionDiscountRate: modifiers.teammatePromotionDiscountRate,
+    masterAbilityCoachUnlocked: modifiers.masterAbilityCoachUnlocked,
+    abilityCoachUsedThisSeason,
+    eligibleAbilityCoachTargets,
     nodes,
     investments: (investments.data ?? []).map((row) => ({
       id: String(row.id), xpInvested: Number(row.xp_invested), investedSeasonNumber: Number(row.invested_season_number),
@@ -307,13 +341,66 @@ export async function awardOwnerXpForWeek(input: { leagueId: string; immortality
     }
 
     if (input.weekNumber === 1 && input.seasonNumber > 1) {
+      // Culture Builder (Pass 9) adds its bonus on top of the base amount specifically -- not
+      // every Owner XP source, unlike the capstone's general xpEarnBonus.
+      const { modifiers } = await ownerModifiersAndCatalog(owner.id);
+      const seasonCompletionXp = Math.round(OWNER_SEASON_COMPLETION_XP * (1 + modifiers.ownerSeasonCompletionBonusPct));
       await supabase.rpc("rec_immortality_spend_owner_xp", {
         p_owner_id: owner.id, p_event_type: "season_completion", p_source_id: `${input.seasonNumber - 1}`,
-        p_xp_delta: OWNER_SEASON_COMPLETION_XP, p_formula_version: FORMULA_VERSIONS.characteristics,
+        p_xp_delta: seasonCompletionXp, p_formula_version: FORMULA_VERSIONS.characteristics,
         p_season_number: input.seasonNumber - 1,
       }).then(({ error }) => { if (error) console.error(`[ERROR] Could not award season-completion Owner XP for owner ${owner.id} (non-fatal):`, error); });
     }
   }
 
   await resolveMaturedFranchiseInvestments(input.immortalityLeagueId, input.seasonNumber);
+}
+
+/** Master Ability Coach (Pass 9): once per season, an owner who's bought it can grant one bonus
+ * ability slot to a Superstar/X-Factor prospect on their own team -- reuses the same idempotent
+ * rec_immortality_ability_grants ledger every other slot source (weekly/season/career/POTW/dev
+ * promotion) already writes to, via the exact same grantAbilitySlot helper, rather than a new
+ * mechanism. The once-per-season limit is enforced by checking for an existing grant row with
+ * this owner+season's sourceId across any prospect (soft app-level check, same class of guard
+ * used elsewhere in this codebase -- not airtight against a true race, but low-stakes here). */
+export async function grantOwnerAbilitySlotMastery(input: { guildId: string; discordId: string; prospectId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const owner = await loadOwnerRow(league.id, userId);
+  if (!owner) throw new ApiError(400, "Owner profile not found.");
+  const { modifiers } = await ownerModifiersAndCatalog(owner.id);
+  if (!modifiers.masterAbilityCoachUnlocked) throw new ApiError(400, "Purchase Master Ability Coach on the Franchise Pillar tree first.");
+
+  const recLeague = await supabase.from("rec_leagues").select("season_number").eq("id", context.leagueId).maybeSingle();
+  const seasonNumber = Number(recLeague.data?.season_number ?? 1);
+  const sourceId = `owner_mastery:${owner.id}:${seasonNumber}`;
+  const already = await supabase.from("rec_immortality_ability_grants").select("id").eq("event_type", "owner_mastery_grant").eq("source_id", sourceId).limit(1);
+  if (already.error) throw new ApiError(500, "Could not check this season's Master Ability Coach usage.", already.error);
+  if (already.data?.length) throw new ApiError(400, "You've already used Master Ability Coach's grant this season.");
+
+  const assignment = await supabase.from("rec_team_assignments").select("team_id")
+    .eq("league_id", context.leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+  const teamId = assignment.data?.team_id ? String(assignment.data.team_id) : null;
+  if (!teamId) throw new ApiError(400, "You don't have a team assigned.");
+
+  const prospect = await supabase.from("rec_immortality_prospects").select("id,player_id,first_name,last_name")
+    .eq("id", input.prospectId).eq("immortality_league_id", league.id).maybeSingle();
+  if (!prospect.data?.player_id) throw new ApiError(404, "Prospect not found.");
+  const player = await supabase.from("rec_players").select("team_id,dev_trait").eq("id", prospect.data.player_id).maybeSingle();
+  if (!player.data || String(player.data.team_id) !== teamId) throw new ApiError(400, "That prospect isn't on your team.");
+
+  const promo = await supabase.from("rec_immortality_dev_promotions").select("to_trait")
+    .eq("target_player_id", prospect.data.player_id).in("status", ["pending", "applied"])
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const currentDevTrait = (promo.data?.to_trait as string | undefined) ?? String(player.data.dev_trait ?? "normal");
+  if (currentDevTrait !== "superstar" && currentDevTrait !== "xfactor") {
+    throw new ApiError(400, "Only a Superstar or X-Factor prospect is eligible for this grant.");
+  }
+
+  const { grantAbilitySlot } = await import("./xp-awards.service.js");
+  const granted = await grantAbilitySlot({ prospectId: String(prospect.data.id), eventType: "owner_mastery_grant", sourceId });
+  if (!granted.granted) throw new ApiError(400, "Could not grant that slot.");
+  const name = `${prospect.data.first_name ?? ""} ${prospect.data.last_name ?? ""}`.trim() || "Prospect";
+  return { granted: true as const, prospectName: name };
 }

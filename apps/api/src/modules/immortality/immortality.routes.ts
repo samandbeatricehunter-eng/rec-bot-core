@@ -63,6 +63,7 @@ import {
   purchaseOwnerPerk,
   resolveOwnerPerk,
   investFranchiseXp,
+  grantOwnerAbilitySlotMastery,
 } from "./owner-progression.service.js";
 import { searchRosterCandidates, linkProspectToPlayer } from "./player-identity.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -340,6 +341,15 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Franchise Investments are website-only.");
       return reply.send(await investFranchiseXp({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/owner-progression/grant-ability-slot", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ prospectId: z.string().uuid() }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Master Ability Coach is website-only.");
+      return reply.send(await grantOwnerAbilitySlotMastery({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

@@ -21,6 +21,7 @@ export function RiseTrustTreePage() {
   const [loading, setLoading] = useState(true);
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [investAmount, setInvestAmount] = useState("");
+  const [coachTargetId, setCoachTargetId] = useState("");
 
   const reload = useCallback(async () => {
     if (!guildId) return;
@@ -45,6 +46,11 @@ export function RiseTrustTreePage() {
     reload().catch((err) => setError(err instanceof Error ? err.message : "Could not load the Franchise Pillar tree.")).finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guildId, isRise]);
+
+  useEffect(() => {
+    if (!coachTargetId && state?.eligibleAbilityCoachTargets.length) setCoachTargetId(state.eligibleAbilityCoachTargets[0].prospectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   if (selected && !isRise) return <Navigate replace to={`/l/${leagueId}/buzz`} />;
   if (selected && !unlocked) return <Navigate replace to={`/l/${leagueId}/rise`} />;
@@ -172,6 +178,29 @@ export function RiseTrustTreePage() {
               <p className="site-muted">Buy Investment Office (Organizational Influence, Tier 2) to unlock Franchise Investments.</p>
             )}
           </section>
+
+          {state.masterAbilityCoachUnlocked ? (
+            <section className="rise-card">
+              <h2>Master Ability Coach</h2>
+              {state.abilityCoachUsedThisSeason ? (
+                <p className="site-muted">Already used this season — a fresh grant is available again next season.</p>
+              ) : state.eligibleAbilityCoachTargets.length ? (
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <select className="form-input" value={coachTargetId} onChange={(e) => setCoachTargetId(e.target.value)}>
+                    {state.eligibleAbilityCoachTargets.map((row) => (
+                      <option key={row.prospectId} value={row.prospectId}>{row.name} ({row.devTrait === "xfactor" ? "X-Factor" : "Superstar"})</option>
+                    ))}
+                  </select>
+                  <button type="button" className="site-btn site-btn-primary" disabled={busy !== null || !coachTargetId}
+                    onClick={() => void grantSlot()}>
+                    {busy === "coach-grant" ? "Granting…" : "Grant Bonus Slot"}
+                  </button>
+                </div>
+              ) : (
+                <p className="site-muted">No Superstar or X-Factor prospect on your team yet.</p>
+              )}
+            </section>
+          ) : null}
           {result ? <p className="site-muted">{result}</p> : null}
         </>
       )}
@@ -219,6 +248,19 @@ export function RiseTrustTreePage() {
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not invest that amount.");
+    } finally { setBusy(null); }
+  }
+
+  async function grantSlot() {
+    if (!coachTargetId) return;
+    setBusy("coach-grant"); setError(null); setResult(null);
+    try {
+      const response = await siteApi.ownerGrantAbilitySlot({ guildId, prospectId: coachTargetId });
+      setResult(`Granted a bonus ability slot to ${response.prospectName}.`);
+      setCoachTargetId("");
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not grant that slot.");
     } finally { setBusy(null); }
   }
 }

@@ -107,6 +107,66 @@
       "effects": [
         { "type": "xp_earn_bonus", "value": 0.15 }
       ]
+    },
+    {
+      "name": "Culture Builder",
+      "slot_cost": 3,
+      "effect": "Season-completion Owner XP is boosted by an extra 50 percentage points on top of the base amount.",
+      "why_it_costs_that": "Pass 9 (Advanced Owner Systems) -- post-capstone, requires Franchise Pillar.",
+      "tags": "mastery",
+      "synergy": [],
+      "tier": 4,
+      "xp_cost": 150,
+      "branch": null,
+      "requires": ["franchise_pillar"],
+      "effects": [
+        { "type": "owner_season_completion_bonus_pct", "value": 0.50 }
+      ]
+    },
+    {
+      "name": "Roster Architect",
+      "slot_cost": 3,
+      "effect": "This team's CPU-trade season cap is raised by 2.",
+      "why_it_costs_that": "Pass 9 -- post-capstone, requires Franchise Pillar.",
+      "tags": "mastery",
+      "synergy": [],
+      "tier": 4,
+      "xp_cost": 150,
+      "branch": null,
+      "requires": ["franchise_pillar"],
+      "effects": [
+        { "type": "cpu_trade_season_cap_bonus", "value": 2 }
+      ]
+    },
+    {
+      "name": "Master Ability Coach",
+      "slot_cost": 3,
+      "effect": "Once per season, grant a bonus ability slot to a Superstar or X-Factor prospect on this team.",
+      "why_it_costs_that": "Pass 9 -- post-capstone, requires Franchise Pillar.",
+      "tags": "mastery",
+      "synergy": [],
+      "tier": 4,
+      "xp_cost": 150,
+      "branch": null,
+      "requires": ["franchise_pillar"],
+      "effects": [
+        { "type": "master_ability_coach_unlocked" }
+      ]
+    },
+    {
+      "name": "Master Facilitator",
+      "slot_cost": 3,
+      "effect": "All REC Coin performance-contract offers on this team are increased by 20% after the normal calculation.",
+      "why_it_costs_that": "Pass 9 -- post-capstone, requires Franchise Pillar. Reuses the same negotiator-multiplier mechanic Great Negotiator uses at the prospect level.",
+      "tags": "mastery",
+      "synergy": [],
+      "tier": 4,
+      "xp_cost": 150,
+      "branch": null,
+      "requires": ["franchise_pillar"],
+      "effects": [
+        { "type": "negotiator_multiplier", "value": 1.2 }
+      ]
     }
   ]
 }

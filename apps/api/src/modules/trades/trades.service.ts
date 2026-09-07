@@ -232,10 +232,19 @@ export async function proposeTrade(input: {
     throw new ApiError(400, "Trades are not available in Rise to Immortality — only CPU trades, once Personnel Council is unlocked on the Franchise Pillar tree.");
   }
   let cpuPolicy = config.data?.cpu_trading_policy ?? "allowed";
+  // RTI's per-team cap doesn't reuse the general league's cpu_trades_season_cap column (that
+  // column is meant for a human commissioner's own configured limit, and defaults to 0 --
+  // "unlimited" -- for RTI leagues, which would make Roster Architect's "+2" bonus either a
+  // no-op or, worse, accidentally IMPOSE a cap of 2 where none existed). Tier 1 (Personnel
+  // Council unlocked, not yet upgraded) grants a modest 2-trades-per-season allowance instead;
+  // Tier 2 (full Personnel Council) removes the cap entirely, same as "allowed" everywhere else.
+  let rtiCpuTradeCap = 0;
   if (isRti) {
-    const { ownerTradePolicyTierForTeam } = await import("../immortality/owner-progression.service.js");
-    const tier = await ownerTradePolicyTierForTeam(context.leagueId, proposingTeamId);
+    const { ownerAuthorityForTeam } = await import("../immortality/owner-progression.service.js");
+    const authority = await ownerAuthorityForTeam(context.leagueId, proposingTeamId);
+    const tier = authority?.personnelCouncilTier ?? 0;
     cpuPolicy = tier >= 2 ? "allowed" : tier >= 1 ? "restricted" : "not_allowed";
+    rtiCpuTradeCap = tier >= 2 ? 0 : tier >= 1 ? 2 + (authority?.cpuTradeSeasonCapBonus ?? 0) : 0;
   }
   const receivingHasSiteAccount = receivingUserId ? await hasSiteAccount(receivingUserId) : false;
   if (receivingUserId && !receivingHasSiteAccount && (input.offeredCoins > 0 || input.requestedCoins > 0)) {
@@ -243,7 +252,7 @@ export async function proposeTrade(input: {
   }
   if (!receivingUserId) {
     if (cpuPolicy === "not_allowed") throw new ApiError(400, isRti ? "Unlock Personnel Council on the Franchise Pillar tree (Owner Tree) to make CPU trades." : "This league does not allow trades with CPU-controlled teams.");
-    const cpuTradeCap = Number(config.data?.cpu_trades_season_cap ?? 0);
+    const cpuTradeCap = isRti ? rtiCpuTradeCap : Number(config.data?.cpu_trades_season_cap ?? 0);
     if (cpuTradeCap > 0) {
       const used = await supabase.from("rec_trades").select("id", { count: "exact", head: true })
         .eq("league_id", context.leagueId)

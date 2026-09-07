@@ -782,9 +782,18 @@ test("Owner Tree (Pass 7) has 3 lanes converging on one shared Tier-4 capstone, 
     assert.equal(nodes[1].requires?.[0], nodes[0].key, `Owner's ${lane} T3 doesn't require its own T2`);
     t3Keys.push(nodes[1].key);
   }
-  const capstones = tree.filter((item) => item.tier === 4);
+  // Pass 9 adds 4 more Tier-4 "mastery" nodes gated on the capstone itself (requires:
+  // ["franchise_pillar"]) -- the capstone is specifically the one Tier-4 node requiring all
+  // three lanes' T3 keys, not just any Tier-4 node.
+  const capstones = tree.filter((item) => item.tier === 4 && new Set(item.requires).size === t3Keys.length && t3Keys.every((key) => item.requires?.includes(key)));
   assert.equal(capstones.length, 1, "Owner Tree should have exactly one shared capstone");
   assert.deepEqual(new Set(capstones[0].requires), new Set(t3Keys), "Owner capstone must require all three lanes' T3 nodes");
+});
+
+test("Owner Tree (Pass 9) has 4 post-capstone mastery nodes, each gated on the capstone itself", () => {
+  const tree = characteristicCatalog("OWNER").filter((item) => isProgressionTreePerk(item));
+  const mastery = tree.filter((item) => item.tier === 4 && item.requires?.length === 1 && item.requires[0] === "franchise_pillar");
+  assert.deepEqual(new Set(mastery.map((item) => item.key)), new Set(["culture_builder", "roster_architect", "master_ability_coach", "master_facilitator"]));
 });
 
 test("Owner Tree gates on XP alone at Tier 2 (no Origins content exists for owners to satisfy a flat tier-count rule)", () => {

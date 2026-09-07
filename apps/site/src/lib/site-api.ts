@@ -407,6 +407,9 @@ export type OwnerProgressionState = {
   franchiseInvestmentsUnlocked: boolean;
   investmentRoiBonus: number;
   teammatePromotionDiscountRate: number;
+  masterAbilityCoachUnlocked: boolean;
+  abilityCoachUsedThisSeason: boolean;
+  eligibleAbilityCoachTargets: Array<{ prospectId: string; name: string; devTrait: string }>;
   nodes: ImmortalityProgressionNode[];
   investments: Array<{
     id: string; xpInvested: number; investedSeasonNumber: number; maturesSeasonNumber: number;
@@ -1388,6 +1391,9 @@ export const siteApi = {
   },
   ownerInvestFranchiseXp(input: { guildId: string; amount: number }) {
     return request<{ invested: number; maturesSeasonNumber: number; roiRate: number }>("/v1/immortality/owner-progression/invest", input);
+  },
+  ownerGrantAbilitySlot(input: { guildId: string; prospectId: string }) {
+    return request<{ granted: true; prospectName: string }>("/v1/immortality/owner-progression/grant-ability-slot", input);
   },
   immortalityPurchasePerk(input: { guildId: string; side: "offense" | "defense"; key: string }) {
     return request<{ applied: true; key: string; displayName: string; xpCost: number; requestId: string }>("/v1/immortality/progression/purchase", input);
