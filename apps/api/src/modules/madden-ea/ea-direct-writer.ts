@@ -48,6 +48,14 @@ export function strOrNum(row: Json, keys: string[]): string | null {
   return null;
 }
 
+export function bool(row: Json, keys: string[]): boolean {
+  for (const key of keys) {
+    const val = row[key];
+    if (typeof val === "boolean") return val;
+  }
+  return false;
+}
+
 function rowHash(row: Json): string {
   return createHash("sha1").update(JSON.stringify(row)).digest("hex").slice(0, 16);
 }
@@ -431,6 +439,14 @@ export async function directWriteRoster(
     const college = str(row, ["college", "collegeName"]);
     const hometownCity = str(row, ["homeTown", "hometownCity", "hometown_city"]);
     const birthYear = num(row, ["birthYear", "birth_year"]);
+    // EA's export carries real practice-squad/IR flags REC never captured before -- a
+    // player moving between two teams' 53-man rosters is a genuine trade or free-agent
+    // claim, but a player joining another team's practice squad (or an active player's
+    // team signing someone off a DIFFERENT team's practice squad) is a routine roster move
+    // no team authority gates in real Madden. Without these, roster-movement.service.ts
+    // could only see "team_id changed" and had no way to tell the two apart.
+    const isOnPracticeSquad = bool(row, ["isOnPracticeSquad", "is_on_practice_squad"]);
+    const isOnIr = bool(row, ["isOnIR", "isOnIr", "is_on_ir"]);
 
     const attrs: Record<string, number> = {};
     for (const [key, val] of Object.entries(row)) {
@@ -485,8 +501,8 @@ export async function directWriteRoster(
          (league_id, madden_player_id, first_name, last_name, full_name, position, team_id,
           overall_rating, dev_trait, jersey_number, years_pro, age, contract_years_left,
           attributes, abilities, raw_payload, raw_hash, player_source, roster_status, is_free_agent,
-          height_inches, weight_lbs, college, hometown_city, birth_year, updated_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16::jsonb,$18,'madden_companion','active',$17,$19,$20,$21,$22,$23,now())
+          height_inches, weight_lbs, college, hometown_city, birth_year, is_on_practice_squad, is_on_ir, updated_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15::jsonb,$16::jsonb,$18,'madden_companion','active',$17,$19,$20,$21,$22,$23,$24,$25,now())
        on conflict (league_id, madden_player_id) do update set
          first_name=coalesce(excluded.first_name, rec_players.first_name),
          last_name=coalesce(excluded.last_name, rec_players.last_name),
@@ -513,6 +529,8 @@ export async function directWriteRoster(
         college=coalesce(excluded.college, rec_players.college),
         hometown_city=coalesce(excluded.hometown_city, rec_players.hometown_city),
         birth_year=coalesce(excluded.birth_year, rec_players.birth_year),
+        is_on_practice_squad=excluded.is_on_practice_squad,
+        is_on_ir=excluded.is_on_ir,
         updated_at=now()`,
       [
         leagueId, String(rosterId), firstName, lastName, fullName, position, teamUuid,
@@ -523,6 +541,7 @@ export async function directWriteRoster(
         isFreeAgent,
         hash,
         heightInches, weightLbs, college, hometownCity, birthYear,
+        isOnPracticeSquad, isOnIr,
       ],
     );
     existingNumericEaIds.add(String(rosterId));
