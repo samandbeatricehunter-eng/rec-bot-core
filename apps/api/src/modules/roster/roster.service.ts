@@ -37,6 +37,45 @@ async function resolveTargetTeamId(leagueId: string, userId: string, requestedTe
   return assignment.data.team_id as string;
 }
 
+export type RosterAbility = { name: string; description?: string; rank?: string | null };
+
+/** rec_players.abilities is written by two different shapes depending on how the row was
+ * populated: a real EA Companion roster import writes EA's raw signatureSlotList verbatim (one
+ * entry per ability slot: {locked, isEmpty, ovrThreshold, signatureAbility: {rank,
+ * signatureTitle, signatureDescription, ...}}), while a legend/custom-player row carries the
+ * simpler {name, description} shape this type was originally built around. Blindly casting one
+ * shape as the other silently showed `undefined` for every real EA-imported Superstar/X-Factor
+ * player's ability names (confirmed live). Detects which shape it's looking at and normalizes
+ * both into one consistent { name, description, rank } array -- an empty/unfilled slot
+ * (isEmpty, or no signatureTitle at all) is dropped rather than shown as a blank ability. */
+function normalizeRosterAbilities(raw: unknown): RosterAbility[] | null {
+  if (!Array.isArray(raw) || !raw.length) return null;
+  const isRichSlotShape = (value: unknown): value is { isEmpty?: boolean; signatureAbility?: Record<string, unknown> } =>
+    Boolean(value) && typeof value === "object" && "signatureAbility" in (value as object);
+  if (raw.every(isRichSlotShape)) {
+    const abilities = raw
+      .filter((slot) => !slot.isEmpty)
+      .map((slot) => {
+        const sig = slot.signatureAbility ?? {};
+        return {
+          name: typeof sig.signatureTitle === "string" ? sig.signatureTitle.trim() : "",
+          description: typeof sig.signatureDescription === "string" ? sig.signatureDescription : undefined,
+          rank: typeof sig.rank === "string" ? sig.rank : null,
+        };
+      })
+      .filter((ability) => ability.name.length > 0);
+    return abilities.length ? abilities : null;
+  }
+  const simple = (raw as Array<Record<string, unknown>>)
+    .filter((item) => item && typeof item === "object" && typeof item.name === "string" && item.name.trim().length > 0)
+    .map((item) => ({
+      name: String(item.name).trim(),
+      description: typeof item.description === "string" ? item.description : undefined,
+      rank: null,
+    }));
+  return simple.length ? simple : null;
+}
+
 export type RosterPlayer = {
   id: string;
   fullName: string;
@@ -57,7 +96,7 @@ export type RosterPlayer = {
   college: string | null;
   jerseyNumber: number | null;
   archetype: string | null;
-  abilities: Array<{ name: string; description?: string }> | null;
+  abilities: RosterAbility[] | null;
   playerSource: string | null;
 };
 
@@ -114,7 +153,7 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     college: p.college ?? null,
     jerseyNumber: typeof p.jersey_number === "number" ? p.jersey_number : null,
     archetype: p.archetype ?? null,
-    abilities: Array.isArray(p.abilities) ? p.abilities as Array<{ name: string; description?: string }> : null,
+    abilities: normalizeRosterAbilities(p.abilities),
     playerSource: p.player_source ?? null,
   }));
 
@@ -485,7 +524,7 @@ export type RosterPoolPlayer = {
   photoUrl: string | null;
   isFreeAgent: boolean;
   attributes: Record<string, number | null>;
-  abilities: Array<{ name: string; description: string }> | null;
+  abilities: RosterAbility[] | null;
 };
 
 /** Unassigned players (team_id null) in position-group order, with per-group counts and
@@ -528,7 +567,7 @@ export async function listRosterPool(input: { guildId: string; discordId: string
     photoUrl: p.photo_url ?? null,
     isFreeAgent: Boolean(p.is_free_agent),
     attributes: (p.attributes ?? {}) as Record<string, number | null>,
-    abilities: (p.abilities ?? null) as Array<{ name: string; description: string }> | null,
+    abilities: normalizeRosterAbilities(p.abilities),
   }));
 
   const isMadden = context.rec_leagues.game?.startsWith("madden") ?? false;

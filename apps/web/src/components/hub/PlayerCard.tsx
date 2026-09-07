@@ -3,7 +3,16 @@ import { MADDEN_ATTRIBUTE_DEFINITIONS, normalizeMaddenDevTrait } from "@rec/shar
 import { ATTRIBUTE_KEY_TO_CODE, attributeLabel } from "../../lib/attribute-columns.js";
 import { PlayerPhoto } from "./PlayerPhoto.js";
 
-export type PlayerCardAbility = { name: string; description?: string };
+export type PlayerCardAbility = { name: string; description?: string; rank?: string | null };
+
+function abilityRankLabel(rank: string | null | undefined): string | null {
+  if (!rank) return null;
+  const upper = rank.toUpperCase();
+  if (upper.includes("GOLD")) return "Gold";
+  if (upper.includes("SILVER")) return "Silver";
+  if (upper.includes("BRONZE")) return "Bronze";
+  return null;
+}
 
 export type PlayerCardData = {
   fullName: string;
@@ -251,12 +260,15 @@ export function PlayerCard({
                 <h4>Abilities</h4>
                 {player.abilities && player.abilities.length > 0 ? (
                   <ul className="rec-player-card-abilities">
-                    {player.abilities.map((ability, index) => (
-                      <li key={`${ability.name}-${index}`}>
-                        <strong>{ability.name}</strong>
-                        {ability.description ? <p>{ability.description}</p> : null}
-                      </li>
-                    ))}
+                    {player.abilities.map((ability, index) => {
+                      const rankLabel = abilityRankLabel(ability.rank);
+                      return (
+                        <li key={`${ability.name}-${index}`}>
+                          <strong>{ability.name}</strong>{rankLabel ? <span className={`rec-ability-rank rec-ability-rank-${rankLabel.toLowerCase()}`}> {rankLabel}</span> : null}
+                          {ability.description ? <p>{ability.description}</p> : null}
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
                   <p className="rec-player-card-empty">No special abilities</p>

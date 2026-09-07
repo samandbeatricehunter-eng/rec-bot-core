@@ -135,9 +135,39 @@ function findNextName(text: string, from: number): { index: number; name: string
 
 export type ParsedAbility = { name: string; description: string };
 
+/** Some scraped rows carry a structured JSON array ([{id,label,type}, ...]) instead of the
+ * concatenated-prose blob this module was built for -- confirmed live: ~156 players in the
+ * Madden 27 baseline dataset have this shape (e.g. Josh Allen's abilities_raw is literally
+ * '[{"id":"Z_06","label":"Bazooka","type":"xFactor"},...]'). Feeding that through the prose
+ * name-scanner below misreads the JSON's own punctuation as description text -- every such
+ * player's rec_players.abilities ended up with descriptions like '","type":"xFactor"},{"id":
+ * "035","label":"' instead of a real sentence. Detect and handle this shape directly. */
+function parseJsonShapedAbilities(raw: string): ParsedAbility[] | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed)) return null;
+  if (!parsed.every((item) => item && typeof item === "object" && typeof (item as Record<string, unknown>).label === "string")) {
+    return null;
+  }
+  // No description text is available from this source shape -- real Madden ability
+  // descriptions aren't included in the id/label/type payload, only the display name.
+  return (parsed as Array<{ label: string }>)
+    .map((item) => ({ name: item.label.trim(), description: "" }))
+    .filter((entry) => entry.name.length > 0);
+}
+
 export function parseAbilitiesRaw(raw: string | null | undefined): ParsedAbility[] {
   if (!raw?.trim()) return [];
-  let text = decodeEntities(raw.trim());
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[")) {
+    const jsonShaped = parseJsonShapedAbilities(trimmed);
+    if (jsonShaped) return jsonShaped;
+  }
+  let text = decodeEntities(trimmed);
   // The last blob sometimes drags in the site footer — cut anything after the first junk marker.
   text = text
     .replace(/\s*(View More|All images, logos|Privacy Manager|MaddenRatings\.com is an independent).*$/i, "")

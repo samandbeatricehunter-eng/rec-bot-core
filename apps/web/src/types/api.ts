@@ -832,7 +832,7 @@ export type RosterPlayer = {
   college: string | null;
   jerseyNumber: number | null;
   archetype: string | null;
-  abilities: Array<{ name: string; description?: string }> | null;
+  abilities: Array<{ name: string; description?: string; rank?: string | null }> | null;
   playerSource: string | null;
 };
 export type RosterPositionGroup = {
@@ -845,7 +845,7 @@ export type RosterPoolPlayer = RosterPlayer & {
   jerseyNumber: number | null;
   archetype: string | null;
   isFreeAgent: boolean;
-  abilities: Array<{ name: string; description: string }> | null;
+  abilities: Array<{ name: string; description?: string; rank?: string | null }> | null;
 };
 export type RosterPoolResponse = {
   players: RosterPoolPlayer[];

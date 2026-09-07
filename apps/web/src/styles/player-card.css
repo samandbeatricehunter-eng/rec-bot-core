@@ -475,6 +475,16 @@
   color: #b4becc;
 }
 
+.rec-ability-rank {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.rec-ability-rank-gold { color: #d4af37; }
+.rec-ability-rank-silver { color: #b9c2cc; }
+.rec-ability-rank-bronze { color: #c98a4b; }
+
 .rec-player-card-empty {
   margin: 0;
   font-size: 0.72rem;
