@@ -106,6 +106,13 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     await wipeCpuTeamSeasonStats(context.leagueId, previousSeasonNumber).catch((error) => {
       console.error("[ERROR] Failed to wipe CPU team season stats on rollover:", error);
     });
+    // The offseason purchase-cap reset marker (see resetLeaguePurchaseCapsForOffseason) belongs
+    // to the season that just ended — clear it so a stale timestamp doesn't linger into the new
+    // season's config. Harmless either way (new-season purchases always postdate it), but this
+    // keeps the column self-documenting: set only while the marked season's offseason is live.
+    const purchaseCapsResetClear = await supabase.from("rec_league_configuration")
+      .update({ purchase_caps_reset_at: null }).eq("league_id", context.leagueId);
+    if (purchaseCapsResetClear.error) console.error("[ERROR] Failed to clear purchase_caps_reset_at on season rollover:", purchaseCapsResetClear.error);
     // Any payout still sitting in the backlog for the ending season doesn't carry into the
     // new one — it's dropped rather than released once the season it belongs to is over.
     await wipeBacklogForSeason(context.leagueId, previousSeasonNumber).catch((error) => {

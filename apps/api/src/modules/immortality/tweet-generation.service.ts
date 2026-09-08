@@ -307,8 +307,39 @@ function looksLikeOfficialContractBody(body: string): boolean {
   return /^It's official — .+ signed .+ to a Seasons .+ The package: .+ REC Coins and .+ Player XP\./.test(normalizeTweetBody(body));
 }
 
+// Static (non-slot) fragments unique to the 12 "camp_buzz" ambient templates (see tweet-bank.ts)
+// -- queueAmbientFanChatterIfDue only picks this category before the league's first game, but the
+// post queue drains on a slow drip (30min-2h per league) with no size cap, so a tweet queued
+// while the league was still in preseason can sit "pending" long enough that by the time its turn
+// comes up, the league has already started playing games -- "season hasn't even started"/"no
+// stats to pull yet" then posts looking flatly wrong. Confirmed live in M27 RTI (2026-09-08):
+// camp_buzz tweets queued 09-06/09-07 posted after Week 1's game had already been played and
+// stats imported. No `category` column exists on the queue row to check directly, so this matches
+// on the fixed wording every camp_buzz template shares.
+const CAMP_BUZZ_MARKERS = [
+  "once the season actually starts",
+  "too early to grade anybody off camp buzz alone",
+  "i don't put much stock in camp hype",
+  "camp with that energy already. season hasn't even started",
+  "i don't care that nothing's official yet.",
+  "i'm already setting up the tracker for",
+  "preseason noise is preseason noise",
+  "before a single game's been played. that's not hype, that's readiness.",
+  "putting in the work this offseason. we'll find out for real once",
+  "allegedly looking different in camp this year",
+  "the season started. i respect the confidence.",
+  "not a single game played yet and",
+  "kickoff can't get here fast enough",
+];
+
+function looksLikeStaleCampBuzzBody(body: string): boolean {
+  const normalized = normalizeTweetBody(body).toLowerCase();
+  return CAMP_BUZZ_MARKERS.some((marker) => normalized.includes(marker));
+}
+
 /** Pending auto tweets must never post as a member's owner or created-player handle. Also
- * collapse leftover contract-blurb copies that landed on interview/ambient rows. */
+ * collapse leftover contract-blurb copies that landed on interview/ambient rows, and discard any
+ * still-pending camp_buzz ambient chatter that's gone stale (see looksLikeStaleCampBuzzBody). */
 async function sanitizePendingAutoTweets(leagueId: string): Promise<void> {
   const pending = await supabase.from("rec_immortality_tweet_queue")
     .select("id,author_handle,author_kind,body,source,created_at")
@@ -328,6 +359,17 @@ async function sanitizePendingAutoTweets(leagueId: string): Promise<void> {
     await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" }).in("id", stolenIds);
   }
 
+  const league = await supabase.from("rec_leagues").select("season_stage,game").eq("id", leagueId).maybeSingle();
+  const inGameplayStage = league.data
+    ? gameplaySeasonStages(league.data.game as LeagueGame).has(String(league.data.season_stage ?? ""))
+    : false;
+  const staleCampBuzzIds = inGameplayStage
+    ? rows.filter((row) => looksLikeStaleCampBuzzBody(row.body)).map((row) => String(row.id))
+    : [];
+  if (staleCampBuzzIds.length) {
+    await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" }).in("id", staleCampBuzzIds);
+  }
+
   const posted = await supabase.from("rec_immortality_tweet_queue")
     .select("id,body")
     .eq("league_id", leagueId)
@@ -343,7 +385,7 @@ async function sanitizePendingAutoTweets(leagueId: string): Promise<void> {
   const seenPendingBodies = new Set<string>();
   const pendingDupes: string[] = [];
   for (const row of rows) {
-    if (stolenIds.includes(String(row.id)) || duplicateIds.includes(String(row.id))) continue;
+    if (stolenIds.includes(String(row.id)) || duplicateIds.includes(String(row.id)) || staleCampBuzzIds.includes(String(row.id))) continue;
     const body = normalizeTweetBody(row.body);
     if (!body) continue;
     if (seenPendingBodies.has(body)) {
@@ -356,7 +398,7 @@ async function sanitizePendingAutoTweets(leagueId: string): Promise<void> {
     await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" }).in("id", pendingDupes);
   }
 
-  const skip = new Set([...stolenIds, ...duplicateIds, ...pendingDupes]);
+  const skip = new Set([...stolenIds, ...duplicateIds, ...pendingDupes, ...staleCampBuzzIds]);
   for (const row of rows) {
     if (skip.has(String(row.id))) continue;
     if (USER_AUTHORED_TWEET_SOURCES.has(String(row.source ?? ""))) continue;

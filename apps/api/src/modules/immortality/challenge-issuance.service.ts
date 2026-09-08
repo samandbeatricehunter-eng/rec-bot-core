@@ -22,6 +22,15 @@ import { supabase } from "../../lib/supabase.js";
 
 type Scope = "weekly" | "season" | "career";
 
+// Weekly tiers must display/grade in ascending difficulty order (bronze -> silver -> gold);
+// season/career tiers use "tier1"/"tier2"/"tier3", already in that order alphabetically. The read
+// below has no ORDER BY, so Postgres returns rows in whatever order it likes -- which, for
+// "bronze"/"gold"/"silver", is alphabetical (confirmed live: displayed as Bronze/Gold/Silver).
+const WEEKLY_TIER_ORDER: Record<string, number> = { bronze: 0, silver: 1, gold: 2 };
+function tierSortRank(tier: string): number {
+  return tier in WEEKLY_TIER_ORDER ? WEEKLY_TIER_ORDER[tier]! : Number(String(tier).replace(/[^0-9]/g, "")) || 0;
+}
+
 async function resolveIssued(input: {
   prospectId: string;
   scope: Scope;
@@ -40,14 +49,17 @@ async function resolveIssued(input: {
 
   const derived = derivedChallengeStats(input.stats);
   if ((existing.data ?? []).length) {
-    return (existing.data as Array<{ tier: string; label: string; condition: ChallengeCondition }>).map((row) => ({
-      id: `${input.scope}:${row.tier}`,
-      scope: input.scope,
-      tier: row.tier as IssuedChallenge["tier"],
-      label: row.label,
-      condition: row.condition,
-      complete: row.label ? evaluateChallengeCondition(row.condition, derived) : false,
-    }));
+    return (existing.data as Array<{ tier: string; label: string; condition: ChallengeCondition }>)
+      .slice()
+      .sort((a, b) => tierSortRank(a.tier) - tierSortRank(b.tier))
+      .map((row) => ({
+        id: `${input.scope}:${row.tier}`,
+        scope: input.scope,
+        tier: row.tier as IssuedChallenge["tier"],
+        label: row.label,
+        condition: row.condition,
+        complete: row.label ? evaluateChallengeCondition(row.condition, derived) : false,
+      }));
   }
 
   const fresh = input.issueFresh();

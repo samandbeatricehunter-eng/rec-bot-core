@@ -212,7 +212,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50
+      "xp_cost": 3
     },
     {
       "name": "Development Staff",
@@ -222,7 +222,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90
+      "xp_cost": 5
     },
     {
       "name": "Route Technician",
@@ -232,7 +232,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50
+      "xp_cost": 3
     },
     {
       "name": "Contested Catcher",
@@ -242,7 +242,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50
+      "xp_cost": 3
     },
     {
       "name": "YAC Artist",
@@ -252,7 +252,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 2,
-      "xp_cost": 50
+      "xp_cost": 3
     },
     {
       "name": "Spotlight",
@@ -262,7 +262,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90
+      "xp_cost": 5
     },
     {
       "name": "Separation Artist",
@@ -272,7 +272,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 3,
-      "xp_cost": 90
+      "xp_cost": 5
     },
     {
       "name": "Alpha Target",
@@ -282,7 +282,7 @@
       "tags": "progression",
       "synergy": [],
       "tier": 4,
-      "xp_cost": 120
+      "xp_cost": 7
     }
   ]
 }

@@ -4410,9 +4410,10 @@ h1, h2, h3, .site-wordmark {
 .rise-tree-node:hover:not(.is-root) .rise-tree-node-badge { border-color: var(--accent-bright); }
 .rise-tree-node-name { font-size: 11px; font-weight: 800; line-height: 1.25; }
 .rise-tree-node-cost { font-size: 10px; font-weight: 800; color: var(--accent-bright); text-transform: uppercase; letter-spacing: .04em; }
-.rise-tree-detail { margin-top: var(--space-2); padding: var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: rgba(0, 0, 0, .18); }
-.rise-tree-detail-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); margin-bottom: 4px; }
-.rise-tree-detail-hint { text-align: center; margin-top: var(--space-2); }
+.rise-tree-node-modal { max-width: 380px; }
+.rise-tree-node-modal-balance { display: flex; justify-content: space-between; align-items: center; margin: var(--space-3) 0; padding: var(--space-2) var(--space-3); border: var(--card-border); border-radius: var(--radius-md); background: rgba(0, 0, 0, .18); }
+.rise-tree-node-modal-balance span { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.rise-tree-node-modal-balance strong { font-size: 16px; }
 
 /* Full-viewport-ish centered stage for the pre-Origins moments (video gate, split chooser) --
    deliberately sparser than .rise-page's normal top-down flow so "title, video, and that's it"

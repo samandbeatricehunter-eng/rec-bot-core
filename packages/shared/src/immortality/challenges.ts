@@ -23,7 +23,7 @@ export type ChallengeScope = "weekly" | "season" | "career";
  */
 export type StatKey =
   | "pass_yards" | "pass_tds" | "pass_attempts" | "pass_completions" | "completion_pct" | "passer_rating"
-  | "rush_yards" | "rush_tds" | "rush_attempts"
+  | "rush_yards" | "rush_tds" | "rush_attempts" | "rush_20_plus"
   | "receiving_yards" | "receiving_tds" | "receptions"
   | "tackles" | "sacks" | "forced_fumbles" | "fumble_recoveries" | "interceptions" | "interceptions_thrown"
   | "pass_deflections" | "defensive_tds" | "rushing_fumbles"
@@ -32,7 +32,7 @@ export type StatKey =
 
 export const SUPPORTED_CHALLENGE_STATS: ReadonlySet<StatKey> = new Set<StatKey>([
   "pass_yards", "pass_tds", "pass_attempts", "pass_completions", "completion_pct", "passer_rating",
-  "rush_yards", "rush_tds", "rush_attempts",
+  "rush_yards", "rush_tds", "rush_attempts", "rush_20_plus",
   "receiving_yards", "receiving_tds", "receptions",
   "tackles", "sacks", "forced_fumbles", "fumble_recoveries", "interceptions", "interceptions_thrown",
   "pass_deflections", "defensive_tds", "rushing_fumbles",

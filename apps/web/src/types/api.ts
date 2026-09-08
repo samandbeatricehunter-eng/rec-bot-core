@@ -514,6 +514,37 @@ export type EosLedger = {
 };
 export type PendingEosLedgers = { batch: { id: string; seasonNumber: number } | null; ledgers: EosLedger[] };
 
+export type EosReadinessAvailabilityFlag = {
+  userId: string;
+  discordId: string | null;
+  displayName: string;
+  teamName: string | null;
+  payoutsHeld: boolean;
+  availabilityFullySet: boolean;
+  warningCount: number;
+};
+export type ImportAuditIssue = { kind: string; label: string; gameId?: string | null };
+export type ImportAuditWeek = {
+  weekNumber: number;
+  label: string;
+  scheduledGames: number;
+  completedGames: number;
+  unplayedGames: number;
+  issues: ImportAuditIssue[];
+};
+export type ImportAuditReport = { leagueId: string; currentWeek: number; seasonStage: string; weeks: ImportAuditWeek[]; issueCount: number };
+export type EosReadinessReport = {
+  seasonNumber: number;
+  currentWeek: number;
+  seasonStage: string;
+  game: string | null;
+  projectedItems: Array<{ payout_category: string; payout_label: string; qualified_tier: string | null; amount: number; payee_discord_id: string | null }>;
+  projectedTotal: number;
+  availabilityFlags: EosReadinessAvailabilityFlag[];
+  statsImport: ImportAuditReport | null;
+  summary: string;
+};
+
 export type CfbRosterSeedStatus = {
   league: { id: string; name: string | null; game: string | null };
   isCfb: boolean;

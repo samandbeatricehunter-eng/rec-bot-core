@@ -22,11 +22,11 @@
     "weekly": {
       "bronze": [
         {
-          "label": "250 passing yards",
+          "label": "225 passing yards",
           "condition": {
             "stat": "pass_yards",
             "op": "gte",
-            "value": 95
+            "value": 225
           }
         },
         {
@@ -34,157 +34,36 @@
           "condition": {
             "stat": "pass_tds",
             "op": "gte",
-            "value": 1
+            "value": 2
           }
         },
         {
-          "label": "65% completion on 20+ attempts",
+          "label": "60% completion on 20+ attempts",
           "condition": {
             "all": [
               {
                 "stat": "completion_pct",
                 "op": "gte",
-                "value": 33.4
+                "value": 60
               },
               {
                 "stat": "pass_attempts",
                 "op": "gte",
-                "value": 10
+                "value": 20
               }
             ]
           }
         },
         {
-          "label": "25 rushing yards",
+          "label": "10 rushing yards",
           "condition": {
             "stat": "rush_yards",
             "op": "gte",
-            "value": 1
+            "value": 10
           }
         },
         {
-          "label": "200 passing yards + 1 TD",
-          "condition": {
-            "all": [
-              {
-                "stat": "pass_yards",
-                "op": "gte",
-                "value": 4
-              },
-              {
-                "stat": "pass_tds",
-                "op": "gte",
-                "value": 1
-              }
-            ]
-          }
-        },
-        {
-          "label": "3 total TD",
-          "condition": {
-            "stat": "total_tds",
-            "op": "gte",
-            "value": 1
-          }
-        },
-        {
-          "label": "60% completion on 15+ attempts",
-          "condition": {
-            "all": [
-              {
-                "stat": "completion_pct",
-                "op": "gte",
-                "value": 34
-              },
-              {
-                "stat": "pass_attempts",
-                "op": "gte",
-                "value": 9
-              }
-            ]
-          }
-        },
-        {
-          "label": "1 rushing TD",
-          "condition": {
-            "stat": "rush_tds",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 6.5% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "225 passing yards",
-          "condition": {
-            "stat": "pass_yards",
-            "op": "gte",
-            "value": 95
-          }
-        },
-        {
-          "label": "2 total TD + 200 passing yards",
-          "condition": {
-            "all": [
-              {
-                "stat": "total_tds",
-                "op": "gte",
-                "value": 1
-              },
-              {
-                "stat": "pass_yards",
-                "op": "gte",
-                "value": 4
-              }
-            ]
-          }
-        },
-        {
-          "label": "50 rushing yards",
-          "condition": {
-            "stat": "rush_yards",
-            "op": "gte",
-            "value": 1
-          }
-        },
-        {
-          "label": "275 passing yards with 0 INT",
-          "condition": {
-            "all": [
-              {
-                "stat": "pass_yards",
-                "op": "gte",
-                "value": 6
-              },
-              {
-                "stat": "turnovers",
-                "op": "lte",
-                "value": 0
-              }
-            ]
-          },
-          "_note": "Pass 4 calibration: measured 24.7% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        }
-      ],
-      "silver": [
-        {
-          "label": "300 passing yards + 2 TD",
-          "condition": {
-            "all": [
-              {
-                "stat": "pass_yards",
-                "op": "gte",
-                "value": 225
-              },
-              {
-                "stat": "pass_tds",
-                "op": "gte",
-                "value": 1
-              }
-            ]
-          }
-        },
-        {
-          "label": "3 total TD",
+          "label": "2 total TD",
           "condition": {
             "stat": "total_tds",
             "op": "gte",
@@ -192,20 +71,96 @@
           }
         },
         {
-          "label": "70% completion on 20+ attempts",
+          "label": "1 or fewer turnovers on 25+ attempts",
+          "condition": {
+            "all": [
+              {
+                "stat": "turnovers",
+                "op": "lte",
+                "value": 1
+              },
+              {
+                "stat": "pass_attempts",
+                "op": "gte",
+                "value": 25
+              }
+            ]
+          }
+        },
+        {
+          "label": "90+ passer rating",
+          "condition": {
+            "stat": "passer_rating",
+            "op": "gte",
+            "value": 90
+          }
+        },
+        {
+          "label": "220 passing yards + 1 TD",
+          "condition": {
+            "all": [
+              {
+                "stat": "pass_yards",
+                "op": "gte",
+                "value": 220
+              },
+              {
+                "stat": "total_tds",
+                "op": "gte",
+                "value": 1
+              }
+            ]
+          }
+        }
+      ],
+      "silver": [
+        {
+          "label": "300 passing yards",
+          "condition": {
+            "stat": "pass_yards",
+            "op": "gte",
+            "value": 300
+          }
+        },
+        {
+          "label": "3 passing TD",
+          "condition": {
+            "stat": "pass_tds",
+            "op": "gte",
+            "value": 3
+          }
+        },
+        {
+          "label": "65% completion on 25+ attempts",
           "condition": {
             "all": [
               {
                 "stat": "completion_pct",
                 "op": "gte",
-                "value": 59
+                "value": 65
               },
               {
                 "stat": "pass_attempts",
                 "op": "gte",
-                "value": 17
+                "value": 25
               }
             ]
+          }
+        },
+        {
+          "label": "3 total TD",
+          "condition": {
+            "stat": "total_tds",
+            "op": "gte",
+            "value": 3
+          }
+        },
+        {
+          "label": "20 rushing yards",
+          "condition": {
+            "stat": "rush_yards",
+            "op": "gte",
+            "value": 20
           }
         },
         {
@@ -223,85 +178,16 @@
                 "value": 20
               }
             ]
-          },
-          "_note": "v1's parser matched only the '0 turnovers' substring here and silently dropped the 20+ attempts qualifier entirely -- fixed to enforce both, no value changed."
-        },
-        {
-          "label": "275 passing yards + 3 TD",
-          "condition": {
-            "all": [
-              {
-                "stat": "pass_yards",
-                "op": "gte",
-                "value": 137
-              },
-              {
-                "stat": "pass_tds",
-                "op": "gte",
-                "value": 1
-              }
-            ]
-          },
-          "_note": "Pass 4 calibration: measured 42.7% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "4 total TD",
-          "condition": {
-            "stat": "total_tds",
-            "op": "gte",
-            "value": 2
           }
         },
         {
-          "label": "65% completion on 25+ attempts",
-          "condition": {
-            "all": [
-              {
-                "stat": "completion_pct",
-                "op": "gte",
-                "value": 58.3
-              },
-              {
-                "stat": "pass_attempts",
-                "op": "gte",
-                "value": 22
-              }
-            ]
-          }
-        },
-        {
-          "label": "2 rushing TD",
-          "condition": {
-            "stat": "rush_tds",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 6.5% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "325 passing yards",
-          "condition": {
-            "stat": "pass_yards",
-            "op": "gte",
-            "value": 238
-          }
-        },
-        {
-          "label": "100 rushing yards",
-          "condition": {
-            "stat": "rush_yards",
-            "op": "gte",
-            "value": 8
-          }
-        },
-        {
-          "label": "90+ passer rating with 2 TD",
+          "label": "105+ passer rating with 2 TD",
           "condition": {
             "all": [
               {
                 "stat": "passer_rating",
                 "op": "gte",
-                "value": 90
+                "value": 105
               },
               {
                 "stat": "total_tds",
@@ -312,18 +198,18 @@
           }
         },
         {
-          "label": "3 total TD + 0 turnovers",
+          "label": "275 passing yards + 2 TD",
           "condition": {
             "all": [
               {
-                "stat": "total_tds",
+                "stat": "pass_yards",
                 "op": "gte",
-                "value": 1
+                "value": 275
               },
               {
-                "stat": "turnovers",
-                "op": "lte",
-                "value": 0
+                "stat": "total_tds",
+                "op": "gte",
+                "value": 2
               }
             ]
           }
@@ -331,18 +217,34 @@
       ],
       "gold": [
         {
-          "label": "350 passing yards + 3 TD",
+          "label": "350 passing yards",
+          "condition": {
+            "stat": "pass_yards",
+            "op": "gte",
+            "value": 350
+          }
+        },
+        {
+          "label": "4 passing TD",
+          "condition": {
+            "stat": "pass_tds",
+            "op": "gte",
+            "value": 4
+          }
+        },
+        {
+          "label": "70% completion on 30+ attempts",
           "condition": {
             "all": [
               {
-                "stat": "pass_yards",
+                "stat": "completion_pct",
                 "op": "gte",
-                "value": 292
+                "value": 70
               },
               {
-                "stat": "pass_tds",
+                "stat": "pass_attempts",
                 "op": "gte",
-                "value": 2
+                "value": 30
               }
             ]
           }
@@ -356,114 +258,38 @@
           }
         },
         {
-          "label": "300+ passing yards with 0 INT",
-          "condition": {
-            "all": [
-              {
-                "stat": "pass_yards",
-                "op": "gte",
-                "value": 230
-              },
-              {
-                "stat": "turnovers",
-                "op": "lte",
-                "value": 0
-              }
-            ]
-          }
-        },
-        {
-          "label": "100+ passer rating with 3 TD",
-          "condition": {
-            "all": [
-              {
-                "stat": "passer_rating",
-                "op": "gte",
-                "value": 100
-              },
-              {
-                "stat": "total_tds",
-                "op": "gte",
-                "value": 3
-              }
-            ]
-          }
-        },
-        {
-          "label": "400 passing yards",
-          "condition": {
-            "stat": "pass_yards",
-            "op": "gte",
-            "value": 306
-          }
-        },
-        {
-          "label": "5 total TD",
-          "condition": {
-            "stat": "total_tds",
-            "op": "gte",
-            "value": 3
-          }
-        },
-        {
-          "label": "75% completion on 25+ attempts",
-          "condition": {
-            "all": [
-              {
-                "stat": "completion_pct",
-                "op": "gte",
-                "value": 66.6
-              },
-              {
-                "stat": "pass_attempts",
-                "op": "gte",
-                "value": 22
-              }
-            ]
-          }
-        },
-        {
-          "label": "3 rushing TD",
-          "condition": {
-            "stat": "rush_tds",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 6.5% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "350 passing yards + 0 turnovers",
-          "condition": {
-            "all": [
-              {
-                "stat": "pass_yards",
-                "op": "gte",
-                "value": 230
-              },
-              {
-                "stat": "turnovers",
-                "op": "lte",
-                "value": 0
-              }
-            ]
-          }
-        },
-        {
-          "label": "150 rushing yards",
+          "label": "35 rushing yards",
           "condition": {
             "stat": "rush_yards",
             "op": "gte",
-            "value": 19
+            "value": 35
           }
         },
         {
-          "label": "4 total TD + 0 turnovers",
+          "label": "120+ passer rating with 3 TD",
           "condition": {
             "all": [
               {
+                "stat": "passer_rating",
+                "op": "gte",
+                "value": 120
+              },
+              {
                 "stat": "total_tds",
                 "op": "gte",
-                "value": 1
+                "value": 3
+              }
+            ]
+          }
+        },
+        {
+          "label": "300 passing yards with 0 turnovers",
+          "condition": {
+            "all": [
+              {
+                "stat": "pass_yards",
+                "op": "gte",
+                "value": 300
               },
               {
                 "stat": "turnovers",
@@ -471,22 +297,21 @@
                 "value": 0
               }
             ]
-          },
-          "_note": "Pass 4 calibration: measured 26.3% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+          }
         },
         {
-          "label": "120+ passer rating with 4 TD",
+          "label": "3 total TD with 0 turnovers",
           "condition": {
             "all": [
-              {
-                "stat": "passer_rating",
-                "op": "gte",
-                "value": 90.2
-              },
               {
                 "stat": "total_tds",
                 "op": "gte",
                 "value": 3
+              },
+              {
+                "stat": "turnovers",
+                "op": "lte",
+                "value": 0
               }
             ]
           }
@@ -900,125 +725,205 @@
     "weekly": {
       "bronze": [
         {
-          "label": "75 rushing yards",
+          "label": "40 rushing yards",
           "condition": {
             "stat": "rush_yards",
             "op": "gte",
-            "value": 4
+            "value": 40
           }
         },
         {
-          "label": "100 scrimmage yards",
+          "label": "50 scrimmage yards",
           "condition": {
             "stat": "scrimmage_yards",
             "op": "gte",
-            "value": 18
+            "value": 50
           }
         },
         {
-          "label": "1 TD",
+          "label": "10 carries",
+          "condition": {
+            "stat": "rush_attempts",
+            "op": "gte",
+            "value": 10
+          }
+        },
+        {
+          "label": "1 total TD",
           "condition": {
             "stat": "total_tds",
             "op": "gte",
             "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 26.2% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+          }
         },
         {
-          "label": "4 receptions",
+          "label": "7 carries at 4.0+ YPC",
           "condition": {
-            "stat": "receptions",
+            "all": [
+              {
+                "stat": "rush_attempts",
+                "op": "gte",
+                "value": 7
+              },
+              {
+                "stat": "ypc",
+                "op": "gte",
+                "value": 4
+              }
+            ]
+          }
+        },
+        {
+          "label": "5 receiving yards",
+          "condition": {
+            "stat": "receiving_yards",
             "op": "gte",
-            "value": 1
+            "value": 5
           }
         }
       ],
       "silver": [
         {
-          "label": "100 rushing yards",
+          "label": "70 rushing yards",
           "condition": {
             "stat": "rush_yards",
             "op": "gte",
-            "value": 41
+            "value": 70
           }
         },
         {
-          "label": "125 scrimmage yards",
+          "label": "85 scrimmage yards",
           "condition": {
             "stat": "scrimmage_yards",
             "op": "gte",
-            "value": 47
+            "value": 85
           }
         },
         {
-          "label": "2 TD",
+          "label": "60 scrimmage yards + a TD",
           "condition": {
-            "stat": "total_tds",
-            "op": "gte",
-            "value": 1
+            "all": [
+              {
+                "stat": "scrimmage_yards",
+                "op": "gte",
+                "value": 60
+              },
+              {
+                "stat": "total_tds",
+                "op": "gte",
+                "value": 1
+              }
+            ]
           }
         },
         {
-          "label": "5.0 YPC on 15+ carries",
+          "label": "2 receptions",
+          "condition": {
+            "stat": "receptions",
+            "op": "gte",
+            "value": 2
+          }
+        },
+        {
+          "label": "5.5 YPC on 10+ carries",
           "condition": {
             "all": [
               {
                 "stat": "ypc",
                 "op": "gte",
-                "value": 2.8
+                "value": 5.5
               },
               {
                 "stat": "rush_attempts",
                 "op": "gte",
-                "value": 9
+                "value": 10
               }
             ]
+          }
+        },
+        {
+          "label": "15 receiving yards",
+          "condition": {
+            "stat": "receiving_yards",
+            "op": "gte",
+            "value": 15
+          }
+        },
+        {
+          "label": "A 20+ yard run",
+          "condition": {
+            "stat": "rush_20_plus",
+            "op": "gte",
+            "value": 1
           }
         }
       ],
       "gold": [
         {
-          "label": "150 rushing yards",
+          "label": "100 rushing yards",
           "condition": {
             "stat": "rush_yards",
             "op": "gte",
-            "value": 77
+            "value": 100
           }
         },
         {
-          "label": "175 scrimmage yards",
+          "label": "120 scrimmage yards",
           "condition": {
             "stat": "scrimmage_yards",
             "op": "gte",
-            "value": 79
+            "value": 120
           }
         },
         {
-          "label": "3 total TD",
+          "label": "2 total TD",
           "condition": {
             "stat": "total_tds",
             "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 26.2% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+            "value": 2
+          }
         },
         {
-          "label": "100 rush + 50 receiving yards",
+          "label": "7.0 YPC on 10+ carries",
+          "condition": {
+            "all": [
+              {
+                "stat": "ypc",
+                "op": "gte",
+                "value": 7
+              },
+              {
+                "stat": "rush_attempts",
+                "op": "gte",
+                "value": 10
+              }
+            ]
+          }
+        },
+        {
+          "label": "60 rush + 20 receiving yards",
           "condition": {
             "all": [
               {
                 "stat": "rush_yards",
                 "op": "gte",
-                "value": 2
+                "value": 60
               },
               {
                 "stat": "receiving_yards",
                 "op": "gte",
-                "value": 1
+                "value": 20
               }
             ]
-          },
-          "_note": "Pass 4 calibration: measured 0.0% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+          }
+        },
+        {
+          "label": "Two 20+ yard runs",
+          "condition": {
+            "stat": "rush_20_plus",
+            "op": "gte",
+            "value": 2
+          }
         }
       ]
     },
@@ -1148,43 +1053,60 @@
     "weekly": {
       "bronze": [
         {
-          "label": "5 receptions",
+          "label": "3 receptions",
           "condition": {
             "stat": "receptions",
             "op": "gte",
-            "value": 2
+            "value": 3
           }
         },
         {
-          "label": "75 receiving yards",
+          "label": "45 receiving yards",
           "condition": {
             "stat": "receiving_yards",
             "op": "gte",
-            "value": 24
+            "value": 45
           }
         },
         {
-          "label": "1 TD",
-          "condition": {
-            "stat": "total_tds",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 25.6% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "20 YPR on 3+ catches",
+          "label": "12+ YPR on 2+ catches",
           "condition": {
             "all": [
               {
                 "stat": "ypr",
                 "op": "gte",
-                "value": 9
+                "value": 12
               },
               {
                 "stat": "receptions",
                 "op": "gte",
-                "value": 1
+                "value": 2
+              }
+            ]
+          }
+        },
+        {
+          "label": "1 total TD",
+          "condition": {
+            "stat": "total_tds",
+            "op": "gte",
+            "value": 1
+          },
+          "_note": "Pass 12 calibration: measured 35.8% against real M27 data, just under the 40-65% bronze band -- a single receiving TD is already the floor for this event and the closest achievable bronze framing of it."
+        },
+        {
+          "label": "4 catches for 50+ yards",
+          "condition": {
+            "all": [
+              {
+                "stat": "receptions",
+                "op": "gte",
+                "value": 4
+              },
+              {
+                "stat": "receiving_yards",
+                "op": "gte",
+                "value": 40
               }
             ]
           }
@@ -1192,15 +1114,7 @@
       ],
       "silver": [
         {
-          "label": "100 receiving yards",
-          "condition": {
-            "stat": "receiving_yards",
-            "op": "gte",
-            "value": 56
-          }
-        },
-        {
-          "label": "7 receptions",
+          "label": "5 receptions",
           "condition": {
             "stat": "receptions",
             "op": "gte",
@@ -1208,33 +1122,68 @@
           }
         },
         {
-          "label": "2 TD",
+          "label": "75 receiving yards",
           "condition": {
-            "stat": "total_tds",
+            "stat": "receiving_yards",
             "op": "gte",
-            "value": 1
+            "value": 75
           }
         },
         {
-          "label": "125 scrimmage yards",
+          "label": "1 TD + 50 receiving yards",
           "condition": {
-            "stat": "scrimmage_yards",
-            "op": "gte",
-            "value": 56
+            "all": [
+              {
+                "stat": "total_tds",
+                "op": "gte",
+                "value": 1
+              },
+              {
+                "stat": "receiving_yards",
+                "op": "gte",
+                "value": 50
+              }
+            ]
+          }
+        },
+        {
+          "label": "15+ YPR on 3+ catches",
+          "condition": {
+            "all": [
+              {
+                "stat": "ypr",
+                "op": "gte",
+                "value": 15
+              },
+              {
+                "stat": "receptions",
+                "op": "gte",
+                "value": 3
+              }
+            ]
+          }
+        },
+        {
+          "label": "5 catches for 60+ yards",
+          "condition": {
+            "all": [
+              {
+                "stat": "receptions",
+                "op": "gte",
+                "value": 5
+              },
+              {
+                "stat": "receiving_yards",
+                "op": "gte",
+                "value": 60
+              }
+            ]
           }
         }
       ],
       "gold": [
         {
-          "label": "150 receiving yards",
-          "condition": {
-            "stat": "receiving_yards",
-            "op": "gte",
-            "value": 88
-          }
-        },
-        {
-          "label": "10 receptions",
+          "label": "7 receptions",
           "condition": {
             "stat": "receptions",
             "op": "gte",
@@ -1242,13 +1191,29 @@
           }
         },
         {
-          "label": "150 receiving yards + 2 TD",
+          "label": "100 receiving yards",
+          "condition": {
+            "stat": "receiving_yards",
+            "op": "gte",
+            "value": 100
+          }
+        },
+        {
+          "label": "2 receiving TD",
+          "condition": {
+            "stat": "receiving_tds",
+            "op": "gte",
+            "value": 2
+          }
+        },
+        {
+          "label": "80 receiving yards + a TD",
           "condition": {
             "all": [
               {
                 "stat": "receiving_yards",
                 "op": "gte",
-                "value": 74
+                "value": 80
               },
               {
                 "stat": "total_tds",
@@ -1256,17 +1221,24 @@
                 "value": 1
               }
             ]
-          },
-          "_note": "v1's label was bare '150 yards + 2 TD' -- the parser had no bare-'yards' branch, so that clause silently fell through to the always-true default and this challenge was really just '2 TD' before. Fixed to require the receiving yards too; relabeled for clarity."
+          }
         },
         {
-          "label": "3 receiving TD",
+          "label": "20+ YPR on 4+ catches",
           "condition": {
-            "stat": "receiving_tds",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 24.5% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+            "all": [
+              {
+                "stat": "ypr",
+                "op": "gte",
+                "value": 20
+              },
+              {
+                "stat": "receptions",
+                "op": "gte",
+                "value": 4
+              }
+            ]
+          }
         }
       ]
     },
@@ -1396,20 +1368,54 @@
     "weekly": {
       "bronze": [
         {
+          "label": "3 receptions",
+          "condition": {
+            "stat": "receptions",
+            "op": "gte",
+            "value": 3
+          }
+        },
+        {
+          "label": "25 receiving yards",
+          "condition": {
+            "stat": "receiving_yards",
+            "op": "gte",
+            "value": 25
+          }
+        },
+        {
+          "label": "8+ YPR on 2+ catches",
+          "condition": {
+            "all": [
+              {
+                "stat": "ypr",
+                "op": "gte",
+                "value": 8
+              },
+              {
+                "stat": "receptions",
+                "op": "gte",
+                "value": 2
+              }
+            ]
+          }
+        }
+      ],
+      "silver": [
+        {
           "label": "4 receptions",
           "condition": {
             "stat": "receptions",
             "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 72.3% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+            "value": 4
+          }
         },
         {
-          "label": "50 receiving yards",
+          "label": "45 receiving yards",
           "condition": {
             "stat": "receiving_yards",
             "op": "gte",
-            "value": 14
+            "value": 45
           }
         },
         {
@@ -1418,65 +1424,29 @@
             "stat": "total_tds",
             "op": "gte",
             "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 16.4% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "3 receptions",
-          "condition": {
-            "stat": "receptions",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 72.3% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        }
-      ],
-      "silver": [
-        {
-          "label": "75 receiving yards",
-          "condition": {
-            "stat": "receiving_yards",
-            "op": "gte",
-            "value": 34
           }
         },
         {
-          "label": "6 receptions",
+          "label": "11+ YPR on 3+ catches",
           "condition": {
-            "stat": "receptions",
-            "op": "gte",
-            "value": 3
-          }
-        },
-        {
-          "label": "2 TD",
-          "condition": {
-            "stat": "total_tds",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 16.4% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "100 scrimmage yards",
-          "condition": {
-            "stat": "scrimmage_yards",
-            "op": "gte",
-            "value": 34
+            "all": [
+              {
+                "stat": "ypr",
+                "op": "gte",
+                "value": 11
+              },
+              {
+                "stat": "receptions",
+                "op": "gte",
+                "value": 3
+              }
+            ]
           }
         }
       ],
       "gold": [
         {
-          "label": "100 receiving yards",
-          "condition": {
-            "stat": "receiving_yards",
-            "op": "gte",
-            "value": 59
-          }
-        },
-        {
-          "label": "8 receptions",
+          "label": "6 receptions",
           "condition": {
             "stat": "receptions",
             "op": "gte",
@@ -1484,13 +1454,21 @@
           }
         },
         {
-          "label": "100 receiving yards + 2 TD",
+          "label": "65 receiving yards",
+          "condition": {
+            "stat": "receiving_yards",
+            "op": "gte",
+            "value": 65
+          }
+        },
+        {
+          "label": "50 receiving yards + a TD",
           "condition": {
             "all": [
               {
                 "stat": "receiving_yards",
                 "op": "gte",
-                "value": 15
+                "value": 50
               },
               {
                 "stat": "total_tds",
@@ -1498,15 +1476,23 @@
                 "value": 1
               }
             ]
-          },
-          "_note": "Same bare-'yards' parser gap as WR gold -- v1's '100 yards + 2 TD' was really just '2 TD' before. Fixed and relabeled."
+          }
         },
         {
-          "label": "3 TD",
+          "label": "5 catches + a TD",
           "condition": {
-            "stat": "total_tds",
-            "op": "gte",
-            "value": 1
+            "all": [
+              {
+                "stat": "receptions",
+                "op": "gte",
+                "value": 5
+              },
+              {
+                "stat": "total_tds",
+                "op": "gte",
+                "value": 1
+              }
+            ]
           }
         }
       ]
@@ -1637,16 +1623,7 @@
     "weekly": {
       "bronze": [
         {
-          "label": "1 pass deflection",
-          "condition": {
-            "stat": "pass_deflections",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 26.9% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "4 tackles",
+          "label": "3 tackles",
           "condition": {
             "stat": "tackles",
             "op": "gte",
@@ -1654,122 +1631,105 @@
           }
         },
         {
-          "label": "1 forced fumble",
+          "label": "4 tackles or a pass deflection",
           "condition": {
-            "stat": "forced_fumbles",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 2.7% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "1 sack",
-          "condition": {
-            "stat": "sacks",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 0.8% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+            "any": [
+              {
+                "stat": "tackles",
+                "op": "gte",
+                "value": 4
+              },
+              {
+                "stat": "pass_deflections",
+                "op": "gte",
+                "value": 1
+              }
+            ]
+          }
         }
       ],
       "silver": [
         {
-          "label": "1 INT",
+          "label": "4 tackles",
+          "condition": {
+            "stat": "tackles",
+            "op": "gte",
+            "value": 4
+          }
+        },
+        {
+          "label": "5 tackles",
+          "condition": {
+            "stat": "tackles",
+            "op": "gte",
+            "value": 5
+          }
+        },
+        {
+          "label": "1 pass deflection",
+          "condition": {
+            "stat": "pass_deflections",
+            "op": "gte",
+            "value": 1
+          }
+        }
+      ],
+      "gold": [
+        {
+          "label": "6 tackles",
+          "condition": {
+            "stat": "tackles",
+            "op": "gte",
+            "value": 6
+          }
+        },
+        {
+          "label": "1 interception",
           "condition": {
             "stat": "interceptions",
             "op": "gte",
             "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 13.1% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+          }
+        },
+        {
+          "label": "1 takeaway",
+          "condition": {
+            "stat": "takeaways",
+            "op": "gte",
+            "value": 1
+          }
         },
         {
           "label": "2 pass deflections",
           "condition": {
             "stat": "pass_deflections",
             "op": "gte",
-            "value": 1
-          }
-        },
-        {
-          "label": "1 forced fumble",
-          "condition": {
-            "stat": "forced_fumbles",
-            "op": "gte",
-            "value": 1
+            "value": 2
           },
-          "_note": "Pass 4 calibration: measured 2.7% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+          "_note": "Pass 12 calibration: measured ~6% against real M27 data, below the 8-20% gold band -- a second pass deflection in one week is a genuinely rare CB event; kept as-is rather than lowered to a degenerate 1-PD repeat of the silver entry."
         },
         {
-          "label": "6 tackles + 1 impact play",
+          "label": "Force a fumble, sack, or defensive score",
           "condition": {
-            "all": [
+            "any": [
               {
-                "stat": "tackles",
+                "stat": "forced_fumbles",
                 "op": "gte",
                 "value": 1
               },
               {
-                "any": [
-                  {
-                    "stat": "takeaways",
-                    "op": "gte",
-                    "value": 1
-                  },
-                  {
-                    "stat": "sacks",
-                    "op": "gte",
-                    "value": 1
-                  }
-                ]
-              }
-            ]
-          },
-          "_note": "Pass 4 calibration: measured 15.5% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        }
-      ],
-      "gold": [
-        {
-          "label": "2 INT",
-          "condition": {
-            "stat": "interceptions",
-            "op": "gte",
-            "value": 1
-          }
-        },
-        {
-          "label": "defensive TD",
-          "condition": {
-            "stat": "defensive_tds",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 2.5% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "3 PD + INT",
-          "condition": {
-            "all": [
-              {
-                "stat": "pass_deflections",
+                "stat": "sacks",
                 "op": "gte",
                 "value": 1
               },
               {
-                "stat": "interceptions",
+                "stat": "defensive_tds",
                 "op": "gte",
                 "value": 1
               }
             ]
           },
-          "_note": "Pass 4 calibration: measured 5.4% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "2 total takeaways",
-          "condition": {
-            "stat": "takeaways",
-            "op": "gte",
-            "value": 1
-          }
+          "_note": "Pass 12 calibration: measured ~6% against real M27 data, below the 8-20% gold band -- each of these events is individually rare for a CB even combined; kept as a genuine splash-play challenge rather than lowered further."
         }
       ]
     },
@@ -1899,7 +1859,7 @@
     "weekly": {
       "bronze": [
         {
-          "label": "5 tackles",
+          "label": "3 tackles",
           "condition": {
             "stat": "tackles",
             "op": "gte",
@@ -1907,45 +1867,34 @@
           }
         },
         {
-          "label": "1 pass deflection",
+          "label": "4 tackles or a pass deflection",
           "condition": {
-            "stat": "pass_deflections",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 22.3% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "1 forced fumble",
-          "condition": {
-            "stat": "forced_fumbles",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 3.3% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "1 sack",
-          "condition": {
-            "stat": "sacks",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 0.8% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+            "any": [
+              {
+                "stat": "tackles",
+                "op": "gte",
+                "value": 4
+              },
+              {
+                "stat": "pass_deflections",
+                "op": "gte",
+                "value": 1
+              }
+            ]
+          }
         }
       ],
       "silver": [
         {
-          "label": "1 INT",
+          "label": "4 tackles",
           "condition": {
-            "stat": "interceptions",
+            "stat": "tackles",
             "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 8.9% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+            "value": 4
+          }
         },
         {
-          "label": "7 tackles",
+          "label": "5 tackles",
           "condition": {
             "stat": "tackles",
             "op": "gte",
@@ -1953,16 +1902,7 @@
           }
         },
         {
-          "label": "1 forced fumble",
-          "condition": {
-            "stat": "forced_fumbles",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 3.3% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "2 pass deflections",
+          "label": "1 pass deflection",
           "condition": {
             "stat": "pass_deflections",
             "op": "gte",
@@ -1972,7 +1912,15 @@
       ],
       "gold": [
         {
-          "label": "2 INT",
+          "label": "6 tackles",
+          "condition": {
+            "stat": "tackles",
+            "op": "gte",
+            "value": 6
+          }
+        },
+        {
+          "label": "1 interception",
           "condition": {
             "stat": "interceptions",
             "op": "gte",
@@ -1980,48 +1928,44 @@
           }
         },
         {
-          "label": "defensive TD",
+          "label": "1 takeaway",
           "condition": {
-            "stat": "defensive_tds",
+            "stat": "takeaways",
             "op": "gte",
             "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 1.7% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+          }
         },
         {
-          "label": "INT + forced fumble",
+          "label": "2 pass deflections",
           "condition": {
-            "all": [
-              {
-                "stat": "interceptions",
-                "op": "gte",
-                "value": 1
-              },
+            "stat": "pass_deflections",
+            "op": "gte",
+            "value": 2
+          },
+          "_note": "Pass 12 calibration: measured ~3% against real M27 data, below the 8-20% gold band -- FS pass-deflection volume is lower than CB's; kept as a genuinely rare gold event rather than lowered to duplicate the silver entry."
+        },
+        {
+          "label": "Force a fumble, sack, or defensive score",
+          "condition": {
+            "any": [
               {
                 "stat": "forced_fumbles",
                 "op": "gte",
                 "value": 1
-              }
-            ]
-          },
-          "_note": "Pass 4 calibration: measured 0.7% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "10 tackles + takeaway",
-          "condition": {
-            "all": [
+              },
               {
-                "stat": "tackles",
+                "stat": "sacks",
                 "op": "gte",
                 "value": 1
               },
               {
-                "stat": "takeaways",
+                "stat": "defensive_tds",
                 "op": "gte",
                 "value": 1
               }
             ]
-          }
+          },
+          "_note": "Pass 12 calibration: measured ~5% against real M27 data, below the 8-20% gold band -- each of these events is individually rare for a FS even combined; kept as a genuine splash-play challenge rather than lowered further."
         }
       ]
     },
@@ -2151,7 +2095,7 @@
     "weekly": {
       "bronze": [
         {
-          "label": "5 tackles",
+          "label": "3 tackles",
           "condition": {
             "stat": "tackles",
             "op": "gte",
@@ -2159,45 +2103,34 @@
           }
         },
         {
-          "label": "1 forced fumble",
-          "condition": {
-            "stat": "forced_fumbles",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 4.1% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "1 pass deflection",
-          "condition": {
-            "stat": "pass_deflections",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 26.1% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "1 impact play",
+          "label": "4 tackles or a pass deflection",
           "condition": {
             "any": [
               {
-                "stat": "takeaways",
+                "stat": "tackles",
                 "op": "gte",
-                "value": 1
+                "value": 4
               },
               {
-                "stat": "sacks",
+                "stat": "pass_deflections",
                 "op": "gte",
                 "value": 1
               }
             ]
-          },
-          "_note": "Pass 4 calibration: measured 16.6% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+          }
         }
       ],
       "silver": [
         {
-          "label": "8 tackles",
+          "label": "4 tackles",
+          "condition": {
+            "stat": "tackles",
+            "op": "gte",
+            "value": 4
+          }
+        },
+        {
+          "label": "5 tackles",
           "condition": {
             "stat": "tackles",
             "op": "gte",
@@ -2205,36 +2138,17 @@
           }
         },
         {
-          "label": "1 INT",
-          "condition": {
-            "stat": "interceptions",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 10.2% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "1 forced fumble",
-          "condition": {
-            "stat": "forced_fumbles",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 4.1% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "2 pass deflections",
+          "label": "1 pass deflection",
           "condition": {
             "stat": "pass_deflections",
             "op": "gte",
             "value": 1
-          },
-          "_note": "v1 was '2 TFL' -- replaced (tackles_for_loss is never populated by any live import)."
+          }
         }
       ],
       "gold": [
         {
-          "label": "12 tackles",
+          "label": "6 tackles",
           "condition": {
             "stat": "tackles",
             "op": "gte",
@@ -2242,7 +2156,15 @@
           }
         },
         {
-          "label": "2 takeaways",
+          "label": "1 interception",
+          "condition": {
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          }
+        },
+        {
+          "label": "1 takeaway",
           "condition": {
             "stat": "takeaways",
             "op": "gte",
@@ -2250,36 +2172,36 @@
           }
         },
         {
-          "label": "defensive TD",
+          "label": "2 pass deflections",
           "condition": {
-            "stat": "defensive_tds",
+            "stat": "pass_deflections",
             "op": "gte",
-            "value": 1
+            "value": 2
           },
-          "_note": "Pass 4 calibration: measured 1.6% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+          "_note": "Pass 12 calibration: measured ~5% against real M27 data, below the 8-20% gold band -- a second pass deflection in one week is a genuinely rare SS event; kept as-is rather than lowered to a degenerate 1-PD repeat of the silver entry."
         },
         {
-          "label": "sack + takeaway + 6 tackles",
+          "label": "Force a fumble, sack, or defensive score",
           "condition": {
-            "all": [
+            "any": [
+              {
+                "stat": "forced_fumbles",
+                "op": "gte",
+                "value": 1
+              },
               {
                 "stat": "sacks",
                 "op": "gte",
                 "value": 1
               },
               {
-                "stat": "takeaways",
-                "op": "gte",
-                "value": 1
-              },
-              {
-                "stat": "tackles",
+                "stat": "defensive_tds",
                 "op": "gte",
                 "value": 1
               }
             ]
           },
-          "_note": "Pass 4 calibration: measured 0.2% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+          "_note": "Pass 12 calibration: measured ~7% against real M27 data, just below the 8-20% gold band -- each of these events is individually rare for a SS even combined; kept as a genuine splash-play challenge rather than lowered further."
         }
       ]
     },
@@ -2405,48 +2327,82 @@
     "weekly": {
       "bronze": [
         {
-          "label": "7 tackles",
+          "label": "4 tackles",
           "condition": {
             "stat": "tackles",
             "op": "gte",
-            "value": 3
+            "value": 4
           }
         },
         {
-          "label": "1 pass deflection",
+          "label": "5 tackles or a pass deflection",
           "condition": {
-            "stat": "pass_deflections",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 19.2% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "1 pass deflection",
-          "condition": {
-            "stat": "pass_deflections",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 19.2% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "0.5-1 sack",
-          "condition": {
-            "stat": "sacks",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 6.5% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
+            "any": [
+              {
+                "stat": "tackles",
+                "op": "gte",
+                "value": 5
+              },
+              {
+                "stat": "pass_deflections",
+                "op": "gte",
+                "value": 1
+              }
+            ]
+          }
+        }
+      ],
+      "silver": [
         {
           "label": "5 tackles",
           "condition": {
             "stat": "tackles",
             "op": "gte",
-            "value": 3
-          },
-          "_note": "v1 was '5 tackles + 1 TFL' -- TFL fragment dropped, tackles requirement unchanged."
+            "value": 5
+          }
+        },
+        {
+          "label": "6 tackles",
+          "condition": {
+            "stat": "tackles",
+            "op": "gte",
+            "value": 6
+          }
+        },
+        {
+          "label": "A pass deflection or a half-sack",
+          "condition": {
+            "any": [
+              {
+                "stat": "pass_deflections",
+                "op": "gte",
+                "value": 1
+              },
+              {
+                "stat": "sacks",
+                "op": "gte",
+                "value": 0.5
+              }
+            ]
+          }
+        }
+      ],
+      "gold": [
+        {
+          "label": "8 tackles",
+          "condition": {
+            "stat": "tackles",
+            "op": "gte",
+            "value": 8
+          }
+        },
+        {
+          "label": "1 takeaway",
+          "condition": {
+            "stat": "takeaways",
+            "op": "gte",
+            "value": 1
+          }
         },
         {
           "label": "1 sack",
@@ -2455,16 +2411,25 @@
             "op": "gte",
             "value": 1
           },
-          "_note": "Pass 4 calibration: measured 6.5% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+          "_note": "Pass 12 calibration: measured ~6.5% against real M27 data, just below the 8-20% gold band -- a full sack in one week is already the floor for this event for a MIKE; kept as a genuine gold-tier splash play."
         },
         {
-          "label": "6 tackles + 1 pass deflection",
+          "label": "1 forced fumble",
+          "condition": {
+            "stat": "forced_fumbles",
+            "op": "gte",
+            "value": 1
+          },
+          "_note": "Pass 12 calibration: measured ~3.9% against real M27 data, below the 8-20% gold band -- forced fumbles are a genuinely rare weekly event even for a MIKE; kept as-is rather than degenerately lowered."
+        },
+        {
+          "label": "5 tackles + a pass deflection",
           "condition": {
             "all": [
               {
                 "stat": "tackles",
                 "op": "gte",
-                "value": 1
+                "value": 5
               },
               {
                 "stat": "pass_deflections",
@@ -2473,325 +2438,29 @@
               }
             ]
           },
-          "_note": "Pass 4 calibration: measured 18.2% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
+          "_note": "Pass 12 calibration: measured ~9% against real M27 data -- a real (non-floor-clamped) threshold on each leg, landing squarely in the gold band."
         },
         {
-          "label": "1 takeaway",
+          "label": "Make a splash: sack, forced fumble, or defensive score",
           "condition": {
-            "stat": "takeaways",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 10.1% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "8 tackles",
-          "condition": {
-            "stat": "tackles",
-            "op": "gte",
-            "value": 4
-          }
-        },
-        {
-          "label": "2 pass deflections",
-          "condition": {
-            "stat": "pass_deflections",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 19.2% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "1 forced fumble",
-          "condition": {
-            "stat": "forced_fumbles",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 3.9% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "6 tackles + 1 sack",
-          "condition": {
-            "all": [
-              {
-                "stat": "tackles",
-                "op": "gte",
-                "value": 1
-              },
+            "any": [
               {
                 "stat": "sacks",
                 "op": "gte",
                 "value": 1
-              }
-            ]
-          },
-          "_note": "Pass 4 calibration: measured 6.5% against real M27 data, below the 40-65% bronze band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        }
-      ],
-      "silver": [
-        {
-          "label": "10 tackles",
-          "condition": {
-            "stat": "tackles",
-            "op": "gte",
-            "value": 6
-          }
-        },
-        {
-          "label": "2 pass deflections",
-          "condition": {
-            "stat": "pass_deflections",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 19.2% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "1 sack",
-          "condition": {
-            "stat": "sacks",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 6.5% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "1 takeaway",
-          "condition": {
-            "stat": "takeaways",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 10.1% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "8 tackles",
-          "condition": {
-            "stat": "tackles",
-            "op": "gte",
-            "value": 6
-          },
-          "_note": "v1 was '8 tackles + 1 TFL' -- TFL fragment dropped, tackles requirement unchanged."
-        },
-        {
-          "label": "1.5 sacks",
-          "condition": {
-            "stat": "sacks",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 6.5% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "2 pass deflections",
-          "condition": {
-            "stat": "pass_deflections",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 19.2% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "2 takeaways",
-          "condition": {
-            "stat": "takeaways",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 10.1% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "12 tackles",
-          "condition": {
-            "stat": "tackles",
-            "op": "gte",
-            "value": 6
-          }
-        },
-        {
-          "label": "1 forced fumble",
-          "condition": {
-            "stat": "forced_fumbles",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 3.9% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "1 forced fumble + 1 sack",
-          "condition": {
-            "all": [
+              },
               {
                 "stat": "forced_fumbles",
                 "op": "gte",
                 "value": 1
               },
               {
-                "stat": "sacks",
+                "stat": "defensive_tds",
                 "op": "gte",
                 "value": 1
               }
             ]
-          },
-          "_note": "Pass 4 calibration: measured 0.4% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "9 tackles + 1 takeaway",
-          "condition": {
-            "all": [
-              {
-                "stat": "tackles",
-                "op": "gte",
-                "value": 1
-              },
-              {
-                "stat": "takeaways",
-                "op": "gte",
-                "value": 1
-              }
-            ]
-          },
-          "_note": "Pass 4 calibration: measured 9.0% against real M27 data, below the 20-40% silver band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        }
-      ],
-      "gold": [
-        {
-          "label": "15 tackles",
-          "condition": {
-            "stat": "tackles",
-            "op": "gte",
-            "value": 7
           }
-        },
-        {
-          "label": "3 pass deflections",
-          "condition": {
-            "stat": "pass_deflections",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "v1 was '3 TFL' -- replaced."
-        },
-        {
-          "label": "2 sacks",
-          "condition": {
-            "stat": "sacks",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 6.5% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "10 tackles + sack + takeaway",
-          "condition": {
-            "all": [
-              {
-                "stat": "tackles",
-                "op": "gte",
-                "value": 1
-              },
-              {
-                "stat": "sacks",
-                "op": "gte",
-                "value": 1
-              },
-              {
-                "stat": "takeaways",
-                "op": "gte",
-                "value": 1
-              }
-            ]
-          },
-          "_note": "Pass 4 calibration: measured 0.7% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "12 tackles",
-          "condition": {
-            "stat": "tackles",
-            "op": "gte",
-            "value": 7
-          },
-          "_note": "v1 was '12 tackles + 2 TFL' -- TFL fragment dropped, tackles requirement unchanged."
-        },
-        {
-          "label": "3 sacks",
-          "condition": {
-            "stat": "sacks",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 6.5% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "3 pass deflections",
-          "condition": {
-            "stat": "pass_deflections",
-            "op": "gte",
-            "value": 1
-          }
-        },
-        {
-          "label": "2 takeaways + 1 sack",
-          "condition": {
-            "all": [
-              {
-                "stat": "takeaways",
-                "op": "gte",
-                "value": 1
-              },
-              {
-                "stat": "sacks",
-                "op": "gte",
-                "value": 1
-              }
-            ]
-          },
-          "_note": "Pass 4 calibration: measured 0.7% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "18 tackles",
-          "condition": {
-            "stat": "tackles",
-            "op": "gte",
-            "value": 8
-          }
-        },
-        {
-          "label": "2 forced fumbles",
-          "condition": {
-            "stat": "forced_fumbles",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 3.9% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "2 forced fumbles",
-          "condition": {
-            "stat": "forced_fumbles",
-            "op": "gte",
-            "value": 1
-          },
-          "_note": "Pass 4 calibration: measured 3.9% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
-        },
-        {
-          "label": "12 tackles + 2 sacks",
-          "condition": {
-            "all": [
-              {
-                "stat": "tackles",
-                "op": "gte",
-                "value": 1
-              },
-              {
-                "stat": "sacks",
-                "op": "gte",
-                "value": 1
-              }
-            ]
-          },
-          "_note": "Pass 4 calibration: measured 6.5% against real M27 data, below the 8-20% gold band -- floor-capped rare single-event condition, cannot be scaled further without becoming degenerate. Flagged for Pass 11."
         }
       ]
     },

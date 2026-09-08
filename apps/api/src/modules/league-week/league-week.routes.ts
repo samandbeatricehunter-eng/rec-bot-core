@@ -5,7 +5,7 @@ import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceWeek, getAdvanceWeekGames, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, notifyMissingBoxScore, setGamePostseasonFlags, setNextAdvanceTime } from "./advance-results.service.js";
-import { adjustEosPayoutItem, getMyEosPayoutProgress, issueEosPayoutBatch, listEosPayoutBatch, listPendingEosLedgers, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser, wipeAndRerunEosLedger } from "./eos-payouts.service.js";
+import { adjustEosPayoutItem, auditEosPayoutReadiness, getMyEosPayoutProgress, issueEosPayoutBatch, listEosPayoutBatch, listPendingEosLedgers, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser, wipeAndRerunEosLedger } from "./eos-payouts.service.js";
 import { advanceEosBallotSession, cancelOpenEosAwardPolls, castEosAwardVote, closeAndSettleEosAwardPollById, getEosAwardPoll, getEosAwardVotingBlock, getOrStartEosBallotSession, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, recordEosAwardPollVotesFromDiscord, settleEosAwardPoll, submitEosBallot } from "./eos-awards.service.js";
 import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
@@ -526,6 +526,19 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send(await adjustEosPayoutItem({ itemId: body.itemId, tier: body.tier, actorDiscordId: auth.mode === "user" ? auth.discordId : "bot" }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Read-only preview (Tools > Economy > EOS Payouts > EOS Audit/Review) -- never touches a
+  // batch, just reports what would pay out right now, who's at risk of a held payout, and
+  // whether the stat import has gaps. Safe to run any time, not just the postseason.
+  app.post("/v1/league-week/eos-payouts/audit", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await auditEosPayoutReadiness(body));
     } catch (error) {
       return sendError(reply, error);
     }

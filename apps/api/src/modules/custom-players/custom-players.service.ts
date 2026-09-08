@@ -178,12 +178,15 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
   const game = gameFamily(context.rec_leagues.game);
   const year = gameYear(context.rec_leagues.game);
   const config = await supabase.from("rec_league_configuration")
-    .select("coin_economy_enabled,custom_players_enabled,custom_players_season_cap,purchase_deadlines")
+    .select("coin_economy_enabled,custom_players_enabled,custom_players_season_cap,purchase_deadlines,purchase_caps_reset_at")
     .eq("league_id", context.leagueId).maybeSingle();
   if (config.error) throw new ApiError(500, "We couldn't load custom-player settings. Please try again.", config.error);
-  const builds = await supabase.from("rec_custom_player_builds").select("id", { count: "exact", head: true })
+  const capsResetAt = (config.data?.purchase_caps_reset_at as string | null | undefined) ?? null;
+  let buildsQuery = supabase.from("rec_custom_player_builds").select("id", { count: "exact", head: true })
     .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("season_number", seasonNumber)
     .in("status", ["pending_review", "approved", "applied"]);
+  if (capsResetAt) buildsQuery = buildsQuery.gt("created_at", capsResetAt);
+  const builds = await buildsQuery;
   if (builds.error) throw new ApiError(500, "We couldn't load your custom-player season usage. Please try again.", builds.error);
   // Only recruits/manually-added players are eligible replacement targets — the default
   // baseline roster (is_default_player = true) is never selectable here.
@@ -202,6 +205,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     game, gameYear: year, teamId, seasonNumber, walletBalance: wallet,
     enabled: Boolean(config.data?.coin_economy_enabled && config.data?.custom_players_enabled),
     seasonCap: Number(config.data?.custom_players_season_cap ?? 0), seasonUsed: builds.count ?? 0,
+    purchaseCapsResetAt: capsResetAt,
     purchaseDeadlines: config.data?.purchase_deadlines ?? {},
     purchaseDeadlinesEnabled: config.data?.purchase_deadlines_enabled ?? true,
     packages: await configuredPackages(game, year), positions: REC_CUSTOM_PLAYER_POSITIONS,
@@ -434,9 +438,11 @@ export async function submitCustomPlayer(input: {
   // config.seasonCap, evaluated against a snapshot fetched before this insert) can't fully
   // close on its own — recount now that this build has actually committed and is visible.
   if (config.seasonCap > 0) {
-    const recount = await supabase.from("rec_custom_player_builds").select("id", { count: "exact", head: true })
+    let recountQuery = supabase.from("rec_custom_player_builds").select("id", { count: "exact", head: true })
       .eq("league_id", context.leagueId).eq("user_id", baseline.user.id).eq("season_number", seasonNumber)
       .in("status", ["pending_review", "approved", "applied"]);
+    if (config.purchaseCapsResetAt) recountQuery = recountQuery.gt("created_at", config.purchaseCapsResetAt);
+    const recount = await recountQuery;
     if (recount.error) { await supabase.from("rec_custom_player_builds").delete().eq("id", build.data.id); await supabase.from("rec_purchases").delete().eq("id", purchase.data.id); throw new ApiError(500, "We couldn't verify the season purchase cap. Please try again.", recount.error); }
     if ((recount.count ?? 0) > config.seasonCap) {
       await supabase.from("rec_custom_player_builds").delete().eq("id", build.data.id);

@@ -135,16 +135,12 @@ function labelTrait(value: string): string {
   return "Normal";
 }
 
-function renderTreeNode(node: ImmortalityProgressionNode, selectedNodeKey: string | null, onSelect: (key: string) => void) {
+function renderTreeNode(node: ImmortalityProgressionNode, onSelect: (key: string) => void) {
   return (
     <button
       key={node.key}
       type="button"
-      className={[
-        "rise-tree-node",
-        node.owned ? "is-owned" : node.canPurchase ? "is-available" : "is-locked",
-        selectedNodeKey === node.key ? "is-selected" : "",
-      ].filter(Boolean).join(" ")}
+      className={["rise-tree-node", node.owned ? "is-owned" : node.canPurchase ? "is-available" : "is-locked"].filter(Boolean).join(" ")}
       onClick={() => onSelect(node.key)}
     >
       <span className="rise-tree-node-badge">{node.displayName.slice(0, 1)}</span>
@@ -154,16 +150,58 @@ function renderTreeNode(node: ImmortalityProgressionNode, selectedNodeKey: strin
   );
 }
 
+// Node detail used to live inline below the tree (select a node, scroll down to see the detail
+// panel and Buy button) -- on mobile, with a wide horizontally-scrolling tree, that meant a tap
+// followed by a hunt for a panel that may not even be on screen. A modal keeps the breakdown,
+// current XP balance, and purchase button right where the tap happened, on every viewport.
+function TreeNodeModal({
+  node, currentXp, busy, onBuy, onClose,
+}: {
+  node: ImmortalityProgressionNode;
+  currentXp: number;
+  busy: string | null;
+  onBuy: (key: string, displayName: string, xpCost: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="site-modal" role="dialog" aria-modal="true" aria-labelledby="rise-tree-node-title">
+      <div className="site-modal-panel rise-tree-node-modal">
+        <button type="button" className="site-modal-close" aria-label="Close" onClick={onClose}>×</button>
+        <h2 id="rise-tree-node-title">{node.displayName}</h2>
+        <p className="site-muted">Tier {node.tier}{node.branch ? ` · ${node.branch.replaceAll("_", " ")}` : ""}</p>
+        <p>{node.effect}</p>
+        {node.blockedReason ? <p className="site-muted">{node.blockedReason}</p> : null}
+        <div className="rise-tree-node-modal-balance">
+          <span>Your balance</span>
+          <strong>{currentXp} XP</strong>
+        </div>
+        <div className="site-modal-actions">
+          {node.owned ? (
+            <span className="rise-stock rise-stock-rising">Owned</span>
+          ) : (
+            <button type="button" className="site-btn site-btn-primary"
+              disabled={busy !== null || !node.canPurchase}
+              onClick={() => onBuy(node.key, node.displayName, node.xpCost)}>
+              {busy === node.key ? "Buying…" : `Buy — ${node.xpCost} XP`}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TreeGrid({
-  nodes, tiers, selectedNodeKey, setSelectedNodeKey, busy, onBuy,
+  nodes, tiers, currentXp, busy, onBuy,
 }: {
   nodes: ImmortalityProgressionNode[];
   tiers: readonly number[];
-  selectedNodeKey: string | null;
-  setSelectedNodeKey: (value: string | null) => void;
+  currentXp: number;
   busy: string | null;
   onBuy: (key: string, displayName: string, xpCost: number) => void;
 }) {
+  const [openNodeKey, setOpenNodeKey] = useState<string | null>(null);
+  const openNode = nodes.find((node) => node.key === openNodeKey) ?? null;
   return (
     <>
       <div className="rise-tree">
@@ -187,41 +225,27 @@ function TreeGrid({
                     <div key={laneKey} className="rise-tree-lane">
                       <p className="rise-tree-lane-label">{laneKey.replaceAll("_", " ")}</p>
                       <div className="rise-tree-row rise-tree-row-lane">
-                        {laneNodes.map((node) => renderTreeNode(node, selectedNodeKey, setSelectedNodeKey))}
+                        {laneNodes.map((node) => renderTreeNode(node, setOpenNodeKey))}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="rise-tree-row">{tierNodes.map((node) => renderTreeNode(node, selectedNodeKey, setSelectedNodeKey))}</div>
+                <div className="rise-tree-row">{tierNodes.map((node) => renderTreeNode(node, setOpenNodeKey))}</div>
               )}
             </div>
           );
         })}
       </div>
-      {(() => {
-        const detail = nodes.find((node) => node.key === selectedNodeKey) ?? null;
-        if (!detail) return <p className="site-muted rise-tree-detail-hint">Select a node above for details.</p>;
-        return (
-          <div className="rise-tree-detail">
-            <div className="rise-tree-detail-head">
-              <strong>{detail.displayName}</strong>
-              <span className={`rise-stock ${detail.owned ? "rise-stock-rising" : "rise-stock-holding"}`}>
-                {detail.owned ? "Owned" : `${detail.xpCost} XP`}
-              </span>
-            </div>
-            <p className="site-muted">{detail.effect}</p>
-            {detail.blockedReason ? <p className="site-muted">{detail.blockedReason}</p> : null}
-            {detail.owned ? null : (
-              <button type="button" className="site-btn site-btn-primary"
-                disabled={busy !== null || !detail.canPurchase}
-                onClick={() => onBuy(detail.key, detail.displayName, detail.xpCost)}>
-                {busy === detail.key ? "Buying…" : `Buy — ${detail.xpCost} XP`}
-              </button>
-            )}
-          </div>
-        );
-      })()}
+      {openNode ? (
+        <TreeNodeModal
+          node={openNode}
+          currentXp={currentXp}
+          busy={busy}
+          onBuy={(key, displayName, xpCost) => { onBuy(key, displayName, xpCost); setOpenNodeKey(null); }}
+          onClose={() => setOpenNodeKey(null)}
+        />
+      ) : null}
     </>
   );
 }
@@ -238,7 +262,6 @@ function PlayerProgressionBody({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [teammateId, setTeammateId] = useState(() => state.teammates[0]?.playerId ?? "");
-  const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const teammate = state.teammates.find((row) => row.playerId === teammateId) ?? null;
   const tiers = [2, 3, 4] as const;
 
@@ -328,7 +351,7 @@ function PlayerProgressionBody({
             )}
           </div>
         </div>
-        <TreeGrid nodes={state.nodes} tiers={tiers} selectedNodeKey={selectedNodeKey} setSelectedNodeKey={setSelectedNodeKey} busy={busy} onBuy={buyPerk} />
+        <TreeGrid nodes={state.nodes} tiers={tiers} currentXp={state.playerXp} busy={busy} onBuy={buyPerk} />
       </section>
 
       <section className="rise-card">
@@ -392,7 +415,6 @@ function OwnerProgressionBody({
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [investAmount, setInvestAmount] = useState("");
   const [coachTargetId, setCoachTargetId] = useState(() => state.eligibleAbilityCoachTargets[0]?.prospectId ?? "");
   const tiers = [2, 3, 4] as const;
@@ -452,7 +474,7 @@ function OwnerProgressionBody({
       <section className="rise-card rise-tree-card">
         <h2>Franchise Pillar Tree</h2>
         <p className="site-muted">Tap a node to see what it does. Three lanes -- Personnel Authority, Player Development, Organizational Influence -- converge on one shared capstone; four more mastery perks unlock past it.</p>
-        <TreeGrid nodes={state.nodes} tiers={tiers} selectedNodeKey={selectedNodeKey} setSelectedNodeKey={setSelectedNodeKey} busy={busy} onBuy={buyPerk} />
+        <TreeGrid nodes={state.nodes} tiers={tiers} currentXp={state.ownerXp} busy={busy} onBuy={buyPerk} />
       </section>
 
       <section className="rise-card">

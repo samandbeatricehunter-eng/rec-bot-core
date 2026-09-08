@@ -10,6 +10,9 @@ import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commiss
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 import { getLeagueDataMode } from "./data-mode.service.js";
+import { isAvailabilityFullySet } from "../scheduling/availability.service.js";
+import { isPayoutsHeldForAvailability } from "../scheduling/availability-compliance.service.js";
+import { auditEaImportData, type ImportAuditReport } from "../madden-ea/import-audit.service.js";
 import {
   evalTeamStat,
   evaluateImportPlayerBonus,
@@ -230,11 +233,9 @@ async function buildEosItems(leagueId: string, seasonNumber: number, game: Leagu
   ];
 }
 
-// Shared by the commissioner-triggered `prepareEosPayouts` (which gates on season stage)
-// and the automatic advance-time trigger (which already knows it's the right moment and
-// would otherwise re-fetch a season_stage that's already flipped past eligible — see
-// autoPrepareEosPayouts below). Safe to call repeatedly: only replaces items still "pending",
-// never touches ones already approved/issued/denied.
+// The actual batch build/refresh, shared by every commissioner-triggered entry point
+// (prepareEosPayouts, wipeAndRerunEosLedger). Safe to call repeatedly: only replaces items
+// still "pending", never touches ones already approved/issued/denied.
 async function prepareEosPayoutsForLeague(guildId: string, leagueId: string, game: LeagueGame, seasonNumber: number, requestedByDiscordId: string) {
   const batch = await loadOrCreateBatch(guildId, leagueId, seasonNumber, requestedByDiscordId);
   const existingIssued = await supabase
@@ -288,14 +289,6 @@ export async function prepareEosPayouts(input: { guildId: string; requestedByDis
   }
   const seasonNumber = resolveSeasonNumber(context);
   return prepareEosPayoutsForLeague(input.guildId, context.leagueId, context.rec_leagues.game, seasonNumber, input.requestedByDiscordId);
-}
-
-// Called from completeAdvanceWeek once postseason play ends (Madden: advancing out of the
-// terminal stage into the offseason) or, for CFB — which has no offseason stages yet — once
-// the league advances past week 16. Re-runs on every subsequent advance past that point too,
-// so the ledger keeps reflecting the latest playoff results until a commissioner approves it.
-export async function autoPrepareEosPayouts(input: { guildId: string; leagueId: string; game: LeagueGame; seasonNumber: number; requestedByDiscordId: string }) {
-  return prepareEosPayoutsForLeague(input.guildId, input.leagueId, input.game, input.seasonNumber, input.requestedByDiscordId);
 }
 
 // Wipes every not-yet-issued item off the league's current EOS batch, clears its
@@ -356,6 +349,114 @@ export async function projectEosPayouts(input: { guildId: string }) {
     },
     items: withDiscord,
     totalAmount,
+  };
+}
+
+export type EosReadinessAvailabilityFlag = {
+  userId: string;
+  discordId: string | null;
+  displayName: string;
+  teamName: string | null;
+  payoutsHeld: boolean; // already past the warning threshold -- payouts get backlogged, not paid, until resolved
+  availabilityFullySet: boolean; // false = at risk of tipping into a hold on the next advance, even if not held yet
+  warningCount: number;
+};
+
+export type EosReadinessReport = {
+  seasonNumber: number;
+  currentWeek: number;
+  seasonStage: string;
+  game: LeagueGame;
+  projectedItems: Array<Record<string, unknown>>;
+  projectedTotal: number;
+  availabilityFlags: EosReadinessAvailabilityFlag[];
+  statsImport: ImportAuditReport | null; // null = not applicable (only Madden leagues import from EA)
+  summary: string;
+};
+
+// EOS Audit/Review (Tools > Economy > EOS Payouts): a read-only, run-anytime preview a
+// commissioner can check before actually running payouts -- what would pay out right now, who's
+// at risk of having it held for missing availability, and whether the underlying stat import has
+// any gaps that would make a projected payout wrong. Never creates or touches a payout batch.
+export async function auditEosPayoutReadiness(input: { guildId: string }): Promise<EosReadinessReport> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const seasonNumber = resolveSeasonNumber(context);
+  const game = context.rec_leagues.game;
+  const currentWeek = Number(context.rec_leagues.current_week ?? 1);
+  const seasonStage = String(context.rec_leagues.season_stage ?? "regular_season");
+
+  const projected = await projectEosPayouts({ guildId: input.guildId });
+
+  // Every actively assigned user, not just ones with a projected payout -- someone with zero
+  // qualifying stats this season should still surface their availability status.
+  const assignments = await supabase.from("rec_team_assignments")
+    .select("user_id,team:rec_teams(name)")
+    .eq("league_id", context.leagueId).eq("assignment_status", "active").is("ended_at", null);
+  if (assignments.error) throw new ApiError(500, "We couldn't load team assignments for the readiness audit.", assignments.error);
+  const userIdSet = new Set<string>();
+  for (const row of (assignments.data ?? []) as any[]) userIdSet.add(String(row.user_id));
+  const userIds: string[] = Array.from(userIdSet);
+  const teamByUser = new Map<string, string | null>(
+    (assignments.data ?? []).map((row: any) => [String(row.user_id), Array.isArray(row.team) ? row.team[0]?.name ?? null : row.team?.name ?? null]),
+  );
+
+  const [accounts, users, complianceRows] = await Promise.all([
+    userIds.length ? supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", userIds) : Promise.resolve({ data: [] as any[], error: null }),
+    userIds.length ? supabase.from("rec_users").select("id,display_name").in("id", userIds) : Promise.resolve({ data: [] as any[], error: null }),
+    userIds.length ? supabase.from("rec_availability_compliance").select("user_id,warning_count").eq("league_id", context.leagueId).in("user_id", userIds) : Promise.resolve({ data: [] as any[], error: null }),
+  ]);
+  const discordByUser = new Map<string, string | null>((accounts.data ?? []).map((row: any) => [row.user_id, row.discord_id]));
+  const nameByUser = new Map<string, string>((users.data ?? []).map((row: any) => [row.id, row.display_name]));
+  const warningByUser = new Map<string, number>((complianceRows.data ?? []).map((row: any) => [row.user_id, Number(row.warning_count ?? 0)]));
+
+  const availabilityFlags: EosReadinessAvailabilityFlag[] = [];
+  for (const userId of userIds) {
+    const [fullySet, held] = await Promise.all([
+      isAvailabilityFullySet(userId, context.leagueId),
+      isPayoutsHeldForAvailability(userId, context.leagueId),
+    ]);
+    if (!fullySet || held) {
+      availabilityFlags.push({
+        userId,
+        discordId: discordByUser.get(userId) ?? null,
+        displayName: nameByUser.get(userId) ?? "REC Member",
+        teamName: teamByUser.get(userId) ?? null,
+        payoutsHeld: held,
+        availabilityFullySet: fullySet,
+        warningCount: warningByUser.get(userId) ?? 0,
+      });
+    }
+  }
+
+  let statsImport: ImportAuditReport | null = null;
+  if (String(game ?? "").startsWith("madden")) {
+    statsImport = await auditEaImportData(input.guildId, context.leagueId).catch((error) => {
+      console.error("[ERROR] EOS readiness audit: stats-import check failed (non-fatal):", error);
+      return null;
+    });
+  }
+
+  const heldCount = availabilityFlags.filter((flag) => flag.payoutsHeld).length;
+  const atRiskCount = availabilityFlags.filter((flag) => !flag.payoutsHeld && !flag.availabilityFullySet).length;
+  const importIssues = statsImport?.issueCount ?? 0;
+  const summaryParts = [
+    `${projected.items.length} projected payout item${projected.items.length === 1 ? "" : "s"} totaling ${formatCoins(projected.totalAmount)} as of right now (${seasonStage === "regular_season" ? `Week ${currentWeek}` : seasonStage}).`,
+  ];
+  if (heldCount) summaryParts.push(`${heldCount} user${heldCount === 1 ? "" : "s"} will have payouts held for missing availability.`);
+  if (atRiskCount) summaryParts.push(`${atRiskCount} more ${atRiskCount === 1 ? "is" : "are"} at risk (availability not fully set, but not held yet).`);
+  if (statsImport) summaryParts.push(importIssues ? `${importIssues} stat-import gap${importIssues === 1 ? "" : "s"} found through the current week.` : "No stat-import gaps found.");
+  if (!heldCount && !atRiskCount && (!statsImport || !importIssues)) summaryParts.push("Nothing to flag — looks ready to run.");
+
+  return {
+    seasonNumber,
+    currentWeek,
+    seasonStage,
+    game,
+    projectedItems: projected.items,
+    projectedTotal: projected.totalAmount,
+    availabilityFlags,
+    statsImport,
+    summary: summaryParts.join(" "),
   };
 }
 

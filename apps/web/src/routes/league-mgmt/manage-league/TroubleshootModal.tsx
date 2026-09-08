@@ -12,6 +12,7 @@ import { RepairGameChannelsModal } from "./RepairGameChannelsModal.js";
 import { ManageGameWagersModal } from "./ManageGameWagersModal.js";
 import { ManageGotwToolsModal } from "./ManageGotwToolsModal.js";
 import { ResetSpendCapModal } from "./ResetSpendCapModal.js";
+import { EosPayoutsToolsModal } from "./EosPayoutsToolsModal.js";
 import { EA_ADMIN_TOOLS } from "./EaAdminActionsGroup.js";
 
 type AuditReport = Awaited<ReturnType<typeof recApi.auditMaddenEaImport>>;
@@ -40,6 +41,7 @@ export function TroubleshootModal({
   const [wagersOpen, setWagersOpen] = useState(false);
   const [gotwOpen, setGotwOpen] = useState(false);
   const [resetCapOpen, setResetCapOpen] = useState(false);
+  const [eosPayoutsOpen, setEosPayoutsOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   if (repairOpen) {
@@ -56,6 +58,7 @@ export function TroubleshootModal({
   }
   if (wagersOpen) return <ManageGameWagersModal guildId={guildId} onClose={() => setWagersOpen(false)} onDone={(message) => { setWagersOpen(false); setNotice(message); }} />;
   if (resetCapOpen) return <ResetSpendCapModal guildId={guildId} onClose={() => setResetCapOpen(false)} onDone={(message) => { setResetCapOpen(false); setNotice(message); }} />;
+  if (eosPayoutsOpen) return <EosPayoutsToolsModal guildId={guildId} onClose={() => setEosPayoutsOpen(false)} />;
   if (gotwOpen) {
     return (
       <ManageGotwToolsModal
@@ -120,6 +123,13 @@ export function TroubleshootModal({
               cap, so they can spend a fresh budget.
             </p>
             <Button variant="secondary" onClick={() => setResetCapOpen(true)}><Coins size={14} /> Open Reset Tool</Button>
+          </CollapsibleSection>
+          <CollapsibleSection title="EOS Payouts">
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              Run end-of-season payouts, wipe and recalculate an open batch, or preview projected payouts
+              and any readiness issues before running them.
+            </p>
+            <Button variant="secondary" onClick={() => setEosPayoutsOpen(true)}><Coins size={14} /> Open EOS Payouts</Button>
           </CollapsibleSection>
         </ToolGroup>
         {leagueId && (

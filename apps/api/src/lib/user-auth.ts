@@ -1,5 +1,6 @@
 import type { FastifyRequest } from "fastify";
 import { createClient } from "@supabase/supabase-js";
+import WebSocket from "ws";
 import { jwtVerify } from "jose";
 import { classifyGuildRoleNames } from "@rec/shared";
 import { env } from "../config/env.js";
@@ -31,10 +32,17 @@ function getActivityJwtSecret(): Uint8Array {
   return new TextEncoder().encode(env.ACTIVITY_JWT_SECRET);
 }
 
+// Node has no native WebSocket before v22 — without an explicit transport, constructing this
+// client throws immediately on import on older Node (see lib/supabase.ts and
+// league-context.service.ts, which already set this for the same reason).
+const webSocketTransport = WebSocket as unknown as typeof globalThis.WebSocket;
 const supabaseAuth = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: {
     persistSession: false,
     autoRefreshToken: false,
+  },
+  realtime: {
+    transport: webSocketTransport,
   },
 });
 

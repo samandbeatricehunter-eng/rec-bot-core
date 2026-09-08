@@ -22,6 +22,7 @@ import type {
   EosAwardPoll,
   EosAwardVotingPoll,
   EosBallotSessionInfo,
+  EosReadinessReport,
   GotwCandidate,
   GotwPollStatus,
   MyEosPayoutProgress,
@@ -1006,6 +1007,8 @@ export const recApi = {
     recApiFetch<unknown>("/v1/league-week/eos-payouts/issue-batch", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   prepareEosPayouts: (input: { guildId: string }) =>
     recApiFetch<unknown>("/v1/league-week/eos-payouts/prepare", { method: "POST", body: JSON.stringify({ ...input, requestedByDiscordId: "web-dashboard" }) }),
+  auditEosPayoutReadiness: (input: { guildId: string }) =>
+    recApiFetch<EosReadinessReport>("/v1/league-week/eos-payouts/audit", { method: "POST", body: JSON.stringify(input) }),
 
   // Active Check resolve view
   getActiveCheckReview: (input: { guildId: string; eventId: string }) =>

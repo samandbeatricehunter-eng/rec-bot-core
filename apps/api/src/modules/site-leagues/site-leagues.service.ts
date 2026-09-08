@@ -332,7 +332,11 @@ export async function listMySiteLeagues(input: {
         league.riseHubUnlocked = riseHubUnlocked(chapter) || originsComplete;
         league.rtiOriginsComplete = originsComplete;
         league.rtiStoreUnlocked = gameplaySeasonStages(game).has(stage);
-        league.rtiRostersUnlocked = String(row.fantasy_draft_status ?? "") === "concluded" && Boolean(row.rti_rosters_imported);
+        // fantasy_draft_status never reaches "concluded" for RTI leagues -- RTI's roster fill
+        // isn't the literal fantasy-draft flow that column tracks (see the matching fix and
+        // comment in xp-awards.service.ts's loadRtiMemberGates). rti_rosters_imported alone is
+        // the real signal.
+        league.rtiRostersUnlocked = Boolean(row.rti_rosters_imported);
         league.rtiTradesUnlocked = false;
       } else {
         league.riseChapterState = null;

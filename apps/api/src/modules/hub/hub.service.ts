@@ -935,7 +935,6 @@ async function loadHub(guildId: string, discordId: string) {
         userId,
         seasonStage,
         game: context.rec_leagues.game,
-        fantasyDraftStatus: context.rec_leagues.fantasy_draft_status ?? "not_applicable",
       })).catch(() => null) : null,
     },
     canManageLeague,

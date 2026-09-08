@@ -10,7 +10,6 @@ import { Button } from "../../../components/ui/Button.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { ChannelSettings } from "./ChannelSettings.js";
-import { EosPayoutMaintenance } from "./EosPayoutMaintenance.js";
 import { WagerMaintenance } from "./WagerMaintenance.js";
 import { TransactionMaintenance } from "./TransactionMaintenance.js";
 import { CfbRosterMaintenance } from "./CfbRosterMaintenance.js";
@@ -193,7 +192,7 @@ export function SettingsHome() {
           </div>
           {game.startsWith("madden_") ? <MaddenCompanionSettings leagueId={String(draft.leagueId ?? "")} game={game} /> : null}
         </>
-      ) : category.key === "moderation" ? <ModerationSettings /> : category.key === EOS_PAYOUTS_KEY ? <><EosPayoutMaintenance /><WagerMaintenance /><TransactionMaintenance />{game === "cfb_27" ? <CfbRosterMaintenance /> : null}</> : category.key === RETIRE_KEY ? (
+      ) : category.key === "moderation" ? <ModerationSettings /> : category.key === EOS_PAYOUTS_KEY ? <><WagerMaintenance /><TransactionMaintenance />{game === "cfb_27" ? <CfbRosterMaintenance /> : null}</> : category.key === RETIRE_KEY ? (
         <RetireSettings />
       ) : category.key === DELETE_LEAGUE_KEY ? (
         <DeleteLeagueHome />

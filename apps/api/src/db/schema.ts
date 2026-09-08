@@ -1087,6 +1087,12 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   ageResetsSeasonCap: integer("age_resets_season_cap").notNull().default(0),
   playerTraitPurchasesSeasonCap: integer("player_trait_purchases_season_cap").notNull().default(0),
   contractPurchasesSeasonCap: integer("contract_purchases_season_cap").notNull().default(0),
+  // Cap-counting cutoff: purchases at or before this moment stop counting toward every
+  // count-based season cap above. Set when the league advances out of the Super Bowl /
+  // national-championship stage into the first offseason stage (see
+  // resetLeaguePurchaseCapsForOffseason in purchases.service.ts) -- gives a fresh offseason
+  // allotment without touching season_number, which only advances on entering preseason.
+  purchaseCapsResetAt: timestamp("purchase_caps_reset_at", { withTimezone: true, mode: "string" }),
   coreAttributePurchasesSeasonCap: integer("core_attribute_purchases_season_cap").notNull().default(0),
   nonCoreAttributePurchasesSeasonCap: integer("non_core_attribute_purchases_season_cap").notNull().default(0),
   coreAttributeGroupCap: integer("core_attribute_group_cap").notNull().default(0),

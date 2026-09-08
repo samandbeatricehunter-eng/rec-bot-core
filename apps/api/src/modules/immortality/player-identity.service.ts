@@ -165,11 +165,51 @@ export async function reconcileRtiProspectIdentities(leagueId: string): Promise<
   const now = new Date().toISOString();
 
   for (const prospect of prospects.data as ProspectIdentityRow[]) {
-    const player = await supabase.from("rec_players")
-      .select("id,team_id,roster_status,madden_player_id,full_name")
+    let player = await supabase.from("rec_players")
+      .select("id,team_id,roster_status,madden_player_id,full_name,photo_url")
       .eq("id", prospect.player_id)
       .maybeSingle();
     if (player.error || !player.data) continue;
+
+    // Self-heal path: ea-direct-writer.ts / madden-companion.canonical.ts are supposed to adopt
+    // a real EA roster row onto this exact placeholder IN PLACE (see this module's doc comment),
+    // but if that adoption ever misses -- team resolution not ready yet, a duplicate-key race,
+    // etc. -- the import instead inserts a SEPARATE new row with the real numeric madden_player_id
+    // and leaves this placeholder orphaned (usually roster_status flips to 'removed' once the real
+    // roster no longer lists the synthetic entry). Confirmed live in M27 RTI (2026-09-08): a
+    // prospect stayed linked to an orphaned placeholder while the real active row -- with a full
+    // week's real stats already attached -- sat unlinked, showing as "Identity Not Found" and a
+    // blank Season Snapshot despite the player existing and having played. Detect and repair that
+    // here (before computing this prospect's status) instead of just reporting "missing" for a
+    // player who, from the coach's perspective, obviously already exists in-game.
+    if (!isNumericId(player.data.madden_player_id)) {
+      const orphanCandidate = await getPgPool().query<{ id: string; photo_url: string | null }>(
+        `select id, photo_url from rec_players
+         where team_id = $1 and lower(full_name) = lower($2) and id <> $3
+           and roster_status = 'active' and madden_player_id ~ '^[0-9]+$'
+         limit 2`,
+        [player.data.team_id, player.data.full_name ?? "", player.data.id],
+      );
+      if (orphanCandidate.rows.length === 1) {
+        const target = orphanCandidate.rows[0];
+        // Carry forward whatever photo the coach had set on the placeholder (a real custom
+        // upload, or just the same starter stand-in the new row also got) -- a custom upload
+        // must never be silently dropped by an import creating a fresh row.
+        if (player.data.photo_url && player.data.photo_url !== target.photo_url) {
+          await supabase.from("rec_players").update({ photo_url: player.data.photo_url, updated_at: now }).eq("id", target.id);
+        }
+        await supabase.from("rec_immortality_prospects").update({ player_id: target.id, updated_at: now }).eq("id", prospect.id);
+        player = await supabase.from("rec_players")
+          .select("id,team_id,roster_status,madden_player_id,full_name,photo_url")
+          .eq("id", target.id)
+          .maybeSingle();
+        if (player.error || !player.data) continue;
+        // Regrading here (before identity_status is updated below) would be a no-op --
+        // gradeProspectForWeek gates on identity_status, which in the DB is still whatever it
+        // was before this self-heal until the update further down commits "verified". The
+        // regrade call below (after that commit) is what actually catches this prospect up.
+      }
+    }
 
     const wasStatus: IdentityStatus = prospect.identity_status ?? "synthetic";
     const numericId = isNumericId(player.data.madden_player_id);
@@ -204,6 +244,16 @@ export async function reconcileRtiProspectIdentities(leagueId: string): Promise<
       update.identity_note = note;
     }
     await supabase.from("rec_immortality_prospects").update(update).eq("id", prospect.id);
+
+    // Newly verified (from any other status, including via the self-heal above): catch up on
+    // every completed week this prospect's identity was too broken to grade. Regardless of
+    // guildId -- this is about game stats, not Discord notifications, so it must not be skipped
+    // just because server routes haven't been resolved.
+    if (target === "verified" && wasStatus !== "verified") {
+      await regradeProspectHistory({ leagueId, prospectId: prospect.id }).catch((error) => {
+        console.error(`[ERROR] Regrade after identity verification failed for prospect ${prospect.id} (non-fatal):`, error);
+      });
+    }
 
     if (!guildId) continue;
     if (target === "verified") {

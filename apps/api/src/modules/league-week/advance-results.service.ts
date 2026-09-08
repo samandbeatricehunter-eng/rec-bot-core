@@ -27,7 +27,6 @@ import { recordHubAnnouncement } from "../hub/hub.service.js";
 import { autoAssignGotwForWeek, createGotwPoll, settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { scoreWeekGotwCandidates } from "../gotw/gotw-nomination.service.js";
 import { syncDraftOrderFromLeagueStandings } from "../draft-picks/draft-picks.service.js";
-import { autoPrepareEosPayouts } from "./eos-payouts.service.js";
 import { autoPrepareEosAwards, closeAndSettleEosAwardVoting } from "./eos-awards.service.js";
 import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
 import { writeAuditLog } from "../audit/audit.service.js";
@@ -38,6 +37,7 @@ import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { updateAdvanceProgress } from "./advance-progress.service.js";
 import { getSchedulingPayoutMultiplier, topUpOtherWeeklyPayoutsForSchedulingBonus } from "../scheduling/scheduling-bonus.service.js";
 import { snapshotNflPlayoffBracket } from "../standings/nfl-bracket.service.js";
+import { resetLeaguePurchaseCapsForOffseason } from "../purchases/purchases.service.js";
 import { eaForceAwayWin, eaForceHomeWin, eaForceNoWin } from "../madden-ea/ea-admin-actions.service.js";
 
 const PURCHASE_DEADLINE_LABELS: Record<string, string> = {
@@ -1094,20 +1094,14 @@ export async function completeAdvanceWeek(input: {
     });
   }
 
-  // EOS payouts: automatic for every league, firing once postseason play actually ends —
-  // advancing out of the terminal stage (super_bowl/national_championship) into the first
-  // offseason stage (coach_hiring for Madden, players_leaving for CFB's dynasty pipeline).
+  // Postseason-end boundary — advancing out of the terminal stage (super_bowl/
+  // national_championship) into the first offseason stage (coach_hiring for Madden,
+  // players_leaving for CFB's dynasty pipeline). EOS payouts used to auto-fire here too, but
+  // that's now a manual commissioner action (Tools > Economy > EOS Payouts > Run EOS Payouts) —
+  // see purchases.service.ts's resetLeaguePurchaseCapsForOffseason and eos-payouts.service.ts's
+  // prepareEosPayouts for the pieces that still run off this same boundary.
   const isPostseasonEnd = isTerminalSeasonStage(String(context.rec_leagues.season_stage ?? ""), context.rec_leagues.game)
     && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game);
-  if (isPostseasonEnd) {
-    await autoPrepareEosPayouts({
-      guildId: input.guildId,
-      leagueId: context.leagueId,
-      game: context.rec_leagues.game,
-      seasonNumber,
-      requestedByDiscordId: input.advancedByDiscordId,
-    }).catch((err) => console.error("[ERROR] autoPrepareEosPayouts failed after advance (non-fatal):", err));
-  }
 
   // EOS Awards: auto-issues Best Passing/Rushing/Defense outright and opens the 3 web
   // voting polls (MVP, Best User Skills, Most Heart) on the same postseason-end boundary
@@ -1115,6 +1109,19 @@ export async function completeAdvanceWeek(input: {
   // see the settle trigger further below, which fires when the league advances OUT of it.
   if (isPostseasonEnd) {
     await autoPrepareEosAwards(input.guildId).catch((err) => console.error("[ERROR] autoPrepareEosAwards failed after advance (non-fatal):", err));
+  }
+
+  // Purchase caps (age resets, dev upgrades, contracts, custom players, legends, attribute
+  // points) get a fresh offseason allotment on the same postseason-end boundary — announce it
+  // to the same Announcements channel every other advance headline goes to.
+  if (isPostseasonEnd) {
+    await resetLeaguePurchaseCapsForOffseason({ guildId: input.guildId, resetByDiscordId: input.advancedByDiscordId })
+      .then(() => recordHubAnnouncement({
+        guildId: input.guildId,
+        title: "Purchase Caps Have Reset",
+        body: "The postseason has ended — every purchase cap (age resets, dev upgrades, contracts, custom players, legends, and attribute points) has refreshed with a fresh offseason allotment.",
+      }))
+      .catch((err) => console.error("[ERROR] resetLeaguePurchaseCapsForOffseason failed after advance (non-fatal):", err));
   }
 
   // Playoff bracket snapshot: the live bracket page (public, member-visible) naturally hides

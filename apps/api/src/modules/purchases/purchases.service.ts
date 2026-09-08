@@ -40,15 +40,19 @@ async function activeTeamIdForUser(leagueId: string, userId: string): Promise<st
   return assignment.data?.team_id ? String(assignment.data.team_id) : null;
 }
 
-async function countLegendSlotsForTeam(leagueId: string, teamId: string, seasonNumber: number): Promise<number> {
+async function countLegendSlotsForTeam(leagueId: string, teamId: string, seasonNumber: number, capsResetAt?: string | null): Promise<number> {
   const [purchases, roster] = await Promise.all([
-    supabase
-      .from("rec_purchases")
-      .select("team_id,details")
-      .eq("league_id", leagueId)
-      .eq("purchase_type", "legend")
-      .eq("season_number", seasonNumber)
-      .in("status", ACTIVE_STATUSES as unknown as string[]),
+    (() => {
+      let query = supabase
+        .from("rec_purchases")
+        .select("team_id,details")
+        .eq("league_id", leagueId)
+        .eq("purchase_type", "legend")
+        .eq("season_number", seasonNumber)
+        .in("status", ACTIVE_STATUSES as unknown as string[]);
+      if (capsResetAt) query = query.gt("created_at", capsResetAt);
+      return query;
+    })(),
     supabase
       .from("rec_players")
       .select("full_name,raw_payload")
@@ -527,11 +531,13 @@ async function normalizeDevUpgradeDetails(details: Record<string, unknown>, leag
 /** Total tier-rungs a team's dev-upgrade purchases have crossed so far this season, e.g. a
  *  single Star->X-Factor purchase counts as 2 (Star->Superstar, Superstar->X-Factor), same as
  *  two separate one-tier purchases would. */
-async function usedDevUpgradeTierSteps(args: { leagueId: string; teamId: string; seasonNumber: number; game: string }): Promise<number> {
+async function usedDevUpgradeTierSteps(args: { leagueId: string; teamId: string; seasonNumber: number; game: string; capsResetAt?: string | null }): Promise<number> {
   const order = devTierOrderForGame(args.game);
-  const existing = await supabase.from("rec_purchases").select("details")
+  let query = supabase.from("rec_purchases").select("details")
     .eq("league_id", args.leagueId).eq("team_id", args.teamId).eq("purchase_type", "dev_upgrade").eq("season_number", args.seasonNumber)
     .in("status", ACTIVE_STATUSES as unknown as string[]);
+  if (args.capsResetAt) query = query.gt("created_at", args.capsResetAt);
+  const existing = await query;
   if (existing.error) throw new ApiError(500, "We couldn't check the development upgrade limit. Please try again.", existing.error);
   let steps = 0;
   for (const row of existing.data ?? []) {
@@ -551,14 +557,14 @@ async function usedDevUpgradeTierSteps(args: { leagueId: string; teamId: string;
  *  (details carries the same info structured, for a smarter follow-up prompt client-side). */
 async function enforceDevUpgradeTierStepCap(args: {
   leagueId: string; teamId: string; seasonNumber: number; game: string;
-  playerName: string; fromTier: RecDevTier; toTier: RecDevTier; cap: number;
+  playerName: string; fromTier: RecDevTier; toTier: RecDevTier; cap: number; capsResetAt?: string | null;
 }) {
   if (args.cap <= 0) return;
   const order = devTierOrderForGame(args.game);
   const fromIndex = order.indexOf(args.fromTier);
   const toIndex = order.indexOf(args.toTier);
   const requestedSteps = toIndex - fromIndex;
-  const used = await usedDevUpgradeTierSteps({ leagueId: args.leagueId, teamId: args.teamId, seasonNumber: args.seasonNumber, game: args.game });
+  const used = await usedDevUpgradeTierSteps({ leagueId: args.leagueId, teamId: args.teamId, seasonNumber: args.seasonNumber, game: args.game, capsResetAt: args.capsResetAt });
   const remaining = args.cap - used;
   if (requestedSteps <= remaining) return;
   if (remaining <= 0) {
@@ -590,7 +596,7 @@ export async function createPurchaseRequest(input: {
   const attrSelect = input.purchaseType === "attribute"
     ? ["core_attributes", "core_attribute_cap_overrides", "core_attribute_purchases_season_cap", "core_attribute_group_cap", "non_core_attribute_purchases_season_cap", "non_core_attribute_cap_overrides"]
     : [];
-  const selectCols = ["coin_economy_enabled", "purchase_deadlines", "purchase_deadlines_enabled", cfg.enabled, cfg.seasonCap, ...attrSelect].filter(Boolean).join(",");
+  const selectCols = ["coin_economy_enabled", "purchase_deadlines", "purchase_deadlines_enabled", "purchase_caps_reset_at", cfg.enabled, cfg.seasonCap, ...attrSelect].filter(Boolean).join(",");
   const config = await supabase
     .from("rec_league_configuration")
     .select(selectCols)
@@ -686,6 +692,7 @@ export async function createPurchaseRequest(input: {
   // both succeed, exceeding the cap. Run once now (fail fast, no wasted insert/debit for the
   // common non-racing case), and run again below AFTER the insert commits, when a concurrent
   // request's row (if any) is actually visible — that second call is the real guard.
+  const capsResetAt = (cfgRow.purchase_caps_reset_at as string | null | undefined) ?? null;
   async function enforceCaps() {
     if (input.purchaseType === "dev_upgrade") {
       if (!purchaseTeamId) throw new ApiError(400, "You need an active team to purchase a dev upgrade.");
@@ -694,6 +701,7 @@ export async function createPurchaseRequest(input: {
         playerName: String((details as any).playerName ?? "This player"),
         fromTier: (details as any).fromTier, toTier: (details as any).toTier,
         cap: Number(cfgRow.dev_upgrades_season_cap ?? 0),
+        capsResetAt,
       });
     } else if (input.purchaseType === "attribute") {
       await enforceAttributeCaps({
@@ -710,7 +718,7 @@ export async function createPurchaseRequest(input: {
     } else if (input.purchaseType === "legend" && cfg!.seasonCap && purchaseTeamId) {
       const cap = Number(cfgRow[cfg!.seasonCap!] ?? 0);
       if (cap > 0) {
-        const used = await countLegendSlotsForTeam(leagueId, purchaseTeamId, seasonNumber);
+        const used = await countLegendSlotsForTeam(leagueId, purchaseTeamId, seasonNumber, capsResetAt);
         if (used >= cap) {
           throw new ApiError(409, `This team has reached this season's legend cap (${cap}).`);
         }
@@ -719,7 +727,7 @@ export async function createPurchaseRequest(input: {
       // Count-based season cap: 0/absent ⇒ unlimited (the enabled flag governs availability).
       const cap = Number(cfgRow[cfg!.seasonCap!] ?? 0);
       if (cap > 0) {
-        const used = await supabase
+        let usedQuery = supabase
           .from("rec_purchases")
           .select("id", { count: "exact", head: true })
           .eq("league_id", leagueId)
@@ -727,6 +735,8 @@ export async function createPurchaseRequest(input: {
           .eq("purchase_type", input.purchaseType)
           .eq("season_number", seasonNumber)
           .in("status", ACTIVE_STATUSES as unknown as string[]);
+        if (capsResetAt) usedQuery = usedQuery.gt("created_at", capsResetAt);
+        const used = await usedQuery;
         if (used.error) throw new ApiError(500, "We couldn't check the season purchase limit. Please try again.", used.error);
         if ((used.count ?? 0) >= cap) {
           throw new ApiError(409, `You have reached this season's cap (${cap}) for ${label}.`);
@@ -780,7 +790,7 @@ export async function createPurchaseRequest(input: {
     if (input.purchaseType === "dev_upgrade") {
       const cap = Number(cfgRow.dev_upgrades_season_cap ?? 0);
       if (cap > 0 && purchaseTeamId) {
-        const used = await usedDevUpgradeTierSteps({ leagueId, teamId: purchaseTeamId, seasonNumber, game });
+        const used = await usedDevUpgradeTierSteps({ leagueId, teamId: purchaseTeamId, seasonNumber, game, capsResetAt });
         if (used > cap) {
           throw new ApiError(409, `This team's dev upgrade tier budget (${cap} this season) was just used up by another purchase.`);
         }
@@ -803,7 +813,7 @@ export async function createPurchaseRequest(input: {
     } else if (input.purchaseType === "legend" && cfg.seasonCap && purchaseTeamId) {
       const cap = Number(cfgRow[cfg.seasonCap] ?? 0);
       if (cap > 0) {
-        const used = await countLegendSlotsForTeam(leagueId, purchaseTeamId, seasonNumber);
+        const used = await countLegendSlotsForTeam(leagueId, purchaseTeamId, seasonNumber, capsResetAt);
         if (used > cap) {
           throw new ApiError(409, `This team has reached this season's legend cap (${cap}) — another request just filled the last slot.`);
         }
@@ -811,11 +821,13 @@ export async function createPurchaseRequest(input: {
     } else if (cfg.seasonCap) {
       const cap = Number(cfgRow[cfg.seasonCap] ?? 0);
       if (cap > 0) {
-        const used = await supabase
+        let usedQuery = supabase
           .from("rec_purchases")
           .select("id", { count: "exact", head: true })
           .eq("league_id", leagueId).eq("user_id", userId).eq("purchase_type", input.purchaseType).eq("season_number", seasonNumber)
           .in("status", ACTIVE_STATUSES as unknown as string[]);
+        if (capsResetAt) usedQuery = usedQuery.gt("created_at", capsResetAt);
+        const used = await usedQuery;
         if (used.error) throw new ApiError(500, "We couldn't verify the season purchase limit. Please try again.", used.error);
         if ((used.count ?? 0) > cap) {
           throw new ApiError(409, `You have reached this season's cap (${cap}) for ${label} — someone else's request just filled it.`);
@@ -1132,19 +1144,26 @@ export async function getUserPurchaseCounts(discordId: string, guildId: string) 
   const seasonNumber = resolveSeasonNumber(context);
   const teamId = await activeTeamIdForUser(context.leagueId, baseline.user.id);
 
-  const { data, error } = await supabase
-    .from("rec_purchases")
-    .select("purchase_type,status,season_number")
-    .eq("league_id", context.leagueId)
-    .eq("user_id", baseline.user.id);
+  const [{ data, error }, capsConfig] = await Promise.all([
+    supabase
+      .from("rec_purchases")
+      .select("purchase_type,status,season_number,created_at")
+      .eq("league_id", context.leagueId)
+      .eq("user_id", baseline.user.id),
+    supabase.from("rec_league_configuration").select("purchase_caps_reset_at").eq("league_id", context.leagueId).maybeSingle(),
+  ]);
   if (error) throw new ApiError(500, "We couldn't load purchase counts. Please try again.", error);
+  const capsResetAt = (capsConfig.data?.purchase_caps_reset_at as string | null | undefined) ?? null;
 
   const seasonActive: Record<string, number> = {};
   const allTimeSuccessful: Record<string, number> = {};
   for (const row of data ?? []) {
     const type = String(row.purchase_type);
     if (type === "legend") continue;
-    if (Number(row.season_number) === seasonNumber && (ACTIVE_STATUSES as unknown as string[]).includes(String(row.status))) {
+    const countsTowardCap = Number(row.season_number) === seasonNumber
+      && (ACTIVE_STATUSES as unknown as string[]).includes(String(row.status))
+      && (!capsResetAt || String(row.created_at) > capsResetAt);
+    if (countsTowardCap) {
       seasonActive[type] = (seasonActive[type] ?? 0) + 1;
     }
     if (row.status === "approved" || row.status === "fulfilled") {
@@ -1152,12 +1171,13 @@ export async function getUserPurchaseCounts(discordId: string, guildId: string) 
     }
   }
   if (teamId) {
-    seasonActive.legend = await countLegendSlotsForTeam(context.leagueId, teamId, seasonNumber);
+    seasonActive.legend = await countLegendSlotsForTeam(context.leagueId, teamId, seasonNumber, capsResetAt);
   } else {
     seasonActive.legend = (data ?? []).filter((row) =>
       String(row.purchase_type) === "legend"
       && Number(row.season_number) === seasonNumber
-      && (ACTIVE_STATUSES as unknown as string[]).includes(String(row.status)),
+      && (ACTIVE_STATUSES as unknown as string[]).includes(String(row.status))
+      && (!capsResetAt || String(row.created_at) > capsResetAt),
     ).length;
   }
   for (const row of data ?? []) {
@@ -1268,4 +1288,40 @@ export async function resetAttributeCapSpend(input: {
   if (upserted.error) throw new ApiError(500, "We couldn't reset the spend cap. Please try again.", upserted.error);
 
   return { userCount: targetUserIds.length, resetCount: rows.length, seasonNumber };
+}
+
+// Auto-fires when the league advances out of the Super Bowl / national-championship stage into
+// the first offseason stage (see advance-results.service.ts's isPostseasonEnd) -- gives every
+// count-based season cap (age resets, dev upgrades, contracts, custom players, legends) a fresh
+// offseason allotment. Deliberately does NOT touch season_number (that only advances on entering
+// preseason -- see league-week.service.ts). Legend caps still respect whatever's actually on a
+// team's roster (countLegendSlotsForTeam's roster fallback), so this can't be used to stack past
+// a team's real legend-slot limit -- it only clears out the *purchase-count* side of the cap.
+export async function resetLeaguePurchaseCapsForOffseason(input: { guildId: string; resetByDiscordId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const resetAt = new Date().toISOString();
+
+  const configUpdate = await supabase
+    .from("rec_league_configuration")
+    .update({ purchase_caps_reset_at: resetAt })
+    .eq("league_id", context.leagueId);
+  if (configUpdate.error) throw new ApiError(500, "We couldn't reset purchase caps for the offseason.", configUpdate.error);
+
+  // Attribute caps use their own per-user cutoff table (rec_attribute_cap_resets) -- reuse the
+  // same commissioner-tool path, resetting both categories for every active member.
+  const baseline = await getUserBaselineByDiscordId(input.resetByDiscordId).catch((err) => {
+    console.error("[ERROR] Failed to resolve the advancing user for the offseason purchase-cap reset (non-fatal):", err);
+    return null;
+  });
+  if (baseline) {
+    await resetAttributeCapSpend({
+      guildId: input.guildId,
+      categories: ["core", "non_core"],
+      resetByUserId: baseline.user.id,
+    }).catch((err) => {
+      console.error("[ERROR] Failed to reset attribute cap spend during offseason purchase-cap reset (non-fatal):", err);
+    });
+  }
+
+  return { reset: true, resetAt };
 }

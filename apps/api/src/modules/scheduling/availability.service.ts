@@ -107,6 +107,14 @@ export async function setRecurringWindowsForDay(input: {
 // setting one clears the other. Both use the same global/league-scoped fallback.
 export async function markAvailabilityDayUnavailable(input: { userId: string; leagueId: string | null; weekday: number }) {
   if (input.weekday < 0 || input.weekday > 6) throw new ApiError(400, "weekday must be 0-6.");
+  // A user with zero available days is unschedulable -- every game would need a Fair Sim/Force
+  // Win exception every week. Block marking the LAST remaining available day unavailable rather
+  // than silently accepting a fully-unavailable week (confirmed live: this used to go through).
+  const existingWindows = await getRecurringWindows(input.userId, input.leagueId);
+  const stillAvailableElsewhere = existingWindows.some((w) => w.weekday !== input.weekday);
+  if (!stillAvailableElsewhere) {
+    throw new ApiError(400, "You need at least one available day — this is the last one you have set. Add availability to another day first, or adjust this day's hours instead of marking it fully unavailable.");
+  }
   let delWindows = supabase.from("rec_user_availability_windows").delete().eq("user_id", input.userId).eq("weekday", input.weekday);
   delWindows = input.leagueId ? delWindows.eq("league_id", input.leagueId) : delWindows.is("league_id", null);
   const deletedWindows = await delWindows;
@@ -138,8 +146,13 @@ export async function getAvailabilityDayMarks(userId: string, leagueId: string |
   return new Set([...(scoped.data ?? []), ...(global.data ?? [])].map((r: any) => Number(r.weekday)));
 }
 
-// "Fully set" = a timezone AND, for every day of the week, at least one active window or an
-// explicit Unavailable mark (global or league-scoped) -- an untouched day counts as missing.
+// "Fully set" = a timezone, at least one actually-available day (an all-7-days-unavailable
+// profile is unschedulable and must never pass), AND every day of the week accounted for by
+// either an active window or an explicit Unavailable mark -- an untouched day counts as missing.
+// markAvailabilityDayUnavailable blocks creating an all-unavailable profile going forward, but
+// this is the check applyAvailabilityComplianceForAdvance sweeps with on every league advance --
+// it's what catches (and re-flags for pings/payout holds) anyone already in that state from
+// before that guard existed, or who reached it some other way.
 export async function isAvailabilityFullySet(userId: string, leagueId: string | null): Promise<boolean> {
   const profile = await getAvailabilityProfile(userId);
   if (!profile.timezone) return false;
@@ -147,6 +160,7 @@ export async function isAvailabilityFullySet(userId: string, leagueId: string | 
     getRecurringWindows(userId, leagueId),
     getAvailabilityDayMarks(userId, leagueId),
   ]);
+  if (!windows.length) return false;
   const windowedDays = new Set(windows.map((w) => w.weekday));
   for (let weekday = 0; weekday <= 6; weekday++) {
     if (!windowedDays.has(weekday) && !dayMarks.has(weekday)) return false;
