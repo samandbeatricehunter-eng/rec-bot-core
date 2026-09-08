@@ -568,7 +568,7 @@ export function HubHome() {
     dev_upgrade: `${coinsNumber(economyValues.store.devUpgradeStep)}-${coinsNumber(economyValues.store.devUpgradeTopStep)}`,
     contract: coinsNumber(economyValues.store.contractReduction),
     attribute: `${coinsNumber(economyValues.store.nonCoreAttributePoint)}-${coinsNumber(economyValues.store.coreAttributePoint)}/pt`,
-    legend: `${coinsNumber(economyValues.store.legend)}-${coinsNumber(economyValues.store.immortal)}`,
+    legend: `${coinsNumber(economyValues.store.bust)}-${coinsNumber(economyValues.store.immortal)}`,
     custom_player: `${coinsNumber(economyValues.store.customPlayerTier1)}-${coinsNumber(economyValues.store.customPlayerTier5)}`,
   }), [economyValues]);
   const [error, setError] = useState<string | null>(null);
@@ -1562,21 +1562,9 @@ export function HubHome() {
 
           {purchaseType === "attribute" && <AttributePurchaseBuilder guildId={auth.status === "ready" ? auth.guildId : ""} storeContext={storeContext} wallet={Number(my.wallet ?? 0)} busy={purchaseBusy} excludeDefault={isCfbLeague} corePointPrice={economyValues.store.coreAttributePoint} nonCorePointPrice={economyValues.store.nonCoreAttributePoint} onSubmit={(allocations, playerName, playerId) => submitPurchase({ playerId, playerName, allocations })} />}
 
-          {purchaseType === "legend" && <LegendPurchasePanel legendPrice={economyValues.store.legend} immortalPrice={economyValues.store.immortal} onPurchased={() => { setStoreContext(null); void load(); void loadStoreContext(true); }} />}
+          {purchaseType === "legend" && <LegendPurchasePanel legendPrice={economyValues.store.legend} immortalPrice={economyValues.store.immortal} bustPrice={economyValues.store.bust} hometownHeroPrice={economyValues.store.hometownHero} celebsCouldveBeensPrice={economyValues.store.celebsCouldveBeens} onPurchased={() => { setStoreContext(null); void load(); void loadStoreContext(true); }} />}
 
           {purchaseType === "custom_player" && <CustomPlayerWizard guildId={auth.status === "ready" ? auth.guildId : ""} onPurchased={() => { setStoreContext(null); void load(); void loadStoreContext(true); }} />}
-
-          {/* Removed obsolete Bronze/Silver/Gold custom-player form.
-            <p className="form-hint">
-              {hub.league.game === "cfb_27"
-                ? "This Custom Recruit won't join your roster immediately — it replaces one of your committed recruits once next season starts."
-                : "This Custom Player isn't added immediately — they're picked up in the annual draft rather than replacing anyone on your current roster."}
-            </p>
-            <label className="form-field"><span className="form-label">Package</span><select className="form-input" value={purchaseDetails.package ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, package: event.target.value }))}><option value="">Select package</option><option value="bronze">Bronze · {coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.bronze)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.bronze} pts</option><option value="silver">Silver · {coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.silver)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.silver} pts</option><option value="gold">Gold · {coinsNumber(REC_CUSTOM_PLAYER_PACKAGE_PRICE.gold)} · {REC_CUSTOM_PLAYER_PACKAGE_POINTS.gold} pts</option></select></label>
-            <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={purchaseDetails.playerName ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, playerName: event.target.value }))} /></label>
-            <label className="form-field"><span className="form-label">Position</span><input className="form-input" placeholder="QB, WR, CB…" value={purchaseDetails.position ?? ""} onChange={(event) => setPurchaseDetails((current) => ({ ...current, position: event.target.value }))} /></label>
-            <div className="hub-store-total"><span>Total: <strong><CoinAmount amount={purchaseDetails.package ? REC_CUSTOM_PLAYER_PACKAGE_PRICE[purchaseDetails.package as keyof typeof REC_CUSTOM_PLAYER_PACKAGE_PRICE] : 0} /></strong></span><Button variant="primary" disabled={purchaseBusy || !purchaseDetails.playerName || !purchaseDetails.package} onClick={() => void submitPurchase()}>{purchaseBusy ? "Submitting…" : "Submit Purchase"}</Button></div>
-          */}
 
           {purchaseType === "dev_upgrade" && (() => {
             const game = hub.league.game;

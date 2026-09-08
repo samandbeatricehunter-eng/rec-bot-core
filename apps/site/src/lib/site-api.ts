@@ -401,6 +401,7 @@ export type ImmortalityProgressionNode = {
 export type OwnerProgressionState = {
   ownerId: string;
   name: string;
+  headshotUrl: string | null;
   ownerXp: number;
   personnelCouncilTier: number;
   releaseAuthorityUnlocked: boolean;
@@ -420,6 +421,7 @@ export type OwnerProgressionState = {
 export type ImmortalityProgressionState = {
   prospectId: string;
   name: string;
+  headshotUrl: string | null;
   position: string;
   playerXp: number;
   startingDevTrait: string;

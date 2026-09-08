@@ -187,6 +187,7 @@ export async function getProgressionState(input: { guildId: string; discordId: s
   return {
     prospectId: String(prospect.id),
     name: `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Prospect",
+    headshotUrl: prospect.headshot_url ? String(prospect.headshot_url) : null,
     position: prospect.position,
     playerXp,
     startingDevTrait: starting,

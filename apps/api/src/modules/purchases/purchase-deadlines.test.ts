@@ -65,6 +65,30 @@ test("enabled defaults to true when omitted -- a passed deadline still blocks", 
   );
 });
 
+test("in-season deadlines reopen once the league is in the offseason pipeline", () => {
+  assert.doesNotThrow(() =>
+    assertPurchaseDeadlineOpen({
+      purchaseType: "legend",
+      deadlines: { legend: { stage: "regular_season", week: 10 } },
+      currentStage: "coach_hiring",
+      currentWeek: 1,
+    }),
+  );
+});
+
+test("wizard attribute_purchase keys still close attribute purchases", () => {
+  assert.throws(
+    () =>
+      assertPurchaseDeadlineOpen({
+        purchaseType: "attribute",
+        deadlines: { attribute_purchase: { stage: "regular_season", week: 10 } },
+        currentStage: "regular_season",
+        currentWeek: 11,
+      }),
+    (error: unknown) => error instanceof ApiError && error.statusCode === 409,
+  );
+});
+
 test("missing or malformed deadlines are a no-op", () => {
   assert.doesNotThrow(() =>
     assertPurchaseDeadlineOpen({

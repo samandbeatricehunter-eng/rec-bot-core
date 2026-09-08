@@ -6,6 +6,9 @@ export type RecGlobalEconomyConfig = {
     ageReset: number;
     legend: number;
     immortal: number;
+    bust: number;
+    hometownHero: number;
+    celebsCouldveBeens: number;
     devUpgradeStep: number;
     devUpgradeTopStep: number;
     contractReduction: number;
@@ -50,6 +53,9 @@ export const DEFAULT_REC_GLOBAL_ECONOMY_CONFIG: RecGlobalEconomyConfig = {
     ageReset: 1000,
     legend: 4000,
     immortal: 8000,
+    bust: 2000,
+    hometownHero: 4000,
+    celebsCouldveBeens: 4000,
     devUpgradeStep: 500,
     devUpgradeTopStep: 1500,
     contractReduction: 500,

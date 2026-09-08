@@ -4415,6 +4415,48 @@ h1, h2, h3, .site-wordmark {
 .rise-tree-node-modal-balance span { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
 .rise-tree-node-modal-balance strong { font-size: 16px; }
 
+/* Unified three-career progression sheet. Each column reads bottom-to-top:
+   foundation -> Tier 2 -> Tier 3 -> Tier 4/capstone. */
+.rise-legacy-sheet {
+  display: grid; grid-template-columns: repeat(3, minmax(300px, 1fr)); gap: 14px;
+  align-items: stretch; margin: var(--space-4) 0 var(--space-5); overflow-x: auto;
+}
+.rise-legacy-column {
+  position: relative; min-width: 300px; padding: 18px 14px 16px; overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border)); border-radius: 18px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 11%, rgba(8,8,10,.96)), rgba(8,8,10,.88));
+  box-shadow: inset 0 1px rgba(255,255,255,.05), 0 16px 38px rgba(0,0,0,.2);
+}
+.rise-legacy-column.is-defense { --column-accent: #cf4545; }
+.rise-legacy-column.is-offense { --column-accent: var(--accent-bright); }
+.rise-legacy-column.is-owner { --column-accent: #66a9e8; }
+.rise-legacy-column::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 3px;
+  background: linear-gradient(90deg, transparent, var(--column-accent), transparent);
+}
+.rise-legacy-identity { display: flex; align-items: center; gap: 12px; min-height: 72px; margin-bottom: 10px; }
+.rise-legacy-identity h2 { margin: 1px 0 3px; font-size: 18px; line-height: 1.1; }
+.rise-legacy-identity span { color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.rise-legacy-identity strong { color: var(--column-accent); font-size: 12px; }
+.rise-legacy-headshot { width: 62px; height: 62px; flex: 0 0 auto; object-fit: cover; object-position: center top; border-radius: 16px; border: 2px solid var(--column-accent); background: #15161a; }
+.rise-legacy-headshot.is-empty { display: grid; place-items: center; font-family: var(--font-display, inherit); font-size: 24px; font-weight: 900; }
+.rise-legacy-capstone-label, .rise-legacy-foundation > p {
+  margin: 8px 0; text-align: center; color: var(--column-accent); font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase;
+}
+.rise-legacy-column .rise-tree { flex-direction: column; }
+.rise-legacy-column .rise-tree-node { width: 82px; }
+.rise-legacy-column .rise-tree-node-badge { width: 48px; height: 48px; border-radius: 14px; font-size: 17px; }
+.rise-legacy-column .rise-tree-lanes { gap: 12px; }
+.rise-legacy-column .rise-tree-lane { min-width: 86px; }
+.rise-legacy-column .rise-tree-row { gap: 14px 10px; }
+.rise-legacy-foundation { margin-top: 10px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--column-accent) 30%, transparent); }
+.rise-sheet-notice { color: var(--success); text-align: center; }
+.rise-tools-heading { margin: var(--space-5) 0 var(--space-2); font-size: 18px; }
+@media (max-width: 760px) {
+  .rise-legacy-sheet { grid-template-columns: repeat(3, minmax(280px, 84vw)); margin-right: calc(var(--space-4) * -1); padding-right: var(--space-4); scroll-snap-type: x mandatory; }
+  .rise-legacy-column { scroll-snap-align: start; }
+}
+
 /* Full-viewport-ish centered stage for the pre-Origins moments (video gate, split chooser) --
    deliberately sparser than .rise-page's normal top-down flow so "title, video, and that's it"
    reads as a real cinematic beat instead of a form page. Negative margins pull it past the page

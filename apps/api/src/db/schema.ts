@@ -2598,6 +2598,7 @@ export const recLegendCatalog = pgTable("rec_legend_catalog", {
   attributes: jsonb("attributes").$type<Record<string, unknown> | null>(),
   abilities: jsonb("abilities").$type<Array<{ name: string; description?: string; type?: string }> | null>(),
   legendTier: text("legend_tier"),
+  storeSubgroup: text("store_subgroup"),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   gameScope: text("game_scope").notNull().default("madden"),
   college: text("college"),

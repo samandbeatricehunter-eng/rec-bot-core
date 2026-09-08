@@ -106,7 +106,10 @@ async function buildPowerRankItems(leagueId: string, seasonNumber: number): Prom
 
   return (rankRows.data ?? [])
     .filter((row: any) => Number(row.rank_amount ?? 0) > 0)
-    .map((row: any) => ({
+    .map((row: any) => {
+      const displayTier = evaluatePayoutTier(Number(row.rank), rankDefinition.tiers);
+      const exactRankAmount = Number(row.rank_amount ?? 0);
+      return ({
       league_id: leagueId,
       user_id: row.user_id,
       team_id: teamByUser.get(row.user_id) ?? null,
@@ -114,11 +117,14 @@ async function buildPowerRankItems(leagueId: string, seasonNumber: number): Prom
       payout_category: "ranking",
       payout_key: `eos:${seasonNumber}:power_rank:${row.user_id}`,
       payout_label: row.rank_label ?? rankDefinition.label,
-      qualified_tier: evaluatePayoutTier(Number(row.rank), rankDefinition.tiers)?.tier ?? null,
+      qualified_tier: displayTier?.tier ?? null,
       qualified_value: Number(row.rank),
-      amount: evaluatePayoutTier(Number(row.rank), rankDefinition.tiers)?.amount ?? 0,
-      metadata: { rank: Number(row.rank), source: "power_rankings" },
-    }));
+      // The RPC owns the exact 1-through-8 ladder. The five display tiers collapse
+      // multiple ranks and must never replace the more precise payout amount.
+      amount: Number.isFinite(exactRankAmount) ? exactRankAmount : displayTier?.amount ?? 0,
+      metadata: { rank: Number(row.rank), source: "power_rankings", exactRankAmount },
+    });
+    });
 }
 
 async function buildTeamStatItems(leagueId: string, seasonNumber: number, game: LeagueGame, dataMode: RecLeagueDataMode): Promise<EosPayoutItem[]> {

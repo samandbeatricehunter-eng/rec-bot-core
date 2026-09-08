@@ -90,6 +90,11 @@ const REC_API_TIMEOUT_MS = 30_000;
 // take longer than the default timeout, which aborted the request client-side ("Load failed")
 // even when the advance was still completing successfully on the server.
 const REC_API_ADVANCE_TIMEOUT_MS = 120_000;
+// Preparing an EOS batch refreshes record holders and bonus ledgers, then aggregates
+// league-wide team and player stats. That regularly exceeds the generic 30-second request
+// budget even though the server is still working, leaving commissioners with a misleading
+// browser "signal timed out" error. Keep this scoped to the expensive preparation call.
+const REC_API_EOS_PREPARE_TIMEOUT_MS = 180_000;
 
 declare global {
   interface Window {
@@ -1006,7 +1011,11 @@ export const recApi = {
   issueEosPayoutBatch: (input: { guildId: string; batchId: string }) =>
     recApiFetch<unknown>("/v1/league-week/eos-payouts/issue-batch", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   prepareEosPayouts: (input: { guildId: string }) =>
-    recApiFetch<unknown>("/v1/league-week/eos-payouts/prepare", { method: "POST", body: JSON.stringify({ ...input, requestedByDiscordId: "web-dashboard" }) }),
+    recApiFetch<unknown>("/v1/league-week/eos-payouts/prepare", {
+      method: "POST",
+      body: JSON.stringify({ ...input, requestedByDiscordId: "web-dashboard" }),
+      signal: AbortSignal.timeout(REC_API_EOS_PREPARE_TIMEOUT_MS),
+    }),
   auditEosPayoutReadiness: (input: { guildId: string }) =>
     recApiFetch<EosReadinessReport>("/v1/league-week/eos-payouts/audit", { method: "POST", body: JSON.stringify(input) }),
 

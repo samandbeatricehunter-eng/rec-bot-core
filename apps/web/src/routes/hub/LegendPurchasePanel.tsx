@@ -6,10 +6,10 @@ const LEGEND_ATTRIBUTE_CATEGORIES: Array<{ label: string; keywords: string[] }> 
   { label: "Physical", keywords: ["Speed", "Acceleration", "Agility", "Change of Direction", "Strength", "Jumping", "Stamina", "Injury", "Awareness", "Toughness"] },
   { label: "Passing", keywords: ["Throwing Power", "Throw Power", "Accuracy", "Play Action", "Throw on the Run", "Throw Under Pressure", "Break Sack"] },
   { label: "Ball Carrier", keywords: ["Trucking", "BC Vision", "Ball Carrier Vision", "Stiff Arm", "Spin Move", "Juke Move", "Carrying", "Break Tackle"] },
-  { label: "Receiving", keywords: ["Catching", "Catch in Traffic", "Spectacular Catch", "Release", "Route Running", "Kick Return"] },
+  { label: "Receiving", keywords: ["Catching", "Catch in Traffic", "Spectacular Catch", "Release", "Route Running", "Kick/Punt Return"] },
   { label: "Blocking", keywords: ["Pass Block", "Run Block", "Lead Block", "Impact Blocking"] },
   { label: "Defense", keywords: ["Tackling", "Tackle", "Hit Power", "Power Moves", "Finesse Moves", "Block Shedding", "Pursuit", "Play Recognition", "Man Coverage", "Zone Coverage", "Press"] },
-  { label: "Kicking", keywords: ["Kick Power", "Kick Accuracy"] },
+  { label: "Kicking", keywords: ["Kicking Power", "Kicking Accuracy"] },
 ];
 const LEGEND_POSITION_TABS = ["QB", "HB", "FB", "WR", "TE", "LT", "LG", "C", "RG", "RT", "LE", "DT", "RE", "Will", "Mike", "Sam", "CB", "FS", "SS", "K/P"] as const;
 const legendPositionLabel = (position: string) => position === "K" || position === "P" ? "K/P" : position === "LOLB" ? "Will" : position === "MLB" ? "Mike" : position === "ROLB" ? "Sam" : position;
@@ -19,7 +19,7 @@ function legendAttributeCategory(key: string): string {
   }
   return "Other";
 }
-import { isCompatibleReplacementPosition, legendPositionGroupFor, legendTopAttributes, REC_SPECIAL_TEAMS_LEGEND_PRICE } from "@rec/shared";
+import { isCompatibleReplacementPosition, legendPositionGroupFor, legendTopAttributes, REC_LEGEND_SUBGROUP_LABELS, REC_LEGEND_TIER_LABELS, REC_SPECIAL_TEAMS_LEGEND_PRICE } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -31,16 +31,30 @@ import { ErrorState } from "../../components/ui/ErrorState.js";
 import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
 
-type LegendTier = "legend" | "immortal";
+type LegendTier = "legend" | "immortal" | "bust" | "hometown_hero" | "celebs_couldve_beens";
+
+const TIER_DESCRIPTIONS: Record<LegendTier, string> = {
+  immortal: "X-Factor · elite icons",
+  legend: "Superstar · deep catalog",
+  bust: "Famous draft misses and fallen prospects",
+  hometown_hero: "Cult favorites, journeymen, and fan icons",
+  celebs_couldve_beens: "Screen stars and football what-ifs",
+};
 
 export function LegendPurchasePanel({
   onPurchased,
   legendPrice,
   immortalPrice,
+  bustPrice,
+  hometownHeroPrice,
+  celebsCouldveBeensPrice,
 }: {
   onPurchased: () => void;
   legendPrice: number;
   immortalPrice: number;
+  bustPrice: number;
+  hometownHeroPrice: number;
+  celebsCouldveBeensPrice: number;
 }) {
   const { guildId, discordId } = useReadyAuth();
   const { game } = useLeagueTheme();
@@ -48,6 +62,7 @@ export function LegendPurchasePanel({
   const [legends, setLegends] = useState<LegendCatalogEntry[] | null>(null);
   const [sold, setSold] = useState<LegendAvailabilityEntry[] | null>(null);
   const [tier, setTier] = useState<LegendTier | null>(null);
+  const [subgroup, setSubgroup] = useState<"screen_star" | "couldve_been" | "ALL">("ALL");
   const [position, setPosition] = useState<string>("ALL");
   const [activeLegend, setActiveLegend] = useState<LegendCatalogEntry | null>(null);
   const [busy, setBusy] = useState(false);
@@ -76,8 +91,11 @@ export function LegendPurchasePanel({
 
   const tierLegends = useMemo(() => {
     if (!tier || !legends) return [];
-    return legends.filter((legend) => (legend.legend_tier ?? "legend") === tier);
-  }, [legends, tier]);
+    return legends.filter((legend) =>
+      (legend.legend_tier ?? "legend") === tier
+      && (subgroup === "ALL" || legend.store_subgroup === subgroup),
+    );
+  }, [legends, subgroup, tier]);
 
   const positions = useMemo(() => {
     const counts = new Map<string, number>();
@@ -95,7 +113,8 @@ export function LegendPurchasePanel({
     );
   }, [tierLegends, position]);
 
-  const activePrice = tier === "immortal" ? immortalPrice : legendPrice;
+  const tierPrices: Record<LegendTier, number> = { immortal: immortalPrice, legend: legendPrice, bust: bustPrice, hometown_hero: hometownHeroPrice, celebs_couldve_beens: celebsCouldveBeensPrice };
+  const activePrice = tier ? tierPrices[tier] : legendPrice;
 
   async function purchase(legend: LegendCatalogEntry, replacementPlayerId: string | null) {
     setBusy(true);
@@ -138,21 +157,17 @@ export function LegendPurchasePanel({
 
       {!tier && (
         <div className="legend-tier-picker">
-          <p className="form-hint">Choose a catalog tier. Immortals are X-Factor builds; Legends are Superstar builds.</p>
-          <p className="form-hint">Every Legend and Immortal comes on a 7-year contract at the lowest possible contract value, renewed perpetually — you will never lose your purchase to negotiations.</p>
+          <p className="form-hint">Choose a storefront group. Every card can be opened to review its complete build and ratings.</p>
+          <p className="form-hint">Every purchase uses the same 7-year, lowest-value, perpetually renewed contract and counts toward the shared four-player seasonal cap.</p>
           <div className="legend-tier-grid">
-            <button type="button" className="legend-tier-card" onClick={() => { setTier("immortal"); setPosition("ALL"); }}>
-              <strong>Immortals</strong>
-              <span className="legend-tier-price"><CoinAmount amount={immortalPrice} /></span>
-              <span className="hub-muted">X-Factor · elite icons</span>
-              <span className="hub-muted">{legends.filter((l) => l.legend_tier === "immortal").length} players</span>
-            </button>
-            <button type="button" className="legend-tier-card" onClick={() => { setTier("legend"); setPosition("ALL"); }}>
-              <strong>Legends</strong>
-              <span className="legend-tier-price"><CoinAmount amount={legendPrice} /></span>
-              <span className="hub-muted">Superstar · deep catalog</span>
-              <span className="hub-muted">{legends.filter((l) => (l.legend_tier ?? "legend") === "legend").length} players</span>
-            </button>
+            {(["immortal", "legend", "bust", "hometown_hero", "celebs_couldve_beens"] as LegendTier[]).map((option) => (
+              <button key={option} type="button" className="legend-tier-card" onClick={() => { setTier(option); setSubgroup("ALL"); setPosition("ALL"); }}>
+                <strong>{REC_LEGEND_TIER_LABELS[option]}{option === "immortal" || option === "legend" ? "s" : ""}</strong>
+                <span className="legend-tier-price"><CoinAmount amount={tierPrices[option]} /></span>
+                <span className="hub-muted">{TIER_DESCRIPTIONS[option]}</span>
+                <span className="hub-muted">{legends.filter((l) => (l.legend_tier ?? "legend") === option).length} players</span>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -160,15 +175,26 @@ export function LegendPurchasePanel({
       {tier && (
         <>
           <div className="legend-tier-toolbar">
-            <button type="button" className="legend-tier-back" onClick={() => { setTier(null); setPosition("ALL"); setActiveLegend(null); }}>
+            <button type="button" className="legend-tier-back" onClick={() => { setTier(null); setSubgroup("ALL"); setPosition("ALL"); setActiveLegend(null); }}>
               ← All tiers
             </button>
-            <strong>{tier === "immortal" ? "Immortals" : "Legends"}</strong>
+            <strong>{REC_LEGEND_TIER_LABELS[tier]}</strong>
             <span className="hub-muted"><CoinAmount amount={activePrice} /> each</span>
           </div>
 
+          {tier === "celebs_couldve_beens" && (
+            <nav className="legend-position-filters" aria-label="Filter Celebs and Could've Beens by collection">
+              <button type="button" className={`legend-position-link${subgroup === "ALL" ? " is-active" : ""}`} onClick={() => { setSubgroup("ALL"); setPosition("ALL"); }}>All</button>
+              {(["screen_star", "couldve_been"] as const).map((value) => (
+                <button key={value} type="button" className={`legend-position-link${subgroup === value ? " is-active" : ""}`} onClick={() => { setSubgroup(value); setPosition("ALL"); }}>
+                  {REC_LEGEND_SUBGROUP_LABELS[value]} ({legends.filter((l) => l.store_subgroup === value).length})
+                </button>
+              ))}
+            </nav>
+          )}
+
           <p className="form-hint">This player inherits the in-game appearance of whoever they replace — only height, weight, and body type can be changed afterward.</p>
-          <p className="form-hint">All Legends and Immortals arrive on a 7-year contract at the lowest possible contract value. Contracts renew perpetually — you will never lose a purchased player to negotiations.</p>
+          <p className="form-hint">Every purchased player arrives on a 7-year contract at the lowest possible contract value. Contracts renew perpetually — you will never lose a purchased player to negotiations.</p>
 
           <nav className="legend-position-filters" aria-label="Filter by position">
             <button
@@ -237,9 +263,9 @@ export function LegendPurchasePanel({
           isCfb={isCfb}
           replacementPlayers={replacementConfig?.replacementPlayers ?? []}
           blockedNoEligibleReplacement={replacementConfig?.blockedNoEligibleReplacement ?? false}
-          legendPrice={activeLegend.position === "K" || activeLegend.position === "P"
+          legendPrice={(activeLegend.legend_tier === "legend" || activeLegend.legend_tier === "immortal") && (activeLegend.position === "K" || activeLegend.position === "P")
             ? REC_SPECIAL_TEAMS_LEGEND_PRICE
-            : activeLegend.legend_tier === "immortal" ? immortalPrice : legendPrice}
+            : tierPrices[(activeLegend.legend_tier ?? "legend") as LegendTier]}
           onClose={() => setActiveLegend(null)}
           onPurchase={(replacementPlayerId) => void purchase(activeLegend, replacementPlayerId)}
           onCancel={() => void cancel(activeLegend)}
@@ -295,7 +321,7 @@ function LegendDetailModal({
           fallback={<div className="legend-detail-photo legend-card-photo-empty">{legend.position}</div>}
         />
         <p className="hub-muted" style={{ marginTop: 0 }}>
-          {legend.legend_tier === "immortal" ? "Immortal" : "Legend"} · {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}{legend.body_type ? ` · ${legend.body_type[0].toUpperCase() + legend.body_type.slice(1)} build` : ""}
+          {REC_LEGEND_TIER_LABELS[(legend.legend_tier ?? "legend") as LegendTier]}{legend.store_subgroup ? ` · ${REC_LEGEND_SUBGROUP_LABELS[legend.store_subgroup]}` : ""} · {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}{legend.body_type ? ` · ${legend.body_type[0].toUpperCase() + legend.body_type.slice(1)} build` : ""}
         </p>
       </div>
       <p>{!isCfb && <><strong>Dev Trait:</strong> {legend.dev_trait} · </>}<strong>Est. OVR:</strong> {legend.est_ovr ?? "?"}</p>
@@ -389,7 +415,7 @@ function LegendDetailModal({
             );
           })()}
           <div className="hub-store-total">
-            <span>Total: <strong><CoinAmount amount={legendPrice} /></strong></span>
+            <span>Total: <strong><CoinAmount amount={legendPrice!} /></strong></span>
             <Button
               variant="primary"
               disabled={busy || !canSubmitReplacement}

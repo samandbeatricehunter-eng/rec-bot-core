@@ -8,7 +8,6 @@ import time
 import urllib.parse
 import urllib.request
 import urllib.error
-import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -25,8 +24,8 @@ LAST_HTTP = 0.0
 
 def polite_open(req, timeout):
     global LAST_HTTP
-    for attempt in range(5):
-        delay = 1.1 - (time.monotonic() - LAST_HTTP)
+    for attempt in range(3):
+        delay = 0.4 - (time.monotonic() - LAST_HTTP)
         if delay > 0:
             time.sleep(delay)
         try:
@@ -35,9 +34,9 @@ def polite_open(req, timeout):
             return response
         except urllib.error.HTTPError as exc:
             LAST_HTTP = time.monotonic()
-            if exc.code != 429 or attempt == 4:
+            if exc.code != 429 or attempt == 2:
                 raise
-            time.sleep(15 * (attempt + 1))
+            time.sleep(4 * (attempt + 1))
 
 
 def api(url, params, attempts=1):
@@ -45,12 +44,12 @@ def api(url, params, attempts=1):
     req = urllib.request.Request(f"{url}?{query}", headers={"User-Agent": USER_AGENT})
     for attempt in range(attempts):
         try:
-            with urllib.request.urlopen(req, timeout=35, context=SSL_CONTEXT) as response:
+            with urllib.request.urlopen(req, timeout=12, context=SSL_CONTEXT) as response:
                 return json.load(response)
         except Exception:
             if attempt == attempts - 1:
                 raise
-            time.sleep(min(30, 3 * (2 ** attempt)))
+            time.sleep(min(8, 2 * (2 ** attempt)))
 
 
 def strip_html(value):
@@ -78,9 +77,9 @@ def page_candidate(name):
     return None, None
 
 
-def commons_candidate(name):
+def commons_candidate(name, context="portrait"):
     data = api(COMMONS_API, {
-        "action": "query", "generator": "search", "gsrsearch": f'"{name}" football player',
+        "action": "query", "generator": "search", "gsrsearch": f'"{name}" {context}',
         "gsrnamespace": 6, "gsrlimit": 8, "prop": "imageinfo",
         "iiprop": "url|mime|size|extmetadata", "iiurlwidth": 1400,
         "format": "json", "formatversion": 2,
@@ -92,24 +91,24 @@ def commons_candidate(name):
     return None, None, None
 
 
-def html_candidate(name):
+def html_candidate(name, context="portrait"):
     slug = urllib.parse.quote(name.replace(" ", "_"))
     page_url = f"https://en.wikipedia.org/wiki/{slug}"
     req = urllib.request.Request(page_url, headers={"User-Agent": USER_AGENT})
-    with polite_open(req, 35) as response:
+    with polite_open(req, 12) as response:
         body = response.read().decode("utf-8", "replace")
-    # If the exact title is unrelated or a disambiguation, use Wikipedia's HTML search.
-    if "football" not in body.lower() or "og:image" not in body:
-        q = urllib.parse.quote_plus(f'"{name}" American football')
+    # If the exact title is a disambiguation or has no lead image, use contextual search.
+    if "may refer to:" in body.lower() or "og:image" not in body:
+        q = urllib.parse.quote_plus(f'"{name}" {context}')
         search_url = f"https://en.wikipedia.org/w/index.php?search={q}&title=Special%3ASearch&ns0=1"
         req = urllib.request.Request(search_url, headers={"User-Agent": USER_AGENT})
-        with polite_open(req, 35) as response:
+        with polite_open(req, 12) as response:
             search_body = response.read().decode("utf-8", "replace")
         hit = re.search(r'<div class="mw-search-result-heading">\s*<a href="([^"]+)"', search_body)
         if hit:
             page_url = urllib.parse.urljoin("https://en.wikipedia.org", html.unescape(hit.group(1)))
             req = urllib.request.Request(page_url, headers={"User-Agent": USER_AGENT})
-            with polite_open(req, 35) as response:
+            with polite_open(req, 12) as response:
                 body = response.read().decode("utf-8", "replace")
     match = re.search(r'<meta property="og:image" content="([^"]+)"', body)
     if not match:
@@ -120,7 +119,7 @@ def html_candidate(name):
 def espn_candidate(name):
     url = "https://site.web.api.espn.com/apis/search/v2?" + urllib.parse.urlencode({"query": name, "limit": 10})
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with polite_open(req, 35) as response:
+    with polite_open(req, 12) as response:
         data = json.load(response)
     wanted = re.sub(r"[^a-z0-9]", "", name.lower())
     choices = []
@@ -203,6 +202,10 @@ def process(player, output_dir, supplied_dir=None):
            "filename": player["file"], "source_page": "", "source_image_url": "", "creator": "",
            "license": "", "license_url": "", "rights_status": "", "notes": ""}
     target = output_dir / player["file"]
+    if target.exists() and target.stat().st_size > 4000:
+        return None
+    search_name = player.get("search_name") or player["name"]
+    search_context = player.get("search_context") or "portrait"
     try:
         supplied = supplied_candidate(player["name"], supplied_dir)
         if supplied:
@@ -218,18 +221,18 @@ def process(player, output_dir, supplied_dir=None):
             })
             return row
         info = {}
-        result = espn_candidate(player["name"])
+        result = espn_candidate(search_name) if player.get("subject_type") in (None, "nfl") else None
         page_url, url = result if result else (None, None)
         page = {"canonicalurl": page_url, "title": player["name"]} if page_url else None
         if not url:
             try:
-                page_url, url = html_candidate(player["name"])
-                if page_url:
-                    page = {"canonicalurl": page_url, "title": player["name"]}
+                page, url = page_candidate(search_name)
+                if page:
+                    info = image_metadata(page.get("pageimage", ""))
             except Exception:
                 pass
         if not url:
-            cp, url, info = commons_candidate(player["name"])
+            cp, url, info = commons_candidate(search_name, search_context)
             if cp:
                 page = {"title": cp.get("title", ""), "canonicalurl": "https://commons.wikimedia.org/wiki/" + urllib.parse.quote(cp.get("title", "").replace(" ", "_"))}
         if not url:
@@ -272,8 +275,13 @@ def main():
         futures = {pool.submit(process, p, images, supplied_dir): p for p in players}
         for i, future in enumerate(as_completed(futures), 1):
             row = future.result()
+            if row is None:
+                continue
             rows.append(row)
             print(f"[{i}/{len(players)}] {row['name']}: {row['rights_status']}", flush=True)
+    if not rows:
+        print(json.dumps({"zip": None, "summary": {"skipped_existing": True}}))
+        return
     rows.sort(key=lambda r: r["filename"])
     fields = list(rows[0])
     with (root / "licenses.csv").open("w", newline="", encoding="utf-8-sig") as f:
@@ -285,11 +293,7 @@ def main():
         "Images are standardized to 1024x1024 PNG, square-padded without distortion.\n"
         "See licenses.csv for per-file source and rights metadata. A free-content license does not clear player publicity, team/NFL trademarks, or other commercial-use concerns. Obtain legal review where appropriate.\n\n"
         f"Summary: {json.dumps(summary, indent=2)}\n", encoding="utf-8")
-    zip_path = root.with_suffix(".zip")
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
-        for path in sorted(root.rglob("*")):
-            if path.is_file(): z.write(path, path.relative_to(root.parent))
-    print(json.dumps({"zip": str(zip_path), "summary": summary}, indent=2))
+    print(json.dumps({"dir": str(root), "summary": summary}, indent=2))
 
 
 if __name__ == "__main__":

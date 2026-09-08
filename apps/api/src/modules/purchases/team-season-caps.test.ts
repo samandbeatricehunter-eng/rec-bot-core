@@ -50,3 +50,16 @@ test("countTeamLegendSlots ignores purchases for a different team", () => {
   });
   assert.equal(used, 0);
 });
+
+test("offseason reset ignores carryover roster legends but counts cards added afterward", () => {
+  const used = countTeamLegendSlots({
+    teamId: CHARGERS,
+    purchases: [],
+    capsResetAt: "2026-09-01T00:00:00.000Z",
+    rosterLegends: [
+      { full_name: "Carryover Legend", created_at: "2026-08-01T00:00:00.000Z", raw_payload: {} },
+      { full_name: "New Season Legend", created_at: "2026-09-02T00:00:00.000Z", raw_payload: {} },
+    ],
+  });
+  assert.equal(used, 1);
+});

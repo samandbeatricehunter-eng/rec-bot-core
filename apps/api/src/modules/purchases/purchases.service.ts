@@ -53,13 +53,16 @@ async function countLegendSlotsForTeam(leagueId: string, teamId: string, seasonN
       if (capsResetAt) query = query.gt("created_at", capsResetAt);
       return query;
     })(),
-    supabase
-      .from("rec_players")
-      .select("full_name,raw_payload")
-      .eq("league_id", leagueId)
-      .eq("team_id", teamId)
-      .eq("player_source", "legend")
-      .in("roster_status", ["active", "transferred_in"]),
+    (() => {
+      const query = supabase
+        .from("rec_players")
+        .select("full_name,raw_payload,created_at")
+        .eq("league_id", leagueId)
+        .eq("team_id", teamId)
+        .eq("player_source", "legend")
+        .in("roster_status", ["active", "transferred_in"]);
+      return query;
+    })(),
   ]);
   if (purchases.error) throw new ApiError(500, "We couldn't check this team's legend cap. Please try again.", purchases.error);
   if (roster.error) throw new ApiError(500, "We couldn't check this team's legend roster. Please try again.", roster.error);
@@ -67,6 +70,7 @@ async function countLegendSlotsForTeam(leagueId: string, teamId: string, seasonN
     teamId,
     purchases: purchases.data ?? [],
     rosterLegends: roster.data ?? [],
+    capsResetAt,
   });
 }
 
@@ -1294,9 +1298,8 @@ export async function resetAttributeCapSpend(input: {
 // the first offseason stage (see advance-results.service.ts's isPostseasonEnd) -- gives every
 // count-based season cap (age resets, dev upgrades, contracts, custom players, legends) a fresh
 // offseason allotment. Deliberately does NOT touch season_number (that only advances on entering
-// preseason -- see league-week.service.ts). Legend caps still respect whatever's actually on a
-// team's roster (countLegendSlotsForTeam's roster fallback), so this can't be used to stack past
-// a team's real legend-slot limit -- it only clears out the *purchase-count* side of the cap.
+// preseason -- see league-week.service.ts). The legend roster fallback is also cut off at this
+// timestamp, so carryover cards do not consume the newly granted four-card seasonal allotment.
 export async function resetLeaguePurchaseCapsForOffseason(input: { guildId: string; resetByDiscordId: string }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const resetAt = new Date().toISOString();

@@ -27,8 +27,25 @@ export const REC_AGE_RESET_PRICE = 1000;
 export const REC_PLAYER_TRAIT_PRICE = 500;
 export const REC_LEGEND_PRICE = 4000;
 export const REC_IMMORTAL_PRICE = 8000;
+export const REC_BUST_PRICE = 2000;
+export const REC_HOMETOWN_HERO_PRICE = 4000;
+export const REC_CELEBS_COULDVE_BEENS_PRICE = 4000;
 export const REC_SPECIAL_TEAMS_LEGEND_PRICE = 1000;
-export type RecLegendTier = "legend" | "immortal";
+export type RecLegendTier = "legend" | "immortal" | "bust" | "hometown_hero" | "celebs_couldve_beens";
+export type RecLegendStoreSubgroup = "screen_star" | "couldve_been";
+
+export const REC_LEGEND_TIER_LABELS: Record<RecLegendTier, string> = {
+  legend: "Legend",
+  immortal: "Immortal",
+  bust: "NFL Bust",
+  hometown_hero: "Hometown Hero",
+  celebs_couldve_beens: "Celebs & Could've Beens",
+};
+
+export const REC_LEGEND_SUBGROUP_LABELS: Record<RecLegendStoreSubgroup, string> = {
+  screen_star: "Screen Stars",
+  couldve_been: "Could've Beens",
+};
 
 // Madden's top tier is "X-Factor"; CFB's is "Elite" — otherwise same 4-rung ladder shape.
 // CFB's stored dev_trait values order normal < impact < star < elite (matches
@@ -132,6 +149,9 @@ export function priceForPurchase(
     case "player_trait":
       return REC_PLAYER_TRAIT_PRICE;
     case "legend":
+      if (details.legendTier === "bust") return REC_BUST_PRICE;
+      if (details.legendTier === "hometown_hero") return REC_HOMETOWN_HERO_PRICE;
+      if (details.legendTier === "celebs_couldve_beens") return REC_CELEBS_COULDVE_BEENS_PRICE;
       if (details.position === "K" || details.position === "P") return REC_SPECIAL_TEAMS_LEGEND_PRICE;
       return details.legendTier === "immortal" ? REC_IMMORTAL_PRICE : REC_LEGEND_PRICE;
     case "dev_upgrade": {
@@ -163,7 +183,7 @@ export function priceForPurchase(
 }
 
 export type RecPurchasePriceConfig = {
-  ageReset: number; legend: number; immortal: number; devUpgradeStep: number; devUpgradeTopStep: number;
+  ageReset: number; legend: number; immortal: number; bust: number; hometownHero: number; celebsCouldveBeens: number; devUpgradeStep: number; devUpgradeTopStep: number;
   contractReduction: number; contractExtension: number; coreAttributePoint: number; nonCoreAttributePoint: number;
   customPlayerTier1: number; customPlayerTier2: number; customPlayerTier3: number; customPlayerTier4: number; customPlayerTier5: number;
 };
@@ -175,6 +195,9 @@ export function priceForPurchaseWithConfig(purchaseType: RecPurchaseType, detail
   // at every league-creation path, so this type can never actually reach a live purchase.
   if (purchaseType === "player_trait") return 0;
   if (purchaseType === "legend") {
+    if (details.legendTier === "bust") return prices.bust;
+    if (details.legendTier === "hometown_hero") return prices.hometownHero;
+    if (details.legendTier === "celebs_couldve_beens") return prices.celebsCouldveBeens;
     if (details.position === "K" || details.position === "P") return REC_SPECIAL_TEAMS_LEGEND_PRICE;
     return details.legendTier === "immortal" ? prices.immortal : prices.legend;
   }

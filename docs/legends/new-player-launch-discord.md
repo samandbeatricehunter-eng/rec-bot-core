@@ -1,0 +1,620 @@
+# Discord announcement — all new storefront additions
+
+**296 NEW PLAYERS ARE JOINING THE REC STORE TODAY**
+
+We are expanding every corner of the player store: 42 Immortals, 41 Legends, 52 NFL Busts, 46 Hometown Heroes, 65 Screen Stars, and 50 Could've Beens.
+
+**PRICE + DEV GUIDE**
+• Immortals — 8,000 coins / X-Factor
+• Legends — 4,000 coins / Superstar
+• NFL Busts — 2,000 coins / Star
+• Hometown Heroes — 4,000 coins / Superstar
+• Screen Stars — 4,000 coins / Superstar
+• Could've Beens — 4,000 coins / Superstar
+• Existing 1,000-coin special-teams pricing still applies to Legend/Immortal K and P cards.
+
+The shared seasonal limit across every group above is now **four player purchases per team**, up from three.
+
+## Immortals (42)
+
+**Aeneas Williams — CB, 93 OVR** · HOF, Cardinals/Rams shutdown corner.
+
+**Darrell Green — CB, 95 OVR** · HOF, Redskins, one of the fastest players ever, 20-year career.
+
+**Ronde Barber — CB, 93 OVR** · Hall of Fame Buccaneer, elite slot corner, and the closer of the 2002 NFC title game.
+
+**Buck Buchanan — DT, 93 OVR** · HOF, Chiefs, one of the first dominant modern interior linemen.
+
+**Cortez Kennedy — DT, 94 OVR** · HOF, Seahawks, 1992 Defensive Player of the Year on a bad team.
+
+**Kevin Williams — DT, 93 OVR** · Five-time first-team All-Pro and the interior half of Minnesota's Williams Wall.
+
+**Merlin Olsen — DT, 96 OVR** · HOF, Rams "Fearsome Foursome," 14x Pro Bowl; a major omission.
+
+**Emlen Tunnell — FS, 93 OVR** · HOF, Giants, first Black player enshrined in Canton, pioneering ball-hawking safety.
+
+**Curtis Martin — HB, 94 OVR** · HOF, 4th all-time rushing yards at retirement; a notable HOF-tier omission.
+
+**Frank Gore — HB, 94 OVR** · 3rd all-time rushing yards, remarkably durable 49ers/multi-team career.
+
+**John Henry Johnson — HB, 93 OVR** · HOF, part of the 49ers' "Million Dollar Backfield."
+
+**Justin Tucker — K, 95 OVR** · Most accurate kicker in NFL history by career percentage, Ravens.
+
+**Carl Eller — LE, 93 OVR** · HOF, Vikings "Purple People Eaters."
+
+**Gene Upshaw — LG, 93 OVR** · HOF, Raiders, later NFLPA executive director; a big omission given his stature.
+
+**James Harrison — LOLB, 94 OVR** · Defensive Player of the Year and author of the defining 100-yard Super Bowl interception return.
+
+**Kevin Greene — LOLB, 94 OVR** · HOF, 3rd all-time in sacks.
+
+**Walter Jones — LT, 96 OVR** · HOF, Seahawks, widely considered among the best pure left tackles ever.
+
+**Zach Thomas — MLB, 93 OVR** · Dolphins, undersized but dominant tackling machine, 7x Pro Bowl.
+
+**Bobby Layne — QB, 93 OVR** · HOF, Lions dynasty QB of the 1950s, legendary toughness/swagger.
+
+**Fran Tarkenton — QB, 95 OVR** · HOF scrambler, all-time passing leader at retirement, 3x Vikings SB starter.
+
+**George Blanda — QB, 93 OVR** · HOF QB/K, played into his 40s, clutch folk hero.
+
+**Kurt Warner — QB, 95 OVR** · HOF, undrafted grocery-store-to-Super-Bowl story, "Greatest Show on Turf."
+
+**Sid Luckman — QB, 93 OVR** · Bears T-formation pioneer, 4x NFL champion, arguably the position's first modern superstar; a startling omission.
+
+**Sonny Jurgensen — QB, 93 OVR** · HOF pure passer, one of the best arms of the 1960s (Eagles/Redskins).
+
+**Y.A. Tittle — QB, 94 OVR** · HOF, NYG/49ers, iconic bloody-helmet photo, 1963 MVP.
+
+**J.J. Watt — RE, 96 OVR** · 3x Defensive Player of the Year, generational Texans/Cardinals pass rusher.
+
+**Jared Allen — RE, 94 OVR** · 136 career sacks, four first-team All-Pro selections, and an unmistakable pass-rush personality.
+
+**Richard Dent — RE, 94 OVR** · HOF, SB XX MVP, anchor of the '85 Bears defense.
+
+**Marshal Yanda — RG, 94 OVR** · Eight-time Pro Bowler and one of the most complete guards of the modern era.
+
+**Will Shields — RG, 94 OVR** · HOF, Chiefs, 12x Pro Bowl guard.
+
+**Rickey Jackson — ROLB, 93 OVR** · HOF, Saints "Dome Patrol" linebacker corps.
+
+**Darren Woodson — SS, 94 OVR** · Cowboys all-time leading tackler and a three-time champion with coverage versatility.
+
+**Ken Houston — SS, 93 OVR** · HOF, Redskins/Oilers, redefined the strong safety position.
+
+**Larry Wilson — SS, 93 OVR** · HOF, Cardinals, invented the safety blitz.
+
+**Ozzie Newsome — TE, 93 OVR** · HOF, Browns, one of the position's pioneering pass-catchers.
+
+**Art Monk — WR, 93 OVR** · HOF, Redskins possession-receiver great, held career catches record.
+
+**Bob Hayes — WR, 93 OVR** · HOF, "World's Fastest Man," Cowboys, forced zone defense's invention.
+
+**John Stallworth — WR, 93 OVR** · HOF, Swann's Steelers running mate, 4x SB champ.
+
+**Lynn Swann — WR, 93 OVR** · HOF, Steel Curtain-era Steelers, iconic SB acrobatic catches.
+
+**Paul Warfield — WR, 93 OVR** · HOF, Browns/Dolphins deep threat, one of the great pure route runners.
+
+**Sterling Sharpe — WR, 94 OVR** · Five dominant seasons, a receiving triple crown, and a Hall of Fame peak shortened by injury.
+
+**Tim Brown — WR, 93 OVR** · HOF, Raiders career-long star, Heisman winner.
+
+## Legends (41)
+
+**Jeff Saturday — C, 88 OVR** · Colts, Peyton Manning's longtime center, 6x Pro Bowl.
+
+**Nick Mangold — C, 88 OVR** · Jets anchor, 7x Pro Bowl, one of the best centers of the 2000s-2010s.
+
+**Olin Kreutz — C, 88 OVR** · Six-time Pro Bowler and the long-time center of Chicago's offense.
+
+**Tom Nalen — C, 88 OVR** · Five-time Pro Bowler and the cerebral anchor of Denver's championship zone-running line.
+
+**Emmitt Thomas — CB, 88 OVR** · HOF, Chiefs, 1970s ballhawk.
+
+**Everson Walls — CB, 88 OVR** · 57 career interceptions and a remarkable undrafted-to-All-Pro career.
+
+**Jimmy Johnson — CB, 88 OVR** · HOF, 49ers (distinct from the coach of the same name), 1960s-70s shutdown corner.
+
+**Nnamdi Asomugha — CB, 88 OVR** · At his Raiders peak, quarterbacks largely stopped throwing at him.
+
+**Richard Sherman — CB, 88 OVR** · Seahawks Legion of Boom, 2013 NFC Championship deflection, All-Pro, Stanford; user-flagged.
+
+**Curley Culp — DT, 88 OVR** · HOF, pioneered the nose tackle position.
+
+**Earl Thomas — FS, 88 OVR** · Seahawks Legion of Boom free safety, elite range and instincts.
+
+**Eric Weddle — FS, 88 OVR** · Six-time Pro Bowler whose range, disguise, and intelligence defined his career.
+
+**Jamaal Charles — HB, 90 OVR** · Historic rushing efficiency with rare open-field speed for Kansas City.
+
+**Marshawn Lynch — HB, 91 OVR** · "Beast Mode," 2010 Beast Quake run, Skittles, Seahawks/Bills icon; user-flagged.
+
+**Priest Holmes — HB, 88 OVR** · Chiefs era-defining back, then-record 27 rushing TDs in a season (2003).
+
+**Shaun Alexander — HB, 90 OVR** · 2005 NFL MVP, Seahawks single-season TD record at the time.
+
+**Steven Jackson — HB, 88 OVR** · Eight straight 1,000-yard seasons and the Rams' career rushing leader.
+
+**Tiki Barber — HB, 88 OVR** · Giants all-time rushing leader and an elite dual-purpose back at his peak.
+
+**Jason Elam — K, 88 OVR** · Broncos, once tied the NFL record for longest field goal (63 yards).
+
+**Matt Stover — K, 88 OVR** · Two-time champion and remarkably steady pressure kicker across two decades.
+
+**Andre Tippett — LOLB, 88 OVR** · HOF, Patriots, dominant 1980s edge/outside linebacker.
+
+**Clay Matthews III — LOLB, 88 OVR** · Six-time Pro Bowler and explosive Packers edge star with championship pedigree.
+
+**Gary Zimmerman — LT, 88 OVR** · HOF, Vikings/Broncos, dominant blindside protector.
+
+**London Fletcher — MLB, 88 OVR** · Undrafted ironman who never missed a game across 16 seasons and topped 2,000 tackles.
+
+**Jerrel Wilson — P, 88 OVR** · Three-time all-decade punter whose hang time and power made him a true special-teams legend.
+
+**Donovan McNabb — QB, 88 OVR** · Six-time Pro Bowler who led Philadelphia to five NFC title games and a Super Bowl.
+
+**Doug Williams — QB, 90 OVR** · First Black QB to start and win a Super Bowl (SB XXII MVP), historically significant.
+
+**Ken Anderson — QB, 90 OVR** · Bengals MVP, four-time passing champion, and one of the defining West Coast-offense precursors.
+
+**Philip Rivers — QB, 91 OVR** · Eight-time Pro Bowler and one of the most productive passers of his era.
+
+**Claude Humphrey — RE, 88 OVR** · HOF, Falcons, one of the most feared pass rushers of the 1970s.
+
+**Simeon Rice — RE, 88 OVR** · 122 career sacks and the premier edge finisher on Tampa Bay's championship defense.
+
+**Zack Martin — RG, 88 OVR** · Cowboys, dominant modern guard, All-Pro nearly every season since entering the league.
+
+**Cal Hubbard — RT, 88 OVR** · HOF, one of the sport's earliest great tackles (also an MLB umpire).
+
+**Willie Anderson — RT, 88 OVR** · Four-time Pro Bowler and an elite right tackle whose peak deserves catalog recognition.
+
+**Heath Miller — TE, 88 OVR** · Dependable Steelers fan favorite, two-time champion, and complete inline tight end.
+
+**Mark Bavaro — TE, 88 OVR** · Punishing two-time champion and the classic Giants two-way tight end.
+
+**Chad Johnson — WR, 88 OVR** · 6x Pro Bowl Bengals WR, legally changed name to "Ochocinco," genuine star-level production.
+
+**Hines Ward — WR, 90 OVR** · Steelers all-time receiving leader, Super Bowl MVP, and the era's signature blocking receiver.
+
+**Otis Taylor — WR, 88 OVR** · Chiefs deep threat, SB IV standout, one of the best of his era.
+
+**Steve Smith Sr. — WR, 91 OVR** · Panthers/Ravens great, elite undersized route runner and competitor; this is the "Smitty" intended by the user's Steve Smith request.
+
+**Wes Welker — WR, 88 OVR** · Five-time Pro Bowler who helped define the modern high-volume slot receiver.
+
+## NFL Busts (52)
+
+**Dee Milliner — CB, 76 OVR** · Injuries limited the hoped-for Darrelle Revis successor to 21 games.
+
+**Justin Gilbert — CB, 76 OVR** · Elite testing and ball skills did not survive effort, discipline, and consistency problems.
+
+**Steve Emtman — DT, 76 OVR** · Considered a generational prospect at Washington; knee injuries wrecked him early.
+
+**Blair Thomas — HB, 76 OVR** · Penn State runner selected ahead of multiple stars but never topped 728 rushing yards in a season.
+
+**Curtis Enis — HB, 76 OVR** · Contract holdout drama followed by an unproductive, injury-shortened career.
+
+**Ki-Jana Carter — HB, 76 OVR** · Blew out his knee in the preseason and never recovered his college form.
+
+**Lawrence Phillips — HB, 76 OVR** · Immense college talent at Nebraska, career derailed by off-field trouble.
+
+**Rashaan Salaam — HB, 81 OVR** · Heisman winner and 2,000-yard college rusher whose early promise faded quickly.
+
+**Ron Dayne — HB, 81 OVR** · College football's career rushing king never became the franchise runner his draft slot suggested.
+
+**Trent Richardson — HB, 80 OVR** · Alabama national champion who lost effectiveness almost immediately in the NFL.
+
+**Roberto Aguayo — K, 72 OVR** · Tampa Bay traded up for the famously accurate kicker, who lasted one season after making 71 percent of his field goals.
+
+**Dion Jordan — LE, 76 OVR** · Length and movement skills never became pass-rush production, compounded by suspensions.
+
+**Aundray Bruce — LOLB, 81 OVR** · The first linebacker ever selected first overall never approached franchise-player impact.
+
+**Greg Robinson — LT, 76 OVR** · Exceptional power and athleticism never overcame technique and penalty issues.
+
+**Jason Smith — LT, 76 OVR** · Concussions and inconsistency ended a once-promising tackle prospect's career early.
+
+**Luke Joeckel — LT, 76 OVR** · Technically polished prospect who never became even an average long-term starter.
+
+**Robert Gallery — LT, 76 OVR** · Elite tackle prospect who had to move inside after failing on the edge.
+
+**Tony Mandarich — LT, 76 OVR** · Infamous Sports Illustrated "The Incredible Bulk" cover; steroid-fueled hype collapsed in the NFL.
+
+**Akili Smith — QB, 76 OVR** · Huge college hype at Oregon, never grasped an NFL playbook.
+
+**Andre Ware — QB, 81 OVR** · Heisman-winning run-and-shoot star whose prolific college production never translated to an NFL starting career.
+
+**Brady Quinn — QB, 76 OVR** · Notre Dame star and expected franchise passer who never became a stable NFL starter.
+
+**Dan McGwire — QB, 76 OVR** · Mark McGwire's brother; a well-known name-recognition bust.
+
+**David Klingler — QB, 76 OVR** · Prolific run-and-shoot college numbers didn't translate at all.
+
+**Heath Shuler — QB, 76 OVR** · Highly touted Tennessee QB, out of the league within a few years.
+
+**JaMarcus Russell — QB, 78 OVR** · The textbook modern draft bust — arm talent, work ethic and conditioning collapse.
+
+**Johnny Manziel — QB, 81 OVR** · "Johnny Football" Heisman phenom; off-field issues turned a first-round pick into a two-year NFL cameo.
+
+**Josh Rosen — QB, 76 OVR** · Polished UCLA prospect traded after one season and never recovered a starting opportunity.
+
+**Matt Leinart — QB, 76 OVR** · Decorated USC champion who never secured a long-term NFL starting job.
+
+**Paxton Lynch — QB, 78 OVR** · First-round traits bet who lost the job quickly and exited Denver after two seasons.
+
+**Rick Mirer — QB, 76 OVR** · Rookie of the Year buzz that never turned into sustained production.
+
+**Robert Griffin III — QB, 84 OVR** · Historic rookie season followed by major injuries and a rapid fall from franchise-quarterback expectations.
+
+**Ryan Leaf — QB, 76 OVR** · Drafted one pick after Peyton Manning; attitude/performance flameout became the bust-comparison standard.
+
+**Tim Couch — QB, 76 OVR** · Expansion-era Browns' franchise QB who never developed behind a bad line.
+
+**Todd Marinovich — QB, 76 OVR** · "Robo QB," raised from birth to be an NFL passer; career derailed by off-field issues.
+
+**Courtney Brown — RE, 76 OVR** · Penn State star, injuries limited him to a middling career.
+
+**Derrick Harvey — RE, 76 OVR** · Jacksonville traded up for a pass rusher who produced eight sacks for the club.
+
+**Jamaal Anderson — RE, 76 OVR** · Drafted as a premier edge threat but recorded only 7.5 career sacks.
+
+**Vernon Gholston — RE, 74 OVR** · Freak-athlete combine performer who finished his NFL career with zero sacks.
+
+**Aaron Curry — ROLB, 76 OVR** · Marketed as the draft's safest prospect, then traded midway through his third season.
+
+**Isaiah Wilson — RT, 76 OVR** · Played only a handful of snaps before off-field issues ended his Tennessee tenure.
+
+**Kyle Brady — TE, 76 OVR** · Long blocking career, but never the impact receiving weapon expected from a top-ten tight end.
+
+**Rickey Dudley — TE, 76 OVR** · Elite physical tools and occasional big plays were undermined by inconsistency and drops.
+
+**Charles Rogers — WR, 76 OVR** · Michigan State star, injuries and off-field issues ended his career fast.
+
+**David Terrell — WR, 76 OVR** · Michigan star who never cleared 700 receiving yards in a season.
+
+**Freddie Mitchell — WR, 78 OVR** · First-round confidence and memorable quotes far outpaced his 90 career catches.
+
+**John Ross — WR, 81 OVR** · Record-setting combine speed produced only flashes and persistent availability problems.
+
+**Kevin White — WR, 76 OVR** · Rare size-speed prospect whose career was overwhelmed by repeated injuries.
+
+**Matthew Jones — WR, 76 OVR** · Arkansas quarterback drafted as a traits-based receiver experiment that never matured.
+
+**Peter Warrick — WR, 76 OVR** · Florida State playmaker, never became the featured NFL weapon expected.
+
+**Rashaun Woods — WR, 81 OVR** · Record-setting Oklahoma State receiver who caught only seven NFL passes.
+
+**Reggie Williams — WR, 76 OVR** · Prototype frame and college production never developed into a dependable top target.
+
+**Troy Williamson — WR, 76 OVR** · Drafted to replace Randy Moss; chronic drops defined his tenure.
+
+## Hometown Heroes (46)
+
+**Adam Jones — CB, 82 OVR** · Electric returner and aggressive corner whose turbulent career never lacked personality.
+
+**Antonio Cromartie — CB, 82 OVR** · Journeyman shutdown corner across eight teams, well known off the field for having 14 children by 8 women.
+
+**Brent Grimes — CB, 85 OVR** · Undrafted, undersized ballhawk with spectacular leaping interceptions and four Pro Bowls.
+
+**Cortland Finnegan — CB, 82 OVR** · Feisty Titans corner whose press coverage and rivalries made every snap personal.
+
+**Fred Williamson — CB, 85 OVR** · Brash trash-talker who guaranteed he'd knock out Packers receivers in Super Bowl I, then got knocked out himself.
+
+**Tony Siragusa — DT, 82 OVR** · "Goose" — boisterous, oversized Ravens nose tackle personality.
+
+**Craig Heyward — FB, 82 OVR** · Bruising power back known as much for the nickname and personality as the stats.
+
+**Danny Woodhead — HB, 82 OVR** · Tiny, undrafted receiving back who repeatedly became a trusted third-down weapon.
+
+**Duane Thomas — HB, 82 OVR** · Enigmatic Cowboys star — the "world's greatest football player, and you can't even talk to me?" saga.
+
+**Fred Jackson — HB, 82 OVR** · Undrafted small-school and indoor-football route to a long, productive Bills career.
+
+**Leon Washington — HB, 82 OVR** · Dynamic Jets/Seahawks returner with eight career kick-return touchdowns.
+
+**Marion Barber III — HB, 82 OVR** · "Monday Night Barbarian" — punishing, highlight-real Cowboys short-yardage back.
+
+**Peyton Hillis — HB, 84 OVR** · One thunderous Browns season carried him from depth player to Madden cover.
+
+**Billy Cundiff — K, 82 OVR** · Productive journeyman forever tied to one of the most dramatic missed playoff kicks.
+
+**David Akers — K, 85 OVR** · Six-time Pro Bowler and the long-time scoring backbone of Philadelphia contenders.
+
+**Mike Vanderjagt — K, 82 OVR** · Retired as the league's most accurate kicker, with outspoken confidence and one infamous playoff miss.
+
+**Phil Dawson — K, 82 OVR** · Cleveland's steady scoring constant through unstable eras, including legendary bad-weather kicks.
+
+**Sebastian Janikowski — K, 82 OVR** · "Seabass" — a kicker taken 17th overall (highest ever for the position), wild reputation off the field.
+
+**Chris Long — LE, 82 OVR** · High-motor edge, locker-room leader, and back-to-back champion with two different teams.
+
+**Bill Romanowski — MLB, 82 OVR** · Intense, longevity-defying, and controversial (spitting incident, personality clashes).
+
+**Lofa Tatupu — MLB, 85 OVR** · Immediate Seahawks defensive leader and three-time Pro Bowler whose peak remains beloved in Seattle.
+
+**Marquette King — P, 82 OVR** · Rarely flashy punter with booming power, athletic fakes, dances, and unmistakable style.
+
+**Pat McAfee — P, 85 OVR** · All-Pro punter whose tackles, celebrations, and media career turned a specialist into a star.
+
+**Charlie Batch — QB, 82 OVR** · Detroit starter turned beloved Pittsburgh backup and two-time champion.
+
+**Doug Flutie — QB, 85 OVR** · Drop-kick extra point, "Flutie Flakes" cereal, oversized fame for his size.
+
+**Jake Plummer — QB, 84 OVR** · "Jake the Snake," free-wheeling gunslinger persona at ASU and in Arizona/Denver.
+
+**Jeff George — QB, 82 OVR** · #1-overall arm talent, but a reputation as a locker-room malcontent across six teams.
+
+**Jim Everett — QB, 82 OVR** · Remembered as much for an on-air blowup with Jim Rome as for his play.
+
+**Jim McMahon — QB, 84 OVR** · "Punky QB" of the '85 Bears; headband rebel persona.
+
+**Josh McCown — QB, 82 OVR** · Ultimate respected bridge quarterback: 12 teams, coaching-level command, and several unlikely hot streaks.
+
+**Kordell Stewart — QB, 85 OVR** · "Slash" — used at QB/WR/RB for the Steelers, a positional novelty in his era.
+
+**Ryan Fitzpatrick — QB, 85 OVR** · "Fitzmagic" — Harvard grad who started for nine different franchises with a signature beard.
+
+**Tim Tebow — QB, 82 OVR** · "Tebowing" cultural phenomenon, cult following far outsizing his passing stats.
+
+**Vinny Testaverde — QB, 82 OVR** · Played into his mid-40s across six teams, a true NFL lifer.
+
+**Kyle Vanden Bosch — RE, 82 OVR** · Red-contact-lens intensity and relentless motor made him the face of Tennessee's defensive front.
+
+**Mark Gastineau — RE, 82 OVR** · Originated the "sack dance," face of the Jets' "New York Sack Exchange."
+
+**Conrad Dobler — RG, 82 OVR** · Self-described (and widely regarded) "dirtiest player in the NFL."
+
+**Ben Watson — TE, 82 OVR** · Sixteen-season pro, respected leader, and author of a famous cross-field playoff chase-down.
+
+**Brent Celek — TE, 82 OVR** · One-team Eagle whose blocking, toughness, and championship longevity made him a Philadelphia favorite.
+
+**Delanie Walker — TE, 85 OVR** · Late-blooming blocker who became a three-time Pro Bowl receiving centerpiece in Tennessee.
+
+**Billy Johnson — WR, 82 OVR** · Credited with inventing the end zone dance; flashy white cleats.
+
+**Elmo Wright — WR, 82 OVR** · Credited as the originator of the touchdown spike.
+
+**Josh Cribbs — WR, 84 OVR** · Former college quarterback who became Cleveland's all-purpose special-teams icon.
+
+**Miles Austin — WR, 85 OVR** · Undrafted Monmouth receiver who erupted into a two-time Pro Bowler for Dallas.
+
+**Mohamed Sanu — WR, 82 OVR** · Dependable possession receiver remembered for trick-play passing and doing every dirty job.
+
+**Taylor Gabriel — WR, 85 OVR** · Undrafted speedster whose explosive Falcons season powered a Super Bowl offense.
+
+## Screen Stars (65)
+
+**Earl Wilkinson — CB, 82 OVR** · Former star corner and returner in *The Replacements*; a ballhawk/return-specialist defensive entry. Portrayed by Michael Jace.
+
+**Stefen Djordjevic — CB, 82 OVR** · The gifted two-way defensive back in *All the Right Moves* expands the pool with an iconic football-film role and a coverage/return profile. Portrayed by Tom Cruise.
+
+**Dalip Singh — DT, 82 OVR** · *The Longest Yard*'s enormous enforcer; a maximum-strength, low-speed interior defender. Use Dalip Singh for the game-input name. Portrayed by Dalip Singh Rana.
+
+**Dave Bautista — DT, 82 OVR** · A natural nose/interior power defender: exceptional strength and mass, limited lateral agility and stamina. Portrayed by Self / fantasy card.
+
+**Dwayne Johnson — DT, 82 OVR** · More than stunt casting: Johnson was a 6-foot-5 Miami defensive tackle, backed up Warren Sapp, and later portrayed a retired NFL player in *Ballers*. Portrayed by Dwayne Johnson.
+
+**Ed O'Neill — DT, 82 OVR** · Played college football and reached Steelers camp before acting. A stout interior run defender is the natural fictional treatment. Portrayed by Self / fantasy card.
+
+**Tim Riggins — FB, 82 OVR** · The bruising Dillon fullback/running back; ideal for trucking, stiff-arm, blocking, and short-yardage utility. Portrayed by Taylor Kitsch.
+
+**Dean Cain — FS, 82 OVR** · Played safety at Princeton and signed with Buffalo before a knee injury. A coverage/instincts build grounded in real experience. Portrayed by Self / fantasy card.
+
+**Boobie Miles — HB, 86 OVR** · The electric Permian back in the film adaptation of *Friday Night Lights*; explosive pre-injury ratings create a true what-if card. Portrayed by Derek Luke.
+
+**Brian Williams — HB, 82 OVR** · Dillon's ambitious feature back in the *Friday Night Lights* series; a compact speed/power blend. Portrayed by Gaius Charles.
+
+**Burt Reynolds — HB, 82 OVR** · Played halfback at Florida State before knee injuries ended a promising career, then became the defining star of the original *The Longest Yard*. Portrayed by Burt Reynolds.
+
+**Christopher Bridges — HB, 82 OVR** · Compact, agile, and fast-paced public persona fits an elusive receiving back and return option. Game input: Christopher Bridges. Portrayed by Self / fantasy card.
+
+**Darnell Jefferson — HB, 82 OVR** · Explosive freshman tailback in *The Program*; speed and open-field ability make him one of the better college-fiction entries. Portrayed by Omar Epps.
+
+**Earl Megget — HB, 82 OVR** · The elusive back from *The Longest Yard* remake; a speed/change-of-direction complement to the heavier backs. Portrayed by Nelly.
+
+**Ernie Davis — HB, 85 OVR** · Portrayal of the first Black Heisman winner in *The Express*; a historically grounded power-and-speed runner. Portrayed by Rob Brown.
+
+**Forrest Gump — HB, 84 OVR** · Alabama return specialist whose fictional straight-line speed drove the football portion of *Forrest Gump*. Best implemented at HB with elite return ratings. Portrayed by Tom Hanks.
+
+**Julian Washington — HB, 82 OVR** · The established feature back in *Any Given Sunday*; gives the screen group a power runner instead of another quarterback. Portrayed by LL Cool J.
+
+**Kevin Hart — HB, 85 OVR** · Natural novelty return specialist: very small frame, elite acceleration and change of direction, but severe carrying, blocking, and break-tackle limitations. Portrayed by Self / fantasy card.
+
+**Nigel Gruff — K, 82 OVR** · Soccer-player-turned-kicker in *The Replacements* with absurd range, plus accuracy/awareness volatility. Adds needed special-teams flavor. Portrayed by Rhys Ifans.
+
+**Chris Hemsworth — LOLB, 82 OVR** · Edge-rusher fantasy build driven by length, strength, pursuit, and explosiveness; technique and football awareness keep it balanced. Portrayed by Self / fantasy card.
+
+**Alvin Mack — MLB, 85 OVR** · Fearsome linebacker in *The Program*; elite hit power and pursuit, with personality-driven discipline penalties reflected through awareness. Portrayed by Duane Davis.
+
+**Bobby Boucher — MLB, 84 OVR** · *The Waterboy*'s tackling phenomenon; a pursuit, hit-power, and block-shedding novelty build with deliberately low awareness. Portrayed by Adam Sandler.
+
+**Brian Banks — MLB, 85 OVR** · Portrayal of the elite linebacker prospect whose career was stolen by a wrongful conviction; ratings should reflect his documented prep potential. Portrayed by Aldis Hodge.
+
+**Daniel Bateman — MLB, 82 OVR** · The hyper-aggressive defensive captain in *The Replacements*; a hit-power/run-stopper build. Portrayed by Jon Favreau.
+
+**John Cena — MLB, 82 OVR** · Played center in college before wrestling and acting; translate that football experience into a powerful downhill middle linebacker with strong awareness and tackling. Portrayed by Self / fantasy card.
+
+**O'Shea Jackson — MLB, 82 OVR** · A compact, forceful middle-linebacker fantasy card built around tackling, toughness, block shedding, and attitude. Game input: O'Shea Jackson. Portrayed by Self / fantasy card.
+
+**Steve Austin — MLB, 82 OVR** · The guards' intimidating defensive leader in *The Longest Yard*; downhill power and tackling over coverage ability. Use Steve Austin for the game-input name. Portrayed by Steve Austin.
+
+**Aubrey Graham — QB, 82 OVR** · Former actor and rapper cast as a rhythm passer: strong short accuracy and play-action presence, modest toughness and scrambling. Game input: Aubrey Graham. Portrayed by Self / fantasy card.
+
+**Flash Gordon — QB, 82 OVR** · The character is introduced as a former New York Jets quarterback before becoming a sci-fi hero; an especially playful celeb-category fit. Portrayed by Sam J. Jones.
+
+**Jack Rooney — QB, 82 OVR** · The veteran Sharks quarterback in *Any Given Sunday*; a natural pocket-passer/captain contrast to Beamen. Portrayed by Dennis Quaid.
+
+**Jimmy Dix — QB, 82 OVR** · Disgraced former pro quarterback from *The Last Boy Scout*; a veteran arm-talent reclamation build. Portrayed by Damon Wayans.
+
+**Joe Kane — QB, 82 OVR** · Gifted but troubled college quarterback from *The Program*; strong arm and mobility with volatile awareness. Portrayed by Craig Sheffer.
+
+**Joe Kingman — QB, 85 OVR** · Superstar Boston quarterback in *The Game Plan*. A strong-armed power-QB build distinct from Johnson's separate real-life DT card. Portrayed by Dwayne Johnson.
+
+**Joe Pendleton — QB, 82 OVR** · Rams quarterback in *Heaven Can Wait*; a classic-film inclusion that expands the category beyond modern comedy. Portrayed by Warren Beatty.
+
+**Jonathan Moxon — QB, 82 OVR** · Cerebral backup-turned-starter from *Varsity Blues*; accuracy and awareness over raw arm strength. Portrayed by James Van Der Beek.
+
+**Lance Harbor — QB, 84 OVR** · West Canaan's highly recruited star quarterback in *Varsity Blues*; stronger arm and athletic ceiling than Mox, balanced by the career-altering knee injury. Portrayed by Paul Walker.
+
+**Mark Harmon — QB, 82 OVR** · A real two-year UCLA starting quarterback before acting fame. The fictional card can lean on authentic accuracy, mobility, and leadership rather than pure invention. Portrayed by Self / fantasy card.
+
+**Paul Blake — QB, 82 OVR** · Aging former high-school star recruited to quarterback Texas State in *Necessary Roughness*; smart veteran passer with limited athleticism. Portrayed by Scott Bakula.
+
+**Paul Crewe — QB, 85 OVR** · The original portrayal is the selected version. Reynolds' real FSU background gives the character extra credibility; Sandler is represented separately as Bobby Boucher. Portrayed by Burt Reynolds.
+
+**Shane Falco — QB, 83 OVR** · The replacement quarterback at the center of *The Replacements*; one of the most recognizable fictional pro-football QBs. Portrayed by Keanu Reeves.
+
+**Vince Howard — QB, 84 OVR** · Raw athlete developed into East Dillon's star dual-threat QB; high upside with ratings built around growth and improvisation. Portrayed by Michael B. Jordan.
+
+**Willie Beamen — QB, 87 OVR** · The explosive third-stringer turned starter in *Any Given Sunday*; an ideal improvisational, mobile-QB build. Portrayed by Jamie Foxx.
+
+**Rudy Ruettiger — RE, 82 OVR** · The quintessential effort player from *Rudy*; very low size/athletic ceiling but exceptional motor, toughness, and pursuit. Portrayed by Sean Astin.
+
+**Terry Crews — RE, 82 OVR** · A genuine NFL defensive end/linebacker who became a major actor and returned to football comedy in *The Longest Yard*; the cleanest literal "celeb who was an NFL player" fit. Portrayed by Terry Crews.
+
+**Vernon Littlefield — RE, 82 OVR** · The Cowboys defensive end in *Ballers*. Carter was also a UCLA defensive lineman before injuries ended his own playing career. Portrayed by Donovan W. Carter.
+
+**Bill Goldberg — RG, 82 OVR** · The former NFL lineman and wrestler's *Longest Yard* role supplies a celebrity interior blocker with authentic size and power. Use Bill Goldberg for the game-input name. Portrayed by Bill Goldberg.
+
+**Billy Bob — RG, 82 OVR** · Use Billy as the first name and Bob as the last name in-game; a huge, powerful West Canaan lineman whose strength is offset by stamina and agility limitations. Portrayed by Ron Lester.
+
+**Charles Greane — RT, 82 OVR** · The retired Dolphins lineman in *Ballers* who attempts a comeback at right tackle; useful representation at a position novelty lists usually ignore. Portrayed by Omar Benson Miller.
+
+**Jumbo Fumiko — RT, 82 OVR** · Sumo wrestler converted to offensive tackle in *The Replacements*; massive strength and run blocking balanced by poor agility. Portrayed by Ace Yonamine.
+
+**Clifford Smith — SS, 82 OVR** · A physical strong-safety persona: hit power, press coverage, and intimidation, with restrained top-end speed. Game input: Clifford Smith. Portrayed by Self / fantasy card.
+
+**Idris Elba — SS, 82 OVR** · Veteran defensive captain archetype with awareness, zone coverage, tackling, and leadership rather than extreme speed. Portrayed by Self / fantasy card.
+
+**Brian Murphy — TE, 82 OVR** · *The Replacements*' gifted Gallaudet tight end and game-winning target; a balanced possession TE. Portrayed by David Denman.
+
+**Jason Momoa — TE, 82 OVR** · Size and action-star athleticism fit an inline power TE specializing in contested catches, stiff arms, and run blocking. Portrayed by Self / fantasy card.
+
+**Calvin Broadus — WR, 82 OVR** · Deep football connection as a longtime youth coach and league founder; make him a smooth possession receiver with good awareness and hands. Game input: Calvin Broadus. Portrayed by Self / fantasy card.
+
+**Charlie Tweeder — WR, 82 OVR** · The undersized, fearless slot receiver from *Varsity Blues*; separation, spectacular catches, and swagger over size or blocking. Portrayed by Scott Caan.
+
+**Clifford Franklin — WR, 82 OVR** · *The Replacements* speedster who can separate from anyone but initially cannot catch; a perfect extreme speed-versus-hands archetype. Portrayed by Orlando Jones.
+
+**Cornell Haynes — WR, 82 OVR** · Played football and was a leading high-school receiver before music fame. This real background supports a quick slot/deep-threat blend. Game input: Cornell Haynes. Portrayed by Self / fantasy card.
+
+**Donald Glover — WR, 82 OVR** · Creative slot-receiver build with route running, release, and awareness as the strengths rather than size or power. Portrayed by Self / fantasy card.
+
+**Dwayne Carter — WR, 82 OVR** · Undersized slot receiver/returner concept emphasizing change of direction, creativity, and spectacular catches over strength. Game input: Dwayne Carter. Portrayed by Self / fantasy card.
+
+**Mahershala Ali — WR, 82 OVR** · Played college basketball before acting, supporting a tall possession receiver with body control, hands, and sideline awareness. Portrayed by Self / fantasy card.
+
+**Ricky Jerret — WR, 85 OVR** · The volatile star receiver in *Ballers*. Washington also has real credibility: he was a record-setting Morehouse RB and signed with the Rams. Portrayed by John David Washington.
+
+**Rod Tidwell — WR, 86 OVR** · The Arizona Cardinals star receiver in *Jerry Maguire*; memorable personality, hands, toughness, and yards-after-catch archetype. Portrayed by Cuba Gooding Jr..
+
+**Spencer James — WR, 82 OVR** · Two-way centerpiece of *All American*; use WR as primary with unusually good defensive ratings for optional position changes. Portrayed by Daniel Ezra.
+
+**Tauheed Epps — WR, 82 OVR** · The 6-foot-5 rapper played college basketball, supporting a tall boundary receiver with legitimate coordination and catch-radius logic. Game input: Tauheed Epps. Portrayed by Self / fantasy card.
+
+**Vince Papale — WR, 82 OVR** · Portrayal of the real Eagles walk-on in *Invincible*; special teams, toughness, and effort should carry the build. Portrayed by Mark Wahlberg.
+
+## Could've Beens (50)
+
+**Nate Robinson — CB, 87 OVR** · Started games at cornerback for Washington and was an elite prep RB/DB/returner. A speed-and-return build is supported by real football tape, not just NBA athleticism.
+
+**Brock Lesnar — DT, 84 OVR** · NCAA heavyweight champion who reached Vikings preseason camp without a conventional football background. His size and explosiveness justify a powerful but technically raw interior defender.
+
+**Dustin Byfuglien — DT, 83 OVR** · Played NHL hockey at roughly 260 pounds with unusual movement skills and contact power; a credible penetrating-DT physical projection.
+
+**Gable Steveson — DT, 87 OVR** · Olympic and NCAA champion signed by Buffalo as a defensive tackle despite never playing organized football; elite leverage and burst, raw technique.
+
+**Leati Anoa'i — DT, 83 OVR** · A multi-year Georgia Tech defensive lineman who had brief pro-football stops before wrestling; a much firmer football basis than a physique-only celebrity pick. Game input: Leati Anoa'i.
+
+**Anthony Edwards — HB, 83 OVR** · Played running back when young and has described football as his first sporting love; explosive acceleration and contact balance make HB the best fantasy translation.
+
+**Jackie Robinson — HB, 89 OVR** · Football may have been his best UCLA sport: honorable-mention All-American, 12.2 yards per carry in 1939, and a national leader as a punt returner.
+
+**Louis Rees-Zammit — HB, 83 OVR** · International rugby wing who entered the NFL pathway and spent time with Kansas City and Jacksonville; open-field speed and return ability are directly translatable.
+
+**Marcus Dupree — HB, 88 OVR** · Generational Oklahoma freshman talent whose path through the USFL and injuries prevented the anticipated NFL career; a powerful pre-injury what-if profile.
+
+**Darin Erstad — P, 83 OVR** · Nebraska national-championship punter who averaged 42.6 yards per punt and also handled placekicking; an excellent special-teams addition.
+
+**Adam Dunn — QB, 83 OVR** · Star Texas high-school quarterback who went to the University of Texas on a football scholarship before committing fully to baseball.
+
+**Allen Iverson — QB, 88 OVR** · Quarterbacked Bethel to a Virginia state title, also played DB/KR, and was rated the nation's top high-school QB before choosing basketball.
+
+**Anders Lee — QB, 83 OVR** · Two-year high-school starting QB, Minnesota Gatorade Football Player of the Year, and a Mr. Football finalist who received college offers in both football and hockey.
+
+**Archie Bradley — QB, 87 OVR** · Elite prep quarterback who accepted an Oklahoma football scholarship before signing as the seventh MLB draft pick. Strong arm and power-running potential.
+
+**Carl Crawford — QB, 83 OVR** · One of the most heavily recruited high-school quarterbacks in his class and held a Nebraska football offer before signing in baseball.
+
+**Charlie Ward — QB, 89 OVR** · The strongest lock in the category: 1993 Heisman winner, national-title QB, and first-round Knicks pick who chose an 11-year NBA career instead of pursuing the NFL.
+
+**Chris Weinke — QB, 87 OVR** · Won the Heisman at age 28 after a baseball detour, then struggled as an NFL starter; mature pocket traits with deliberately modest athletic upside.
+
+**Colt Brennan — QB, 87 OVR** · Record-setting Hawaii passer and Heisman finalist who never reached an NFL regular-season roster; spread accuracy and anticipation over arm power.
+
+**Danny Wuerffel — QB, 87 OVR** · Florida Heisman winner and elite college distributor whose game did not translate to sustained NFL starting success.
+
+**Derek Starling — QB, 83 OVR** · Rushed for 2,471 yards and 31 TDs as a senior QB and passed up Nebraska football/baseball for the Royals. Game input: Derek Starling.
+
+**Donavan Tate — QB, 83 OVR** · Nationally sought two-sport prospect committed to play QB at North Carolina before becoming MLB's third overall pick; later returned to college football.
+
+**Eric Crouch — QB, 86 OVR** · 2001 Heisman-winning Nebraska option QB whose attempted NFL conversion to receiver never produced a regular-season appearance. Keep him at his authentic college position.
+
+**Gino Torretta — QB, 87 OVR** · Miami Heisman and national-title quarterback who received minimal NFL playing time; ratings should reflect college command rather than pro production.
+
+**Jalen Suggs — QB, 87 OVR** · Four-star dual-threat with more than a dozen football offers; Minnesota Mr. Football after passing for 2,213 yards and rushing for 978 as a senior.
+
+**Jason White — QB, 87 OVR** · Oklahoma Heisman winner whose knee history and lack of NFL measurables left him undrafted and without a regular-season career.
+
+**Joe Mauer — QB, 87 OVR** · National high-school player of the year in football, threw for more than 5,500 yards and 73 TDs over two seasons, and signed with Florida State before baseball won out.
+
+**Major Harris — QB, 87 OVR** · West Virginia dual-threat and Heisman runner-up who went undrafted and received only a brief NFL opportunity; an early modern scramble/playmaking archetype.
+
+**Todd Helton — QB, 83 OVR** · Tennessee scholarship quarterback who started games before Peyton Manning emerged; a legitimate college passer rather than a physique projection.
+
+**Tommie Frazier — QB, 87 OVR** · Two-time Nebraska national champion and iconic option quarterback whose style and health never led to an NFL role. Elite option instincts and running vision.
+
+**Troy Smith — QB, 87 OVR** · Ohio State Heisman winner whose size and opportunity limited him mostly to backup work; mobile, competitive, and strongest outside a traditional pocket build.
+
+**Ty Detmer — QB, 87 OVR** · Record-setting BYU Heisman passer whose pro career settled into long-term backup duty; a cerebral accuracy build with limited arm strength and athleticism.
+
+**Ilona Maher — SS, 87 OVR** · Elite open-field tackling, contact balance, and ball skills translate naturally to strong safety; a valuable women's-sports crossover and a genuinely distinctive card.
+
+**Dave Winfield — TE, 83 OVR** · The Vikings drafted the 6-foot-6, 230-pound Winfield despite his not playing college football. He was drafted in MLB, NBA, ABA, and NFL, making him the category's ultimate raw-athlete projection.
+
+**Frank Thomas — TE, 83 OVR** · Entered Auburn on a football scholarship and played tight end before an injury and his baseball ceiling redirected him. At 6-foot-5 and roughly 275 pounds, the projection is unusually concrete.
+
+**Giannis Antetokounmpo — TE, 83 OVR** · Length, movement, transition speed, and catch radius suggest a field-stretching TE; entirely projection-based and therefore appropriately raw in technique.
+
+**Joel Embiid — TE, 83 OVR** · Length, strength, coordination, and catch radius create a red-zone specialist; durability and football technique prevent an overpowered build.
+
+**Jonah Lomu — TE, 83 OVR** · Rugby's iconic size-speed collision: roughly edge-player mass with breakaway pace. A devastating receiving/power TE projection with raw routes and blocking technique.
+
+**Shaquille O'Neal — TE, 83 OVR** · The ultimate goal-line mismatch and blocker by frame and explosiveness, but route running, stamina, and football awareness must keep him from becoming an automatic superstar.
+
+**Wilt Chamberlain — TE, 86 OVR** · Generational size, speed, leaping, and strength made him a plausible red-zone TE/edge projection. Include as a projection, not as a fabricated football veteran.
+
+**Zdeno Chara — TE, 83 OVR** · At 6-foot-9 with exceptional endurance and physicality, he projects as a red-zone target and engulfing blocker, tempered by change-of-direction limitations.
+
+**Zion Williamson — TE, 83 OVR** · Rare mass and explosion make TE intuitive, but this is a pure projection with raw route running, blocking technique, and awareness.
+
+**Carl Lewis — WR, 87 OVR** · Dallas drafted the nine-time Olympic champion as a receiver in 1984 despite no college football experience; the obvious all-speed deep-threat/return-specialist build.
+
+**Jeff Francoeur — WR, 87 OVR** · Won state football titles and declined a Clemson football scholarship after Atlanta drafted him; MLB records identify wide receiver as his projected college position.
+
+**Jeff Samardzija — WR, 88 OVR** · Notre Dame All-American receiver with NFL size who was viewed as a legitimate pro prospect, but chose a long MLB pitching career.
+
+**John Havlicek — WR, 83 OVR** · All-state high-school quarterback whom Cleveland drafted and tried at receiver before his Celtics career; an actual NFL camp participant.
+
+**Justin Gatlin — WR, 87 OVR** · Olympic sprint champion who received NFL workouts and a Buccaneers tryout; another legitimate speed experiment, though less complete than Carl Lewis.
+
+**Kirk Gibson — WR, 89 OVR** · First-team All-American and eventual College Football Hall of Famer at Michigan State; finished his college career as the school's leader in catches and receiving yards.
+
+**LeBron James — WR, 87 OVR** · Played wide receiver through his junior year and earned first-team all-state honors; size, catch radius, and open-field power make WR more grounded than the usual speculative TE label.
+
+**Matt Barnes — WR, 87 OVR** · High-school All-American receiver with 58 catches, 1,112 yards, and 28 touchdowns as a senior; a credible big slot/possession receiver.
+
+**Usain Bolt — WR, 84 OVR** · The pure what-if selection: unmatched straight-line speed and public NFL interest, but no football resume. Ratings should pair elite speed with modest hands, route running, awareness, and toughness.

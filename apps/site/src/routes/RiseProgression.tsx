@@ -27,6 +27,8 @@ export function RiseProgressionPage() {
   const [ownerState, setOwnerState] = useState<OwnerProgressionState | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [sheetBusy, setSheetBusy] = useState<string | null>(null);
+  const [sheetNotice, setSheetNotice] = useState<string | null>(null);
 
   const reloadSide = useCallback(async (targetSide: Side) => {
     if (!guildId) return;
@@ -80,6 +82,22 @@ export function RiseProgressionPage() {
     { id: "owner", label: ownerState ? ownerState.name : "Owner", subtitle: "The Owner's Box", state: ownerState },
   ];
 
+  async function buySheetPerk(target: Identity, key: string, displayName: string, xpCost: number) {
+    setSheetBusy(`${target}:${key}`); setError(null); setSheetNotice(null);
+    try {
+      if (target === "owner") {
+        await siteApi.ownerPurchasePerk({ guildId, key });
+        await reloadOwner();
+      } else {
+        await siteApi.immortalityPurchasePerk({ guildId, side: target, key });
+        await reloadSide(target);
+      }
+      setSheetNotice(`Purchased ${displayName} for ${xpCost} ${target === "owner" ? "Owner" : "Player"} XP.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not buy that perk.");
+    } finally { setSheetBusy(null); }
+  }
+
   return (
     <div className="site-page rise-page">
       <header className="rise-hero">
@@ -95,6 +113,25 @@ export function RiseProgressionPage() {
       {error ? <p className="site-auth-error">{error}</p> : null}
 
       {loading ? <p className="site-muted">Loading…</p> : (
+        <section className="rise-legacy-sheet" aria-label="Offense, defense, and owner progression trees">
+          {identityCards.map((card) => (
+            <LegacyTreeColumn
+              key={card.id}
+              identity={card.id}
+              subtitle={card.subtitle}
+              state={card.state}
+              busy={sheetBusy}
+              onBuy={(key, displayName, xpCost) => void buySheetPerk(card.id, key, displayName, xpCost)}
+            />
+          ))}
+        </section>
+      )}
+
+      {sheetNotice ? <p className="rise-sheet-notice">{sheetNotice}</p> : null}
+
+      {loading ? null : (
+        <>
+        <h2 className="rise-tools-heading">Progression tools</h2>
         <div className="rise-identity-switcher">
           {identityCards.map((card) => (
             <button
@@ -110,21 +147,62 @@ export function RiseProgressionPage() {
             </button>
           ))}
         </div>
+        </>
       )}
 
       {loading ? null : identity === "owner" ? (
         ownerState === null ? <p className="site-muted">No owner profile found for you in this league yet.</p>
           : ownerState === undefined ? <p className="site-muted">Loading…</p>
-            : <OwnerProgressionBody guildId={guildId} state={ownerState} reload={reloadOwner} />
+            : <OwnerProgressionBody guildId={guildId} state={ownerState} reload={reloadOwner} showTree={false} />
       ) : (
         (() => {
           const state = states[identity];
           return state === null ? <p className="site-muted">No prospect on this side yet. Finish Origins first.</p>
             : state === undefined ? <p className="site-muted">Loading this player…</p>
-              : <PlayerProgressionBody guildId={guildId} side={identity} state={state} reload={() => reloadSide(identity)} />;
+              : <PlayerProgressionBody guildId={guildId} side={identity} state={state} reload={() => reloadSide(identity)} showTree={false} />;
         })()
       )}
     </div>
+  );
+}
+
+function LegacyTreeColumn({
+  identity, subtitle, state, busy, onBuy,
+}: {
+  identity: Identity;
+  subtitle: string;
+  state: SideState | OwnerProgressionState;
+  busy: string | null;
+  onBuy: (key: string, displayName: string, xpCost: number) => void;
+}) {
+  if (state === undefined) return <article className={`rise-legacy-column is-${identity}`}><p className="site-muted">Loading…</p></article>;
+  if (state === null) return <article className={`rise-legacy-column is-${identity}`}><h2>{identity}</h2><p className="site-muted">Not available yet.</p></article>;
+  const isOwner = identity === "owner";
+  const playerState = isOwner ? null : state as ImmortalityProgressionState;
+  const ownerState = isOwner ? state as OwnerProgressionState : null;
+  const xp = ownerState?.ownerXp ?? playerState?.playerXp ?? 0;
+  const nodes = state.nodes;
+  const foundations = playerState?.origins ?? [];
+  return (
+    <article className={`rise-legacy-column is-${identity}`}>
+      <header className="rise-legacy-identity">
+        {state.headshotUrl ? <img src={state.headshotUrl} alt="" className="rise-legacy-headshot" /> : <div className="rise-legacy-headshot is-empty">{state.name.slice(0, 1)}</div>}
+        <div><span>{subtitle}</span><h2>{state.name}</h2><strong>{xp} {isOwner ? "Owner" : "Player"} XP</strong></div>
+      </header>
+      <div className="rise-legacy-capstone-label">Legacy capstone</div>
+      <TreeGrid nodes={nodes} tiers={[4, 3, 2]} currentXp={xp} busy={busy?.startsWith(`${identity}:`) ? busy.slice(identity.length + 1) : null} onBuy={onBuy} />
+      <div className="rise-legacy-foundation">
+        <p>{isOwner ? "Franchise Foundation" : "Origins Foundation"}</p>
+        <div className="rise-tree-row rise-tree-row-origins">
+          {foundations.length ? foundations.map((origin) => (
+            <div key={origin.key} className="rise-tree-node is-owned is-root" title={origin.effect}>
+              <span className="rise-tree-node-badge">{origin.displayName.slice(0, 1)}</span>
+              <span className="rise-tree-node-name">{origin.displayName}</span>
+            </div>
+          )) : <span className="site-muted">{isOwner ? "Owner identity" : "Finish Origins"}</span>}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -251,12 +329,13 @@ function TreeGrid({
 }
 
 function PlayerProgressionBody({
-  guildId, side, state, reload,
+  guildId, side, state, reload, showTree = true,
 }: {
   guildId: string;
   side: Side;
   state: ImmortalityProgressionState;
   reload: () => Promise<void>;
+  showTree?: boolean;
 }) {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -335,7 +414,7 @@ function PlayerProgressionBody({
         <p className="site-muted">{state.trend.reason}</p>
       </section>
 
-      <section className="rise-card rise-tree-card">
+      {showTree ? <section className="rise-card rise-tree-card">
         <h2>Skill Tree</h2>
         <p className="site-muted">Tap a node to see what it does.</p>
         <div className="rise-tree-tier">
@@ -352,7 +431,7 @@ function PlayerProgressionBody({
           </div>
         </div>
         <TreeGrid nodes={state.nodes} tiers={tiers} currentXp={state.playerXp} busy={busy} onBuy={buyPerk} />
-      </section>
+      </section> : null}
 
       <section className="rise-card">
         <h2>Development trait</h2>
@@ -406,11 +485,12 @@ function PlayerProgressionBody({
 }
 
 function OwnerProgressionBody({
-  guildId, state, reload,
+  guildId, state, reload, showTree = true,
 }: {
   guildId: string;
   state: OwnerProgressionState;
   reload: () => Promise<void>;
+  showTree?: boolean;
 }) {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -471,11 +551,11 @@ function OwnerProgressionBody({
         </p>
       </section>
 
-      <section className="rise-card rise-tree-card">
+      {showTree ? <section className="rise-card rise-tree-card">
         <h2>Franchise Pillar Tree</h2>
         <p className="site-muted">Tap a node to see what it does. Three lanes -- Personnel Authority, Player Development, Organizational Influence -- converge on one shared capstone; four more mastery perks unlock past it.</p>
         <TreeGrid nodes={state.nodes} tiers={tiers} currentXp={state.ownerXp} busy={busy} onBuy={buyPerk} />
-      </section>
+      </section> : null}
 
       <section className="rise-card">
         <h2>Franchise Investments</h2>

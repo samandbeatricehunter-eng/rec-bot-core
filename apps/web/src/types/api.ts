@@ -1131,7 +1131,8 @@ export type LegendCatalogEntry = {
   body_type: string | null;
   attributes: Record<string, number>;
   abilities?: Array<{ name: string; description?: string; type?: string }>;
-  legend_tier?: "legend" | "immortal";
+  legend_tier?: "legend" | "immortal" | "bust" | "hometown_hero" | "celebs_couldve_beens";
+  store_subgroup?: "screen_star" | "couldve_been" | null;
   catalog_group?: "current_catalog" | "notable_addition";
   photo_url: string | null;
 };

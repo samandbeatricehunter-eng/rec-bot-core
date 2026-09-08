@@ -39,3 +39,15 @@ apps/QB Throwing Motions/
 # that upload script exists, same pattern as the throwing-motion clips above. Not source.
 apps/Owner Headshots/
 apps/generic player headshots/
+apps/generic twitter headshots/
+
+# Collected storefront headshots are uploaded to Cloudflare Images; keep the
+# local working copies and license CSVs out of git.
+artifacts/new-storefront-headshots/
+artifacts/new-storefront-headshots-missing/
+artifacts/new-storefront-headshots.zip
+
+# One-off generation scratch from catalog/ratings/headshot tooling.
+docs/legends/_*
+docs/legends/new-storefront-headshot-missing.json
+docs/legends/new-storefront-headshot-uploads.json

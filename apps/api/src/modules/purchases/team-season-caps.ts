@@ -11,6 +11,7 @@ export type TeamScopedPurchaseRow = {
 export type RosterLegendRow = {
   full_name?: string | null;
   raw_payload?: Record<string, unknown> | null;
+  created_at?: string | null;
 };
 
 export function normalizeLegendName(name: string | null | undefined): string {
@@ -35,6 +36,7 @@ export function countTeamLegendSlots(input: {
   teamId: string;
   purchases: TeamScopedPurchaseRow[];
   rosterLegends: RosterLegendRow[];
+  capsResetAt?: string | null;
 }): number {
   const teamPurchases = input.purchases.filter((row) => purchaseBelongsToTeam(row, input.teamId));
   const legendIds = new Set<string>();
@@ -46,6 +48,7 @@ export function countTeamLegendSlots(input: {
   }
   let extra = 0;
   for (const player of input.rosterLegends) {
+    if (input.capsResetAt && (!player.created_at || player.created_at <= input.capsResetAt)) continue;
     const payload = player.raw_payload ?? {};
     const legendId = typeof payload.legendId === "string" && payload.legendId ? payload.legendId : null;
     const name = normalizeLegendName(player.full_name);

@@ -24,3 +24,16 @@ test("Madden import unlocks player bonuses and team INTs; box scores do not", ()
   assert.equal(isPayoutEligibleForLeague(ppg, "madden_27", "box_scores"), true);
   assert.equal(isPayoutEligibleForLeague(ppg, "madden_27", "import"), true);
 });
+
+test("EOS rewards fund next-season store participation", () => {
+  const rank = REC_END_SEASON_PAYOUTS.find((item) => item.key === "power_ranking_position")!;
+  const ppg = REC_END_SEASON_PAYOUTS.find((item) => item.key === "team_ppg")!;
+  const workhorse = REC_END_SEASON_PAYOUTS.find((item) => item.key === "madden_rb_workhorse")!;
+  const longKicker = REC_END_SEASON_PAYOUTS.find((item) => item.key === "king_of_the_swing")!;
+  assert.deepEqual(rank.tiers.map((tier) => tier.amount), [7500, 5500, 2500, 1000, 0]);
+  assert.deepEqual(ppg.tiers.map((tier) => tier.amount), [1500, 1100, 800, 500, 300]);
+  assert.equal(workhorse.tiers[0]?.amount, 2500);
+  assert.equal(longKicker.tiers[0]?.amount, 1000);
+  // Top rank + six S-tier team categories + both Madden import bonuses = 20K.
+  assert.equal(7500 + 6 * 1500 + 2500 + 1000, 20_000);
+});

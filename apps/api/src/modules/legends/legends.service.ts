@@ -8,15 +8,21 @@ import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { createPurchaseRequest } from "../purchases/purchases.service.js";
-import { isCompatibleReplacementPosition, sortRecAttributeKeys } from "@rec/shared";
+import { isCompatibleReplacementPosition, REC_LEGEND_TIER_LABELS, sortRecAttributeKeys, type RecLegendTier } from "@rec/shared";
 
 const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"];
+
+function defaultDevTraitForTier(tier: RecLegendTier): "star" | "superstar" | "xfactor" {
+  if (tier === "immortal") return "xfactor";
+  if (tier === "bust") return "star";
+  return "superstar";
+}
 
 export async function listLegendCatalog(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { data, error } = await supabase
     .from("rec_legend_catalog")
-    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,body_type,attributes,abilities,legend_tier,photo_url,catalog_group")
+    .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,body_type,attributes,abilities,legend_tier,store_subgroup,photo_url,catalog_group")
     .order("legend_tier", { ascending: true })
     .order("position_group", { ascending: true })
     .order("position", { ascending: true })
@@ -26,8 +32,9 @@ export async function listLegendCatalog(guildId: string) {
   return {
     legends: (data ?? []).map((legend: any) => ({
       ...legend,
-      // Shared identity catalog: Madden sees tier-derived trait + abilities; CFB hides them.
-      dev_trait: isCfb ? null : (legend.legend_tier === "immortal" ? "xfactor" : "superstar"),
+      // CFB inherits the replacement player's trait. Madden uses the curated catalog trait;
+      // the tier-derived fallback only exists for legacy rows created before dev_trait was stored.
+      dev_trait: isCfb ? null : (legend.dev_trait ?? defaultDevTraitForTier((legend.legend_tier ?? "legend") as RecLegendTier)),
       abilities: isCfb ? [] : (legend.abilities ?? []),
     })),
   };
@@ -224,7 +231,8 @@ export async function createLegendPurchaseRequest(input: {
       : "Madden legends require a roster player to replace so the purchase is linked to that player's EA identity.");
   }
 
-  const legendTier = legend.data.legend_tier === "immortal" ? "immortal" : "legend";
+  const legendTier = (legend.data.legend_tier ?? "legend") as RecLegendTier;
+  const tierLabel = REC_LEGEND_TIER_LABELS[legendTier];
   const details = {
     legendId: legend.data.id,
     name: legend.data.name,
@@ -236,7 +244,8 @@ export async function createLegendPurchaseRequest(input: {
     hand: legend.data.hand,
     jerseyNumber: legend.data.jersey_number,
     legendTier,
-    devTrait: isCfb ? null : (legendTier === "immortal" ? "xfactor" : "superstar"),
+    storeSubgroup: legend.data.store_subgroup ?? null,
+    devTrait: isCfb ? null : (legend.data.dev_trait ?? defaultDevTraitForTier(legendTier)),
     archetype: legend.data.archetype,
     buildNote: legend.data.build_note,
     college: legend.data.college,
@@ -282,7 +291,7 @@ export async function createLegendPurchaseRequest(input: {
     .from("rec_commissioners_inbox")
     .update({
       queue_type: "legend",
-      header: `${legendTier === "immortal" ? "Immortal" : "Legend"}: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR) — ${teamName ?? "Unassigned"}`,
+      header: `${tierLabel}: ${legend.data.name} (${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR) — ${teamName ?? "Unassigned"}`,
       summary: summaryLines.join("\n"),
       payload: {
         purchaseId: result.purchase.id,
@@ -313,7 +322,7 @@ export async function createLegendPurchaseRequest(input: {
   if (announcementsChannelId) {
     await postDiscordChannelMessage(announcementsChannelId, {
       embeds: [{
-        title: `${legendTier === "immortal" ? "Immortal" : "Legend"} Reserved`,
+        title: `${tierLabel} Reserved`,
         color: 0xd4af37,
         description: `**${teamName ?? "A team"}** has purchased **${legend.data.name}** (${legendTier}, ${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR). Pending commissioner approval.\n\n7-year lowest-value contract, renewed perpetually.`,
       }],

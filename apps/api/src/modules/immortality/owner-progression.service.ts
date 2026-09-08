@@ -136,6 +136,7 @@ export async function getOwnerProgressionState(input: { guildId: string; discord
   return {
     ownerId: String(owner.id),
     name: `${owner.first_name ?? ""} ${owner.last_name ?? ""}`.trim() || "Owner",
+    headshotUrl: owner.headshot_url ? String(owner.headshot_url) : null,
     ownerXp,
     personnelCouncilTier: modifiers.personnelCouncilTier,
     releaseAuthorityUnlocked: modifiers.releaseAuthorityUnlocked,

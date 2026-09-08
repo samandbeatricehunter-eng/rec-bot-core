@@ -66,6 +66,10 @@ export const REC_ECONOMY_MINIMUM_LINKED_USERS = 8;
 export const REC_EOS_MINIMUM_ACTIVE_LINKED_USERS = REC_ECONOMY_MINIMUM_LINKED_USERS;
 
 const MADDEN_GAMES = ["madden_26", "madden_27"];
+// EOS is the season's main economy injection. These amounts are calibrated so an
+// exceptional non-RTI Madden season (top power rank plus several S-tier team results)
+// returns roughly 15K-20K -- enough to participate meaningfully in the next store window.
+const EOS_TEAM = { S: 1500, A: 1100, B: 800, C: 500, D: 300 } as const;
 
 export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   {
@@ -76,7 +80,7 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
     statKey: "power_rank",
     // The REAL dollar amount always comes from the `rec_eos_rank_payouts` SQL function
     // (supabase/migrations/202606130006_rec_eos_rank_payouts_rpc.sql) — it pays a distinct
-    // amount per exact rank (2500/1750/1250/1000/750/750/500/500, 0 for rank 9+), which is finer-
+    // amount per exact rank (7500/5500/4000/3000/2500/2000/1500/1000, 0 for rank 9+), which is finer-
     // grained than this 5-tier ladder can represent exactly. These tiers exist only for
     // display (qualified_tier label, EOS progress bars) and for the commissioner's manual
     // "adjust to a different tier" override — so each tier is anchored to the WORST-case
@@ -84,10 +88,10 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
     // adjustment can never pay out more than that rank could really earn. If the RPC's
     // amount table changes, update this to match.
     tiers: [
-      { tier: "S", threshold: 1, amount: 2500, operator: "less_or_equal" },
-      { tier: "A", threshold: 2, amount: 1750, operator: "less_or_equal" },
-      { tier: "B", threshold: 5, amount: 750, operator: "less_or_equal" },
-      { tier: "C", threshold: 8, amount: 500, operator: "less_or_equal" },
+      { tier: "S", threshold: 1, amount: 7500, operator: "less_or_equal" },
+      { tier: "A", threshold: 2, amount: 5500, operator: "less_or_equal" },
+      { tier: "B", threshold: 5, amount: 2500, operator: "less_or_equal" },
+      { tier: "C", threshold: 8, amount: 1000, operator: "less_or_equal" },
       { tier: "D", threshold: 9, amount: 0, operator: "greater_or_equal" },
     ],
   },
@@ -108,28 +112,28 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   // Recalibrated 2026-08-05 — 44 PPG for S tier was unreachable outside inflated sim scoring
   // (a real 40+ PPG season, which the old ladder only paid Tier A, is already elite). Shifted
   // the whole ladder down ~10% while keeping the same relative spacing.
-  { key: "team_ppg", label: "TEAM AVG Points Per Game Bonus", scope: "team", direction: "higher_is_better", statKey: "points_per_game", tiers: higher([["S", 40, 200], ["A", 36, 150], ["B", 32, 100], ["C", 28, 75], ["D", 25, 50]]) },
-  { key: "opp_ppg_allowed", label: "Opponent AVG PPG Defensive Bonus", scope: "team", direction: "lower_is_better", statKey: "points_allowed_per_game", tiers: lower([["S", 16, 200], ["A", 19, 150], ["B", 22, 100], ["C", 25, 75], ["D", 28, 50]]) },
-  { key: "team_def_ints", label: "Team Defensive INTs (per game)", scope: "team", direction: "higher_is_better", statKey: "team_interceptions", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: higher([["S", 2.5, 200], ["A", 2.0, 150], ["B", 1.6, 100], ["C", 1.3, 75], ["D", 1.2, 50]]) },
-  { key: "team_def_yards_allowed", label: "Defensive Yards Allowed (per game)", scope: "team", direction: "lower_is_better", statKey: "total_yards_allowed", tiers: lower([["S", 300, 200], ["A", 340, 150], ["B", 380, 100], ["C", 430, 75], ["D", 500, 50]]) },
-  { key: "turnover_diff", label: "Turnover Differential (per game)", scope: "team", direction: "higher_is_better", statKey: "turnover_differential", tiers: higher([["S", 1.4, 200], ["A", 1.0, 150], ["B", 0.7, 100], ["C", 0.4, 75], ["D", 0.15, 50]]) },
+  { key: "team_ppg", label: "TEAM AVG Points Per Game Bonus", scope: "team", direction: "higher_is_better", statKey: "points_per_game", tiers: higher([["S", 40, EOS_TEAM.S], ["A", 36, EOS_TEAM.A], ["B", 32, EOS_TEAM.B], ["C", 28, EOS_TEAM.C], ["D", 25, EOS_TEAM.D]]) },
+  { key: "opp_ppg_allowed", label: "Opponent AVG PPG Defensive Bonus", scope: "team", direction: "lower_is_better", statKey: "points_allowed_per_game", tiers: lower([["S", 16, EOS_TEAM.S], ["A", 19, EOS_TEAM.A], ["B", 22, EOS_TEAM.B], ["C", 25, EOS_TEAM.C], ["D", 28, EOS_TEAM.D]]) },
+  { key: "team_def_ints", label: "Team Defensive INTs (per game)", scope: "team", direction: "higher_is_better", statKey: "team_interceptions", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: higher([["S", 2.5, EOS_TEAM.S], ["A", 2.0, EOS_TEAM.A], ["B", 1.6, EOS_TEAM.B], ["C", 1.3, EOS_TEAM.C], ["D", 1.2, EOS_TEAM.D]]) },
+  { key: "team_def_yards_allowed", label: "Defensive Yards Allowed (per game)", scope: "team", direction: "lower_is_better", statKey: "total_yards_allowed", tiers: lower([["S", 300, EOS_TEAM.S], ["A", 340, EOS_TEAM.A], ["B", 380, EOS_TEAM.B], ["C", 430, EOS_TEAM.C], ["D", 500, EOS_TEAM.D]]) },
+  { key: "turnover_diff", label: "Turnover Differential (per game)", scope: "team", direction: "higher_is_better", statKey: "turnover_differential", tiers: higher([["S", 1.4, EOS_TEAM.S], ["A", 1.0, EOS_TEAM.A], ["B", 0.7, EOS_TEAM.B], ["C", 0.4, EOS_TEAM.C], ["D", 0.15, EOS_TEAM.D]]) },
   // Recalibrated 2026-08-05 alongside team_ppg — same inflation pattern, same ~-20yd shift.
-  { key: "team_total_offense", label: "Team Total Offense (per game)", scope: "team", direction: "higher_is_better", statKey: "total_offense_yards", tiers: higher([["S", 460, 200], ["A", 430, 150], ["B", 410, 100], ["C", 390, 75], ["D", 370, 50]]) },
-  { key: "off_red_zone_td_rate", label: "Offensive Red-Zone TD Efficiency", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_rate", tiers: higher([["S", 80, 200], ["A", 75, 150], ["B", 70, 100], ["C", 65, 75], ["D", 60, 50]]) },
-  { key: "def_red_zone_td_rate", label: "Defensive Red-Zone TD Rate Allowed", scope: "team", direction: "lower_is_better", statKey: "red_zone_td_rate_allowed", tiers: lower([["S", 35, 200], ["A", 40, 150], ["B", 45, 100], ["C", 50, 75], ["D", 55, 50]]) },
+  { key: "team_total_offense", label: "Team Total Offense (per game)", scope: "team", direction: "higher_is_better", statKey: "total_offense_yards", tiers: higher([["S", 460, EOS_TEAM.S], ["A", 430, EOS_TEAM.A], ["B", 410, EOS_TEAM.B], ["C", 390, EOS_TEAM.C], ["D", 370, EOS_TEAM.D]]) },
+  { key: "off_red_zone_td_rate", label: "Offensive Red-Zone TD Efficiency", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_rate", tiers: higher([["S", 80, EOS_TEAM.S], ["A", 75, EOS_TEAM.A], ["B", 70, EOS_TEAM.B], ["C", 65, EOS_TEAM.C], ["D", 60, EOS_TEAM.D]]) },
+  { key: "def_red_zone_td_rate", label: "Defensive Red-Zone TD Rate Allowed", scope: "team", direction: "lower_is_better", statKey: "red_zone_td_rate_allowed", tiers: lower([["S", 35, EOS_TEAM.S], ["A", 40, EOS_TEAM.A], ["B", 45, EOS_TEAM.B], ["C", 50, EOS_TEAM.C], ["D", 55, EOS_TEAM.D]]) },
 
   // CFB-only additions (2026-07-16), leveraging stat fields CFB's box score
   // captures but Madden's doesn't (rush attempts/TDs, penalties, red-zone
   // TD-vs-FG split, time of possession).
-  { key: "time_of_possession", label: "Time of Possession Bonus", scope: "team", direction: "higher_is_better", statKey: "avg_time_of_possession_seconds", games: ["cfb_27"], tiers: higher([["S", 18.5 * 60, 200], ["A", 18 * 60, 150], ["B", 17.5 * 60, 100], ["C", 17 * 60, 75], ["D", 16.5 * 60, 50]]) },
-  { key: "well_disciplined", label: "Well-Disciplined (Penalties per Game)", scope: "team", direction: "lower_is_better", statKey: "total_penalties", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: lower([["S", 1.2, 200], ["A", 2, 150], ["B", 3, 100], ["C", 4, 75], ["D", 5, 50]]) },
-  { key: "red_zone_finish_rate", label: "Red Zone Finish Rate", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_finish_rate", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: higher([["S", 90, 200], ["A", 72, 150], ["B", 65, 100], ["C", 58, 75], ["D", 50, 50]]) },
+  { key: "time_of_possession", label: "Time of Possession Bonus", scope: "team", direction: "higher_is_better", statKey: "avg_time_of_possession_seconds", games: ["cfb_27"], tiers: higher([["S", 18.5 * 60, EOS_TEAM.S], ["A", 18 * 60, EOS_TEAM.A], ["B", 17.5 * 60, EOS_TEAM.B], ["C", 17 * 60, EOS_TEAM.C], ["D", 16.5 * 60, EOS_TEAM.D]]) },
+  { key: "well_disciplined", label: "Well-Disciplined (Penalties per Game)", scope: "team", direction: "lower_is_better", statKey: "total_penalties", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: lower([["S", 1.2, EOS_TEAM.S], ["A", 2, EOS_TEAM.A], ["B", 3, EOS_TEAM.B], ["C", 4, EOS_TEAM.C], ["D", 5, EOS_TEAM.D]]) },
+  { key: "red_zone_finish_rate", label: "Red Zone Finish Rate", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_finish_rate", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: higher([["S", 90, EOS_TEAM.S], ["A", 72, EOS_TEAM.A], ["B", 65, EOS_TEAM.B], ["C", 58, EOS_TEAM.C], ["D", 50, EOS_TEAM.D]]) },
   // Recalibrated 2026-08-05 from a single all-or-nothing S tier (threshold 85) to a full
   // ladder with partial credit — 85 required near-max carries AND near-max yards/carry
   // simultaneously, which real bell-cow backs (high volume, merely good efficiency — heavy
   // usage against stacked boxes usually caps ypc) rarely hit together. Formula unchanged
   // (evalTeamStat in eos-payouts.service.ts): (attempts/games)*2 + avgYardsPerRush*3 + (rushTDs/games)*8.
-  { key: "rb_workhorse", label: "RB Workhorse Bonus", scope: "team", direction: "higher_is_better", statKey: "rb_workhorse_score", games: ["cfb_27"], tiers: higher([["S", 75, 200], ["A", 65, 150], ["B", 55, 100], ["C", 45, 75], ["D", 35, 50]]) },
+  { key: "rb_workhorse", label: "RB Workhorse Bonus", scope: "team", direction: "higher_is_better", statKey: "rb_workhorse_score", games: ["cfb_27"], tiers: higher([["S", 75, EOS_TEAM.S], ["A", 65, EOS_TEAM.A], ["B", 55, EOS_TEAM.B], ["C", 45, EOS_TEAM.C], ["D", 35, EOS_TEAM.D]]) },
   // Recalibrated 2026-08-05: was a single S-tier-only composite (red-zone D 25% + takeaways
   // 25% + 3rd-down stops 25% + 4th-down stops 25%, threshold 80) with no yards/points-allowed
   // signal at all despite those being core defensive-dominance stats, and no partial credit.
@@ -146,11 +150,11 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
     statKey: "defense_identity_score",
     games: ["cfb_27"],
     tiers: [
-      { tier: "S", threshold: 80, amount: 200, operator: "greater_or_equal" },
-      { tier: "A", threshold: 68, amount: 150, operator: "greater_or_equal" },
-      { tier: "B", threshold: 56, amount: 100, operator: "greater_or_equal" },
-      { tier: "C", threshold: 44, amount: 75, operator: "greater_or_equal" },
-      { tier: "D", threshold: 32, amount: 50, operator: "greater_or_equal" },
+      { tier: "S", threshold: 80, amount: EOS_TEAM.S, operator: "greater_or_equal" },
+      { tier: "A", threshold: 68, amount: EOS_TEAM.A, operator: "greater_or_equal" },
+      { tier: "B", threshold: 56, amount: EOS_TEAM.B, operator: "greater_or_equal" },
+      { tier: "C", threshold: 44, amount: EOS_TEAM.C, operator: "greater_or_equal" },
+      { tier: "D", threshold: 32, amount: EOS_TEAM.D, operator: "greater_or_equal" },
     ],
     triggerNote: "Clearing the S tier lets you name your defense — it keeps that name until it stops qualifying.",
   },
@@ -173,8 +177,8 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
       rush_yards_after_contact: 250,
       rush_tds: 10,
     },
-    tiers: higher([["S", 1, 1000]]),
-    triggerNote: "Pays 1,000 coins per user-team rusher with 150+ carries, 1,000+ rush yards, 50+ broken tackles, 250+ yards after contact, and 10+ rush TDs.",
+    tiers: higher([["S", 1, 2500]]),
+    triggerNote: "Pays 2,500 coins per user-team rusher with 150+ carries, 1,000+ rush yards, 50+ broken tackles, 250+ yards after contact, and 10+ rush TDs.",
   },
   {
     key: "king_of_the_swing",
@@ -186,8 +190,8 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
     dataModes: ["import"],
     eligiblePositions: ["K"],
     minimums: { fg_50_attempts: 2 },
-    tiers: higher([["S", 1, 500]]),
-    triggerNote: "Pays 500 coins per user-team kicker with at least two 50+ yard field-goal attempts, all made.",
+    tiers: higher([["S", 1, 1000]]),
+    triggerNote: "Pays 1,000 coins per user-team kicker with at least two 50+ yard field-goal attempts, all made.",
   },
 ];
 
