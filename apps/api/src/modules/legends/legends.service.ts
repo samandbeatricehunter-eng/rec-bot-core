@@ -281,6 +281,9 @@ export async function createLegendPurchaseRequest(input: {
     `Tier: ${legendTier}`,
     ...(!isCfb ? [`Dev trait: ${details.devTrait}`] : []),
     ...(details.bodyType ? [`Body type: ${details.bodyType}`] : []),
+    ...(details.hand ? [`Hand: ${details.hand}-handed`] : []),
+    ...(details.jerseyNumber != null ? [`Jersey: #${details.jerseyNumber}`] : []),
+    ...(details.college ? [`College: ${details.college}`] : []),
     "Contract: 7 years at lowest possible value — renew perpetually (never lose to negotiations).",
     "Apply the catalog ratings shown and record any necessary in-game edits.",
     "",
@@ -298,6 +301,7 @@ export async function createLegendPurchaseRequest(input: {
         purchaseType: "legend",
         cost: result.price,
         replaceTarget: details.replaceTarget,
+        legendId: legend.data.id,
         legendName: legend.data.name,
         legendPosition: legend.data.position,
         legendTier,
@@ -307,6 +311,9 @@ export async function createLegendPurchaseRequest(input: {
         bodyType: details.bodyType ?? null,
         height: legend.data.height ?? null,
         weight: legend.data.weight ?? null,
+        hand: legend.data.hand ?? null,
+        jerseyNumber: legend.data.jersey_number ?? null,
+        college: legend.data.college ?? null,
         teamName: teamName ?? null,
         purchasingTeamId: teamId,
         attributes: legend.data.attributes ?? {},
@@ -324,7 +331,15 @@ export async function createLegendPurchaseRequest(input: {
       embeds: [{
         title: `${tierLabel} Reserved`,
         color: 0xd4af37,
-        description: `**${teamName ?? "A team"}** has purchased **${legend.data.name}** (${legendTier}, ${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR). Pending commissioner approval.\n\n7-year lowest-value contract, renewed perpetually.`,
+        description: [
+          `**${teamName ?? "A team"}** has purchased **${legend.data.name}** (${legendTier}, ${legend.data.position}, ${legend.data.est_ovr ?? "?"} OVR). Pending commissioner approval.`,
+          "7-year lowest-value contract, renewed perpetually.",
+        ].join("\n\n"),
+        fields: [
+          ...(legend.data.hand ? [{ name: "Hand", value: `${legend.data.hand}-handed`, inline: true }] : []),
+          ...(legend.data.jersey_number != null ? [{ name: "Jersey", value: `#${legend.data.jersey_number}`, inline: true }] : []),
+          ...(legend.data.college ? [{ name: "College", value: String(legend.data.college), inline: true }] : []),
+        ],
       }],
     }).catch((err) => console.error("[ERROR] Failed to post legend purchase announcement (non-fatal):", err));
   }

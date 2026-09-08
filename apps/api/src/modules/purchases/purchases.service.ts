@@ -261,7 +261,7 @@ async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
     weight_lbs: details.weight ?? null,
     handedness: details.hand ?? null,
     jersey_number: details.jerseyNumber ?? null,
-    college: null,
+    college: details.college ?? null,
     dev_trait: null,
     // rec_legend_catalog.est_ovr is numeric with a decimal (e.g. 88.3); rec_players.overall_rating
     // is an integer column — round it, or the write fails outright with a Postgres type error.

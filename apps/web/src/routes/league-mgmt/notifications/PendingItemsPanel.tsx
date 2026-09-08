@@ -122,12 +122,17 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
   }
 
   useEffect(load, [guildId]);
-  // EOS Payout notifications are handled entirely by the dedicated ledger tab below — a
-  // flat card for one doesn't have a well-defined click action any more, so it's excluded
-  // from every other view.
+  // EOS Payout rows don't have a useful flat-card click action — they open the ledger
+  // UI instead. They still count toward Pending/All, and All shows the ledger so a lone
+  // EOS item isn't a "Pending (1) / All (0) / Nothing pending here" mismatch.
+  const eosNotifications = notifications?.filter((notification) => notification.type === "eos_payout") ?? [];
   const cardNotifications = notifications?.filter((notification) => notification.type !== "eos_payout") ?? [];
   const visible = cardNotifications.filter((notification) => filter === "all" || notification.type === filter);
-  const typesPresent = new Set(cardNotifications.map((notification) => notification.type));
+  const typesPresent = new Set([
+    ...cardNotifications.map((notification) => notification.type),
+    ...eosNotifications.map((notification) => notification.type),
+  ]);
+  const showEosLedgers = filter === "eos_payout" || (filter === "all" && eosNotifications.length > 0);
 
   function openNotification(notification: CommissionerNotification) {
     // Custom-player review needs the full identity/attribute-edit UI, not the generic
@@ -169,15 +174,19 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
 
       {view === "pending" ? <>
         <div className="pending-items-category-row" style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>
-          <button type="button" className={filter === "all" ? "pending-items-category is-active" : "pending-items-category"} onClick={() => setFilter("all")}>All ({cardNotifications.length})</button>
+          <button type="button" className={filter === "all" ? "pending-items-category is-active" : "pending-items-category"} onClick={() => setFilter("all")}>All ({notifications.length})</button>
           {ALL_TYPES.filter((type) => typesPresent.has(type) || ALWAYS_VISIBLE_TYPES.includes(type)).map((type) => (
-            <button key={type} type="button" className={filter === type ? "pending-items-category is-active" : "pending-items-category"} onClick={() => setFilter(type)}>{TYPE_LABELS[type]}</button>
+            <button key={type} type="button" className={filter === type ? "pending-items-category is-active" : "pending-items-category"} onClick={() => setFilter(type)}>
+              {TYPE_LABELS[type]}
+              {type === "eos_payout" && eosNotifications.length > 0 ? ` (${eosNotifications.length})` : ""}
+            </button>
           ))}
         </div>
-        {filter === "eos_payout" ? (
+        {showEosLedgers ? (
           <EosPayoutLedgers onResolved={(message) => { setNotice(message); load(); window.dispatchEvent(new Event("rec:notifications-changed")); }} />
-        ) : <>
-          {visible.length === 0 && <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending here.</p></Card>}
+        ) : null}
+        {filter !== "eos_payout" ? <>
+          {visible.length === 0 && !showEosLedgers && <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending here.</p></Card>}
           <div className="pending-items-scroll-list" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             {visible.map((notification) => <Card key={notification.id} className="pending-item-card" onClick={() => openNotification(notification)}>
               <div className="pending-item-card-layout">
@@ -215,7 +224,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
               </div>
             </Card>)}
           </div>
-        </>}
+        </> : null}
       </> : <CompletedTransactions transactions={completed} />}
     </>}
 

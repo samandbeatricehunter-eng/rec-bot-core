@@ -133,6 +133,40 @@ type TradeEnrichment = {
   payload: Record<string, unknown>;
 };
 
+// Legend purchase inbox rows snapshot identity at buy time. Overlay the live catalog so
+// pending review cards pick up later hand / jersey / college sourcing without rewriting
+// every inbox row.
+async function overlayLiveLegendIdentity(rows: any[]) {
+  const legendRows = rows.filter((row) => row.queue_type === "legend" && row.source_id);
+  if (!legendRows.length) return;
+  const purchaseIds = [...new Set(legendRows.map((row) => row.source_id))];
+  const purchases = await supabase.from("rec_purchases").select("id,details").in("id", purchaseIds);
+  if (purchases.error) return;
+  const legendIds = [...new Set((purchases.data ?? []).map((row: any) => row.details?.legendId).filter(Boolean))];
+  if (!legendIds.length) return;
+  const catalog = await supabase
+    .from("rec_legend_catalog")
+    .select("id,hand,jersey_number,college,height,weight")
+    .in("id", legendIds);
+  if (catalog.error) return;
+  const detailsByPurchase = new Map((purchases.data ?? []).map((row: any) => [row.id, row.details ?? {}]));
+  const catalogById = new Map((catalog.data ?? []).map((row: any) => [row.id, row]));
+  for (const row of legendRows) {
+    const details = detailsByPurchase.get(row.source_id) ?? {};
+    const live = catalogById.get(details.legendId);
+    if (!live) continue;
+    row.payload = {
+      ...(row.payload ?? {}),
+      legendId: details.legendId ?? row.payload?.legendId ?? null,
+      hand: live.hand ?? details.hand ?? row.payload?.hand ?? null,
+      jerseyNumber: live.jersey_number ?? details.jerseyNumber ?? row.payload?.jerseyNumber ?? null,
+      college: String(live.college ?? details.college ?? row.payload?.college ?? "").trim() || null,
+      height: live.height ?? row.payload?.height ?? details.height ?? null,
+      weight: live.weight ?? row.payload?.weight ?? details.weight ?? null,
+    };
+  }
+}
+
 async function enrichPendingTradeRows(rows: TradeInboxRow[]): Promise<Map<string, TradeEnrichment>> {
   const byId = new Map<string, TradeEnrichment>();
   if (rows.length === 0) return byId;
@@ -207,6 +241,8 @@ export async function listCommissionerNotifications(
 
   const { data, error } = await query;
   if (error) throw new ApiError(500, "Failed to load commissioner notifications.", error);
+
+  await bestEffortVoid("notifications.legend_catalog_overlay", () => overlayLiveLegendIdentity(data ?? []));
 
   const names = await discordNameMap((data ?? []).flatMap((row: any) => [row.requester_discord_id]));
   const requesterMaps = await requesterNameMaps(data ?? []);
