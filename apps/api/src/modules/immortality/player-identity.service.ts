@@ -30,10 +30,59 @@ type ProspectIdentityRow = {
   identity_status: IdentityStatus | null;
   review_status: string | null;
   reviewed_at: string | null;
+  headshot_url?: string | null;
 };
+
+export const RTI_SYNTHETIC_MADDEN_PREFIX = "rti:";
 
 function isNumericId(id: string | null | undefined): boolean {
   return typeof id === "string" && /^[0-9]+$/.test(id);
+}
+
+/** True for an RTI-created prospect both before and after EA identity adoption.
+ * Placeholders keep a `rti:{prospectId}` madden id; after the real EA row is adopted in place,
+ * that column becomes a numeric franchise id, so callers must also match `rec_players.id`
+ * against rec_immortality_prospects.player_id. */
+export function isImmortalityCreatedPlayer(
+  maddenPlayerId: string | null | undefined,
+  recPlayerId: string | null | undefined,
+  prospectPlayerIds: Set<string>,
+): boolean {
+  if (String(maddenPlayerId ?? "").startsWith(RTI_SYNTHETIC_MADDEN_PREFIX)) return true;
+  return Boolean(recPlayerId && prospectPlayerIds.has(String(recPlayerId)));
+}
+
+export async function loadRtiProspectPlayerIds(leagueId: string): Promise<Set<string>> {
+  const immortality = await loadImmortalityLeague(leagueId);
+  if (!immortality) return new Set();
+  const rows = await supabase.from("rec_immortality_prospects")
+    .select("player_id")
+    .eq("immortality_league_id", immortality.id)
+    .not("player_id", "is", null);
+  return new Set(
+    (rows.data ?? [])
+      .map((row: { player_id: string | null }) => row.player_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+}
+
+/** Creation/upload headshots live on rec_immortality_prospects.headshot_url. EA import then
+ * stamps the replaced Madden player's baseline portrait onto rec_players.photo_url (EA-ID
+ * restore). Always overwrite the roster row with the prospect's chosen photo -- including
+ * clearing it when they never picked one, so the replaced player's face never stays. */
+export async function applyRtiCreatedPlayerPhotos(leagueId: string): Promise<number> {
+  const result = await getPgPool().query(
+    `update rec_players p
+        set photo_url = pr.headshot_url, updated_at = now()
+       from rec_immortality_prospects pr
+       join rec_immortality_leagues l on l.id = pr.immortality_league_id
+      where pr.player_id = p.id
+        and l.league_id = $1
+        and p.league_id = $1
+        and p.photo_url is distinct from pr.headshot_url`,
+    [leagueId],
+  );
+  return result.rowCount ?? 0;
 }
 
 function fullNameFor(prospect: { first_name: string | null; last_name: string | null }): string {
@@ -155,7 +204,7 @@ export async function reconcileRtiProspectIdentities(leagueId: string): Promise<
   if (!immortality) return;
 
   const prospects = await supabase.from("rec_immortality_prospects")
-    .select("id,user_id,first_name,last_name,position,side,player_id,identity_status,review_status,reviewed_at")
+    .select("id,user_id,first_name,last_name,position,side,player_id,identity_status,review_status,reviewed_at,headshot_url")
     .eq("immortality_league_id", immortality.id)
     .not("player_id", "is", null);
   if (prospects.error || !prospects.data?.length) return;
@@ -190,13 +239,17 @@ export async function reconcileRtiProspectIdentities(leagueId: string): Promise<
          limit 2`,
         [player.data.team_id, player.data.full_name ?? "", player.data.id],
       );
-      if (orphanCandidate.rows.length === 1) {
+      if (orphanCandidate.rows.length > 1) {
+        // limit 2 above exists specifically to detect this case -- two-or-more active rows share
+        // this placeholder's name/team, so auto-repair can't safely guess which one to adopt.
+        // Surface it distinctly instead of silently falling through as "no candidate found," which
+        // would otherwise be indistinguishable from the 0-match case below.
+        console.warn(`[player-identity] reconcileRtiProspectIdentities: ambiguous self-heal for orphaned placeholder ${player.data.id} (${player.data.full_name ?? "unknown"}) on team ${player.data.team_id} -- ${orphanCandidate.rows.length}+ active candidates share its name, skipping auto-repair for manual review.`);
+      } else if (orphanCandidate.rows.length === 1) {
         const target = orphanCandidate.rows[0];
-        // Carry forward whatever photo the coach had set on the placeholder (a real custom
-        // upload, or just the same starter stand-in the new row also got) -- a custom upload
-        // must never be silently dropped by an import creating a fresh row.
-        if (player.data.photo_url && player.data.photo_url !== target.photo_url) {
-          await supabase.from("rec_players").update({ photo_url: player.data.photo_url, updated_at: now }).eq("id", target.id);
+        const sourcePhoto = prospect.headshot_url || player.data.photo_url;
+        if (sourcePhoto && sourcePhoto !== target.photo_url) {
+          await supabase.from("rec_players").update({ photo_url: sourcePhoto, updated_at: now }).eq("id", target.id);
         }
         await supabase.from("rec_immortality_prospects").update({ player_id: target.id, updated_at: now }).eq("id", prospect.id);
         player = await supabase.from("rec_players")
@@ -263,6 +316,10 @@ export async function reconcileRtiProspectIdentities(leagueId: string): Promise<
       await writeIdentityIssue({ guildId, leagueId, prospect, status: target, note, teamName });
     }
   }
+
+  await applyRtiCreatedPlayerPhotos(leagueId).catch((error) => {
+    console.error(`[ERROR] RTI created-player photo restore failed for league ${leagueId} (non-fatal):`, error);
+  });
 }
 
 export type RosterCandidate = {

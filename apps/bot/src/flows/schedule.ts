@@ -15,7 +15,6 @@ import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { teamDisplayAbbr, teamDisplayLabel, teamDisplayName } from "../lib/team-display.js";
-import { teamNick } from "./gotw.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildScheduleEmbed, buildScheduleRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type RosterConference, type RosterTeam } from "../ui/menu.js";
 import { canonicalConferenceName, CONFERENCE_ORDER, isCfb, isRegularSeasonWeek, maxSeasonWeek, regularSeasonWeeks, stageForWeek, stageLabel } from "@rec/shared";
 

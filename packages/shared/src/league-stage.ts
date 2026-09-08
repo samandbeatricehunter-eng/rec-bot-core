@@ -27,6 +27,21 @@
 
 export type LeagueGame = "madden_26" | "madden_27" | "cfb_27" | string | null | undefined;
 
+/** Every offseason-pipeline stage name across both games, game-agnostic (Madden's
+ *  coach_hiring/final_resigning/free_agency/draft plus CFB's end_of_season_recap/
+ *  players_leaving/transfer_portal/signing_day/training_results/offseason_phase, plus the two
+ *  generic legacy values). Single source of truth for "is this stage part of the offseason" --
+ *  see nextLeagueStage above for the authoritative per-game sequencing these names come from. */
+export const OFFSEASON_PIPELINE_STAGES: ReadonlySet<string> = new Set([
+  "offseason", "completed",
+  "coach_hiring", "final_resigning", "free_agency", "draft",
+  "end_of_season_recap", "players_leaving", "transfer_portal", "signing_day", "training_results", "offseason_phase",
+]);
+
+export function isOffseasonPipelineStage(seasonStage: string): boolean {
+  return OFFSEASON_PIPELINE_STAGES.has(String(seasonStage ?? "").trim().toLowerCase());
+}
+
 /** Number of separate advances the CFB Transfer Portal & Off-Season Recruiting window spans. */
 export const CFB_TRANSFER_PORTAL_ADVANCES = 4;
 
@@ -189,6 +204,21 @@ export function isChampionshipWeek(weekNumber: number | null | undefined, game: 
  * (the week<->stage mapping is fixed for postseason weeks). Useful for display code that
  * only has a week number on hand (e.g. schedule views), not the live rec_leagues.season_stage.
  */
+/**
+ * Result-payout multiplier for a game result based purely on the week it was played --
+ * regular season games pay the base amount, other playoff rounds pay 1.5x, and the
+ * championship game (Super Bowl / National Championship) pays 2x. Derived from the week
+ * number rather than the league's live season_stage so it stays correct even if payouts are
+ * issued out of order (a late-approved box score, a re-run import) relative to where the
+ * league has since advanced to.
+ */
+export function postseasonResultMultiplier(weekNumber: number, game: LeagueGame): number {
+  const stage = stageForWeek(weekNumber, game);
+  if (isTerminalSeasonStage(stage, game)) return 2;
+  if (postseasonPayoutStages(game).has(stage)) return 1.5;
+  return 1;
+}
+
 export function stageForWeek(weekNumber: number, game: LeagueGame): string {
   if (isRegularSeasonWeek(weekNumber, game)) return "regular_season";
   if (isCfb(game)) {

@@ -326,8 +326,11 @@ function seasonStage(row: Json, record: NormalizedCompanionRecord): "preseason" 
   const stageIndex = integer(row, ["stageIndex", "stage_index"]);
   if (stageIndex === 0) return "preseason";
   if (bool(row, ["isPlayoff", "is_playoff"]) === true) return "playoffs";
+  // record.weekNumber (and the row's own week/weekNumber/week_number fields) are REC's
+  // canonical week numbers (see ea-weeks.ts's recWeek) by the time they reach here, not EA's
+  // raw display week -- REC's Super Bowl is week 22, not EA's display week 23.
   const week = record.weekNumber ?? integer(row, ["week", "weekNumber", "week_number"]);
-  if (week !== null && (week === 19 || week === 20 || week === 21 || week === 23)) return "playoffs";
+  if (week !== null && (week === 19 || week === 20 || week === 21 || week === 22)) return "playoffs";
   return "regular_season";
 }
 

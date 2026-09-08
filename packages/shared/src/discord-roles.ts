@@ -5,17 +5,18 @@
 // browser session that has no cached GuildMember) share one source of truth instead of
 // two lists that can quietly drift apart.
 
-export function normalizeDiscordRoleName(roleName: string): string {
+// Not exported -- only classifyGuildRoleNames below (the actual external API) needs these.
+function normalizeDiscordRoleName(roleName: string): string {
   return roleName.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-export const COMMISSIONER_ROLE_NAMES: readonly string[] = [
+const COMMISSIONER_ROLE_NAMES: readonly string[] = [
   "commissioner",
   "commissioners",
   "rec league commissioner",
 ];
 
-export const CO_COMMISSIONER_ROLE_NAMES: readonly string[] = [
+const CO_COMMISSIONER_ROLE_NAMES: readonly string[] = [
   "co commissioner",
   "co commissioners",
   "co commish",
@@ -27,11 +28,11 @@ export const CO_COMMISSIONER_ROLE_NAMES: readonly string[] = [
   "competition committee",
 ];
 
-export function isCommissionerRoleName(name: string): boolean {
+function isCommissionerRoleName(name: string): boolean {
   return COMMISSIONER_ROLE_NAMES.includes(normalizeDiscordRoleName(name));
 }
 
-export function isCoCommissionerRoleName(name: string): boolean {
+function isCoCommissionerRoleName(name: string): boolean {
   return CO_COMMISSIONER_ROLE_NAMES.includes(normalizeDiscordRoleName(name));
 }
 
@@ -61,13 +62,13 @@ export function classifyGuildRoleNames(roleNames: string[]): { isCommissioner: b
 // permission purposes) and from REC_MANAGED_ROLES below (the actual Discord role names the
 // bot grants/revokes) — changing what a title *displays as* must never change what a
 // permission check *matches on* or what an existing Discord role is literally named.
-export const ROLE_DISPLAY_TITLES = {
+const ROLE_DISPLAY_TITLES = {
   commissioner: "Commish",
   co_commissioner: "Co-Commish",
   member: "Member",
 } as const;
 
-export type RoleDisplayKey = keyof typeof ROLE_DISPLAY_TITLES;
+type RoleDisplayKey = keyof typeof ROLE_DISPLAY_TITLES;
 
 export function roleDisplayTitle(key: RoleDisplayKey): string {
   return ROLE_DISPLAY_TITLES[key];

@@ -661,7 +661,7 @@ export async function loadRtiMemberGates(input: {
     .then((snapshot) => snapshot ? ({
       ...snapshot,
       side: String(prospectByPlayer.get(playerId)?.side ?? ""),
-      headshotUrl: snapshot.headshotUrl ?? prospectByPlayer.get(playerId)?.headshot_url ?? null,
+      headshotUrl: prospectByPlayer.get(playerId)?.headshot_url ?? snapshot.headshotUrl ?? null,
       hofProgress: Math.max(0, Math.min(100, scoreByProspect.get(String(prospectByPlayer.get(playerId)?.id)) ?? 0)),
       playerXpTotal: xpTotalByProspect.get(String(prospectByPlayer.get(playerId)?.id)) ?? 0,
       // xp_points_balance already holds the remainder toward the next Player XP point (see

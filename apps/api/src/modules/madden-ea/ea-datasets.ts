@@ -312,9 +312,11 @@ export function toIngestEnvelope(input: {
   const stamped = rows.map((row) => {
     const enriched: Json = { ...row, leagueId: String(eaLeagueId), seasonYear };
     if (week) {
-      // EA rows carry weekIndex/stageIndex, but not the display week REC stores, and rows from
-      // a bye or unplayed game can omit them entirely.
-      enriched.week = week.displayWeek;
+      // EA rows carry weekIndex/stageIndex, but not the REC week number REC stores, and rows
+      // from a bye or unplayed game can omit them entirely. Use recWeek (not displayWeek) so
+      // the Super Bowl lands on REC's week 22, matching rec_leagues.current_week, instead of
+      // EA's raw display week 23 (EA reserves an unused Pro Bowl slot REC's counter skips).
+      enriched.week = week.recWeek;
       enriched.weekIndex = week.weekIndex;
       enriched.stageIndex = week.stageIndex;
       enriched.seasonStage = week.phase;
@@ -419,7 +421,7 @@ export function toIngestEnvelope(input: {
       leagueId: String(eaLeagueId),
       seasonYear,
       ...(week
-        ? { week: week.displayWeek, weekIndex: week.weekIndex, stageIndex: week.stageIndex, seasonStage: week.phase }
+        ? { week: week.recWeek, weekIndex: week.weekIndex, stageIndex: week.stageIndex, seasonStage: week.phase }
         : {}),
       [envelopeKey]: stamped,
     },

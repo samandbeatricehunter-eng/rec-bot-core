@@ -888,6 +888,12 @@ export async function upsertProspectIdentity(input: {
   if (result.error) throw new ApiError(500, "Could not save prospect identity.", result.error);
   await bumpOriginsStep(String(result.data.id), existing?.origins_step, "identity");
   await refreshImmortalityDraftBoard(league.id, context.leagueId);
+  const playerId = result.data.player_id ?? existing?.player_id;
+  if (playerId) {
+    await supabase.from("rec_players").update({
+      photo_url: result.data.headshot_url ?? null, updated_at: new Date().toISOString(),
+    }).eq("id", playerId);
+  }
   return result.data;
 }
 
@@ -919,6 +925,11 @@ export async function uploadProspectHeadshot(input: {
     .update({ headshot_url: uploaded.url, updated_at: new Date().toISOString() })
     .eq("id", prospect.id).select("headshot_url").single();
   if (updated.error) throw new ApiError(500, "Could not save that headshot.", updated.error);
+  if (prospect.player_id) {
+    await supabase.from("rec_players").update({
+      photo_url: updated.data.headshot_url, updated_at: new Date().toISOString(),
+    }).eq("id", prospect.player_id);
+  }
   return { headshotUrl: updated.data.headshot_url };
 }
 
@@ -1528,6 +1539,7 @@ async function materializeProspectToPlayer(prospect: Record<string, any>, teamId
     hometown_city: prospect.hometown,
     hometown_state: prospect.hometown_state,
     dev_trait: startingDevTrait(modifiers),
+    photo_url: prospect.headshot_url ?? null,
     is_free_agent: false,
     is_default_player: false,
     player_source: "rti_created",

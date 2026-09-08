@@ -129,13 +129,16 @@ async function postRecordBoard(
   }
 }
 
-/** Credits an RTI-created prospect (identified by their materialized rec_players row's
- * madden_player_id prefix "rti:") a record-break Player XP award for breaking a #1 record.
- * No-ops for a baseline NFL fill player (nothing to credit) or a player without a resolvable
- * RTI prospect id. Idempotent per (prospect, scope, category) via the ledger's source-id guard. */
+/** Credits an RTI-created prospect a record-break Player XP award for breaking a #1 record.
+ * Identifies them by the synthetic `rti:` madden-id prefix *or* by rec_immortality_prospects.player_id
+ * after EA identity adoption (the madden id becomes numeric). No-ops for baseline NFL fill. */
 async function awardRecordBreakXp(playerId: string, maddenPlayerId: string | null, scope: RecordScope, category: NflRecordCategory): Promise<void> {
-  if (!maddenPlayerId?.startsWith("rti:")) return;
-  const prospectId = maddenPlayerId.slice("rti:".length);
+  let prospectId: string | null = maddenPlayerId?.startsWith("rti:") ? maddenPlayerId.slice("rti:".length) : null;
+  if (!prospectId) {
+    const prospect = await supabase.from("rec_immortality_prospects").select("id").eq("player_id", playerId).maybeSingle();
+    prospectId = prospect.data?.id ? String(prospect.data.id) : null;
+  }
+  if (!prospectId) return;
   const sourceId = `record:${scope}:${category}:${prospectId}`;
   const { awardRecordBreakPoints } = await import("./xp-awards.service.js");
   await awardRecordBreakPoints(prospectId, sourceId);

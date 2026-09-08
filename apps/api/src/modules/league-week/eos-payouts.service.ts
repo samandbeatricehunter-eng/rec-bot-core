@@ -415,24 +415,24 @@ export async function auditEosPayoutReadiness(input: { guildId: string }): Promi
   const nameByUser = new Map<string, string>((users.data ?? []).map((row: any) => [row.id, row.display_name]));
   const warningByUser = new Map<string, number>((complianceRows.data ?? []).map((row: any) => [row.user_id, Number(row.warning_count ?? 0)]));
 
-  const availabilityFlags: EosReadinessAvailabilityFlag[] = [];
-  for (const userId of userIds) {
+  const availabilityChecks = await Promise.all(userIds.map(async (userId) => {
     const [fullySet, held] = await Promise.all([
       isAvailabilityFullySet(userId, context.leagueId),
       isPayoutsHeldForAvailability(userId, context.leagueId),
     ]);
-    if (!fullySet || held) {
-      availabilityFlags.push({
-        userId,
-        discordId: discordByUser.get(userId) ?? null,
-        displayName: nameByUser.get(userId) ?? "REC Member",
-        teamName: teamByUser.get(userId) ?? null,
-        payoutsHeld: held,
-        availabilityFullySet: fullySet,
-        warningCount: warningByUser.get(userId) ?? 0,
-      });
-    }
-  }
+    return { userId, fullySet, held };
+  }));
+  const availabilityFlags: EosReadinessAvailabilityFlag[] = availabilityChecks
+    .filter(({ fullySet, held }) => !fullySet || held)
+    .map(({ userId, fullySet, held }) => ({
+      userId,
+      discordId: discordByUser.get(userId) ?? null,
+      displayName: nameByUser.get(userId) ?? "REC Member",
+      teamName: teamByUser.get(userId) ?? null,
+      payoutsHeld: held,
+      availabilityFullySet: fullySet,
+      warningCount: warningByUser.get(userId) ?? 0,
+    }));
 
   let statsImport: ImportAuditReport | null = null;
   if (String(game ?? "").startsWith("madden")) {
@@ -696,6 +696,7 @@ export async function reviewEosPayoutsForUser(input: {
     });
   }
 
+  await settleEosInboxIfNoPendingRemain(input.batchId, input.reviewedByDiscordId);
   return { action: input.action, userId: input.userId, payeeDiscordId, items: processed, failed, totalAmount };
 }
 
@@ -785,16 +786,47 @@ export async function issueEosPayoutBatch(input: { batchId: string; reviewedByDi
     })
     .eq("id", input.batchId);
 
-  if (!failed.length && !stillPending) {
-    const now = new Date().toISOString();
-    await supabase
-      .from("rec_commissioners_inbox")
-      .update({ status: "approved", reviewed_by_discord_id: input.reviewedByDiscordId, reviewed_at: now })
-      .eq("source_table", "rec_eos_payout_batches")
-      .eq("source_id", input.batchId);
+  if (!failed.length) {
+    await settleEosInboxIfNoPendingRemain(input.batchId, input.reviewedByDiscordId);
   }
 
   return { ...refreshed, issuedCount: issued.length, issuedItems, failed };
+}
+
+// Per-coach ledger review (site + Discord) issues items without going through
+// issueEosPayoutBatch, so the inbox row used to stay pending after every ledger
+// was already paid. Close it once nothing in the batch is still waiting.
+async function settleEosInboxIfNoPendingRemain(batchId: string, reviewedByDiscordId: string) {
+  const remaining = await supabase
+    .from("rec_eos_payout_items")
+    .select("id", { count: "exact", head: true })
+    .eq("batch_id", batchId)
+    .eq("status", "pending");
+  if (remaining.error) {
+    console.error("[ERROR] Failed to count remaining EOS payout items (non-fatal):", remaining.error);
+    return;
+  }
+  if ((remaining.count ?? 0) > 0) return;
+
+  const now = new Date().toISOString();
+  const batchUpdate = await supabase
+    .from("rec_eos_payout_batches")
+    .update({ status: "issued", issued_at: now, updated_at: now })
+    .eq("id", batchId)
+    .in("status", ["draft", "partially_approved"]);
+  if (batchUpdate.error) {
+    console.error("[ERROR] Failed to mark EOS payout batch issued (non-fatal):", batchUpdate.error);
+  }
+
+  const inboxUpdate = await supabase
+    .from("rec_commissioners_inbox")
+    .update({ status: "approved", reviewed_by_discord_id: reviewedByDiscordId, reviewed_at: now })
+    .eq("source_table", "rec_eos_payout_batches")
+    .eq("source_id", batchId)
+    .eq("status", "pending");
+  if (inboxUpdate.error) {
+    console.error("[ERROR] Failed to close EOS payout inbox row (non-fatal):", inboxUpdate.error);
+  }
 }
 
 async function definitionForItem(item: { payout_category: string; payout_key: string }) {

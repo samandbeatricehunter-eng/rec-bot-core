@@ -1,4 +1,4 @@
-import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, stageForWeek, stageLabel } from "@rec/shared";
+import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, postseasonResultMultiplier, stageForWeek, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -887,13 +887,15 @@ export async function completeAdvanceWeek(input: {
     if (result.designation !== "fair_sim" && result.designation !== "force_win" && !BOX_SCORE_SOURCES.includes(String(priorResult.data?.source ?? ""))) {
       const payoutConfig = (await getGlobalEconomyConfig()).submissions;
       const schedulingMultiplier = await getSchedulingPayoutMultiplier({ gameId: game.data.id, homeUserId, awayUserId });
+      const stageMultiplier = postseasonResultMultiplier(Number(game.data.week_number ?? currentWeek), context.rec_leagues.game);
       for (const [userId, baseAmount, outcomeLabel] of [[winningUserId, payoutConfig.boxScoreWin, "win"], [losingUserId, payoutConfig.boxScoreLoss, "loss"]] as const) {
         if (!userId || isTie) continue;
+        const amount = Math.round(baseAmount * stageMultiplier);
         await creditOrBacklog({
           leagueId: context.leagueId,
           seasonNumber,
           userId,
-          amount: baseAmount,
+          amount,
           description: `Game result payout (${outcomeLabel}) — Wk ${game.data.week_number ?? currentWeek}`,
           transactionType: "game_result_payout",
           source: "box_score",
@@ -904,7 +906,7 @@ export async function completeAdvanceWeek(input: {
             leagueId: context.leagueId,
             seasonNumber,
             userId,
-            amount: baseAmount,
+            amount,
             description: `Scheduling completion bonus (${outcomeLabel}) — Wk ${game.data.week_number ?? currentWeek}`,
             transactionType: "scheduling_bonus_payout",
             source: "box_score",
@@ -1116,10 +1118,12 @@ export async function completeAdvanceWeek(input: {
   // to the same Announcements channel every other advance headline goes to.
   if (isPostseasonEnd) {
     await resetLeaguePurchaseCapsForOffseason({ guildId: input.guildId, resetByDiscordId: input.advancedByDiscordId })
-      .then(() => recordHubAnnouncement({
+      .then((result) => recordHubAnnouncement({
         guildId: input.guildId,
         title: "Purchase Caps Have Reset",
-        body: "The postseason has ended — every purchase cap (age resets, dev upgrades, contracts, custom players, legends, and attribute points) has refreshed with a fresh offseason allotment.",
+        body: result.attributeCapsReset
+          ? "The postseason has ended — every purchase cap (age resets, dev upgrades, contracts, custom players, legends, and attribute points) has refreshed with a fresh offseason allotment."
+          : "The postseason has ended — every purchase cap (age resets, dev upgrades, contracts, custom players, and legends) has refreshed with a fresh offseason allotment. Attribute-point caps could not be reset automatically this time — a commissioner should reset them manually from Tools > Economy.",
       }))
       .catch((err) => console.error("[ERROR] resetLeaguePurchaseCapsForOffseason failed after advance (non-fatal):", err));
   }

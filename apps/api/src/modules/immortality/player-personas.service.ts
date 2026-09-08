@@ -1,7 +1,6 @@
 import { personaDnaCatalog } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
-
-const IS_CUSTOM_PROSPECT_PREFIX = "rti:";
+import { isImmortalityCreatedPlayer, loadRtiProspectPlayerIds } from "./player-identity.service.js";
 const PLAYERS_PER_TEAM = 5;
 
 // Trait names (from packages/shared/src/immortality/config/persona_dna.json's 60-trait catalog)
@@ -70,6 +69,7 @@ export async function ensurePlayerPersonasForLeague(leagueId: string): Promise<v
 
   const existing = await supabase.from("rec_immortality_player_personas").select("player_id").eq("league_id", leagueId);
   const existingPlayerIds = new Set((existing.data ?? []).map((row: any) => String(row.player_id)));
+  const prospectPlayerIds = await loadRtiProspectPlayerIds(leagueId);
 
   const rows: Array<{
     league_id: string; player_id: string; team_id: string; handle: string; display_name: string;
@@ -84,7 +84,7 @@ export async function ensurePlayerPersonasForLeague(leagueId: string): Promise<v
       .order("overall_rating", { ascending: false })
       .limit(20);
     const eligible = (players.data ?? [])
-      .filter((row: any) => !String(row.madden_player_id ?? "").startsWith(IS_CUSTOM_PROSPECT_PREFIX))
+      .filter((row: any) => !isImmortalityCreatedPlayer(row.madden_player_id, row.id, prospectPlayerIds))
       .filter((row: any) => !existingPlayerIds.has(String(row.id)))
       .slice(0, PLAYERS_PER_TEAM);
 

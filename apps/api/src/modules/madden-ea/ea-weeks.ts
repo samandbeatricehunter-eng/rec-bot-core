@@ -30,8 +30,15 @@ export type RecPhase = "preseason" | "regular_season" | "playoffs";
 export type EaWeekDescriptor = {
   stageIndex: EaStage;
   weekIndex: number;
-  /** 1-based week as Madden displays it (weekIndex + 1). */
+  /** 1-based week as Madden displays it (weekIndex + 1). EA reserves an unused Pro Bowl slot
+   *  (index 21 / display 22) that REC's own week counter never advances through, so EA's Super
+   *  Bowl display week (23) is one higher than REC's canonical week number for it (22) --
+   *  everything else lines up 1:1. Use `displayWeek` only for user-facing labels/EA API calls;
+   *  use `recWeek` for anything written to or compared against rec_games.week_number,
+   *  rec_leagues.current_week, or any other REC-numbered week field. */
   displayWeek: number;
+  /** REC's canonical week number for this EA week -- see displayWeek's doc above. */
+  recWeek: number;
   label: string;
   phase: RecPhase;
   isPlayoff: boolean;
@@ -63,11 +70,15 @@ export function isPlayoffDisplayWeek(displayWeek: number): boolean {
 
 export function describeEaWeek(stageIndex: EaStage, weekIndex: number): EaWeekDescriptor {
   const displayWeek = weekIndex + 1;
+  // Only the Super Bowl (display week 23) sits past the Pro Bowl gap -- every other display
+  // week (including preseason, which has no Pro Bowl concept) already matches REC's numbering.
+  const recWeek = displayWeek > PRO_BOWL_WEEK_INDEX + 1 ? displayWeek - 1 : displayWeek;
   if (stageIndex === 0) {
     return {
       stageIndex,
       weekIndex,
       displayWeek,
+      recWeek: displayWeek,
       label: `Preseason Week ${displayWeek}`,
       phase: "preseason",
       isPlayoff: false,
@@ -78,6 +89,7 @@ export function describeEaWeek(stageIndex: EaStage, weekIndex: number): EaWeekDe
     stageIndex,
     weekIndex,
     displayWeek,
+    recWeek,
     label: seasonWeekLabel(displayWeek),
     phase: isPlayoff ? "playoffs" : "regular_season",
     isPlayoff,

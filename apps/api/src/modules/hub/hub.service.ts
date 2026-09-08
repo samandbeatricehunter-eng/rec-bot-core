@@ -721,6 +721,8 @@ async function loadHub(guildId: string, discordId: string) {
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
+  const myAssignment = userId ? await activeAssignment(context.leagueId, userId) : null;
+  const teamId = myAssignment?.team_id ?? null;
   const emptyWeekly = { data: [] as any[] };
   const seasonIdP = resolveSeasonId(context.leagueId, seasonNumber);
   const membershipP = userId
@@ -752,8 +754,11 @@ async function loadHub(guildId: string, discordId: string) {
       supabase.from("rec_highlight_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).eq("payout_kind", "weekly_highlight").neq("status", "denied"),
       supabase.from("rec_stream_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).neq("status", "denied"),
       supabase.from("rec_game_of_week_votes").select("is_correct,payout_amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId),
-      supabase.from("rec_dollar_ledger").select("amount,transaction_type,source_reference").eq("league_id", context.leagueId).eq("user_id", userId).in("transaction_type", ["box_score_payout", "game_result_payout", "scheduling_bonus_payout", "immortality_media_day_payout"]),
-    ]) : Promise.resolve([emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly] as const),
+      supabase.from("rec_dollar_ledger").select("amount,transaction_type,source_reference").eq("league_id", context.leagueId).eq("user_id", userId).in("transaction_type", ["box_score_payout", "game_result_payout", "scheduling_bonus_payout", "immortality_media_day_payout", "media_day_payout"]),
+      teamId
+        ? supabase.from("rec_media_day_answers").select("slot,question_id,question_text,question_category,answer").eq("team_id", teamId).eq("season_number", seasonNumber).eq("season_stage", String(seasonStage)).eq("week_number", currentWeek)
+        : Promise.resolve(emptyWeekly),
+    ]) : Promise.resolve([emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly] as const),
     supabase
       .from("rec_stream_compliance_logs")
       .select("id,user_id,team_id,game_id,message_url,posted_at,user:rec_users(display_name,username),team:rec_teams(name,abbreviation),game:rec_games(home_team_id,away_team_id,home_user_id,away_user_id)")
@@ -783,7 +788,7 @@ async function loadHub(guildId: string, discordId: string) {
     : ["co_commissioner", "co"].includes(membershipRole) && !isOwner
       ? "co_commissioner"
       : "commissioner";
-  const [weeklyMedia, weeklyHighlights, weeklyStreams, weeklyGotwVotes, weeklyLedgers] = weeklyBundle;
+  const [weeklyMedia, weeklyHighlights, weeklyStreams, weeklyGotwVotes, weeklyLedgers, weeklyMediaDayAnswers] = weeklyBundle;
   const weeklyGame = userId
     ? (matchups.games ?? []).find((game: any) => game.homeUserId === userId || game.awayUserId === userId) ?? null
     : null;
@@ -861,13 +866,21 @@ async function loadHub(guildId: string, discordId: string) {
   const mediaDayEarned = (weeklyLedgers.data ?? []).filter((row: any) => row.transaction_type === "immortality_media_day_payout"
     && Number(row.source_reference?.week ?? -1) === currentWeek).reduce((sum: number, row: any) => sum + Number(row.amount ?? 0), 0);
   const mediaDayCurrent = Math.round(mediaDayEarned / RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT);
+  // Non-RTI's own Media Day: a team's 3 weekly questions, answered by the coach representing
+  // the whole team (there's no per-prospect breakdown like RTI's). Paid once via
+  // submitNonRtiMediaDayAnswer when the 3rd slot is answered -- see that function.
+  const nonRtiMediaDayAnswerCount = (weeklyMediaDayAnswers.data ?? []).length;
+  const nonRtiMediaDayEarned = (weeklyLedgers.data ?? []).filter((row: any) => row.transaction_type === "media_day_payout"
+    && Number(row.source_reference?.week ?? -1) === currentWeek).reduce((sum: number, row: any) => sum + Number(row.amount ?? 0), 0);
   let weeklyItems = [
-    { key: "interview", label: "Submit an Interview", amount: isRise ? RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT : economy.submissions.interview, current: interviewRows.length, limit: 1, earned: paid(interviewRows) },
+    ...(isRise ? [{ key: "interview", label: "Submit an Interview", amount: RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT, current: interviewRows.length, limit: 1, earned: paid(interviewRows) }] : []),
     { key: "article", label: "Submit a custom article", amount: isRise ? RISE_TO_IMMORTALITY_ARTICLE_PAYOUT : economy.submissions.article, current: articleRows.length, limit: 1, earned: paid(articleRows) },
     { key: "stream", label: "Share your stream when you play", amount: economy.submissions.stream, current: Math.min(1, (weeklyStreams.data ?? []).length), limit: 1, earned: paid(weeklyStreams.data ?? []) },
     { key: "highlights", label: "Post up to 2 game highlights", amount: isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT : economy.submissions.highlight, current: Math.min(isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT : economy.submissions.highlightWeeklyUploadLimit, (weeklyHighlights.data ?? []).length), limit: isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT : economy.submissions.highlightWeeklyUploadLimit, earned: paid(weeklyHighlights.data ?? []) },
     { key: "gotw", label: "Correctly predict Game of the Week", amount: economy.submissions.gotwCorrectVote, current: (weeklyGotwVotes.data ?? []).length ? 1 : 0, limit: 1, earned: (weeklyGotwVotes.data ?? []).reduce((sum: number, row: any) => sum + Number(row.payout_amount ?? 0), 0) },
-    { key: "media_day", label: "Complete a player's Media Day interview", amount: RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT, current: mediaDayCurrent, limit: 2, earned: mediaDayEarned, note: "One payout per prospect (offense + defense), once all 3 of that week's questions are answered" },
+    isRise
+      ? { key: "media_day", label: "Complete a player's Media Day interview", amount: RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT, current: mediaDayCurrent, limit: 2, earned: mediaDayEarned, note: "One payout per prospect (offense + defense), once all 3 of that week's questions are answered" }
+      : { key: "media_day", label: "Complete your weekly Media Day interview", amount: economy.submissions.mediaDay, current: nonRtiMediaDayAnswerCount >= 3 ? 1 : 0, limit: 1, earned: nonRtiMediaDayEarned, note: "Answer all 3 of this week's questions as your team's coach to earn the payout" },
     ...(weeklyGame && !isRise ? [
       { key: "result", label: "Complete your matchup", amount: economy.submissions.boxScoreWin, current: weeklyGame.status === "final" ? 1 : 0, limit: 1, earned: weeklyGameBasePaid, note: `${economy.submissions.boxScoreWin} for a win, ${economy.submissions.boxScoreLoss} for a loss; Fair Sims and Force Wins pay neither coach — and only count as one when it came from real scheduling engagement (checked in while your opponent didn't, proposed a time that got no response in the wait window, etc.), not a unilateral claim` },
       { key: "scheduling_bonus", label: "Earn the scheduling completion bonus", amount: economy.submissions.boxScoreWin, current: schedulingMultiplier === 2 ? 1 : 0, limit: 1, earned: weeklySchedulingBonusPaid, note: "Schedule through REC, have both coaches check in, and mark the game over; this doubles everything you earned that week — the win/loss payout, plus any interview, article, stream, highlight, and GOTW payout" },
@@ -1537,6 +1550,9 @@ export async function submitInterview(input: {
   const { isRiseToImmortalityLeagueType, RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT } = await import("@rec/shared");
   const roster = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", context.leagueId).maybeSingle();
   const isRiseInterview = isRiseToImmortalityLeagueType(String(roster.data?.roster_type ?? ""));
+  if (!isRiseInterview) {
+    throw new ApiError(400, "This has been replaced by the weekly Media Day interview — use Media Day from the Hub instead.");
+  }
   const userId = await userIdForDiscord(input.discordId);
   if (input.answers.length !== 3) throw new ApiError(400, "Pick exactly 3 interview questions.");
   const validIds = new Set(INTERVIEW_QUESTIONS.map((question) => question.id));
@@ -1602,6 +1618,127 @@ export async function submitInterview(input: {
       .catch((error) => console.error("[WARN] Failed to DM tagged opponent:", error));
   }
   return { submitted: true, id: row.data.id };
+}
+
+type NonRtiMediaDaySlot = { slot: number; question: { id: string; text: string; category: string } | null; answer: string | null };
+
+/** Non-RTI's weekly Media Day: this week's 3 questions for the user's team (deterministic per
+ *  team/week, stable regardless of how many slots are already answered -- see selection.ts),
+ *  plus whatever's already been answered. Replaces the old free-text "Submit an Interview" flow
+ *  for non-RTI leagues (see submitInterview's RTI-only guard above). */
+export async function getNonRtiMediaDay(guildId: string, discordId: string): Promise<{ weekNumber: number; complete: boolean; slots: NonRtiMediaDaySlot[] }> {
+  const context = await getCurrentLeagueContext(guildId);
+  const { isRiseToImmortalityLeagueType, selectNonRtiMediaDayQuestions, NON_RTI_MEDIA_DAY_SLOTS } = await import("@rec/shared");
+  const roster = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", context.leagueId).maybeSingle();
+  if (isRiseToImmortalityLeagueType(String(roster.data?.roster_type ?? ""))) {
+    throw new ApiError(400, "Rise to Immortality leagues use the Matchup/Owner Interview system instead of Media Day.");
+  }
+  const userId = await userIdForDiscord(discordId);
+  const assignment = await activeAssignment(context.leagueId, userId);
+  if (!assignment?.team_id) throw new ApiError(400, "You need an active team to do this week's Media Day interview.");
+
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  const seasonStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason");
+
+  const existing = await supabase.from("rec_media_day_answers").select("slot,question_id,question_text,question_category,answer")
+    .eq("team_id", assignment.team_id).eq("season_number", seasonNumber).eq("season_stage", seasonStage).eq("week_number", weekNumber);
+  if (existing.error) throw new ApiError(500, "We couldn't load this week's Media Day questions. Please try again.", existing.error);
+  const answered = existing.data ?? [];
+
+  // Last result + Game of the Week are cheap, best-effort context signals for question
+  // selection (see selection.ts) -- never block the whole feature if either lookup fails.
+  const [priorGame, thisWeekGame] = await Promise.all([
+    supabase.from("rec_games").select("home_team_id,away_team_id,home_score,away_score,week_number")
+      .eq("league_id", context.leagueId).or(`home_team_id.eq.${assignment.team_id},away_team_id.eq.${assignment.team_id}`)
+      .eq("status", "completed").lt("week_number", weekNumber).order("week_number", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("rec_games").select("id")
+      .eq("league_id", context.leagueId).or(`home_team_id.eq.${assignment.team_id},away_team_id.eq.${assignment.team_id}`)
+      .eq("week_number", weekNumber).maybeSingle(),
+  ]);
+  let lastResult: "win" | "loss" | "tie" | null = null;
+  if (priorGame.data && priorGame.data.home_score != null && priorGame.data.away_score != null) {
+    const isHome = priorGame.data.home_team_id === assignment.team_id;
+    const myScore = isHome ? priorGame.data.home_score : priorGame.data.away_score;
+    const theirScore = isHome ? priorGame.data.away_score : priorGame.data.home_score;
+    lastResult = myScore === theirScore ? "tie" : myScore > theirScore ? "win" : "loss";
+  }
+  let isGameOfTheWeek = false;
+  if (thisWeekGame.data?.id) {
+    const gotwPoll = await supabase.from("rec_game_of_week_polls").select("id")
+      .eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber).eq("game_id", thisWeekGame.data.id).maybeSingle();
+    isGameOfTheWeek = Boolean(gotwPoll.data);
+  }
+
+  // Avoid repeating a question already asked in a PRIOR week this season -- excludes this
+  // week's own in-progress answers so the pick stays stable as slots get answered one at a time.
+  const askedThisSeason = await supabase.from("rec_media_day_answers").select("question_id,season_stage,week_number")
+    .eq("team_id", assignment.team_id).eq("season_number", seasonNumber);
+  const excludeIds = new Set<string>(
+    (askedThisSeason.data ?? [])
+      .filter((row: any) => !(row.season_stage === seasonStage && Number(row.week_number) === weekNumber))
+      .map((row: any): string => String(row.question_id)),
+  );
+
+  const picked = selectNonRtiMediaDayQuestions(
+    { seasonStage, game: context.rec_leagues.game, currentWeek: weekNumber, lastResult, isGameOfTheWeek },
+    { seed: `${context.leagueId}:${assignment.team_id}:${seasonNumber}:${seasonStage}:${weekNumber}`, excludeIds },
+  );
+
+  const slots: NonRtiMediaDaySlot[] = picked.map((question, index) => {
+    const slotNumber = index + 1;
+    const answeredRow = answered.find((row) => row.slot === slotNumber);
+    return {
+      slot: slotNumber,
+      question: { id: answeredRow?.question_id ?? question.id, text: answeredRow?.question_text ?? question.text, category: answeredRow?.question_category ?? question.category },
+      answer: answeredRow?.answer ?? null,
+    };
+  });
+  return { weekNumber, complete: answered.length >= NON_RTI_MEDIA_DAY_SLOTS, slots };
+}
+
+export async function submitNonRtiMediaDayAnswer(input: { guildId: string; discordId: string; slot: number; answer: string }): Promise<{ submitted: true; complete: boolean }> {
+  if (!Number.isInteger(input.slot) || input.slot < 1 || input.slot > 3) throw new ApiError(400, "Invalid Media Day slot.");
+  if (!input.answer.trim()) throw new ApiError(400, "Your answer can't be empty.");
+
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdForDiscord(input.discordId);
+  const assignment = await activeAssignment(context.leagueId, userId);
+  if (!assignment?.team_id) throw new ApiError(400, "You need an active team to do this week's Media Day interview.");
+
+  const media = await getNonRtiMediaDay(input.guildId, input.discordId);
+  const targetSlot = media.slots.find((s) => s.slot === input.slot);
+  if (!targetSlot?.question) throw new ApiError(400, "That Media Day slot isn't available.");
+  if (targetSlot.answer) throw new ApiError(400, "You already answered this week's Media Day slot.");
+
+  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+  const seasonStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason");
+
+  const inserted = await supabase.from("rec_media_day_answers").insert({
+    league_id: context.leagueId, team_id: assignment.team_id, user_id: userId,
+    season_number: seasonNumber, season_stage: seasonStage, week_number: weekNumber, slot: input.slot,
+    question_id: targetSlot.question.id, question_text: targetSlot.question.text, question_category: targetSlot.question.category,
+    answer: input.answer.trim(),
+  }).select("id").single();
+  if (inserted.error) {
+    if ((inserted.error as { code?: string }).code === "23505") throw new ApiError(400, "You already answered this week's Media Day slot.");
+    throw new ApiError(500, "We couldn't save your Media Day answer. Please try again.", inserted.error);
+  }
+
+  const answeredCount = await supabase.from("rec_media_day_answers").select("id", { count: "exact", head: true })
+    .eq("team_id", assignment.team_id).eq("season_number", seasonNumber).eq("season_stage", seasonStage).eq("week_number", weekNumber);
+  const complete = (answeredCount.count ?? 0) >= 3;
+  if (complete) {
+    const amount = (await getGlobalEconomyConfig()).submissions.mediaDay;
+    await creditOrBacklog({
+      leagueId: context.leagueId, seasonNumber, userId, amount,
+      description: `Media Day — Week ${weekNumber} interview completed`,
+      transactionType: "media_day_payout", source: "media_day",
+      sourceReference: { teamId: assignment.team_id, week: weekNumber, season: seasonNumber },
+    }).catch((error) => console.error("[ERROR] Failed to pay non-RTI Media Day coins (non-fatal):", error));
+  }
+  return { submitted: true, complete };
 }
 
 export async function reviewMediaSubmission(input: { guildId: string; reviewId: string; action: "approve" | "deny"; reviewedByDiscordId: string; deniedReason?: string | null }) {

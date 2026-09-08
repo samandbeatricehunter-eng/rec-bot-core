@@ -104,9 +104,10 @@ export function RiseProgressionPage() {
         <p className="site-muted">My Team</p>
         <h1>Build Your Legacy</h1>
         <p className="site-muted">
-          Three careers. One franchise. One legacy. Purchases apply immediately and your commissioner
-          gets a record to confirm. Development-trait and ability changes are recorded for Madden --
-          EA imports overwrite in-game state, so the commissioner still sets them in the save.
+          Track three careers at once: your Offense player, your Defense player, and your franchise
+          Owner. Spend XP below to unlock perks for each — purchases apply here immediately. For
+          Madden development-trait and ability upgrades specifically, your commissioner still has to
+          set the change in the actual game save, since EA's next import would otherwise overwrite it.
         </p>
       </header>
 
@@ -183,11 +184,20 @@ function LegacyTreeColumn({
   const xp = ownerState?.ownerXp ?? playerState?.playerXp ?? 0;
   const nodes = state.nodes;
   const foundations = playerState?.origins ?? [];
+  const ownedCount = nodes.filter((node) => node.owned).length;
   return (
     <article className={`rise-legacy-column is-${identity}`}>
       <header className="rise-legacy-identity">
         {state.headshotUrl ? <img src={state.headshotUrl} alt="" className="rise-legacy-headshot" /> : <div className="rise-legacy-headshot is-empty">{state.name.slice(0, 1)}</div>}
-        <div><span>{subtitle}</span><h2>{state.name}</h2><strong>{xp} {isOwner ? "Owner" : "Player"} XP</strong></div>
+        <div>
+          <span className="rise-legacy-kicker">{subtitle}</span>
+          <h2>{state.name}</h2>
+          <strong>{xp.toLocaleString()} {isOwner ? "Owner" : "Player"} XP</strong>
+          <div className="rise-legacy-meter" aria-label={`${ownedCount} of ${nodes.length} perks owned`}>
+            <span style={{ width: `${nodes.length ? Math.round((ownedCount / nodes.length) * 100) : 0}%` }} />
+          </div>
+          <em className="rise-legacy-meter-label">{ownedCount}/{nodes.length} perks</em>
+        </div>
       </header>
       <div className="rise-legacy-capstone-label">Legacy capstone</div>
       <TreeGrid nodes={nodes} tiers={[4, 3, 2]} currentXp={xp} busy={busy?.startsWith(`${identity}:`) ? busy.slice(identity.length + 1) : null} onBuy={onBuy} />
@@ -213,12 +223,12 @@ function labelTrait(value: string): string {
   return "Normal";
 }
 
-function renderTreeNode(node: ImmortalityProgressionNode, onSelect: (key: string) => void) {
+function renderTreeNode(node: ImmortalityProgressionNode, onSelect: (key: string) => void, extraClass = "") {
   return (
     <button
       key={node.key}
       type="button"
-      className={["rise-tree-node", node.owned ? "is-owned" : node.canPurchase ? "is-available" : "is-locked"].filter(Boolean).join(" ")}
+      className={["rise-tree-node", node.owned ? "is-owned" : node.canPurchase ? "is-available" : "is-locked", extraClass].filter(Boolean).join(" ")}
       onClick={() => onSelect(node.key)}
     >
       <span className="rise-tree-node-badge">{node.displayName.slice(0, 1)}</span>
@@ -303,13 +313,13 @@ function TreeGrid({
                     <div key={laneKey} className="rise-tree-lane">
                       <p className="rise-tree-lane-label">{laneKey.replaceAll("_", " ")}</p>
                       <div className="rise-tree-row rise-tree-row-lane">
-                        {laneNodes.map((node) => renderTreeNode(node, setOpenNodeKey))}
+                        {laneNodes.map((node) => renderTreeNode(node, setOpenNodeKey, tier === 4 ? "is-capstone" : ""))}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="rise-tree-row">{tierNodes.map((node) => renderTreeNode(node, setOpenNodeKey))}</div>
+                <div className="rise-tree-row">{tierNodes.map((node) => renderTreeNode(node, setOpenNodeKey, tier === 4 ? "is-capstone" : ""))}</div>
               )}
             </div>
           );

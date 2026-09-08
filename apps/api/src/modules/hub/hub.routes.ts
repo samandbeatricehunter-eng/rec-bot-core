@@ -23,6 +23,7 @@ import {
   getHubMediaPortal,
   getMyRecentTransactions,
   getMyTeamSchedule,
+  getNonRtiMediaDay,
   HUB_REACTION_KEYS,
   listHubStoryComments,
   persistMediaImageBuffer,
@@ -37,6 +38,7 @@ import {
   reviewMediaSubmission,
   STREAM_VIEWER_COOKIE,
   submitInterview,
+  submitNonRtiMediaDayAnswer,
   submitUserMediaArticle,
   shareHubMatchupStream,
   toggleHubGameReaction,
@@ -328,6 +330,24 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "Interview submissions require a user session.");
       return reply.send(await submitInterview({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/media/media-day", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Media Day requires a user session.");
+      return reply.send(await getNonRtiMediaDay(body.guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/media/media-day/submit", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1), slot: z.number().int().min(1).max(3), answer: z.string().trim().min(1).max(1400) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Media Day submissions require a user session.");
+      return reply.send(await submitNonRtiMediaDayAnswer({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 

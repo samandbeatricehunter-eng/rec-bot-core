@@ -1,3 +1,4 @@
+import { isOffseasonPipelineStage } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 
 const STAGE_ORDER = [
@@ -6,14 +7,6 @@ const STAGE_ORDER = [
   "cfp_quarterfinals", "cfp_semifinal", "cfp_semifinals", "national_championship",
   "super_bowl", "offseason", "completed",
 ] as const;
-
-/** In-season deadlines (e.g. regular-season week 10) close the competitive window, then
- * the postseason-end cap reset is supposed to reopen the store for the offseason pipeline. */
-const OFFSEASON_PURCHASE_WINDOW = new Set([
-  "offseason", "completed", "coach_hiring", "final_resigning", "free_agency", "draft",
-  "end_of_season_recap", "players_leaving", "transfer_portal", "signing_day",
-  "training_results", "offseason_phase",
-]);
 
 const DEADLINE_KEY_ALIASES: Record<string, string[]> = {
   attribute: ["attribute", "attribute_purchase", "attribute_purchases"],
@@ -58,7 +51,7 @@ export function assertPurchaseDeadlineOpen(input: {
   const week = Number(deadline.week ?? 1);
   if (!stage || !Number.isInteger(week)) return;
   const currentStage = input.currentStage.trim().toLowerCase();
-  if (OFFSEASON_PURCHASE_WINDOW.has(currentStage) && !OFFSEASON_PURCHASE_WINDOW.has(stage.trim().toLowerCase())) return;
+  if (isOffseasonPipelineStage(currentStage) && !isOffseasonPipelineStage(stage)) return;
   const currentRank = rank(input.currentStage);
   const deadlineRank = rank(stage);
   const closed = currentRank != null && deadlineRank != null

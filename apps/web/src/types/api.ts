@@ -691,6 +691,8 @@ export type MediaPortalResponse = {
   limits: { articleSubmitted: boolean; articleStatus: string | null; interviewSubmitted: boolean; interviewStatus: string | null };
   opponent: null | { gameId: string; userId: string; discordId: string | null; teamId: string; teamName: string; seasonNumber: number; weekNumber: number };
 };
+export type NonRtiMediaDaySlot = { slot: number; question: { id: string; text: string; category: string } | null; answer: string | null };
+export type NonRtiMediaDayResponse = { weekNumber: number; complete: boolean; slots: NonRtiMediaDaySlot[] };
 export type HubMatchupSchedule = {
   currentWeek: number;
   selectedWeek: number;

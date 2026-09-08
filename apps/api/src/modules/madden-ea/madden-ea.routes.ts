@@ -164,6 +164,8 @@ export async function maddenEaRoutes(app: FastifyInstance) {
         await checkNflRecordsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI NFL record check failed for league ${body.league_id} (non-fatal):`, err));
         const { queueImmortalityTweetsAfterImport } = await import("../immortality/tweet-generation.service.js");
         await queueImmortalityTweetsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI tweet generation failed for league ${body.league_id} (non-fatal):`, err));
+        const { refreshHofMilestonesAfterImport } = await import("../immortality/hof-milestones.service.js");
+        await refreshHofMilestonesAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI HOF milestone refresh failed for league ${body.league_id} (non-fatal):`, err));
         const { awardImmortalityChallengesAfterImport } = await import("../immortality/xp-awards.service.js");
         await awardImmortalityChallengesAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI challenge/rivalry XP award failed for league ${body.league_id} (non-fatal):`, err));
         const { syncNflStandingsAfterImport } = await import("../standings/nfl-standings.service.js");
@@ -208,6 +210,8 @@ export async function maddenEaRoutes(app: FastifyInstance) {
         await checkNflRecordsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI NFL record check failed for league ${body.league_id} (non-fatal):`, err));
         const { queueImmortalityTweetsAfterImport } = await import("../immortality/tweet-generation.service.js");
         await queueImmortalityTweetsAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI tweet generation failed for league ${body.league_id} (non-fatal):`, err));
+        const { refreshHofMilestonesAfterImport } = await import("../immortality/hof-milestones.service.js");
+        await refreshHofMilestonesAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI HOF milestone refresh failed for league ${body.league_id} (non-fatal):`, err));
         const { awardImmortalityChallengesAfterImport } = await import("../immortality/xp-awards.service.js");
         await awardImmortalityChallengesAfterImport(body.league_id).catch((err) => console.error(`[ERROR] RTI challenge/rivalry XP award failed for league ${body.league_id} (non-fatal):`, err));
         const { syncNflStandingsAfterImport } = await import("../standings/nfl-standings.service.js");

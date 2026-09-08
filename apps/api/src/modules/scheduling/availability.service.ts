@@ -115,6 +115,30 @@ export async function markAvailabilityDayUnavailable(input: { userId: string; le
   if (!stillAvailableElsewhere) {
     throw new ApiError(400, "You need at least one available day — this is the last one you have set. Add availability to another day first, or adjust this day's hours instead of marking it fully unavailable.");
   }
+
+  if (input.leagueId) {
+    // getRecurringWindows may have just returned the GLOBAL fallback (no league-scoped rows exist
+    // yet for this league). Deleting by league_id in that case would match nothing, leaving the
+    // shared global window -- used by every other league too -- untouched, so the day would still
+    // read as available here. Materialize the effective windows as league-scoped rows first (minus
+    // the day being marked unavailable) so this override only affects THIS league.
+    const scoped = await supabase.from("rec_user_availability_windows").select("id").eq("user_id", input.userId).eq("league_id", input.leagueId).eq("active", true).limit(1);
+    if (scoped.error) throw new ApiError(500, "Failed to update availability.", scoped.error);
+    if (!scoped.data?.length) {
+      const toCopy = existingWindows.filter((w) => w.weekday !== input.weekday);
+      if (toCopy.length) {
+        const now = new Date().toISOString();
+        const materialized = await supabase.from("rec_user_availability_windows").insert(
+          toCopy.map((w) => ({
+            user_id: input.userId, league_id: input.leagueId, weekday: w.weekday,
+            start_minute: w.startMinute, end_minute: w.endMinute, active: true, created_at: now, updated_at: now,
+          })),
+        );
+        if (materialized.error) throw new ApiError(500, "Failed to update availability.", materialized.error);
+      }
+    }
+  }
+
   let delWindows = supabase.from("rec_user_availability_windows").delete().eq("user_id", input.userId).eq("weekday", input.weekday);
   delWindows = input.leagueId ? delWindows.eq("league_id", input.leagueId) : delWindows.is("league_id", null);
   const deletedWindows = await delWindows;

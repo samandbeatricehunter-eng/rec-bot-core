@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { nextIdentityStatus } from "./player-identity.service.js";
+import { isImmortalityCreatedPlayer, nextIdentityStatus } from "./player-identity.service.js";
 
 test("numeric id + active roster status + applied in game -> verified", () => {
   const result = nextIdentityStatus({ name: "Alex Li", isNumericId: true, rosterStatus: "active", siblingCount: 0, appliedInGame: true });
@@ -35,4 +35,16 @@ test("non-numeric id + another placeholder sharing the exact name -> ambiguous",
 test("non-numeric id + zero siblings still resolves (defensive floor, never ambiguous) -> missing", () => {
   const result = nextIdentityStatus({ name: "Ricardo Smith", isNumericId: false, rosterStatus: null, siblingCount: 0, appliedInGame: true });
   assert.equal(result.status, "missing");
+});
+
+test("synthetic rti: madden id still counts as a created prospect after adoption helpers load", () => {
+  assert.equal(isImmortalityCreatedPlayer("rti:abc", "player-1", new Set()), true);
+});
+
+test("adopted numeric madden id still counts as a created prospect via rec_players.id", () => {
+  assert.equal(isImmortalityCreatedPlayer("555221356", "player-1", new Set(["player-1"])), true);
+});
+
+test("baseline NFL fill with a numeric madden id is not a created prospect", () => {
+  assert.equal(isImmortalityCreatedPlayer("555221356", "player-2", new Set(["player-1"])), false);
 });

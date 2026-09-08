@@ -27,6 +27,18 @@ const PURCHASE_CONFIG: Partial<Record<RecPurchaseType, { enabled: string; season
 // Statuses that count as "active or successful" toward a season cap / all-time metric.
 const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"] as const;
 
+// A purchase only counts toward the CURRENT season's cap if it was made after the league's last
+// offseason cap reset (see resetLeaguePurchaseCapsForOffseason) -- carryover purchases from before
+// that boundary don't consume the fresh allotment. Applied consistently wherever a cap is counted,
+// whether via a Supabase query filter or an in-memory row scan.
+function withCapsResetFilter<Q extends { gt(column: string, value: string): Q }>(query: Q, capsResetAt?: string | null): Q {
+  return capsResetAt ? query.gt("created_at", capsResetAt) : query;
+}
+
+function isAfterCapsReset(createdAt: unknown, capsResetAt?: string | null): boolean {
+  return !capsResetAt || String(createdAt) > capsResetAt;
+}
+
 async function activeTeamIdForUser(leagueId: string, userId: string): Promise<string | null> {
   const assignment = await supabase
     .from("rec_team_assignments")
@@ -43,15 +55,14 @@ async function activeTeamIdForUser(leagueId: string, userId: string): Promise<st
 async function countLegendSlotsForTeam(leagueId: string, teamId: string, seasonNumber: number, capsResetAt?: string | null): Promise<number> {
   const [purchases, roster] = await Promise.all([
     (() => {
-      let query = supabase
+      const query = supabase
         .from("rec_purchases")
         .select("team_id,details")
         .eq("league_id", leagueId)
         .eq("purchase_type", "legend")
         .eq("season_number", seasonNumber)
         .in("status", ACTIVE_STATUSES as unknown as string[]);
-      if (capsResetAt) query = query.gt("created_at", capsResetAt);
-      return query;
+      return withCapsResetFilter(query, capsResetAt);
     })(),
     (() => {
       const query = supabase
@@ -537,10 +548,12 @@ async function normalizeDevUpgradeDetails(details: Record<string, unknown>, leag
  *  two separate one-tier purchases would. */
 async function usedDevUpgradeTierSteps(args: { leagueId: string; teamId: string; seasonNumber: number; game: string; capsResetAt?: string | null }): Promise<number> {
   const order = devTierOrderForGame(args.game);
-  let query = supabase.from("rec_purchases").select("details")
-    .eq("league_id", args.leagueId).eq("team_id", args.teamId).eq("purchase_type", "dev_upgrade").eq("season_number", args.seasonNumber)
-    .in("status", ACTIVE_STATUSES as unknown as string[]);
-  if (args.capsResetAt) query = query.gt("created_at", args.capsResetAt);
+  const query = withCapsResetFilter(
+    supabase.from("rec_purchases").select("details")
+      .eq("league_id", args.leagueId).eq("team_id", args.teamId).eq("purchase_type", "dev_upgrade").eq("season_number", args.seasonNumber)
+      .in("status", ACTIVE_STATUSES as unknown as string[]),
+    args.capsResetAt,
+  );
   const existing = await query;
   if (existing.error) throw new ApiError(500, "We couldn't check the development upgrade limit. Please try again.", existing.error);
   let steps = 0;
@@ -731,15 +744,17 @@ export async function createPurchaseRequest(input: {
       // Count-based season cap: 0/absent ⇒ unlimited (the enabled flag governs availability).
       const cap = Number(cfgRow[cfg!.seasonCap!] ?? 0);
       if (cap > 0) {
-        let usedQuery = supabase
-          .from("rec_purchases")
-          .select("id", { count: "exact", head: true })
-          .eq("league_id", leagueId)
-          .eq("user_id", userId)
-          .eq("purchase_type", input.purchaseType)
-          .eq("season_number", seasonNumber)
-          .in("status", ACTIVE_STATUSES as unknown as string[]);
-        if (capsResetAt) usedQuery = usedQuery.gt("created_at", capsResetAt);
+        const usedQuery = withCapsResetFilter(
+          supabase
+            .from("rec_purchases")
+            .select("id", { count: "exact", head: true })
+            .eq("league_id", leagueId)
+            .eq("user_id", userId)
+            .eq("purchase_type", input.purchaseType)
+            .eq("season_number", seasonNumber)
+            .in("status", ACTIVE_STATUSES as unknown as string[]),
+          capsResetAt,
+        );
         const used = await usedQuery;
         if (used.error) throw new ApiError(500, "We couldn't check the season purchase limit. Please try again.", used.error);
         if ((used.count ?? 0) >= cap) {
@@ -825,12 +840,14 @@ export async function createPurchaseRequest(input: {
     } else if (cfg.seasonCap) {
       const cap = Number(cfgRow[cfg.seasonCap] ?? 0);
       if (cap > 0) {
-        let usedQuery = supabase
-          .from("rec_purchases")
-          .select("id", { count: "exact", head: true })
-          .eq("league_id", leagueId).eq("user_id", userId).eq("purchase_type", input.purchaseType).eq("season_number", seasonNumber)
-          .in("status", ACTIVE_STATUSES as unknown as string[]);
-        if (capsResetAt) usedQuery = usedQuery.gt("created_at", capsResetAt);
+        const usedQuery = withCapsResetFilter(
+          supabase
+            .from("rec_purchases")
+            .select("id", { count: "exact", head: true })
+            .eq("league_id", leagueId).eq("user_id", userId).eq("purchase_type", input.purchaseType).eq("season_number", seasonNumber)
+            .in("status", ACTIVE_STATUSES as unknown as string[]),
+          capsResetAt,
+        );
         const used = await usedQuery;
         if (used.error) throw new ApiError(500, "We couldn't verify the season purchase limit. Please try again.", used.error);
         if ((used.count ?? 0) > cap) {
@@ -1166,7 +1183,7 @@ export async function getUserPurchaseCounts(discordId: string, guildId: string) 
     if (type === "legend") continue;
     const countsTowardCap = Number(row.season_number) === seasonNumber
       && (ACTIVE_STATUSES as unknown as string[]).includes(String(row.status))
-      && (!capsResetAt || String(row.created_at) > capsResetAt);
+      && isAfterCapsReset(row.created_at, capsResetAt);
     if (countsTowardCap) {
       seasonActive[type] = (seasonActive[type] ?? 0) + 1;
     }
@@ -1181,7 +1198,7 @@ export async function getUserPurchaseCounts(discordId: string, guildId: string) 
       String(row.purchase_type) === "legend"
       && Number(row.season_number) === seasonNumber
       && (ACTIVE_STATUSES as unknown as string[]).includes(String(row.status))
-      && (!capsResetAt || String(row.created_at) > capsResetAt),
+      && isAfterCapsReset(row.created_at, capsResetAt),
     ).length;
   }
   for (const row of data ?? []) {
@@ -1311,20 +1328,29 @@ export async function resetLeaguePurchaseCapsForOffseason(input: { guildId: stri
   if (configUpdate.error) throw new ApiError(500, "We couldn't reset purchase caps for the offseason.", configUpdate.error);
 
   // Attribute caps use their own per-user cutoff table (rec_attribute_cap_resets) -- reuse the
-  // same commissioner-tool path, resetting both categories for every active member.
+  // same commissioner-tool path, resetting both categories for every active member. This can fail
+  // independently of the count-based caps above (e.g. the advancing user isn't resolvable to a
+  // rec_users row yet) -- report whether it actually happened so the caller doesn't announce a
+  // reset that didn't occur (attribute caps can still be reset manually from Tools > Economy).
+  let attributeCapsReset = false;
   const baseline = await getUserBaselineByDiscordId(input.resetByDiscordId).catch((err) => {
     console.error("[ERROR] Failed to resolve the advancing user for the offseason purchase-cap reset (non-fatal):", err);
     return null;
   });
   if (baseline) {
-    await resetAttributeCapSpend({
-      guildId: input.guildId,
-      categories: ["core", "non_core"],
-      resetByUserId: baseline.user.id,
-    }).catch((err) => {
+    try {
+      await resetAttributeCapSpend({
+        guildId: input.guildId,
+        categories: ["core", "non_core"],
+        resetByUserId: baseline.user.id,
+      });
+      attributeCapsReset = true;
+    } catch (err) {
       console.error("[ERROR] Failed to reset attribute cap spend during offseason purchase-cap reset (non-fatal):", err);
-    });
+    }
+  } else {
+    console.error("[ERROR] Could not resolve the advancing user for the offseason attribute-cap reset -- attribute caps were NOT reset this boundary.");
   }
 
-  return { reset: true, resetAt };
+  return { reset: true, resetAt, attributeCapsReset };
 }

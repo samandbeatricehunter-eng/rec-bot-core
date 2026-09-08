@@ -888,7 +888,7 @@ export async function importEaDatasetsWithProgress(
     let records = 0;
 
     if (dataset === "schedule") {
-      records = await directWriteSchedule(leagueId, raw, weekDesc.displayWeek, weekDesc.phase);
+      records = await directWriteSchedule(leagueId, raw, weekDesc.recWeek, weekDesc.phase);
       scheduleImported = true;
     } else if (dataset === "rosters") {
       const roster = await directWriteRoster(leagueId, raw, false);
@@ -1065,7 +1065,7 @@ export async function importEaDatasetsWithProgress(
   if (datasets.includes("team_stats") || datasets.includes("schedule")) {
     pushProgress(leagueId, { type: "reconciling", step: "Processing headlines…" });
     const seasonNumber = seasonInfo?.seasonYear ?? row.ea_season_year ?? new Date().getFullYear();
-    const affectedWeeks = [...new Set(weeklyRefs.map((w) => describeEaWeek(w.stageIndex, w.weekIndex).displayWeek))];
+    const affectedWeeks = [...new Set(weeklyRefs.map((w) => describeEaWeek(w.stageIndex, w.weekIndex).recWeek))];
     const headlineGames: Array<{ id: string; weekNumber: number }> = [];
     for (const weekNumber of affectedWeeks) {
       const weekGames = await getPgPool().query<{ id: string }>(
@@ -1133,11 +1133,20 @@ export async function importEaDatasetsWithProgress(
       return 0;
     });
     if (legendOverrides > 0) console.log(`[EA] Applied ${legendOverrides} legend name photo override(s).`);
+
+    const { applyRtiCreatedPlayerPhotos } = await import("../immortality/player-identity.service.js");
+    const rtiPhotos = await applyRtiCreatedPlayerPhotos(leagueId).catch((error) => {
+      console.error("[WARN] Failed to restore RTI created-player photos after import (non-fatal):", error);
+      return 0;
+    });
+    if (rtiPhotos > 0) console.log(`[EA] Restored ${rtiPhotos} RTI created-player photo(s).`);
   }
   await getPgPool().query(
     `update rec_ea_connections set status='active', last_error=null, last_import_at=now(), updated_at=now() where id=$1`,
     [connectionId],
   );
+  const { invalidateLeagueStatsCache } = await import("../league-stats/league-stats.service.js");
+  invalidateLeagueStatsCache(leagueId);
   pushProgress(leagueId, { type: "done", results, weekLabel });
   return results;
 }
@@ -1189,6 +1198,8 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
       await checkNflRecordsAfterImport(row.league_id).catch((err) => console.error(`[ERROR] RTI NFL record check failed for league ${row.league_id} (non-fatal):`, err));
       const { queueImmortalityTweetsAfterImport } = await import("../immortality/tweet-generation.service.js");
       await queueImmortalityTweetsAfterImport(row.league_id).catch((err) => console.error(`[ERROR] RTI tweet generation failed for league ${row.league_id} (non-fatal):`, err));
+      const { refreshHofMilestonesAfterImport } = await import("../immortality/hof-milestones.service.js");
+      await refreshHofMilestonesAfterImport(row.league_id).catch((err) => console.error(`[ERROR] RTI HOF milestone refresh failed for league ${row.league_id} (non-fatal):`, err));
       const { awardImmortalityChallengesAfterImport } = await import("../immortality/xp-awards.service.js");
       await awardImmortalityChallengesAfterImport(row.league_id).catch((err) => console.error(`[ERROR] RTI challenge/rivalry XP award failed for league ${row.league_id} (non-fatal):`, err));
       const { syncNflStandingsAfterImport } = await import("../standings/nfl-standings.service.js");

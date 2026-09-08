@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { isCfb, isChampionshipWeek, isRegularSeasonWeek, formatCoins } from "@rec/shared";
+import { isCfb, isChampionshipWeek, isRegularSeasonWeek, formatCoins, postseasonResultMultiplier } from "@rec/shared";
 import { bestEffortVoid } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -1401,11 +1401,13 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
     homeUserId: sub.home_user_id,
     awayUserId: sub.away_user_id,
   });
+  const payoutLeagueGame = (await supabase.from("rec_leagues").select("game").eq("id", sub.league_id).maybeSingle()).data?.game ?? null;
+  const stageMultiplier = postseasonResultMultiplier(Number(sub.week_number), payoutLeagueGame);
   if (sub.home_team_id && sub.away_team_id) {
     for (const uid of [sub.home_user_id, sub.away_user_id] as (string | null)[]) {
       if (!uid) continue;
       const baseAmount = winningUserId == null ? payoutConfig.boxScoreLoss : (uid === winningUserId ? payoutConfig.boxScoreWin : payoutConfig.boxScoreLoss);
-      payouts.push({ userId: uid, amount: baseAmount });
+      payouts.push({ userId: uid, amount: Math.round(baseAmount * stageMultiplier) });
     }
   }
 

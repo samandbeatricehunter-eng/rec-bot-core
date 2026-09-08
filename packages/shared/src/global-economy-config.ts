@@ -31,7 +31,12 @@ export type RecGlobalEconomyConfig = {
     highlightWeeklyUploadLimit: number;
     stream: number;
     article: number;
+    /** Legacy free-text interview payout -- retired for non-RTI leagues (replaced by
+     *  mediaDay below) but left configurable since RTI leagues still expose it. */
     interview: number;
+    /** Weekly Media Day interview payout, paid once a team completes all 3 weekly questions.
+     *  Non-RTI leagues' primary weekly interview action; RTI has its own separate constant. */
+    mediaDay: number;
     gotwCorrectVote: number;
     gotwSeasonTopGuesserBonus: number;
   };
@@ -69,17 +74,23 @@ export const DEFAULT_REC_GLOBAL_ECONOMY_CONFIG: RecGlobalEconomyConfig = {
     customPlayerTier5: 2000,
   },
   submissions: {
-    boxScoreWin: 100,
-    boxScoreLoss: 50,
-    highlight: 25,
+    // Rebalanced 2026-09-08 so a typical Madden regular season (18 weeks, ~.500 record,
+    // realistic-not-perfect participation) nets roughly 16,000 coins, and a full, highly
+    // engaged season through a deep playoff run nets roughly 32,000 -- see the postseason
+    // result multiplier (packages/shared/src/league-stage.ts's postseasonResultMultiplier)
+    // for the playoff/championship bonus layered on top of boxScoreWin/boxScoreLoss below.
+    boxScoreWin: 400,
+    boxScoreLoss: 200,
+    highlight: 50,
     highlightSeasonAward: 2000,
     gameOfYear: 5000,
     highlightWeeklyPaidLimit: 2,
     highlightWeeklyUploadLimit: 2,
-    stream: 50,
-    article: 100,
+    stream: 100,
+    article: 250,
     interview: 50,
-    gotwCorrectVote: 25,
+    mediaDay: 300,
+    gotwCorrectVote: 75,
     gotwSeasonTopGuesserBonus: 2500,
   },
   wagers: { houseWeeklyMaximum: 1000, peerWeeklyMaximum: 5000 },

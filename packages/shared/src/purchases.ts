@@ -136,6 +136,17 @@ export type RecPurchaseSide = "offense" | "defense";
 // ─── Attribute allocation shape (Phase 2) ───────────────────────────────────────
 export type RecAttributeAllocation = { code: string; points: number; core: boolean };
 
+// Shared by priceForPurchase (fixed constants) and priceForPurchaseWithConfig (per-league
+// configurable prices) so the tier -> price field mapping only exists in one place.
+type LegendTierPrices = { legend: number; immortal: number; bust: number; hometownHero: number; celebsCouldveBeens: number };
+function legendPurchasePrice(details: Record<string, unknown>, prices: LegendTierPrices): number {
+  if (details.legendTier === "bust") return prices.bust;
+  if (details.legendTier === "hometown_hero") return prices.hometownHero;
+  if (details.legendTier === "celebs_couldve_beens") return prices.celebsCouldveBeens;
+  if (details.position === "K" || details.position === "P") return REC_SPECIAL_TEAMS_LEGEND_PRICE;
+  return details.legendTier === "immortal" ? prices.immortal : prices.legend;
+}
+
 // Compute the coin price for a purchase from its details. Returns 0 for types whose price
 // can't be derived (caller should treat that as a configuration error).
 export function priceForPurchase(
@@ -149,11 +160,10 @@ export function priceForPurchase(
     case "player_trait":
       return REC_PLAYER_TRAIT_PRICE;
     case "legend":
-      if (details.legendTier === "bust") return REC_BUST_PRICE;
-      if (details.legendTier === "hometown_hero") return REC_HOMETOWN_HERO_PRICE;
-      if (details.legendTier === "celebs_couldve_beens") return REC_CELEBS_COULDVE_BEENS_PRICE;
-      if (details.position === "K" || details.position === "P") return REC_SPECIAL_TEAMS_LEGEND_PRICE;
-      return details.legendTier === "immortal" ? REC_IMMORTAL_PRICE : REC_LEGEND_PRICE;
+      return legendPurchasePrice(details, {
+        legend: REC_LEGEND_PRICE, immortal: REC_IMMORTAL_PRICE, bust: REC_BUST_PRICE,
+        hometownHero: REC_HOMETOWN_HERO_PRICE, celebsCouldveBeens: REC_CELEBS_COULDVE_BEENS_PRICE,
+      });
     case "dev_upgrade": {
       const fromTier = details.fromTier as RecDevTier | undefined;
       const toTier = details.toTier as RecDevTier | undefined;
@@ -194,13 +204,7 @@ export function priceForPurchaseWithConfig(purchaseType: RecPurchaseType, detail
   // player_trait purchases were retired — the toggle that would enable them is hardcoded off
   // at every league-creation path, so this type can never actually reach a live purchase.
   if (purchaseType === "player_trait") return 0;
-  if (purchaseType === "legend") {
-    if (details.legendTier === "bust") return prices.bust;
-    if (details.legendTier === "hometown_hero") return prices.hometownHero;
-    if (details.legendTier === "celebs_couldve_beens") return prices.celebsCouldveBeens;
-    if (details.position === "K" || details.position === "P") return REC_SPECIAL_TEAMS_LEGEND_PRICE;
-    return details.legendTier === "immortal" ? prices.immortal : prices.legend;
-  }
+  if (purchaseType === "legend") return legendPurchasePrice(details, prices);
   if (purchaseType === "contract") return details.variant === "extension" ? prices.contractExtension : prices.contractReduction;
   if (purchaseType === "attribute") return ((details.allocations as RecAttributeAllocation[] | undefined) ?? []).reduce(
     (sum, allocation) => sum + (allocation.core ? prices.coreAttributePoint : prices.nonCoreAttributePoint) * Math.max(0, Number(allocation.points) || 0), 0);

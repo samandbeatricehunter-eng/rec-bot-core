@@ -1,8 +1,9 @@
 // Rise to Immortality "tweets" -- generates up to 10 candidate posts per Advance (regular
 // season/postseason only, see gameplaySeasonStages) from that week's actual imported stats and
-// game results, favoring the league's custom-created prospects (madden_player_id starting
-// "rti:") over baseline real-NFL roster fill, per the league being player-focused. Posting is a
-// separate 4-hour drip -- see sweepImmortalityTweetQueue below -- not done here.
+// game results, favoring the league's custom-created prospects (synthetic `rti:` madden ids
+// OR rec_players rows linked from rec_immortality_prospects -- EA identity adoption replaces
+// the `rti:` prefix with a numeric franchise id) over baseline real-NFL roster fill. Posting
+// is a separate drip -- see sweepImmortalityTweetQueue below -- not done here.
 import { gameplaySeasonStages, type LeagueGame } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
@@ -18,9 +19,9 @@ import {
 } from "./tweet-bank.js";
 import { conversationTemplateKey, selectConversationLine, type ConversationKind, type VoiceFamily } from "./tweet-bank-conversations.js";
 import { personaForHandle, playerVoiceFromTraits } from "./tweet-bank-voices.js";
+import { isImmortalityCreatedPlayer, loadRtiProspectPlayerIds } from "./player-identity.service.js";
 
 const QUEUE_SIZE = 10;
-const IS_CUSTOM_PROSPECT_PREFIX = "rti:";
 
 type Candidate = { category: TweetCategory; slots: TweetSlots; weight: number };
 
@@ -29,6 +30,14 @@ function fillTemplate(template: string, slots: TweetSlots): string {
     const value = (slots as Record<string, unknown>)[key];
     return value == null ? "" : String(value);
   }).replace(/\s+/g, " ").trim();
+}
+
+function templateFits(template: string, slots: TweetSlots): boolean {
+  const record = slots as Record<string, unknown>;
+  return [...template.matchAll(/\{(\w+)\}/g)].every(([, key]) => {
+    const value = record[key ?? ""];
+    return value != null && String(value).trim() !== "";
+  });
 }
 
 function pick<T>(items: T[]): T | null {
@@ -51,13 +60,16 @@ function num(value: unknown): number { return Number(value) || 0; }
 // Supabase-compatible shim has a known gotcha with relation aliases on nested embeds, so plain
 // queries joined in JS (same pattern pro-tracker.service.ts's computePlayerLine uses) are the
 // safe default here.
-async function loadWeekAndSeasonStats(leagueId: string, seasonNumber: number, weekNumber: number) {
-  const [weekRows, throughLastWeek] = await Promise.all([
-    supabase.from("rec_player_weekly_stats").select("player_id,stats")
-      .eq("league_id", leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber),
-    supabase.from("rec_player_weekly_stats").select("player_id,stats")
-      .eq("league_id", leagueId).eq("season_number", seasonNumber).lt("week_number", weekNumber),
-  ]);
+async function loadWeekAndSeasonStats(leagueId: string, seasonNumber: number, weekNumber: number, seasonStage?: string) {
+  let weekQuery = supabase.from("rec_player_weekly_stats").select("player_id,stats")
+    .eq("league_id", leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber);
+  let priorQuery = supabase.from("rec_player_weekly_stats").select("player_id,stats")
+    .eq("league_id", leagueId).eq("season_number", seasonNumber).lt("week_number", weekNumber);
+  if (seasonStage) {
+    weekQuery = weekQuery.eq("season_stage", seasonStage);
+    priorQuery = priorQuery.eq("season_stage", seasonStage);
+  }
+  const [weekRows, throughLastWeek] = await Promise.all([weekQuery, priorQuery]);
   const rows = (weekRows.data ?? []) as Array<{ player_id: string; stats: unknown }>;
   const playerIds = [...new Set(rows.map((row) => row.player_id))];
   if (!playerIds.length) return { weekRows: [] as Array<{ player_id: string; stats: unknown; player: PlayerInfo }>, priorRows: throughLastWeek.data ?? [] };
@@ -72,16 +84,38 @@ async function loadWeekAndSeasonStats(leagueId: string, seasonNumber: number, we
   const teamById = new Map<string, any>((teams.data ?? []).map((t: any) => [String(t.id), t]));
   const playerById = new Map<string, PlayerInfo>((players.data ?? []).map((p: any) => [String(p.id), {
     fullName: p.full_name ?? null, position: p.position ?? null, maddenPlayerId: p.madden_player_id ?? null,
+    teamId: p.team_id ? String(p.team_id) : null,
     team: p.team_id ? teamById.get(String(p.team_id)) ?? null : null,
   }]));
 
   const joined = rows
     .map((row) => ({ ...row, player: playerById.get(String(row.player_id)) }))
     .filter((row): row is { player_id: string; stats: unknown; player: PlayerInfo } => Boolean(row.player));
-  return { weekRows: joined, priorRows: throughLastWeek.data ?? [] };
+  return { weekRows: mergeWeekStatRows(joined), priorRows: throughLastWeek.data ?? [] };
 }
 
-type PlayerInfo = { fullName: string | null; position: string | null; maddenPlayerId: string | null; team: any | null };
+type PlayerInfo = { fullName: string | null; position: string | null; maddenPlayerId: string | null; teamId: string | null; team: any | null };
+
+function mergeWeekStatRows(rows: Array<{ player_id: string; stats: unknown; player: PlayerInfo }>) {
+  const byPlayer = new Map<string, { player_id: string; stats: Record<string, unknown>; player: PlayerInfo }>();
+  for (const row of rows) {
+    const stats = { ...((row.stats ?? {}) as Record<string, unknown>) };
+    const existing = byPlayer.get(row.player_id);
+    if (!existing) {
+      byPlayer.set(row.player_id, { player_id: row.player_id, stats, player: row.player });
+      continue;
+    }
+    for (const [key, value] of Object.entries(stats)) {
+      const added = Number(value);
+      if (Number.isFinite(added)) {
+        existing.stats[key] = num(existing.stats[key]) + added;
+      } else if (existing.stats[key] == null) {
+        existing.stats[key] = value;
+      }
+    }
+  }
+  return [...byPlayer.values()];
+}
 
 function statLine(stats: Record<string, unknown> | null | undefined) {
   const s = stats ?? {};
@@ -98,10 +132,39 @@ function teamLabel(team: any): string {
   return formatTeamDisplayName(team) ?? team?.name ?? "That team";
 }
 
+async function loadOpponentNameByTeamId(leagueId: string, seasonNumber: number, weekNumber: number, seasonStage?: string): Promise<{
+  opponentByTeamId: Map<string, string>;
+  gameRows: Array<{ home_team_id: string | null; away_team_id: string | null; home_score: number; away_score: number; is_tie: boolean }>;
+  gameTeamById: Map<string, any>;
+}> {
+  let resultsQuery = supabase.from("rec_game_results")
+    .select("home_team_id,away_team_id,home_score,away_score,is_tie")
+    .eq("league_id", leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber);
+  if (seasonStage) resultsQuery = resultsQuery.eq("game_type", seasonStage);
+  const results = await resultsQuery;
+  const gameRows = (results.data ?? []) as Array<{ home_team_id: string | null; away_team_id: string | null; home_score: number; away_score: number; is_tie: boolean }>;
+  const gameTeamIds = [...new Set(gameRows.flatMap((g) => [g.home_team_id, g.away_team_id]).filter((id): id is string => Boolean(id)))];
+  const gameTeams = gameTeamIds.length
+    ? await supabase.from("rec_teams").select("id,name,display_city,display_nick,is_relocated,abbreviation,display_abbr").in("id", gameTeamIds)
+    : { data: [] as any[] };
+  const gameTeamById = new Map<string, any>((gameTeams.data ?? []).map((t: any) => [String(t.id), t]));
+  const opponentByTeamId = new Map<string, string>();
+  for (const game of gameRows) {
+    if (!game.home_team_id || !game.away_team_id) continue;
+    opponentByTeamId.set(String(game.home_team_id), teamLabel(gameTeamById.get(String(game.away_team_id))));
+    opponentByTeamId.set(String(game.away_team_id), teamLabel(gameTeamById.get(String(game.home_team_id))));
+  }
+  return { opponentByTeamId, gameRows, gameTeamById };
+}
+
 /** Builds every trigger-worthy candidate from the week's real stat lines and game results,
  * weighting custom RTI prospects far above baseline roster fill (the league is player-focused). */
-async function buildCandidates(leagueId: string, seasonNumber: number, weekNumber: number): Promise<Candidate[]> {
-  const { weekRows, priorRows } = await loadWeekAndSeasonStats(leagueId, seasonNumber, weekNumber);
+async function buildCandidates(leagueId: string, seasonNumber: number, weekNumber: number, seasonStage?: string): Promise<Candidate[]> {
+  const [{ weekRows, priorRows }, prospectPlayerIds, games] = await Promise.all([
+    loadWeekAndSeasonStats(leagueId, seasonNumber, weekNumber, seasonStage),
+    loadRtiProspectPlayerIds(leagueId),
+    loadOpponentNameByTeamId(leagueId, seasonNumber, weekNumber, seasonStage),
+  ]);
   const priorTotalsByPlayer = new Map<string, ReturnType<typeof statLine>>();
   const priorByPlayer = new Map<string, Array<{ stats: unknown }>>();
   for (const row of priorRows as Array<{ player_id: string; stats: unknown }>) {
@@ -124,9 +187,10 @@ async function buildCandidates(leagueId: string, seasonNumber: number, weekNumbe
     const player = row.player;
     if (!player) continue;
     const line = statLine(row.stats as Record<string, unknown>);
-    const isCustom = String(player.maddenPlayerId ?? "").startsWith(IS_CUSTOM_PROSPECT_PREFIX);
-    const weight = isCustom ? 6 : 1; // heavily favor the league's own created prospects
-    const baseSlots: TweetSlots = { player: player.fullName ?? "That player", team: teamLabel(player.team), week: weekNumber };
+    const isCustom = isImmortalityCreatedPlayer(player.maddenPlayerId, row.player_id, prospectPlayerIds);
+    const weight = isCustom ? 10 : 1; // created prospects over baseline NFL fill
+    const opponent = player.teamId ? games.opponentByTeamId.get(player.teamId) : undefined;
+    const baseSlots: TweetSlots = { player: player.fullName ?? "That player", team: teamLabel(player.team), week: weekNumber, ...(opponent ? { opponent } : {}) };
 
     if (line.passYards >= 250) candidates.push({ category: "big_pass", weight, slots: { ...baseSlots, value: line.passYards, statLabel: "pass yards", secondValue: line.passTds, secondStatLabel: "pass TDs" } });
     if (line.rushYards >= 100) candidates.push({ category: "big_rush", weight, slots: { ...baseSlots, value: line.rushYards, statLabel: "rush yards" } });
@@ -153,24 +217,14 @@ async function buildCandidates(leagueId: string, seasonNumber: number, weekNumbe
     }
   }
 
-  const results = await supabase.from("rec_game_results")
-    .select("home_team_id,away_team_id,home_score,away_score,is_tie")
-    .eq("league_id", leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber);
-  const gameRows = (results.data ?? []) as Array<{ home_team_id: string | null; away_team_id: string | null; home_score: number; away_score: number; is_tie: boolean }>;
-  const gameTeamIds = [...new Set(gameRows.flatMap((g) => [g.home_team_id, g.away_team_id]).filter((id): id is string => Boolean(id)))];
-  const gameTeams = gameTeamIds.length
-    ? await supabase.from("rec_teams").select("id,name,display_city,display_nick,is_relocated,abbreviation,display_abbr").in("id", gameTeamIds)
-    : { data: [] as any[] };
-  const gameTeamById = new Map<string, any>((gameTeams.data ?? []).map((t: any) => [String(t.id), t]));
-
-  for (const game of gameRows) {
+  for (const game of games.gameRows) {
     if (game.is_tie) continue;
     const homeScore = num(game.home_score);
     const awayScore = num(game.away_score);
     const margin = Math.abs(homeScore - awayScore);
     const winnerIsHome = homeScore > awayScore;
-    const winner = game.home_team_id && game.away_team_id ? gameTeamById.get(String(winnerIsHome ? game.home_team_id : game.away_team_id)) : null;
-    const loser = game.home_team_id && game.away_team_id ? gameTeamById.get(String(winnerIsHome ? game.away_team_id : game.home_team_id)) : null;
+    const winner = game.home_team_id && game.away_team_id ? games.gameTeamById.get(String(winnerIsHome ? game.home_team_id : game.away_team_id)) : null;
+    const loser = game.home_team_id && game.away_team_id ? games.gameTeamById.get(String(winnerIsHome ? game.away_team_id : game.home_team_id)) : null;
     if (!winner || !loser) continue;
     const score = winnerIsHome ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
     const slots: TweetSlots = { team: teamLabel(winner), opponent: teamLabel(loser), week: weekNumber, score, margin };
@@ -179,9 +233,12 @@ async function buildCandidates(leagueId: string, seasonNumber: number, weekNumbe
     if (margin >= 14) candidates.push({ category: "bad_loss", weight: 2, slots: { ...slots, team: teamLabel(loser), opponent: teamLabel(winner) } });
   }
 
-  // A light sprinkle of non-data-specific flavor so the feed doesn't read as a pure stat dump.
-  candidates.push({ category: "hype", weight: 1.5, slots: { week: weekNumber } });
-  candidates.push({ category: "hype", weight: 1, slots: { week: weekNumber } });
+  // Flavor-only hype is a bye-week filler. Once created-player stat lines exist, skip it so
+  // the 10-slot recap stays on real performances and game outcomes.
+  if (!candidates.some((candidate) => candidate.weight >= 10)) {
+    candidates.push({ category: "hype", weight: 1.5, slots: { week: weekNumber } });
+    candidates.push({ category: "hype", weight: 1, slots: { week: weekNumber } });
+  }
 
   return candidates;
 }
@@ -221,8 +278,8 @@ export async function queueImmortalityTweetsAfterAdvance(input: { leagueId: stri
   await ensurePlayerPersonasForLeague(input.leagueId).catch((err) =>
     console.error(`[ERROR] Player persona generation failed for league ${input.leagueId} (non-fatal):`, err));
   if (!gameplaySeasonStages(input.game).has(input.seasonStage)) return;
-  await generateAndQueueImmortalityTweets(input.leagueId, input.seasonNumber, input.weekNumber);
-  await queuePlayerChatterAfterImport(input.leagueId, input.seasonNumber, input.weekNumber).catch((err) =>
+  await generateAndQueueImmortalityTweets(input.leagueId, input.seasonNumber, input.weekNumber, input.seasonStage);
+  await queuePlayerChatterAfterImport(input.leagueId, input.seasonNumber, input.weekNumber, input.seasonStage).catch((err) =>
     console.error(`[ERROR] Player chatter tweets failed for league ${input.leagueId} (non-fatal):`, err));
 }
 
@@ -661,17 +718,17 @@ export async function postPlayerTwitterTweet(input: {
  * Scoped to source: "weekly_recap" only -- this used to clear every pending row for the league
  * regardless of who queued it, which would silently wipe out not-yet-posted contract-signing and
  * Media Day tweets every time this ran. */
-async function generateAndQueueImmortalityTweets(leagueId: string, seasonNumber: number, weekNumber: number): Promise<void> {
+async function generateAndQueueImmortalityTweets(leagueId: string, seasonNumber: number, weekNumber: number, seasonStage?: string): Promise<void> {
   await supabase.from("rec_immortality_tweet_queue").update({ status: "cleared" })
     .eq("league_id", leagueId).eq("status", "pending").eq("source", "weekly_recap");
 
-  const candidates = await buildCandidates(leagueId, seasonNumber, weekNumber);
+  const candidates = await buildCandidates(leagueId, seasonNumber, weekNumber, seasonStage);
   if (!candidates.length) return;
   const chosen = weightedSample(candidates, QUEUE_SIZE);
   if (!chosen.length) return;
 
   const rows = chosen.map((candidate) => {
-    const templates = TWEET_TEMPLATES.filter((tmpl) => tmpl.category === candidate.category);
+    const templates = TWEET_TEMPLATES.filter((tmpl) => tmpl.category === candidate.category && templateFits(tmpl.text, candidate.slots));
     const template = pick(templates) as TweetTemplate | null;
     if (!template) return null;
     const author = resolveAuthor(template.voice);
@@ -731,10 +788,11 @@ function handleForPlayerName(fullName: string | null | undefined): { handle: str
  * be the TARGET of a teammate/rival tweet) -- per direction, a prospect's own tweets only ever
  * come from the user's own Media Day answers, not random auto-generation. 0-2 chatter tweets per
  * league per week, each behind its own random roll so it reads as occasional, not a metronome. */
-async function queuePlayerChatterAfterImport(leagueId: string, seasonNumber: number, weekNumber: number): Promise<void> {
-  const { weekRows } = await loadWeekAndSeasonStats(leagueId, seasonNumber, weekNumber);
+async function queuePlayerChatterAfterImport(leagueId: string, seasonNumber: number, weekNumber: number, seasonStage?: string): Promise<void> {
+  const { weekRows } = await loadWeekAndSeasonStats(leagueId, seasonNumber, weekNumber, seasonStage);
+  const prospectPlayerIds = await loadRtiProspectPlayerIds(leagueId);
   const authorCandidates = weekRows.filter((row) =>
-    !String(row.player.maddenPlayerId ?? "").startsWith(IS_CUSTOM_PROSPECT_PREFIX)
+    !isImmortalityCreatedPlayer(row.player.maddenPlayerId, row.player_id, prospectPlayerIds)
     && hasNotablePerformance(statLine(row.stats as Record<string, unknown>)));
   if (!authorCandidates.length) return;
 
@@ -764,7 +822,7 @@ async function queueOnePlayerChatterTweet(
 ): Promise<void> {
   const author = authorCandidates[Math.floor(Math.random() * authorCandidates.length)]!;
   const line = statLine(author.stats as Record<string, unknown>);
-  const authorTeamId = author.player.team?.id ? String(author.player.team.id) : null;
+  const authorTeamId = author.player.teamId;
   // A curated top-5-per-team player gets their persisted voice/tone (player-personas.service.ts)
   // instead of ad-hoc synthesis + a flat random split -- consistent personality across weeks.
   const persona = await playerPersonaFor(leagueId, author.player_id);
@@ -891,13 +949,18 @@ export async function sweepImmortalityTweetQueue(): Promise<void> {
       const candidates = await supabase.from("rec_immortality_tweet_queue")
         .select("id,author_handle,author_display_name,body,source")
         .eq("league_id", leagueId).eq("status", "pending")
-        .order("created_at", { ascending: true }).limit(10);
+        .order("created_at", { ascending: true }).limit(40);
       const candidateRows = (candidates.data ?? []) as Array<{
         id: string; author_handle: string; author_display_name: string; body: string; source: string | null;
       }>;
       if (!candidateRows.length) continue;
+      // Stat recap from this week's import should surface before leftover ambient camp chatter.
+      const orderedCandidates = [
+        ...candidateRows.filter((row) => row.source === "weekly_recap"),
+        ...candidateRows.filter((row) => row.source !== "weekly_recap"),
+      ];
       let next: (typeof candidateRows)[number] | null = null;
-      for (const row of candidateRows) {
+      for (const row of orderedCandidates) {
         if (await isPersonaCoolingDown(leagueId, String(row.author_handle))) continue;
         next = row;
         break;
@@ -989,6 +1052,10 @@ const AMBIENT_CHATTER_COOLDOWN_MS = 90 * 60 * 1000;
  * to "camp_buzz" instead: praise/taunt's "been good all season" framing presupposes a season
  * already in progress, which reads as nonsense before Week 1. */
 async function queueAmbientFanChatterIfDue(recLeagueId: string, immortalityLeagueId: string): Promise<void> {
+  const pendingRecap = await supabase.from("rec_immortality_tweet_queue")
+    .select("id").eq("league_id", recLeagueId).eq("status", "pending").eq("source", "weekly_recap").limit(1).maybeSingle();
+  if (pendingRecap.data) return;
+
   const last = await supabase.from("rec_immortality_tweet_queue")
     .select("created_at").eq("league_id", recLeagueId).eq("source", "ambient")
     .order("created_at", { ascending: false }).limit(1).maybeSingle();

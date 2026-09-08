@@ -257,54 +257,6 @@ function buildGameChannelIntroLines(input: { weekNumber: number; game: any; draf
   };
 }
 
-// Boot-safe one-time backfill for channels that existed before the intro embed gained the
-// dashing warning. The matching system message is the durable receipt, so restarts do not
-// repost the notice.
-export async function postDashingNoticeToActiveGameChannels() {
-  const active = await supabase.from("rec_game_channels").select("id,league_id,game_id,discord_channel_id").eq("status", "active");
-  if (active.error) throw new ApiError(500, "Failed to load active game channels for dashing notice.", active.error);
-
-  let posted = 0;
-  for (const channel of active.data ?? []) {
-    const existing = await supabase.from("rec_game_chat_messages")
-      .select("id")
-      .eq("game_channel_id", channel.id)
-      .eq("source", "system")
-      .eq("body", DASHING_NOTICE)
-      .limit(1)
-      .maybeSingle();
-    if (existing.error) {
-      console.error("[ERROR] Failed to check dashing-notice receipt (non-fatal):", existing.error);
-      continue;
-    }
-    if (existing.data) continue;
-
-    const message = await postDiscordChannelMessage(String(channel.discord_channel_id), {
-      embeds: [{ title: "Important League Notice", color: 0xdc3545, description: DASHING_NOTICE }],
-      allowed_mentions: { parse: [] },
-    }).catch((error) => {
-      console.error("[ERROR] Failed to post dashing notice to game channel (non-fatal):", error);
-      return null;
-    });
-    if (!message) continue;
-
-    const receipt = await supabase.from("rec_game_chat_messages").insert({
-      game_channel_id: channel.id,
-      league_id: channel.league_id,
-      game_id: channel.game_id,
-      author_display_name: "REC Bot",
-      source: "system",
-      body: DASHING_NOTICE,
-    });
-    if (receipt.error) {
-      console.error("[ERROR] Failed to save dashing-notice receipt (non-fatal):", receipt.error);
-      continue;
-    }
-    posted++;
-  }
-  return { posted };
-}
-
 async function renderMatchupCardSafely(gameId: string | null | undefined): Promise<Buffer | null> {
   if (!gameId) return null;
   return Promise.race([

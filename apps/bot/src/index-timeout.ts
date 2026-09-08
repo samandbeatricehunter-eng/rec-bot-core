@@ -9,7 +9,6 @@ import { getAnnouncementsChannel, getRouteChannels, getVotingPollsChannel } from
 import { publishRecGuide, REC_GUIDE_CUSTOM_IDS } from "./flows/rec-guide.js";
 import { handleWeeklyBoxScores, handleWeeklyPlayerStats, handleWeeklyRecruiting, handleWeeklySubmissionButton, handleWeeklySubmissionMessage, handleWeeklySubmissionModal, handleWeeklySubmissionSelect, WEEKLY_SUBMISSIONS_CUSTOM_IDS } from "./flows/weekly-submissions.js";
 import { ACTIVE_CHECK_CUSTOM_IDS, handleActiveCheck, handleActiveCheckEditSelect, handleActiveCheckReviewButton, recoverOpenActiveChecks } from "./flows/active-check.js";
-import { GOTW_CUSTOM_IDS, handleGotwConfirm, handleGotwPollsMenu, handleGotwSelect, handleRerunGotwPolls, handleSetGotw } from "./flows/gotw.js";
 import {
   EOS_PAYOUT_CUSTOM_IDS,
   TROUBLESHOOT_EOS_CUSTOM_IDS,
@@ -87,13 +86,6 @@ import {
   startPostSetupScheduleStep,
   startScheduleViewer
 } from "./flows/schedule.js";
-import {
-  ADVANCE_WIZARD_CUSTOM_IDS,
-  handleAdvanceWizardCancel,
-  handleAdvanceWizardOutcome,
-  handleAdvanceWizardScoreModal,
-  startAdvanceWeekWizard,
-} from "./flows/advance-wizard.js";
 import {
   ADVANCE_TIME_CUSTOM_IDS,
   HEADLINES_CUSTOM_IDS,
@@ -1003,7 +995,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualWeekSelect) return handleManualScheduleWeekSelect(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualAfcSelect || interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualNfcSelect || interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualTeamSelect) return handleManualScheduleTeamSelect(interaction);
       if (interaction.customId === SCHEDULE_MGMT_CUSTOM_IDS.manualConferenceSelect) return handleManualScheduleConferenceSelect(interaction);
-      if (interaction.customId === GOTW_CUSTOM_IDS.select) return handleGotwSelect(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.regularWeekSelect || interaction.customId === ADVANCE_CUSTOM_IDS.stageSelect) return handleSetWeekSelect(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonSelect) return handleSetSeasonSelect(interaction, buildAdvanceMgmtRows);
       if (Object.values(LEAGUE_SETUP_CUSTOM_IDS).includes(interaction.customId as any)) return handleLeagueSetupSelect(interaction);
@@ -1181,10 +1172,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.approvePrefix}:`)) return handleTeamRequestApprove(interaction);
       if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.rejectPrefix}:`)) return handleTeamRequestReject(interaction);
       if (interaction.customId.startsWith(`${TEAM_REQUEST_CUSTOM_IDS.rolePrefix}:`)) return handleTeamRequestRole(interaction);
-      if (interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.homeWinPrefix}`)) return handleAdvanceWizardOutcome(interaction, "home", buildAdvanceMgmtRows);
-      if (interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.awayWinPrefix}`)) return handleAdvanceWizardOutcome(interaction, "away", buildAdvanceMgmtRows);
-      if (interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.tiePrefix}`)) return handleAdvanceWizardOutcome(interaction, "tie", buildAdvanceMgmtRows);
-      if (interaction.customId.startsWith(`${ADVANCE_WIZARD_CUSTOM_IDS.cancelPrefix}`)) return handleAdvanceWizardCancel(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.setBtn) return handleAdvanceTimeSet(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.skipBtn) return handleAdvanceTimeSkip(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.backBtn) return handleAdvanceTimeBack(interaction, buildAdvanceMgmtRows);
@@ -1217,7 +1204,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:`) || interaction.customId === TEAM_LINK_CUSTOM_IDS.editTeamModal) return handleCustomTeamModal(interaction);
       if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctModalPrefix)) return handleBoxScoreCorrectionsModal(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctModalPrefix)) return handleWeeklyScoresCorrectModal(interaction);
-      if (interaction.customId.startsWith(ADVANCE_WIZARD_CUSTOM_IDS.scoreModalPrefix)) return handleAdvanceWizardScoreModal(interaction, buildAdvanceMgmtRows);
       if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.scoreModalPrefix)) {
         const [outcome, gameId] = interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.scoreModalPrefix.length).split(":");
         return handleManualScoresScoreModal(interaction, outcome as "home" | "away" | "tie", gameId);
@@ -1575,15 +1561,6 @@ function buildAdvanceMgmtRows() {
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvanceBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger)
-    ),
-  ];
-}
-
-function buildAdvanceBackRows() {
-  return [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger),
     ),
   ];
 }

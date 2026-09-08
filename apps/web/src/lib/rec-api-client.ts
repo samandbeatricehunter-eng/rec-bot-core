@@ -1,7 +1,7 @@
 import { createReadCache } from "./read-cache.js";
 import { REC_API_ROUTES } from "@rec/shared";
 import type { RecGlobalEconomyConfig } from "@rec/shared";
-import type { TradeEvaluatorReport } from "../types/api.js";
+import type { ImportAuditReport, NonRtiMediaDayResponse, TradeEvaluatorReport } from "../types/api.js";
 import type {
   ActiveCheckReview,
   AdvanceResultInput,
@@ -276,20 +276,7 @@ export const recApi = {
   importMaddenEaDatasets: (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; weekRefs?: Array<{ stage: 0 | 1; weekIndex: number }>; weekScope?: "current" | "through_current" }) =>
     recApiFetch<{ ok: boolean; message: string }>("/v1/import/madden/ea/import-async", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.weekRefs ? { week_refs: input.weekRefs.map((ref) => ({ stage: ref.stage, week_index: ref.weekIndex })) } : {}), ...(input.weekScope ? { week_scope: input.weekScope } : {}) }) }),
   auditMaddenEaImport: (input: { guildId: string; leagueId: string }) =>
-    recApiFetch<{
-      leagueId: string;
-      currentWeek: number;
-      seasonStage: string;
-      issueCount: number;
-      weeks: Array<{
-        weekNumber: number;
-        label: string;
-        scheduledGames: number;
-        completedGames: number;
-        unplayedGames: number;
-        issues: Array<{ kind: string; gameId: string | null; label: string }>;
-      }>;
-    }>("/v1/import/madden/ea/audit", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+    recApiFetch<ImportAuditReport>("/v1/import/madden/ea/audit", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   getImportProgress: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ events: EaImportProgressEvent[]; running: boolean; source: "manual" | "auto" | null; weekLabel: string | null }>("/v1/import/madden/ea/import-progress", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   /** SSE streaming variant — calls onEvent for each progress event, returns final results. */
@@ -489,6 +476,10 @@ export const recApi = {
     recApiFetch<{ submitted: true; id: string }>("/v1/hub/media/article/submit", { method: "POST", body: JSON.stringify(input) }),
   submitHubInterview: (input: { guildId: string; tagOpponent?: boolean; answers: Array<{ questionId: string; question: string; answer: string }> }) =>
     recApiFetch<{ submitted: true; id: string }>("/v1/hub/media/interview/submit", { method: "POST", body: JSON.stringify(input) }),
+  getNonRtiMediaDay: (guildId: string) =>
+    recApiFetch<NonRtiMediaDayResponse>("/v1/hub/media/media-day", { method: "POST", body: JSON.stringify({ guildId }) }),
+  submitNonRtiMediaDayAnswer: (input: { guildId: string; slot: number; answer: string }) =>
+    recApiFetch<{ submitted: true; complete: boolean }>("/v1/hub/media/media-day/submit", { method: "POST", body: JSON.stringify(input) }),
   publishCommissionerMediaArticle: (input: { guildId: string; title: string; body: string; imageUrl?: string | null; immediatePost?: boolean }) =>
     recApiFetch<{ published?: true; scheduled?: true; id: string; storyId?: string }>("/v1/hub/media/commissioner-article", { method: "POST", body: JSON.stringify(input) }),
   reviewMedia: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>

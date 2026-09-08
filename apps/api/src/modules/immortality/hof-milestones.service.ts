@@ -8,7 +8,7 @@ import { gameplaySeasonStages, type LeagueGame } from "@rec/shared";
 import { postDiscordChannelMessage, editDiscordMessage } from "../../lib/discord-guild.js";
 import { supabase } from "../../lib/supabase.js";
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
-import { getLeagueStatsForLeagueId } from "../league-stats/league-stats.service.js";
+import { getLeagueStatsForLeagueId, invalidateLeagueStatsCache } from "../league-stats/league-stats.service.js";
 import { statLinesForPosition } from "./player-stat-line.js";
 import { loadImmortalityLeague } from "./immortality.service.js";
 
@@ -80,10 +80,25 @@ export async function postOrRefreshHofMilestoneCard(prospectId: string): Promise
 export async function refreshHofMilestonesForLeague(input: { leagueId: string; seasonStage: string; game: LeagueGame }): Promise<void> {
   if (!gameplaySeasonStages(input.game).has(input.seasonStage)) return;
   const { leagueId } = input;
+  // Import + advance both read this cache; a just-imported week would otherwise keep serving
+  // the empty snapshot the cards were first posted with.
+  invalidateLeagueStatsCache(leagueId);
   const immortalityLeague = await loadImmortalityLeague(leagueId);
   if (!immortalityLeague) return;
   const posted = await supabase.from("rec_immortality_prospects").select("id")
     .eq("immortality_league_id", immortalityLeague.id).not("player_id", "is", null);
   if (posted.error || !posted.data?.length) return;
   for (const row of posted.data) await postOrRefreshHofMilestoneCard(row.id);
+}
+
+/** Same refresh as Advance, triggered from EA import completion. Cards used to stay at 0 until
+ * a commissioner clicked Advance even though weekly stats were already in the DB. */
+export async function refreshHofMilestonesAfterImport(leagueId: string): Promise<void> {
+  const league = await supabase.from("rec_leagues").select("season_stage,game").eq("id", leagueId).maybeSingle();
+  if (!league.data) return;
+  await refreshHofMilestonesForLeague({
+    leagueId,
+    seasonStage: String(league.data.season_stage ?? ""),
+    game: league.data.game as LeagueGame,
+  });
 }
