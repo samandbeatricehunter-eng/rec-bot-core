@@ -1202,7 +1202,17 @@ export function HubHome() {
     catch (cause) { setTeamScheduleError(cause instanceof Error ? cause.message : "Schedule could not be loaded."); }
   }
   async function submitPurchase(overrideDetails?: Record<string, unknown>): Promise<boolean> {
-    if (auth.status !== "ready" || !purchaseType) return false;
+    // Used to return here with zero feedback -- from the user's side, clicking Submit Purchase
+    // did nothing at all (no error, no confirmation), which read as "I submitted it and it just
+    // vanished." Surface why instead of failing silently.
+    if (auth.status !== "ready") {
+      setPurchaseError("Your session isn't ready yet. Please reload the page and try again.");
+      return false;
+    }
+    if (!purchaseType) {
+      setPurchaseError("Select what you'd like to purchase first.");
+      return false;
+    }
     setPurchaseBusy(true); setPurchaseStatus(null); setPurchaseError(null);
     try {
       const details: Record<string, unknown> = overrideDetails ?? { ...purchaseDetails };
