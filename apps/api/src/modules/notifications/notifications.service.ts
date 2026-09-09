@@ -149,8 +149,8 @@ async function overlayLiveLegendIdentity(rows: any[]) {
     .select("id,hand,jersey_number,college,height,weight")
     .in("id", legendIds);
   if (catalog.error) return;
-  const detailsByPurchase = new Map((purchases.data ?? []).map((row: any) => [row.id, row.details ?? {}]));
-  const catalogById = new Map((catalog.data ?? []).map((row: any) => [row.id, row]));
+  const detailsByPurchase = new Map<string, Record<string, any>>((purchases.data ?? []).map((row: any) => [row.id, (row.details ?? {}) as Record<string, any>]));
+  const catalogById = new Map<string, Record<string, any>>((catalog.data ?? []).map((row: any) => [row.id, row]));
   for (const row of legendRows) {
     const details = detailsByPurchase.get(row.source_id) ?? {};
     const live = catalogById.get(details.legendId);
@@ -242,7 +242,7 @@ export async function listCommissionerNotifications(
   const { data, error } = await query;
   if (error) throw new ApiError(500, "Failed to load commissioner notifications.", error);
 
-  await bestEffortVoid("notifications.legend_catalog_overlay", () => overlayLiveLegendIdentity(data ?? []));
+  await bestEffort("notifications.legend_catalog_overlay", () => overlayLiveLegendIdentity(data ?? []));
 
   const names = await discordNameMap((data ?? []).flatMap((row: any) => [row.requester_discord_id]));
   const requesterMaps = await requesterNameMaps(data ?? []);
