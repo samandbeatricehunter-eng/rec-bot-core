@@ -340,6 +340,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
         <TroubleshootModal
           guildId={guildId}
           leagueId={summary?.league.id}
+          game={game}
           showImportAudit={isMadden && dataMode === "import"}
           onClose={() => setTroubleshootOpen(false)}
         />

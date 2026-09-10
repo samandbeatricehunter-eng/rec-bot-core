@@ -14,7 +14,7 @@ import { Button } from "../../components/ui/Button.js";
 // (settings-fields.ts), no edit affordance, open to every league member. Channels,
 // moderation, and the maintenance/first-time-setup tabs aren't "rules" a member needs to
 // read, so those categories are skipped here.
-const HIDDEN_CATEGORY_KEYS = new Set(["channels", "integrations", "moderation", "eos-payouts", "first-time-setup", "retire", "delete-league", "play_call"]);
+const HIDDEN_CATEGORY_KEYS = new Set(["delete-league"]);
 
 function formatValue(field: (typeof SETTINGS_CATEGORIES)[number]["fields"][number], draft: LeagueSettingsDraft) {
   const value = draft[field.key];
@@ -47,8 +47,6 @@ export function RulesHome() {
   }
   if (!draft) return <LoadingState />;
 
-  const game = String(draft.game ?? "");
-  const playCallFields = SETTINGS_CATEGORIES.find((c) => c.key === "play_call")?.fields ?? [];
   const customRules = Array.isArray(draft.customRules)
     ? (draft.customRules as Array<{ id: string; category: string; title: string; text: string; sortOrder?: number }>)
     : [];
@@ -81,13 +79,11 @@ export function RulesHome() {
       )}
 
       {SETTINGS_CATEGORIES.filter((category) => !HIDDEN_CATEGORY_KEYS.has(category.key)).map((category) => {
-        const fields = [...category.fields, ...(category.key === "rules" ? playCallFields : [])]
-          .filter((field) => !field.gameFilter || field.gameFilter(game))
-          .filter((field) => !field.dependsOn || field.dependsOn(draft));
+        const fields = category.fields.filter((field) => !field.dependsOn || field.dependsOn(draft));
         if (!fields.length) return null;
         return (
           <Card key={category.key} className="hub-rules-category">
-            <h3>{settingsCategoryNavLabel(category, game)}</h3>
+            <h3>{settingsCategoryNavLabel(category)}</h3>
             {fields.map((field) => (
               <div key={field.key} className="hub-rules-row">
                 <span className="hub-rules-label">{field.label}</span>

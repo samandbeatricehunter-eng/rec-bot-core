@@ -14,6 +14,11 @@ import { ManageGotwToolsModal } from "./ManageGotwToolsModal.js";
 import { ResetSpendCapModal } from "./ResetSpendCapModal.js";
 import { EosPayoutsToolsModal } from "./EosPayoutsToolsModal.js";
 import { EA_ADMIN_TOOLS } from "./EaAdminActionsGroup.js";
+import { TeamOwnershipTable } from "./TeamOwnershipTable.js";
+import { WagerMaintenance } from "../settings/WagerMaintenance.js";
+import { TransactionMaintenance } from "../settings/TransactionMaintenance.js";
+import { ModerationSettings } from "../settings/ModerationSettings.js";
+import { MaddenCompanionSettings } from "../settings/MaddenCompanionSettings.js";
 
 type AuditReport = Awaited<ReturnType<typeof recApi.auditMaddenEaImport>>;
 type ResyncResult = Awaited<ReturnType<typeof recApi.resyncNicknames>>;
@@ -29,11 +34,13 @@ const ASSIGNABLE_ROLES: RoleMgmtRoleKey[] = ["member", "compCommittee"];
 export function TroubleshootModal({
   guildId,
   leagueId,
+  game,
   showImportAudit = false,
   onClose,
 }: {
   guildId: string;
   leagueId?: string | null;
+  game?: string | null;
   showImportAudit?: boolean;
   onClose: () => void;
 }) {
@@ -119,8 +126,7 @@ export function TroubleshootModal({
         <ToolGroup label="Economy">
           <CollapsibleSection title="Reset Spend Cap">
             <p className="form-hint" style={{ marginTop: 0 }}>
-              Reset how much a player (or everyone) has spent toward this season's core/non-core attribute
-              cap, so they can spend a fresh budget.
+              Reset how much a player (or everyone) has spent this season, so they can spend a fresh budget.
             </p>
             <Button variant="secondary" onClick={() => setResetCapOpen(true)}><Coins size={14} /> Open Reset Tool</Button>
           </CollapsibleSection>
@@ -132,6 +138,35 @@ export function TroubleshootModal({
             <Button variant="secondary" onClick={() => setEosPayoutsOpen(true)}><Coins size={14} /> Open EOS Payouts</Button>
           </CollapsibleSection>
         </ToolGroup>
+        <ToolGroup label="Maintenance">
+          <CollapsibleSection title="Wagers">
+            <WagerMaintenance />
+          </CollapsibleSection>
+          <CollapsibleSection title="Reverse a Transaction">
+            <TransactionMaintenance />
+          </CollapsibleSection>
+        </ToolGroup>
+        <ToolGroup label="Team Assignment">
+          <CollapsibleSection title="Assign or Remove a Team Link" defaultOpen>
+            <p className="form-hint" style={{ marginTop: 0 }}>
+              Manually link a coach to a team, or clear an existing link — same effect as the coach
+              claiming or leaving a team themselves.
+            </p>
+            <TeamOwnershipTable />
+          </CollapsibleSection>
+        </ToolGroup>
+        <ToolGroup label="Bans & Restrictions">
+          <CollapsibleSection title="Bans, Restrictions & Suspensions">
+            <ModerationSettings />
+          </CollapsibleSection>
+        </ToolGroup>
+        {leagueId && game && (
+          <ToolGroup label="Connections">
+            <CollapsibleSection title="Madden Companion">
+              <MaddenCompanionSettings leagueId={leagueId} game={game} />
+            </CollapsibleSection>
+          </ToolGroup>
+        )}
         {leagueId && (
           <ToolGroup label="In-Game Admin">
             <p className="form-hint" style={{ marginTop: 0 }}>

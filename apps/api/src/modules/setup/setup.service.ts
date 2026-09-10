@@ -1409,6 +1409,11 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     .single();
   if (error) throw new ApiError(500, "We couldn't update the league configuration. Please try again.", error);
 
+  if (input.name && input.name.trim()) {
+    const renamed = await supabase.from("rec_leagues").update({ name: input.name.trim(), updated_at: new Date().toISOString() }).eq("id", context.leagueId);
+    if (renamed.error) throw new ApiError(500, "We couldn't update the league name. Please try again.", renamed.error);
+  }
+
   await upsertConferenceRules(context.leagueId, input.conferenceRules);
 
   await writeAuditLog({
@@ -1429,7 +1434,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
 export async function getLeagueConfigAsDraft(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const [league, config, conferenceRulesResult, immortality] = await Promise.all([
-    supabase.from("rec_leagues").select("name,game").eq("id", context.leagueId).single(),
+    supabase.from("rec_leagues").select("name,game,logo_url").eq("id", context.leagueId).single(),
     supabase.from("rec_league_configuration").select("*").eq("league_id", context.leagueId).maybeSingle(),
     supabase.from("rec_conference_rules").select("*").eq("league_id", context.leagueId),
     supabase.from("rec_immortality_leagues").select("offense_position,defense_position").eq("league_id", context.leagueId).maybeSingle(),
@@ -1453,6 +1458,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     leagueId: context.leagueId,
     name: league.data.name ?? "League",
     game: league.data.game ?? "madden_26",
+    logoUrl: league.data.logo_url ?? null,
     leaguePassword: c.league_password ?? null,
     leagueType: c.roster_type ?? "regular_rosters",
     immortalityOffensePosition: immortality.data?.offense_position ?? "QB",
