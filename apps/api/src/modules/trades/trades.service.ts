@@ -9,7 +9,7 @@ import {
 import { MADDEN_PICK_BASELINE_META } from "../draft-picks/madden-pick-baselines.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
+import { addDiscordReaction, editDiscordMessage, postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
@@ -222,7 +222,12 @@ export async function proposeTrade(input: {
   const config = await supabase.from("rec_league_configuration").select("roster_type,trade_approval_policy,cpu_trading_policy,cpu_trades_season_cap").eq("league_id", context.leagueId).maybeSingle();
   if (config.error) throw new ApiError(500, "We couldn't load trade settings. Please try again.", config.error);
   const isRti = isRiseToImmortalityLeagueType(String(config.data?.roster_type ?? ""));
-  const approvalPolicy = config.data?.trade_approval_policy ?? "competition_committee_review";
+  // Trades are a simple on/off switch now: a league either doesn't allow them, or every trade —
+  // GM-to-GM or CPU-involved — goes through competition-committee voting. There's no more
+  // "no approval required" or "single commissioner reviews it" tier.
+  if (config.data?.trade_approval_policy === "not_allowed") {
+    throw new ApiError(400, "This league does not allow trades.");
+  }
 
   const receivingUserId = await userForTeam(context.leagueId, input.receivingTeamId);
   // Rise to Immortality has no GM-to-GM trade economy (no salary cap, no normal contracts) --
@@ -264,9 +269,9 @@ export async function proposeTrade(input: {
       if ((used.count ?? 0) >= cpuTradeCap) throw new ApiError(409, `Your team has reached its limit of ${cpuTradeCap} CPU trade${cpuTradeCap === 1 ? "" : "s"} this season.`);
     }
   }
-  // A CPU-side trade always needs a human to review it even if the league otherwise allows
-  // trades to auto-apply — there's no GM on the other side to have agreed to it.
-  const effectivePolicy = !receivingUserId && approvalPolicy === "no_approval_required" ? "commissioner_review" : approvalPolicy;
+  // Only two policy values exist now: "not_allowed" (already thrown above) and
+  // "competition_committee_review" — every trade, CPU-involved or not, goes to committee vote.
+  const effectivePolicy = "competition_committee_review" as const;
 
   if (input.offeredCoins > 0 && (await walletBalance(userId)) < input.offeredCoins) {
     throw new ApiError(400, "You don't have enough coins to offer that amount.");
@@ -367,7 +372,7 @@ export async function respondToTrade(input: { guildId: string; discordId: string
 // must never undo an already-applied trade.
 async function announceAppliedTrade(guildId: string, leagueId: string, tradeId: string) {
   try {
-    const trade = await supabase.from("rec_trades").select("proposing_team_id,receiving_team_id").eq("id", tradeId).maybeSingle();
+    const trade = await supabase.from("rec_trades").select("proposing_team_id,receiving_team_id,proposing_coins,receiving_coins").eq("id", tradeId).maybeSingle();
     if (!trade.data) return;
     const legs = await supabase.from("rec_trade_legs").select("leg_type,player_id,draft_pick_id,from_team_id,to_team_id").eq("trade_id", tradeId);
     const [proposingName, receivingName] = await Promise.all([
@@ -396,20 +401,87 @@ async function announceAppliedTrade(guildId: string, leagueId: string, tradeId: 
     const body = lines.length ? `Trade confirmed between **${proposingName}** and **${receivingName}**:\n\n${lines.map((l) => `- ${l}`).join("\n")}` : `Trade confirmed between **${proposingName}** and **${receivingName}**.`;
     await publishTransitionStory({ guildId, headline: `${proposingName} and ${receivingName} agree to a trade`, body, primaryAngle: "trade" });
     void postToTradeBlockChannel(leagueId, { embeds: [{ title: "Trade Confirmed", color: 0x2fb86a, description: body.slice(0, 4096) }] });
+
+    const hasCoins = (trade.data.proposing_coins ?? 0) > 0 || (trade.data.receiving_coins ?? 0) > 0;
+    const linked = await findServerRoutesForLeague(leagueId);
+    const finalizedChannelId = linked?.routes?.finalized_trades_channel_id as string | null | undefined;
+    if (finalizedChannelId) {
+      const posted = await postDiscordChannelMessage(finalizedChannelId, {
+        embeds: [{
+          title: "Trade Finalized",
+          color: 0x2fb86a,
+          description: hasCoins
+            ? `${body.slice(0, 3600)}\n\n🪙 Coins are held pending in-game confirmation.`
+            : body.slice(0, 4096),
+        }],
+        components: hasCoins ? [{
+          type: 1,
+          components: [{ type: 2, style: 3, label: "Confirm Sent In-Game — Release Coins", custom_id: `rec:trade:release_coins:${tradeId}` }],
+        }] : [],
+      });
+      if (posted?.id) {
+        await supabase.from("rec_trades").update({ vote_channel_id: finalizedChannelId, vote_message_id: posted.id }).eq("id", tradeId);
+      }
+    }
   } catch (err) {
     console.error("[ERROR] Failed to announce applied trade (non-fatal):", err);
   }
 }
 
+async function announceRejectedTrade(guildId: string, leagueId: string, tradeId: string, note: string) {
+  try {
+    const trade = await supabase.from("rec_trades").select("proposing_team_id,receiving_team_id").eq("id", tradeId).maybeSingle();
+    if (!trade.data) return;
+    const [proposingName, receivingName] = await Promise.all([
+      teamLabel(leagueId, trade.data.proposing_team_id),
+      teamLabel(leagueId, trade.data.receiving_team_id),
+    ]);
+    const linked = await findServerRoutesForLeague(leagueId);
+    const rejectedChannelId = linked?.routes?.rejected_trades_channel_id as string | null | undefined;
+    if (!rejectedChannelId) return;
+    await postDiscordChannelMessage(rejectedChannelId, {
+      embeds: [{
+        title: "Trade Rejected",
+        color: 0xd64545,
+        description: `**${proposingName}** ⇄ **${receivingName}**\n\n${note}`,
+      }],
+    });
+  } catch (err) {
+    console.error("[ERROR] Failed to announce rejected trade (non-fatal):", err);
+  }
+}
+
+// Posts the committee-vote card to the proposed-trades channel, tagging commissioner and
+// comp-committee roles, and seeds the ✅/❌ reactions members vote with. Stores the message
+// location on the trade so a reaction add/remove can be resolved back to it.
+async function postTradeCommitteeVote(input: { guildId: string; leagueId: string; tradeId: string; summary: string }): Promise<void> {
+  try {
+    const linked = await findServerRoutesForLeague(input.leagueId);
+    const channelId = linked?.routes?.proposed_trades_channel_id as string | null | undefined;
+    if (!channelId) return;
+    const commissionerRoleId = linked?.routes?.commissioner_role_id as string | null | undefined;
+    const compCommitteeRoleId = linked?.routes?.comp_committee_role_id as string | null | undefined;
+    const roleIds = [commissionerRoleId, compCommitteeRoleId].filter((id): id is string => Boolean(id));
+    const posted = await postDiscordChannelMessage(channelId, {
+      content: roleIds.length ? roleIds.map((id) => `<@&${id}>`).join(" ") : undefined,
+      allowed_mentions: { parse: [], roles: roleIds },
+      embeds: [{
+        title: "Trade Proposed — Committee Vote",
+        color: 0x2f8fdb,
+        description: `${input.summary}\n\nReact ✅ to approve or ❌ to reject. Majority of commissioners/comp committee decides.`,
+      }],
+    });
+    if (!posted?.id) return;
+    await supabase.from("rec_trades").update({ vote_channel_id: channelId, vote_message_id: posted.id }).eq("id", input.tradeId);
+    await addDiscordReaction(channelId, posted.id, "✅");
+    await addDiscordReaction(channelId, posted.id, "❌");
+  } catch (err) {
+    console.error("[ERROR] Failed to post trade committee vote (non-fatal):", err);
+  }
+}
+
 async function finalizeAcceptedTrade(tradeId: string, approvalPolicy: string, guildId: string, leagueId: string) {
   const now = new Date().toISOString();
-  if (approvalPolicy === "no_approval_required") {
-    await supabase.from("rec_trades").update({ status: "accepted", accepted_at: now, updated_at: now }).eq("id", tradeId);
-    const applied = await supabase.rpc("apply_trade", { p_trade_id: tradeId, p_reviewer_discord_id: null, p_review_note: "Auto-applied — no approval required" });
-    if (applied.error) throw new ApiError(500, "The trade was accepted, but we couldn't apply it. Please try again.", applied.error);
-    void announceAppliedTrade(guildId, leagueId, tradeId);
-    return { status: "applied" };
-  }
   await supabase.from("rec_trades").update({ status: "pending_review", accepted_at: now, updated_at: now }).eq("id", tradeId);
   await supabase.from("rec_trade_audit_log").insert({ trade_id: tradeId, action: "accepted", previous_status: "pending_response", next_status: "pending_review" });
   const [snapshotRow, tradeRow] = await Promise.all([
@@ -444,7 +516,42 @@ async function finalizeAcceptedTrade(tradeId: string, approvalPolicy: string, gu
     payload: { tradeId, approvalPolicy, proposingTeam: proposingTeamName, receivingTeam: receivingTeamName, valueSnapshot: snapshot ?? null },
   });
   void notifyLeagueCommissionersOfPendingItem(leagueId);
+  void postTradeCommitteeVote({
+    guildId, leagueId, tradeId,
+    summary: `**${proposingTeamName}** ⇄ **${receivingTeamName}**\n\n${summary}`,
+  });
   return { status: "pending_review" };
+}
+
+/** Commissioner-gated: releases coins an applied trade left in holding once the commissioner
+ * has confirmed the trade actually went through in-game. Strips the release button from the
+ * finalized-trades message afterward. */
+export async function releaseTradeCoins(input: { guildId: string; reviewerDiscordId: string; tradeId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const trade = await supabase.from("rec_trades").select("*").eq("id", input.tradeId).eq("league_id", context.leagueId).maybeSingle();
+  if (trade.error) throw new ApiError(500, "We couldn't load that trade. Please try again.", trade.error);
+  if (!trade.data) throw new ApiError(404, "Trade not found.");
+  if (trade.data.status !== "applied") throw new ApiError(409, `Trade is not in an applied state (status: ${trade.data.status}).`);
+  if (trade.data.coins_released_at) throw new ApiError(409, "Trade coins were already released.");
+
+  const released = await supabase.rpc("release_trade_coins", { p_trade_id: input.tradeId, p_reviewer_discord_id: input.reviewerDiscordId });
+  if (released.error) throw new ApiError(500, "We couldn't release the trade coins. Please try again.", released.error);
+
+  if (trade.data.vote_channel_id && trade.data.vote_message_id) {
+    const [proposingName, receivingName] = await Promise.all([
+      teamLabel(context.leagueId, trade.data.proposing_team_id),
+      teamLabel(context.leagueId, trade.data.receiving_team_id),
+    ]);
+    await editDiscordMessage(trade.data.vote_channel_id, trade.data.vote_message_id, {
+      embeds: [{
+        title: "Trade Finalized",
+        color: 0x2fb86a,
+        description: `**${proposingName}** ⇄ **${receivingName}**\n\n✅ Confirmed sent in-game — coins released.`,
+      }],
+      components: [],
+    });
+  }
+  return { status: "coins_released" as const };
 }
 
 export async function withdrawTrade(input: { guildId: string; discordId: string; tradeId: string }) {
@@ -494,6 +601,17 @@ export async function reviewTrade(input: { guildId: string; reviewerDiscordId: s
   return { status: "applied" };
 }
 
+/** Resolves a proposed-trades committee-vote Discord message back to its trade id — the bot's
+ * reaction listener knows the channel+message a reaction landed on, not the trade id itself. */
+export async function getTradeIdForVoteMessage(guildId: string, channelId: string, messageId: string): Promise<string | null> {
+  const context = await getCurrentLeagueContext(guildId);
+  const trade = await supabase.from("rec_trades").select("id")
+    .eq("league_id", context.leagueId).eq("vote_channel_id", channelId).eq("vote_message_id", messageId)
+    .eq("status", "pending_review").maybeSingle();
+  if (trade.error) return null;
+  return trade.data?.id ?? null;
+}
+
 // ---------------------------------------------------------------------------
 // Competition-committee voting — each commissioner/co-commissioner casts approve/reject;
 // once everyone eligible has voted, the majority result auto-applies/rejects. The league owner
@@ -541,6 +659,7 @@ async function resolveTradeVoteOutcome(tradeId: string, leagueId: string, guildI
   await supabase.from("rec_trades").update({ status: "rejected", rejected_at: now, updated_at: now, review_note: `Committee vote: ${tally.approve}-${tally.reject}` }).eq("id", tradeId);
   await supabase.from("rec_trade_audit_log").insert({ trade_id: tradeId, action: "rejected", previous_status: "pending_review", next_status: "rejected", details: { committeeVote: tally } });
   await supabase.from("rec_commissioners_inbox").delete().eq("source_table", "rec_trades").eq("source_id", tradeId);
+  void announceRejectedTrade(guildId, leagueId, tradeId, `Committee vote: ${tally.approve}-${tally.reject}`);
   return { status: "rejected", tally };
 }
 
@@ -568,6 +687,23 @@ export async function castTradeVote(input: { guildId: string; reviewerDiscordId:
   return { status: "pending_review" as const, tally };
 }
 
+/** Un-reacting on the committee-vote message retracts a previously cast vote — removing a vote
+ * can never push the tally to allVoted, so this never triggers resolution. Quietly no-ops if the
+ * voter had no vote recorded (e.g. they reacted with both emoji and un-reacted one). */
+export async function retractTradeVote(input: { guildId: string; reviewerDiscordId: string; tradeId: string }) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const userId = await userIdFromDiscord(input.reviewerDiscordId);
+  if (!userId) throw new ApiError(404, "REC account not found.");
+  const trade = await supabase.from("rec_trades").select("id,status").eq("id", input.tradeId).eq("league_id", context.leagueId).maybeSingle();
+  if (trade.error) throw new ApiError(500, "We couldn't load that trade. Please try again.", trade.error);
+  if (!trade.data) throw new ApiError(404, "Trade not found.");
+  if (trade.data.status !== "pending_review") return { status: trade.data.status as string, retracted: false };
+
+  await supabase.from("rec_trade_votes").delete().eq("trade_id", input.tradeId).eq("voter_user_id", userId);
+  await supabase.from("rec_trade_audit_log").insert({ trade_id: input.tradeId, action: "vote_retracted", actor_user_id: userId, actor_discord_id: input.reviewerDiscordId });
+  return { status: "pending_review" as const, retracted: true };
+}
+
 /** Head-commissioner override — closes a committee vote early even if not everyone has voted
  * yet. The frontend is responsible for the "you're closing this without all votes logged" popup
  * confirmation before calling this; this endpoint just enforces that the caller actually is the
@@ -588,6 +724,7 @@ export async function forceCloseTradeVote(input: { guildId: string; reviewerDisc
     const now = new Date().toISOString();
     await supabase.from("rec_trades").update({ status: "rejected", rejected_at: now, updated_at: now, reviewed_by_discord_id: input.reviewerDiscordId, review_note: `Head commissioner closed vote early (${tally.votedCount}/${tally.electorCount} voted): reject` }).eq("id", input.tradeId);
     await supabase.from("rec_commissioners_inbox").delete().eq("source_table", "rec_trades").eq("source_id", input.tradeId);
+    void announceRejectedTrade(input.guildId, context.leagueId, input.tradeId, `Head commissioner closed the vote early (${tally.votedCount}/${tally.electorCount} voted): rejected`);
     return { status: "rejected", tally };
   }
   const applied = await supabase.rpc("apply_trade", { p_trade_id: input.tradeId, p_reviewer_discord_id: input.reviewerDiscordId, p_review_note: `Head commissioner closed vote early (${tally.votedCount}/${tally.electorCount} voted): approve` });

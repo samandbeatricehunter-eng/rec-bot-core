@@ -37,10 +37,16 @@ export async function renderLeagueLeadersPng(leagueId: string, weekNumber: numbe
       const bodyText = await page.locator("body").innerText().catch(() => "(could not read page body)");
       throw new Error(`League Leaders board never rendered. Page text: "${bodyText.slice(0, 300)}". Console errors: ${consoleErrors.slice(0, 5).join(" | ") || "(none)"}. Original: ${waitError instanceof Error ? waitError.message : String(waitError)}`);
     }
+    // img.complete is true for a FAILED load too, so it alone can't tell a broken headshot/logo
+    // from a real one -- wait for either a real decoded image (naturalWidth > 0) or the settled
+    // failure state our onError handlers leave behind (swapped to the silhouette, which will
+    // itself finish loading, or hidden via inline display:none for a logo with no fallback).
     await page.waitForFunction(() => {
       const root = document.querySelector("[data-league-leaders-render]");
       if (!root) return false;
-      return Array.from(root.querySelectorAll("img")).every((img) => img.complete);
+      return Array.from(root.querySelectorAll("img")).every(
+        (img) => (img.complete && img.naturalWidth > 0) || img.style.display === "none",
+      );
     }, { timeout: RENDER_TIMEOUT_MS }).catch(() => undefined);
     return await target.screenshot({ type: "png" });
   } finally {

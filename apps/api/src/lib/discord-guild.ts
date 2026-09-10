@@ -440,6 +440,18 @@ export async function editDiscordMessage(channelId: string, messageId: string, p
   return sent.ok;
 }
 
+// Adds the bot's own reaction to a message (e.g. seeding ✅/❌ on a committee-vote post so
+// members have something to click). `emoji` is a raw unicode emoji or `name:id` for a custom
+// one, URL-encoded per Discord's reaction-endpoint requirement.
+export async function addDiscordReaction(channelId: string, messageId: string, emoji: string): Promise<void> {
+  const response = await discordBotFetch(`/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`, {
+    method: "PUT",
+  });
+  if (!response.ok && response.status !== 429) {
+    console.error(`[WARN] Failed to add reaction ${emoji} to message ${messageId} in channel ${channelId} (${response.status})`);
+  }
+}
+
 export async function banDiscordGuildMember(guildId: string, discordId: string, reason: string): Promise<void> {
   const response = await discordBotFetch(`/guilds/${guildId}/bans/${discordId}`, {
     method: "PUT",

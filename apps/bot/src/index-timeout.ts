@@ -248,6 +248,7 @@ import {
   handleWagerAccept,
 } from "./flows/wagers.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild, syncRecentHighlightMessages } from "./handlers/highlights.js";
+import { handleTradeReleaseCoinsButton, handleTradeVoteReactionAdd, handleTradeVoteReactionRemove, TRADE_RELEASE_COINS_PREFIX } from "./flows/trade-vote-reactions.js";
 import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import { handleLiveStreamInteraction, isLiveStreamCustomId } from "./handlers/live-stream-prompt.js";
 import { syncManagedRoleFromDiscord } from "./handlers/managed-role-sync.js";
@@ -762,6 +763,7 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isStringSelectMenu() && interaction.customId === COMMISH_TOOLS_CUSTOM_IDS.matchupSelect) return handleCommishToolsMatchupSelect(interaction);
     if (interaction.isUserSelectMenu() && interaction.customId === COMMISH_TOOLS_CUSTOM_IDS.grantBonusUserSelect) return handleCommishGrantBonusUserSelect(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === RULES_SLASH_CUSTOM_IDS.categorySelect) return handleRulesCategorySelect(interaction);
+    if (interaction.isButton() && interaction.customId.startsWith(TRADE_RELEASE_COINS_PREFIX)) return handleTradeReleaseCoinsButton(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(RULES_SLASH_CUSTOM_IDS.postPrefix)) return handleRulesPost(interaction);
 
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelAvailability)) return handleAdjustAvailability(interaction);
@@ -1236,6 +1238,11 @@ client.on("guildMemberUpdate", async (oldMember, newMember) => {
 
 client.on("messageReactionAdd", async (reaction, user) => {
   await handleHighlightReactionRestrict(reaction, user).catch(() => undefined);
+  await handleTradeVoteReactionAdd(reaction, user).catch(() => undefined);
+});
+
+client.on("messageReactionRemove", async (reaction, user) => {
+  await handleTradeVoteReactionRemove(reaction, user).catch(() => undefined);
 });
 
 async function buildMainMenuPayload(userId: string, guildId: string | null, isAdmin: boolean) {

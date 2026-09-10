@@ -52,8 +52,24 @@ export function RenderLeagueLeaders() {
               category.entries.map((entry, index) => (
                 <div key={entry.playerId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderTop: index === 0 ? "none" : "1px solid rgba(255,255,255,0.06)" }}>
                   <div style={{ width: 18, fontSize: 13, color: "#6b7280", fontWeight: 700 }}>{index + 1}</div>
-                  <img src={entry.photoUrl || SILHOUETTE} alt="" width={32} height={32} style={{ borderRadius: "50%", objectFit: "cover", background: "#222" }} />
-                  {entry.teamLogoUrl ? <img src={entry.teamLogoUrl} alt="" width={20} height={20} style={{ objectFit: "contain" }} /> : null}
+                  <img
+                    src={entry.photoUrl || SILHOUETTE}
+                    alt=""
+                    width={32}
+                    height={32}
+                    style={{ borderRadius: "50%", objectFit: "cover", background: "#222" }}
+                    onError={(e) => { const img = e.currentTarget; if (img.src !== window.location.origin + SILHOUETTE) img.src = SILHOUETTE; }}
+                  />
+                  {entry.teamLogoUrl ? (
+                    <img
+                      src={entry.teamLogoUrl}
+                      alt=""
+                      width={20}
+                      height={20}
+                      style={{ objectFit: "contain" }}
+                      onError={(e) => { e.currentTarget.style.display = "none"; }}
+                    />
+                  ) : null}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{entry.playerName}</div>
                     <div style={{ fontSize: 11, color: "#8a93a6" }}>{[entry.position, entry.teamAbbr].filter(Boolean).join(" · ")}</div>

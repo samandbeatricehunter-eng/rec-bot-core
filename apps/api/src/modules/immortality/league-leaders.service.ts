@@ -1,9 +1,10 @@
-// Rise to Immortality: "League Leaders" weekly render -- top 5 at each of a curated set of
-// marquee stat categories (the same set the site's own League Stats "Leaders" tab shows, see
+// "League Leaders" weekly render -- top 5 at each of a curated set of marquee stat categories
+// (the same set the site's own League Stats "Leaders" tab shows, see
 // apps/web/src/routes/hub/LeagueStatsHome.tsx's OFFENSE_LEADER_CATEGORIES/DEFENSE_LEADER_CATEGORIES),
 // with each entry's team logo and player photo, screenshotted via the same Playwright render
-// pipeline the prospect card and Pro Tracker posts already use. Fired once per RTI league per
-// advance, alongside Pro Tracker and the tweet queue.
+// pipeline the prospect card and Pro Tracker posts already use. Fired once per league per
+// advance (Rise to Immortality alongside Pro Tracker and the tweet queue; regular Madden leagues
+// standalone) for any league with a league_leaders_channel_id configured.
 import { gameplaySeasonStages, type LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -12,7 +13,6 @@ import { findServerRoutesForLeague } from "../league-context/league-context.serv
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { getLeagueStatsForLeagueId } from "../league-stats/league-stats.service.js";
 import { renderLeagueLeadersPng } from "../../lib/league-leaders-render.js";
-import { loadImmortalityLeague } from "./immortality.service.js";
 
 const LEADER_CATEGORIES: Array<{ key: string; label: string }> = [
   { key: "pass_yards", label: "Passing Yards" },
@@ -92,12 +92,12 @@ export async function getLeagueLeadersRenderData(leagueId: string, weekNumber: n
   };
 }
 
-/** Called once from the advance flow, right alongside Pro Tracker and the tweet queue. No-ops
- * for non-RTI leagues, preseason/offseason, and leagues with no league_leaders_channel_id set. */
+/** Called once from the advance flow, right alongside Pro Tracker and the tweet queue. Works for
+ * both Rise to Immortality and regular Madden leagues — the underlying stat leaders are read
+ * straight off canonical per-league weekly stats, nothing RTI-specific about them. No-ops for
+ * preseason/offseason and leagues with no league_leaders_channel_id set. */
 export async function postLeagueLeadersForAdvance(input: { leagueId: string; weekNumber: number; seasonStage: string; game: LeagueGame }): Promise<void> {
   if (!gameplaySeasonStages(input.game).has(input.seasonStage)) return;
-  const immortalityLeague = await loadImmortalityLeague(input.leagueId);
-  if (!immortalityLeague) return;
 
   const routes = await findServerRoutesForLeague(input.leagueId);
   const channelId = routes?.routes?.league_leaders_channel_id as string | null | undefined;

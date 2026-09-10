@@ -33,6 +33,13 @@ export function isDiscordAdminInteraction(interaction: AdminInteraction): boolea
   return isFullLeagueAdminInteraction(interaction) || isCoCommissionerInteraction(interaction);
 }
 
+// Same commissioner/co-commissioner/server-admin check as the interaction helpers above, but for
+// a plain GuildMember — needed anywhere a raw gateway event (a reaction add/remove) is the
+// trigger instead of a Discord interaction, since those don't carry an `interaction.member`.
+export function isDiscordAdminMember(member: GuildMember): boolean {
+  return hasFullCommissionerRole(member) || member.permissions.has(PermissionFlagsBits.Administrator) || member.permissions.has(PermissionFlagsBits.ManageGuild) || hasCoCommissionerRole(member);
+}
+
 export function replyFullAdminOnly(interaction: { reply: (options: any) => Promise<any> }, action: string) {
   return interaction.reply({
     content: `Only commissioners or server admins can ${action}.`,

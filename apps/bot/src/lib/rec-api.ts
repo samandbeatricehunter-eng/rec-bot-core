@@ -869,4 +869,13 @@ export const recApi = {
 
   backfillImmortalityProspectReviews: (guildId: string) =>
     recFetch<{ backfilled: number }>("/v1/immortality/prospect/backfill-reviews", { method: "POST", body: JSON.stringify({ guildId }) }),
+
+  getTradeVoteMessageTradeId: (input: { guildId: string; channelId: string; messageId: string }) =>
+    recFetch<{ tradeId: string | null }>("/v1/trades/vote-message-lookup", { method: "POST", body: JSON.stringify(input) }),
+  castTradeVoteAsBot: (input: { guildId: string; tradeId: string; vote: "approve" | "reject"; reviewerDiscordId: string }) =>
+    recFetch<any>("/v1/trades/vote", { method: "POST", body: JSON.stringify(input) }),
+  retractTradeVoteAsBot: (input: { guildId: string; tradeId: string; reviewerDiscordId: string }) =>
+    recFetch<any>("/v1/trades/vote-retract", { method: "POST", body: JSON.stringify(input) }),
+  releaseTradeCoinsAsBot: (input: { guildId: string; tradeId: string; reviewerDiscordId: string }) =>
+    recFetch<any>("/v1/trades/release-coins", { method: "POST", body: JSON.stringify(input) }),
 };

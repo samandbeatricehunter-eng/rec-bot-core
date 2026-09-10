@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
-import { requireBotOrUserSession } from "../../lib/user-auth.js";
-import { castTradeVote, createTradeBlockListing, forceCloseTradeVote, getTradeDetail, getTradeFairnessPreview, getTradeVoteStatus, listMyTrades, listPendingReviewTrades, listSeasonTradeCounts, listTradeableTeams, listTradeBlockListings, listTradeBlockPlayers, logCommissionerTrade, proposeTrade, respondToTrade, reviewTrade, setPlayerTradeBlock, withdrawTrade, withdrawTradeBlockListing } from "./trades.service.js";
+import { assertGuildPermission, requireBotOrUserSession, resolveBotOrUserAuth } from "../../lib/user-auth.js";
+import { castTradeVote, createTradeBlockListing, forceCloseTradeVote, getTradeDetail, getTradeFairnessPreview, getTradeIdForVoteMessage, getTradeVoteStatus, listMyTrades, listPendingReviewTrades, listSeasonTradeCounts, listTradeableTeams, listTradeBlockListings, listTradeBlockPlayers, logCommissionerTrade, proposeTrade, releaseTradeCoins, respondToTrade, retractTradeVote, reviewTrade, setPlayerTradeBlock, withdrawTrade, withdrawTradeBlockListing } from "./trades.service.js";
 import { searchTradeTargets, suggestTradeOffers } from "./trade-targets.service.js";
 
 const LegSchema = z.union([
@@ -193,12 +193,71 @@ export async function tradesRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
+  // Bot-only lookup: resolves a committee-vote message a reaction landed on back to its trade id.
+  app.post("/v1/trades/vote-message-lookup", async (request, reply) => {
+    try {
+      const auth = await resolveBotOrUserAuth(request);
+      if (auth.mode !== "bot") throw new ApiError(403, "Bot session required.");
+      const body = z.object({ guildId: z.string().min(1), channelId: z.string().min(1), messageId: z.string().min(1) }).parse(request.body);
+      const tradeId = await getTradeIdForVoteMessage(body.guildId, body.channelId, body.messageId);
+      return reply.send({ tradeId });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Callable from the website (a signed-in commissioner casting their own vote) or from the
+  // bot (relaying a Discord reaction add/remove on the proposed-trades committee-vote post) --
+  // for the bot path, the reacting Discord user's commissioner/co-commissioner role has already
+  // been checked bot-side before this is called, same trust pattern as box-score review actions.
   app.post("/v1/trades/vote", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), tradeId: z.string().uuid(), vote: z.enum(["approve", "reject"]) }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
-      if (auth.mode !== "user") throw new ApiError(400, "Trade voting requires a website session.");
-      return reply.send(await castTradeVote({ ...body, reviewerDiscordId: auth.discordId }));
+      const auth = await resolveBotOrUserAuth(request);
+      const body = z.object({ guildId: z.string().min(1), tradeId: z.string().uuid(), vote: z.enum(["approve", "reject"]), reviewerDiscordId: z.string().min(1).optional() }).parse(request.body);
+      let reviewerDiscordId: string;
+      if (auth.mode === "user") {
+        await assertGuildPermission(body.guildId, auth.discordId, "co_commissioner");
+        reviewerDiscordId = auth.discordId;
+      } else {
+        if (!body.reviewerDiscordId) throw new ApiError(400, "reviewerDiscordId is required.");
+        reviewerDiscordId = body.reviewerDiscordId;
+      }
+      return reply.send(await castTradeVote({ guildId: body.guildId, tradeId: body.tradeId, vote: body.vote, reviewerDiscordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Bot-relayed vote *retraction* — a member un-reacting on the committee-vote message removes
+  // their cast vote instead of leaving it counted. Simple delete, not a "reject" vote.
+  app.post("/v1/trades/vote-retract", async (request, reply) => {
+    try {
+      const auth = await resolveBotOrUserAuth(request);
+      const body = z.object({ guildId: z.string().min(1), tradeId: z.string().uuid(), reviewerDiscordId: z.string().min(1).optional() }).parse(request.body);
+      let reviewerDiscordId: string;
+      if (auth.mode === "user") {
+        await assertGuildPermission(body.guildId, auth.discordId, "co_commissioner");
+        reviewerDiscordId = auth.discordId;
+      } else {
+        if (!body.reviewerDiscordId) throw new ApiError(400, "reviewerDiscordId is required.");
+        reviewerDiscordId = body.reviewerDiscordId;
+      }
+      return reply.send(await retractTradeVote({ guildId: body.guildId, tradeId: body.tradeId, reviewerDiscordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Bot-relayed coin release ("Confirm Sent In-Game" button) — commissioner permission is
+  // checked bot-side (button is only rendered/actionable for commissioner/co-commissioner roles)
+  // before this is called, same trust pattern as the vote routes above.
+  app.post("/v1/trades/release-coins", async (request, reply) => {
+    try {
+      const auth = await resolveBotOrUserAuth(request);
+      const body = z.object({ guildId: z.string().min(1), tradeId: z.string().uuid(), reviewerDiscordId: z.string().min(1).optional() }).parse(request.body);
+      let reviewerDiscordId: string;
+      if (auth.mode === "user") {
+        await assertGuildPermission(body.guildId, auth.discordId, "co_commissioner");
+        reviewerDiscordId = auth.discordId;
+      } else {
+        if (!body.reviewerDiscordId) throw new ApiError(400, "reviewerDiscordId is required.");
+        reviewerDiscordId = body.reviewerDiscordId;
+      }
+      return reply.send(await releaseTradeCoins({ guildId: body.guildId, tradeId: body.tradeId, reviewerDiscordId }));
     } catch (error) { return sendError(reply, error); }
   });
 
