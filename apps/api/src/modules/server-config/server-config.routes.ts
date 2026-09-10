@@ -43,7 +43,13 @@ const SetConfigSchema = z.object({
   offensiveProsChannelId: z.string().optional().nullable(),
   defensiveProsChannelId: z.string().optional().nullable(),
   hofMilestonesChannelId: z.string().optional().nullable(),
-  proTrackerChannelId: z.string().optional().nullable()
+  proTrackerChannelId: z.string().optional().nullable(),
+  proposedTradesChannelId: z.string().optional().nullable(),
+  rejectedTradesChannelId: z.string().optional().nullable(),
+  waysToGetPaidChannelId: z.string().optional().nullable(),
+  weeklyTransactionsChannelId: z.string().optional().nullable(),
+  matchupBreakdownsChannelId: z.string().optional().nullable(),
+  matchupTrackerChannelId: z.string().optional().nullable()
 });
 
 export async function serverConfigRoutes(app: FastifyInstance) {
