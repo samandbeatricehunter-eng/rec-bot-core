@@ -1,4 +1,4 @@
-import { AFC_TEAMS, CFB_27_TEAMS, CFB_TEAM_PRIMARY_COLORS, NFL_TEAM_PRIMARY_COLORS, NFC_TEAMS, type CfbTeamOption } from "@rec/shared";
+import { AFC_TEAMS, CFB_27_TEAMS, NFL_TEAM_PRIMARY_COLORS, NFC_TEAMS, type CfbTeamOption } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { ApiError } from "../../lib/errors.js";
@@ -192,9 +192,7 @@ export async function createDefaultTeamsForLeague(leagueId: string, game: string
     display_city: isCfbGame ? cfbDisplayCity(team as CfbTeamOption) : null,
     display_nick: isCfbGame ? (team as CfbTeamOption).mascot : null,
     source: "manual_admin_entry",
-    primary_color: isCfbGame
-      ? (CFB_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF")
-      : (NFL_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF"),
+    primary_color: NFL_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF",
   }));
   const result = await supabase.from("rec_teams").insert(rows).select("*");
   if (result.error) throw new ApiError(500, "We couldn't create the default league teams. Please try again.", result.error);
@@ -218,9 +216,7 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
     display_city: isCfb ? cfbDisplayCity(team as CfbTeamOption) : null,
     display_nick: isCfb ? (team as CfbTeamOption).mascot : null,
     source: "manual_admin_entry",
-    primary_color: isCfb
-      ? (CFB_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF")
-      : (NFL_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF")
+    primary_color: NFL_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF"
   }));
 
   const teams = await replaceLeagueDefaultTeamsAtomic({
@@ -263,9 +259,7 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
     is_relocated: false,
     original_abbreviation: null,
     source: "manual_admin_entry" as const,
-    primary_color: isCfb
-      ? (CFB_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF")
-      : (NFL_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF"),
+    primary_color: NFL_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF",
   }));
 
   const teams = await replaceLeagueDefaultTeamsAtomic({

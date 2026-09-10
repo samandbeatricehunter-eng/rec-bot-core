@@ -9,8 +9,7 @@ import { rebuildSeasonDisplayRecords } from "../display-records/display-records.
 import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
 import { computePowerRankings, snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
-import { postDiscordChannelMessage, postDiscordChannelMessageWithFile, purgeDiscordChannelMessages } from "../../lib/discord-guild.js";
-import { saveWeeklyPanel } from "../submission-state/submission-state.service.js";
+import { postDiscordChannelMessage, postDiscordChannelMessageWithFile } from "../../lib/discord-guild.js";
 import { loadResultsAndPendingSubmissions } from "../schedule/team-schedule.service.js";
 import { setLeagueWeek } from "./league-week.service.js";
 import { getLeagueDataMode } from "./data-mode.service.js";
@@ -192,102 +191,6 @@ async function publishPowerRankingsToDiscord(input: { guildId: string; announcem
   await postDiscordChannelMessage(input.announcementsChannelId, { embeds: [buildPowerRankingsEmbedPayload(data)] });
 }
 
-const WEEKLY_SUBMISSIONS_PLAYABLE_STAGES = new Set(["regular_season", "wild_card", "divisional", "conference_championship", "super_bowl", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"]);
-
-// Server-side twin of the bot's publishWeeklySubmissionsPanel (apps/bot/src/flows/weekly-submissions.ts)
-// — posts straight to Discord's REST API instead of through a live gateway client, since
-// advance completion can now be triggered from the web with no bot process involved. Custom
-// IDs must stay byte-identical to WEEKLY_SUBMISSIONS_CUSTOM_IDS so the bot's interaction
-// handler still responds to clicks on this panel.
-async function republishWeeklySubmissionsPanel(input: { guildId: string; routes: Record<string, unknown>; seasonNumber: number; seasonStage: string; weekNumber: number }) {
-  if (!WEEKLY_SUBMISSIONS_PLAYABLE_STAGES.has(input.seasonStage)) return;
-  const channelId = String(input.routes?.box_scores_channel_id ?? "");
-  if (!channelId) return;
-  const context = await getCurrentLeagueContext(input.guildId);
-  // This "BOX SCORE SUBMISSIONS" panel only makes sense when the league is actually on box
-  // scores — an import/manual-mode league doesn't expect coaches to post screenshots here.
-  if ((await getLeagueDataMode(context.leagueId)) !== "box_scores") return;
-  await purgeDiscordChannelMessages(channelId);
-  const stageText = input.seasonStage.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
-  const weekText = input.seasonStage === "regular_season" ? `Week ${input.weekNumber}` : stageText;
-  // rec_games is scoped by season_id, not season_number (the column doesn't exist on rec_games) —
-  // filtering by season_number errored on every call, so this panel load always threw.
-  const seasonId = await resolveSeasonId(context.leagueId, input.seasonNumber);
-  const games = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: input.weekNumber },
-    "id,home_user_id,away_user_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)");
-  if (games.error) throw new ApiError(500, "We couldn't load box-score channel matchups. Please try again.", games.error);
-  const fields = (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).slice(0, 25).map((game: any) => {
-    const home = Array.isArray(game.home_team) ? game.home_team[0] : game.home_team;
-    const away = Array.isArray(game.away_team) ? game.away_team[0] : game.away_team;
-    return { name: `${away?.abbreviation ?? away?.name ?? "Away"} at ${home?.abbreviation ?? home?.name ?? "Home"}`, value: game.home_user_id && game.away_user_id ? "H2H" : "Human vs CPU", inline: false };
-  });
-  const currentPanel = await postDiscordChannelMessage(channelId, {
-    content: "@everyone",
-    embeds: [{
-      title: `SEASON ${input.seasonNumber} · ${weekText.toUpperCase()}`,
-      color: 0xd9a521,
-      description: [
-        "## BOX SCORE SUBMISSIONS",
-        "Only coaches listed below may post. Submit exactly **two console screenshots**—together in one message or one at a time within 60 seconds. Text and non-image posts are removed automatically.",
-        "For CFB, use the postgame statistics box score or reopen the completed game's box score from the Dynasty main page. Submit the overview/top screen first and remaining team-stat screen second. REC parses both images and sends the result to commissioner review.",
-      ].join("\n\n"),
-      fields: fields.length ? fields : [{ name: "No eligible matchups", value: "There are no H2H or human-vs-CPU box scores due for this stage." }],
-    }, {
-      title: "REFERENCE IMAGE 1 OF 2 · SUBMIT FIRST", color: 0xd9a521,
-      image: { url: `${process.env.REC_SITE_URL ?? "https://rec-leagues.com"}/guides/cfb-box-score-example-1.jpg` },
-    }, {
-      title: "REFERENCE IMAGE 2 OF 2 · SUBMIT SECOND", color: 0xd9a521,
-      image: { url: `${process.env.REC_SITE_URL ?? "https://rec-leagues.com"}/guides/cfb-box-score-example-2.jpg` },
-    }],
-    allowed_mentions: { parse: ["everyone"] },
-  });
-  if (currentPanel) await saveWeeklyPanel({ guildId: input.guildId, seasonNumber: input.seasonNumber, seasonStage: input.seasonStage, weekNumber: input.weekNumber, channelId, messageId: currentPanel.id });
-  return;
-
-  /* Legacy multi-purpose weekly-submissions panel retained for migration history.
-  {
-    const sent = await postDiscordChannelMessage(channelId, {
-      content: "@everyone",
-      embeds: [{
-        title: "REC Weekly Submissions",
-        color: 0xd9a521,
-        description: weeklySubmissionsDescription({ seasonNumber: input.seasonNumber, weekText }),
-      }],
-      components: [{
-        type: 1,
-        components: [
-          { type: 2, style: 1, custom_id: "rec:weekly_submissions:box_scores", label: "Box Scores" },
-          { type: 2, style: 2, custom_id: "rec:weekly_submissions:player_stats", label: "Player Stats" },
-          { type: 2, style: 3, custom_id: "rec:weekly_submissions:recruiting", label: "Recruiting Commits" },
-        ],
-      }],
-      allowed_mentions: { parse: ["everyone"] },
-    });
-    if (sent) {
-      await saveWeeklyPanel({ guildId: input.guildId, seasonNumber: input.seasonNumber, seasonStage: input.seasonStage, weekNumber: input.weekNumber, channelId, messageId: sent.id });
-    }
-    return;
-  }
-  const sent = await postDiscordChannelMessage(channelId, {
-    embeds: [{
-      title: "REC Weekly Submissions",
-      color: 0xd9a521,
-      description: `Season ${input.seasonNumber} • ${weekText}\n\nUse the buttons below. Submission messages are captured and removed so this panel stays in focus.`,
-    }],
-    components: [{
-      type: 1,
-      components: [
-        { type: 2, style: 1, custom_id: "rec:weekly_submissions:box_scores", label: "Box Scores" },
-        { type: 2, style: 2, custom_id: "rec:weekly_submissions:player_stats", label: "Player Stats" },
-        { type: 2, style: 3, custom_id: "rec:weekly_submissions:recruiting", label: "Recruiting Commits" },
-      ],
-    }],
-  });
-  if (sent) {
-    await saveWeeklyPanel({ guildId: input.guildId, seasonNumber: input.seasonNumber, seasonStage: input.seasonStage, weekNumber: input.weekNumber, channelId, messageId: sent!.id });
-  }
-  */
-}
 
 type AdvanceGameResultInput = {
   gameId: string;
@@ -1345,14 +1248,6 @@ export async function completeAdvanceWeek(input: {
     console.error("[ERROR] resolveWagersOnAdvance failed after advance (non-fatal):", err);
     return { refundedCount: 0, refundedMessages: [] as any[] };
   });
-
-  await republishWeeklySubmissionsPanel({
-    guildId: input.guildId,
-    routes: context.routes ?? {},
-    seasonNumber,
-    seasonStage: nextTarget.seasonStage,
-    weekNumber: nextTarget.weekNumber,
-  }).catch((error) => console.error("[WARN] Failed to refresh box-score channel after advance:", error));
 
   // Last step of the advance on purpose: the recap's matchup board renders final scores for the
   // week, so it shouldn't fire until everything else about the advance (including any of the

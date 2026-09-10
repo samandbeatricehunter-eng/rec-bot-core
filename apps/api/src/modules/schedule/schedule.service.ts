@@ -15,7 +15,7 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonContext, resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { leagueWeekGamesQuery, leagueSeasonGamesQuery } from "../league-context/league-games.query.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
-import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
+import { persistStitchedUploadImage } from "../box-score/upload-images.js";
 import { parseScheduleImages } from "./schedule.parser.js";
 
 // ─── Team abbreviation resolution (shared by score + matchup screenshot imports) ─

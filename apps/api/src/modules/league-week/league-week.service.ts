@@ -5,7 +5,6 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { applyAdvanceSavingsInterest } from "./advance-interest.service.js";
 import { wipeCpuTeamSeasonStats } from "../cpu-team-stats/cpu-team-stats.service.js";
 import { wipeBacklogForSeason } from "../economy/economy-backlog.js";
-import { materializeSignedRecruits } from "../recruiting/recruiting.service.js";
 import { recordHubAnnouncement } from "../hub/hub.service.js";
 import { generateRollingDraftClass, syncDraftOrderFromLeagueStandings } from "../draft-picks/draft-picks.service.js";
 
@@ -129,12 +128,6 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     const announcementsWipe = await supabase.from("rec_hub_announcements").delete()
       .eq("league_id", context.leagueId).eq("season_number", previousSeasonNumber);
     if (announcementsWipe.error) console.error("[ERROR] Failed to wipe hub announcements on season rollover:", announcementsWipe.error);
-
-    // Signing day has passed — every recruit who signed and committed in-league becomes a
-    // real roster player as of this new season's preseason.
-    await materializeSignedRecruits(context.leagueId).catch((error) => {
-      console.error("[ERROR] Failed to materialize signed recruits on season rollover:", error);
-    });
 
     // CFB's store (custom recruits, Campus Legends, dev upgrades, attributes, traits) is
     // locked through Season 1 (see CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES in

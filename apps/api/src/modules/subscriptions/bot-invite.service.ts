@@ -4,7 +4,6 @@ import { listInstallableDiscordGuilds } from "../../lib/discord-oauth.js";
 import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, isBotInGuild, setGuildMemberNickname } from "../../lib/discord-guild.js";
 import { supabase } from "../../lib/supabase.js";
 import { registerServer } from "../setup/setup.service.js";
-import { syncBoxScoreCommandForLeague } from "../league-week/data-mode.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { assertLeagueNotFrozen } from "./entitlements.service.js";
 
@@ -122,8 +121,6 @@ export async function linkSiteLeagueToServer(input: LinkSiteLeagueToServerInput)
       .eq("id", league.data.id);
   }
 
-  await syncBoxScoreCommandForLeague(input.guildId, league.data.id);
-
   return {
     linked: true as const,
     server: { id: serverResult.server.id, name: serverResult.server.name },
@@ -181,7 +178,6 @@ export async function linkUnclaimedLeagueByDiscord(input: LinkUnclaimedLeagueByD
   });
   await ensurePrimaryServerLeagueLink(serverResult.server.id, league.id);
   await supabase.from("rec_leagues").update({ discord_bot_enabled: true, updated_at: new Date().toISOString() }).eq("id", league.id);
-  await syncBoxScoreCommandForLeague(input.guildId, league.id);
 
   return { linked: true, server: { id: serverResult.server.id, name: serverResult.server.name }, leagueName: league.name };
 }

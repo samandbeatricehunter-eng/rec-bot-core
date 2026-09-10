@@ -1,16 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { CFB_TEAM_PRIMARY_COLORS, isCfb, maxSeasonWeek, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
+import { maxSeasonWeek, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
-import { buildTeamNameCandidates as buildTeamCandidates, matchTeamByName, TEAM_NAME_AUTO_MATCH_THRESHOLD as AUTO_MATCH_THRESHOLD } from "../../lib/team-name-match.js";
-import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
-import { parseTeamScheduleImages, type ParsedTeamScheduleRow } from "./cfb-team-schedule.parser.js";
 import { listScheduleSeason, loadSchedulePlaceholderTeamIds, saveManualScheduleGame } from "./schedule.service.js";
 import { formatTeamDisplayName, resolveTeamNick, resolveTeamSchool } from "../users/user-profile-stats.service.js";
-import { assignKnownRivalryToGame, ensureLeagueRivalries, loadGameRivalries } from "../rivalries/rivalries.service.js";
+import { assignKnownRivalryToGame, loadGameRivalries } from "../rivalries/rivalries.service.js";
 
 type ConfirmedWeek = {
   gameId: string;
@@ -29,11 +26,9 @@ type ConfirmedWeek = {
   isNationalChampionship: boolean;
 };
 
-// Shared by the OCR-driven preview (previewCfbTeamScheduleImport, still CFB-only — that
-// parser only understands the CFB Team Schedule screenshot format) and the web dashboard's
-// no-OCR manual preview (getTeamScheduleManualState, now game-generic) — a team+week already
-// has a confirmed matchup (from either side of the game, from any source: OCR import, manual
-// Discord wizard, or the web dashboard) if a rec_games row already covers it.
+// Used by the web dashboard's manual schedule preview (getTeamScheduleManualState) — a
+// team+week already has a confirmed matchup (from either side of the game, from any source) if
+// a rec_games row already covers it.
 function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; games: any[] }> }, teamId: string): Map<number, ConfirmedWeek> {
   const confirmedByWeek = new Map<number, ConfirmedWeek>();
   for (const week of season.weeks) {
@@ -158,85 +153,9 @@ export type TeamScheduleWeekPreview = {
   confirmedHomeAway: "home" | "away" | null;
 };
 
-// OCR-screenshot-driven preview — CFB only (the parser only understands the CFB Team
-// Schedule screenshot format). Left untouched; not part of the Madden generalization.
-export async function previewCfbTeamScheduleImport(input: {
-  guildId: string;
-  teamId: string;
-  imageUrls: string[];
-  seasonNumber?: number | null;
-}) {
-  const context = await getCurrentLeagueContext(input.guildId);
-  if (context.rec_leagues.game !== "cfb_27") {
-    throw new ApiError(400, "Team schedule import is only available for CFB leagues.");
-  }
-  const leagueId = context.leagueId;
-  const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
-
-  const teams = await supabase
-    .from("rec_teams")
-    .select("id,name,abbreviation,display_abbr,display_city,display_nick,conference,is_relocated")
-    .eq("league_id", leagueId);
-  if (teams.error) throw new ApiError(500, "Failed to load league teams.", teams.error);
-  const teamRows = teams.data ?? [];
-  const team = teamRows.find((t: any) => t.id === input.teamId);
-  if (!team) throw new ApiError(404, "Team was not found in the current league.");
-  await ensureLeagueRivalries(leagueId, context.rec_leagues.game);
-
-  const candidates = teamRows.filter((t: any) => t.id !== input.teamId).map(buildTeamCandidates);
-
-  const parsed = await parseTeamScheduleImages(input.imageUrls);
-
-  const season = await listScheduleSeason(input.guildId, seasonNumber);
-  const confirmedByWeek = buildConfirmedByWeekMap(season, input.teamId);
-
-  const weeks: TeamScheduleWeekPreview[] = parsed.rows.map((row: ParsedTeamScheduleRow) => {
-    const confirmed = row.weekNumber != null ? confirmedByWeek.get(row.weekNumber) : undefined;
-    const match = row.isBye ? null : matchTeamByName(row.opponentRaw, candidates);
-    const matchedTeam = match ? teamRows.find((t: any) => t.id === match.teamId) : null;
-    return {
-      weekNumber: row.weekNumber,
-      weekLabel: row.weekLabel,
-      isBye: row.isBye,
-      byeType: "regular_season",
-      postseasonRound: null,
-      bowlName: null,
-      isBowlGame: false,
-      isNationalChampionship: false,
-      rivalry: { enabled: false, optedOut: false, details: null },
-      opponentRaw: row.opponentRaw,
-      opponentRank: row.opponentRank,
-      homeAway: row.homeAway,
-      matchedOpponentTeamId: match && match.score >= AUTO_MATCH_THRESHOLD ? match.teamId : null,
-      matchedOpponentName: formatTeamDisplayName(matchedTeam) ?? matchedTeam?.name ?? matchedTeam?.abbreviation ?? null,
-      matchConfidence: match?.score ?? null,
-      alreadyConfirmed: Boolean(confirmed),
-      confirmedOpponentTeamId: confirmed?.opponentTeamId ?? null,
-      confirmedOpponentName: confirmed?.opponentName ?? null,
-      confirmedHomeAway: confirmed?.homeAway ?? null,
-    };
-  });
-
-  const imageUrl = input.imageUrls.length
-    ? await persistStitchedUploadImage(`cfbteamimport-${leagueId}-${seasonNumber}-${input.teamId}`, input.imageUrls)
-    : null;
-
-  return {
-    team: { id: team.id, name: team.name, abbreviation: team.abbreviation },
-    seasonNumber,
-    weeks,
-    warnings: parsed.warnings,
-    imageUrl: imageUrl ?? input.imageUrls[0] ?? null,
-  };
-}
-
-// The web dashboard's schedule builder — same "team + every week's confirmed status"
-// shape as previewCfbTeamScheduleImport, minus the OCR step (there's no screenshot; the
-// commissioner fills in every week directly in the UI instead of correcting a parsed
-// guess), plus each week's existing result/pending-submission so the builder can show
-// (and act on) box scores and final scores inline instead of starting from blank.
-// Game-generic (cfb_27 | madden_26 | madden_27) — the week range and stage labels already
-// come from @rec/shared's game-aware helpers, so no CFB-only guard is needed here.
+// The web dashboard's schedule builder — the commissioner fills in every week directly in the
+// UI, plus each week's existing result/pending-submission so the builder can show (and act on)
+// final scores inline instead of starting from blank.
 export type TeamScheduleManualWeek = {
   weekNumber: number;
   matchupCard: any | null;
@@ -286,7 +205,6 @@ export async function getTeamScheduleManualState(input: {
 
   // Force Win + confirmed kickoff time for the mini matchup card each week renders -- same
   // rec_game_scheduling source getHubMatchupSchedule reads for the Matchups page.
-  const isCfbLeague = isCfb(context.rec_leagues.game);
   const gameScheduling = gameDescriptors.length
     ? await supabase.from("rec_game_scheduling").select("game_id,scheduled_for,fw_flagged,fw_flagged_for_user_id").in("game_id", gameDescriptors.map((g) => g.id))
     : { data: [] as any[], error: null };
@@ -295,11 +213,10 @@ export async function getTeamScheduleManualState(input: {
   const teamById = new Map<string, any>(teamRows.map((row: any) => [row.id, row]));
   const catalogColorFor = (row: any) => {
     if (row?.primary_color && String(row.primary_color).toUpperCase() !== "#FFFFFF") return row.primary_color;
-    const colorMap = isCfbLeague ? CFB_TEAM_PRIMARY_COLORS : NFL_TEAM_PRIMARY_COLORS;
-    return colorMap[String(row?.abbreviation ?? "").toUpperCase()] ?? row?.primary_color ?? "#FFFFFF";
+    return NFL_TEAM_PRIMARY_COLORS[String(row?.abbreviation ?? "").toUpperCase()] ?? row?.primary_color ?? "#FFFFFF";
   };
   const cardLogo = (row: any) => {
-    if (isCfbLeague || !row) return { abbr: null as string | null, logoUrl: null as string | null };
+    if (!row) return { abbr: null as string | null, logoUrl: null as string | null };
     if (row.logo_url) return { abbr: null, logoUrl: row.logo_url };
     return { abbr: row.is_relocated ? row.original_abbreviation ?? row.abbreviation ?? null : row.abbreviation ?? null, logoUrl: null };
   };

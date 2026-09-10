@@ -35,7 +35,7 @@ import {
 } from "./interview-headlines.js";
 import { buildRoundtableDiscussion } from "./roundtable.js";
 import { postGeneratedHeadlineToDiscord } from "./story-publishing.js";
-import { CFB_TEAM_PRIMARY_COLORS, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
+import { NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { formatTeamDisplayName, resolveTeamNick, resolveTeamSchool } from "../users/user-profile-stats.service.js";
 import { pruneDeadHighlightsOnceDaily } from "../site-home/site-home.service.js";
 import { clearDiscordTeamIdentityForUsers } from "../team-ownership/team-ownership.service.js";
@@ -1798,12 +1798,10 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     };
   }
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
-  if (context.rec_leagues.game === "cfb_27" || String(context.rec_leagues.game ?? "").startsWith("madden_")) {
+  if (String(context.rec_leagues.game ?? "").startsWith("madden_")) {
     const leagueTeams = await supabase.from("rec_teams").select("id,abbreviation,is_relocated,primary_color").eq("league_id", context.leagueId);
     if (leagueTeams.error) throw new ApiError(500, "We couldn't load matchup team colors. Please try again.", leagueTeams.error);
-    const colorMap = String(context.rec_leagues.game ?? "").startsWith("madden_")
-      ? NFL_TEAM_PRIMARY_COLORS
-      : CFB_TEAM_PRIMARY_COLORS;
+    const colorMap = NFL_TEAM_PRIMARY_COLORS;
     await Promise.all((leagueTeams.data ?? []).map((team: any) => {
       // For relocated/custom teams, preserve commissioner-assigned colors.
       // For standard teams, update if the DB color doesn't match the catalog (handles both

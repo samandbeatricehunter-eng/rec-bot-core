@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { CFB_BOWL_NAMES, canonicalConferenceName, stageForWeek, stageLabel } from "@rec/shared";
+import { canonicalConferenceName, stageForWeek, stageLabel } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { TeamScheduleManualState, TeamScheduleManualWeek, ScheduleTeam } from "../../../types/api.js";
@@ -12,8 +12,6 @@ import { Table, Th, Td } from "../../../components/ui/Table.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { Tooltip } from "../../../components/ui/Tooltip.js";
-import { ReviewBoxScoreModal } from "../../../components/box-score/ReviewBoxScoreModal.js";
-import { UploadBoxScoreModal } from "./UploadBoxScoreModal.js";
 import { EnterFinalScoreModal } from "./EnterFinalScoreModal.js";
 import { WatchedPlayersPanel } from "./WatchedPlayersPanel.js";
 
@@ -29,10 +27,7 @@ type WeekPick = {
 };
 type SavedResult = { weekNumber: number; skipped: boolean; reason?: string };
 
-type ActiveModal =
-  | { type: "upload"; week: TeamScheduleManualWeek }
-  | { type: "review"; week: TeamScheduleManualWeek; submissionId: string }
-  | { type: "score"; week: TeamScheduleManualWeek };
+type ActiveModal = { type: "score"; week: TeamScheduleManualWeek };
 
 function pickForWeek(week: TeamScheduleManualWeek, teams: ScheduleTeam[], fallback?: WeekPick): WeekPick {
   if (week.alreadyConfirmed && week.confirmedOpponentTeamId && week.confirmedHomeAway) {
@@ -146,7 +141,7 @@ function RivalryEditor({ week, guildId, teamId, teamName, onSaved }: { week: Tea
 // actual league.game, not a hardcoded guess.
 export function TeamScheduleForm() {
   const { teamId } = useParams<{ teamId: string }>();
-  const { guildId, discordId } = useReadyAuth();
+  const { guildId } = useReadyAuth();
   const [state, setState] = useState<TeamScheduleManualState | null>(null);
   const [teams, setTeams] = useState<ScheduleTeam[] | null>(null);
   const [picks, setPicks] = useState<Record<number, WeekPick>>({});
@@ -296,64 +291,27 @@ export function TeamScheduleForm() {
                             {resultLabel}
                           </Badge>
                         )}
-                        {week.result?.source === "box_score_screenshot" && (
-                          <Tooltip text="Imported from an approved box score screenshot — the win/loss payout for this game has already been issued.">
-                            <Badge status="approved">Box Score Imported · Payout Issued</Badge>
-                          </Tooltip>
-                        )}
-                        {week.pendingBoxScoreSubmissionId && <Badge status="pending">Box Score Pending Review</Badge>}
-                        {week.boxScoreStatus === "approved" && <Badge status="approved">Box Score Imported · Editable</Badge>}
                         <Tooltip text="This matchup was entered once and is shared between both teams' schedules — no need to enter it again on the other side.">
                           <Badge status="info">Shared with {week.confirmedOpponentName}'s schedule</Badge>
                         </Tooltip>
-                        {game === "cfb_27" && week.gameId && <RivalryEditor week={week} guildId={guildId} teamId={teamId!} teamName={state.team.name} onSaved={load} />}
                       </div>
                     </Td>
                     <Td data-label="Actions">
                       <div className="team-schedule-actions-row">
-                        {week.pendingBoxScoreSubmissionId ? (
-                          <Button
-                            variant="secondary"
-                            onClick={() => setActiveModal({ type: "review", week, submissionId: week.pendingBoxScoreSubmissionId! })}
-                          >
-                            Review Pending
-                          </Button>
-                        ) : (
+                        <Button
+                          variant="secondary"
+                          onClick={() => setActiveModal({ type: "score", week })}
+                        >
+                          {week.result ? "Correct Results" : "Enter Results"}
+                        </Button>
+                        {!week.result && (
                           <>
-                            <Tooltip text={week.result?.source === "box_score_screenshot" ? "A payout was already issued from a previously approved box score for this game." : "Upload a screenshot — stats are parsed automatically and sent here for your approval."}>
-                              <Button
-                                variant="secondary"
-                                onClick={() => {
-                                  if (
-                                    week.result?.source === "box_score_screenshot" &&
-                                    !window.confirm("A box score for this game was already approved and its payout issued. Re-uploading will be rejected unless the existing payout is reversed first. Continue anyway?")
-                                  ) {
-                                    return;
-                                  }
-                                  setActiveModal({ type: "upload", week });
-                                }}
-                              >
-                                Upload Box Score
-                              </Button>
-                            </Tooltip>
-                            <Button
-                              variant="secondary"
-                              onClick={() => week.boxScoreSubmissionId
-                                ? setActiveModal({ type: "review", week, submissionId: week.boxScoreSubmissionId })
-                                : setActiveModal({ type: "score", week })}
-                            >
-                              {week.result ? "Correct Results" : "Enter Results"}
+                            <Button variant="secondary" disabled={saving} onClick={() => setEditingWeeks((prev) => new Set(prev).add(week.weekNumber))}>
+                              Edit
                             </Button>
-                            {!week.result && !week.boxScoreSubmissionId && (
-                              <>
-                                <Button variant="secondary" disabled={saving} onClick={() => setEditingWeeks((prev) => new Set(prev).add(week.weekNumber))}>
-                                  Edit
-                                </Button>
-                                <Button variant="danger" disabled={saving} onClick={() => void removeGame(week)}>
-                                  Remove
-                                </Button>
-                              </>
-                            )}
+                            <Button variant="danger" disabled={saving} onClick={() => void removeGame(week)}>
+                              Remove
+                            </Button>
                           </>
                         )}
                       </div>
@@ -429,28 +387,6 @@ export function TeamScheduleForm() {
                     </label>
                   </Td>
                   <Td data-label="Actions">
-                    {game === "cfb_27" && week.weekNumber >= 15 ? (() => {
-                      const isCfpRound = ["cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"].includes(pick?.postseasonRound ?? "");
-                      return (
-                      <div className="team-schedule-postseason-fields">
-                        <label><span>Round</span><select className="form-select" value={pick?.postseasonRound ?? ""} onChange={(e) => updatePick(week.weekNumber, { postseasonRound: e.target.value || null, isNationalChampionship: e.target.value === "national_championship", isBowlGame: ["cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"].includes(e.target.value) ? false : (pick?.isBowlGame ?? false) })}>
-                          <option value="conference_championship">Conference Championship</option>
-                          <option value="cfp_first_round">CFP First Round</option>
-                          <option value="cfp_quarterfinals">CFP Quarterfinal</option>
-                          <option value="cfp_semifinals">CFP Semifinal</option>
-                          <option value="national_championship">National Championship</option>
-                        </select></label>
-                        <label><span>Bowl / game name</span><select className="form-select" value={CFB_BOWL_NAMES.includes((pick?.bowlName ?? "") as (typeof CFB_BOWL_NAMES)[number]) ? pick?.bowlName ?? "" : pick?.bowlName ? "Custom Bowl" : ""} onChange={(e) => {
-                          if (e.target.value === "Custom Bowl") setCustomBowl({ weekNumber: week.weekNumber, name: pick?.bowlName === "Custom Bowl" ? "" : pick?.bowlName ?? "" });
-                          else updatePick(week.weekNumber, { bowlName: e.target.value });
-                        }}><option value="">Select bowl</option>{CFB_BOWL_NAMES.map((name) => <option key={name} value={name}>{name}</option>)}</select>{pick?.bowlName && !CFB_BOWL_NAMES.includes(pick.bowlName as (typeof CFB_BOWL_NAMES)[number]) ? <small>Custom: {pick.bowlName}</small> : null}</label>
-                        {/* GOTW is automatic for every postseason game from Conference Championship
-                            forward, so this flag only marks a real bowl matchup — and CFP games
-                            (first round through the championship) are never bowl games. */}
-                        {!isCfpRound ? <label className="team-schedule-check"><input type="checkbox" checked={pick?.isBowlGame ?? false} onChange={(e) => updatePick(week.weekNumber, { isBowlGame: e.target.checked })} /><span>Bowl game</span></label> : null}
-                      </div>
-                      );
-                    })() : null}
                     {savedResult ? (
                       savedResult.skipped ? <Badge status="denied">skipped ({savedResult.reason})</Badge> : <Badge status="approved">saved</Badge>
                     ) : (
@@ -478,26 +414,6 @@ export function TeamScheduleForm() {
 
       <WatchedPlayersPanel guildId={guildId} teamId={teamId!} />
       {customBowl ? <div className="modal-backdrop"><Card className="stat-edit-modal"><h2>Name custom bowl</h2><label className="form-field"><span className="form-label">Bowl name</span><input className="form-input" maxLength={100} autoFocus value={customBowl.name} onChange={(event) => setCustomBowl({ ...customBowl, name: event.target.value })} /></label><div className="form-actions"><Button variant="primary" disabled={!customBowl.name.trim()} onClick={() => { updatePick(customBowl.weekNumber, { bowlName: customBowl.name.trim(), isBowlGame: true }); setCustomBowl(null); }}>Use Custom Bowl</Button><Button variant="ghost" onClick={() => setCustomBowl(null)}>Cancel</Button></div></Card></div> : null}
-
-      {activeModal?.type === "upload" && (
-        <UploadBoxScoreModal
-          guildId={guildId}
-          discordId={discordId}
-          weekNumber={activeModal.week.weekNumber}
-          seasonNumber={state.seasonNumber}
-          gameId={activeModal.week.gameId!}
-          onClose={closeModal}
-          onSubmitted={(submissionId) => setActiveModal({ type: "review", week: activeModal.week, submissionId })}
-        />
-      )}
-
-      {activeModal?.type === "review" && (
-        <ReviewBoxScoreModal
-          submissionId={activeModal.submissionId}
-          onClose={closeModal}
-          onResolved={(action) => afterResolved(action === "approve" ? "Box score approved." : "Box score denied.")}
-        />
-      )}
 
       {activeModal?.type === "score" && (
         <EnterFinalScoreModal

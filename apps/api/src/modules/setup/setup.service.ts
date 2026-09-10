@@ -6,12 +6,10 @@ import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { announceTeamAssignment, createDefaultTeamsForGuild, createDefaultTeamsForLeague } from "../team-ownership/team-ownership.service.js";
-import { applyCfbBaselineToLeague } from "../cfb-baseline/cfb-baseline.service.js";
 import { applyMaddenBaselineToLeague, getActiveMaddenDataset } from "../madden-baseline/madden-baseline.service.js";
 import { seedMaddenDraftPicks } from "../draft-picks/madden-pick-seed.service.js";
 import { ensureFantasyDraftSession } from "../fantasy-draft/fantasy-draft.service.js";
 import { seedDefaultScheduleForLeague } from "../schedule/schedule.service.js";
-import { syncBoxScoreCommandForLeague } from "../league-week/data-mode.service.js";
 import { syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
 import { preserveGlobalContributionsBeforeLeagueDelete, preserveH2hHistoryBeforeLeagueDelete } from "../official-records/official-records.service.js";
@@ -464,33 +462,8 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     ? await seedMaddenDraftPicks(league.data.id, input.game)
     : null;
 
-  // CFB 27 only: when "seed active rosters" is on, seed the league's initial rosters from the
-  // active, approved baseline dataset. Runs after default teams exist — applyCfbBaselineToLeague
-  // matches baseline teams to them by abbreviation, so no duplicate teams are created.
-  // activeRostersEnabled (this toggle) and trackRostersEnabled (ongoing dynasty tracking —
-  // recruiting/portal/progression) are independent settings; seeding must key off the former.
-  let baselineSeed: Awaited<ReturnType<typeof applyCfbBaselineToLeague>> | null = null;
-  if (input.game === "cfb_27" && input.activeRostersEnabled) {
-    const activeDataset = await supabase
-      .from("rec_cfb_roster_datasets")
-      .select("id")
-      .eq("game_title", "cfb_27")
-      .eq("is_active", true)
-      .eq("legal_review_status", "approved")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (activeDataset.error) {
-      throw new ApiError(500, "We couldn't load the active CFB baseline. Please try again.", activeDataset.error);
-    }
-    if (activeDataset.data) {
-      baselineSeed = await applyCfbBaselineToLeague({
-        league_id: league.data.id,
-        dataset_id: activeDataset.data.id,
-        requested_by_user_id: input.requestedByDiscordId ?? "system",
-      });
-    }
-  }
+  // CFB support has been removed; this stays null (kept as a field on the return shape below).
+  const baselineSeed: null = null;
 
   // Madden: leagueType drives whether/how the baseline roster gets applied.
   // - regular_rosters: real team assignments.
@@ -521,8 +494,6 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
   }
 
   await upsertConferenceRules(league.data.id, input.conferenceRules);
-
-  await syncBoxScoreCommandForLeague(input.guildId, league.data.id);
 
   return {
     server: serverResult.server,
@@ -1451,8 +1422,6 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
       : "League Setup edited through Discord Admin Panel.",
     source: "manual_admin_entry"
   });
-
-  await syncBoxScoreCommandForLeague(input.guildId, context.leagueId);
 
   return { configuration: data };
 }

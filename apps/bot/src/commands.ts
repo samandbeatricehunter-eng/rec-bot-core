@@ -1,6 +1,5 @@
 import { REST, Routes, SlashCommandBuilder } from "discord.js";
 import { env } from "./config/env.js";
-import { recApi } from "./lib/rec-api.js";
 
 // Mirrors apps/api/src/lib/discord-guild.ts's BASE_GUILD_COMMANDS_JSON / DRAFT_COMMAND_JSON.
 // /draft is registered conditionally: only within ~1hr of a scheduled fantasy draft or while
@@ -94,19 +93,8 @@ function discordRest() {
   return new REST({ version: "10" }).setToken(env.DISCORD_TOKEN);
 }
 
-/** Resolve the full guild command set, including /boxscore only if the API says this guild
- * should see it right now (league is in box_scores data mode). Falls back to the base commands
- * if the API is unreachable — the API's own sync calls (data mode change) backstop
- * registration between restarts. */
-async function guildCommandSet(guildId: string) {
-  const base = [...commands];
-  try {
-    const state = await recApi.isDisplayingBoxScoreCommand(guildId);
-    if (state.includeBoxScore) base.push({ name: "boxscore", description: "Get a link to upload a box score for an eligible week." });
-  } catch (error) {
-    console.error(`Failed to resolve /boxscore visibility for guild ${guildId}:`, error);
-  }
-  return base;
+function guildCommandSet(_guildId: string) {
+  return [...commands];
 }
 
 /** Registering the same command set both globally (applicationCommands) and per-guild

@@ -17,7 +17,6 @@ import { ApiError } from "../../lib/errors.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { createGameChannelsForCurrentWeek } from "../game-channels/game-channels.service.js";
 import { supabase } from "../../lib/supabase.js";
-import { getBoxScoreCommandState } from "./data-mode.service.js";
 import { refreshMatchupsChannel } from "../scheduling/matchups-channel.service.js";
 import { failAdvanceProgress, finishAdvanceProgress, getAdvanceProgress, startAdvanceProgress, updateAdvanceProgress } from "./advance-progress.service.js";
 
@@ -736,16 +735,4 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
     }
   });
 
-  // Bot-only: whether /boxscore should be part of this guild's command set right now — called
-  // at bot startup/guild-join (apps/bot/src/commands.ts guildCommandSet) so a from-scratch
-  // command registration derives the same answer as syncBoxScoreCommandForLeague.
-  app.post("/v1/league-week/box-score-command-state", async (request, reply) => {
-    try {
-      requireInternalApiKey(request);
-      const { guildId } = z.object({ guildId: z.string().min(1) }).parse(request.body);
-      return reply.send(await getBoxScoreCommandState(guildId));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
 }

@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { CFB_27_RIVALRIES } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 
@@ -15,21 +14,11 @@ export type RivalryDetailsInput = {
   streakLength: number;
 };
 
-async function ensureCatalog() {
-  const rows = CFB_27_RIVALRIES.map((row) => ({
-    id: randomUUID(), team_a_abbreviation: row.teamAAbbreviation, team_b_abbreviation: row.teamBAbbreviation,
-    rivalry_name: row.rivalryName, first_year_played: row.firstYearPlayed, team_a_wins: row.teamAWins,
-    team_b_wins: row.teamBWins, ties: row.ties, last_game_team_a_score: row.lastGameTeamAScore,
-    last_game_team_b_score: row.lastGameTeamBScore, streak_winner_abbreviation: row.streakWinnerAbbreviation,
-    streak_length: row.streakLength, verified_through_year: row.verifiedThroughYear, source_url: row.sourceUrl,
-  }));
-  const result = await supabase.from("rec_cfb_rivalry_catalog").upsert(rows, { onConflict: "team_a_abbreviation,team_b_abbreviation", ignoreDuplicates: true });
-  if (result.error) throw new ApiError(500, "Failed to seed the CFB rivalry catalog.", result.error);
-}
-
+// CFB support has been removed; this seed catalog was CFB-only, so ensureLeagueRivalries is
+// permanently a no-op now (kept, rather than deleted, since team-ownership.service.ts still
+// calls it — cheap to leave as a guarded no-op instead of touching that call site too).
 export async function ensureLeagueRivalries(leagueId: string, game: string | null | undefined) {
   if (game !== "cfb_27") return;
-  await ensureCatalog();
   const [teams, catalog] = await Promise.all([
     supabase.from("rec_teams").select("id,abbreviation,is_relocated").eq("league_id", leagueId),
     supabase.from("rec_cfb_rivalry_catalog").select("*"),

@@ -10,7 +10,6 @@ import { computeLeagueSos } from "./sos.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
 import { setGameRivalry } from "../rivalries/rivalries.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { generateCfpBracket, getCfpPostseasonState, saveCfpTop25 } from "./cfp-bracket.service.js";
 import { commitTeamScheduleDecisionsTransactional, removeTeamScheduleGame } from "./team-schedule-transaction.service.js";
 
 const GuildSchema = z.object({ guildId: z.string().min(1) });
@@ -33,41 +32,6 @@ const SaveManualGameSchema = z.object({
 });
 
 export async function scheduleRoutes(app: FastifyInstance) {
-  app.post("/v1/schedule/cfp/state", async (request, reply) => {
-    try {
-      // Read-only — any league member can view postseason rankings/bracket; only
-      // top-25/generate below (which mutate) require co-commissioner.
-      await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "member" });
-      const input = z.object({ guildId: z.string().min(1), seasonNumber: z.number().int().positive().optional().nullable() }).parse(request.body);
-      return reply.send(await getCfpPostseasonState(input));
-    } catch (error) { return sendError(reply, error); }
-  });
-
-  app.post("/v1/schedule/cfp/top-25", async (request, reply) => {
-    try {
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
-      const input = z.object({
-        guildId: z.string().min(1),
-        seasonNumber: z.number().int().positive().optional().nullable(),
-        // Top 12 is enough to establish the playoff bracket; up to 25 for the full poll.
-        rankings: z.array(z.object({ rank: z.number().int().min(1).max(25), teamId: z.string().uuid(), conferenceChampion: z.boolean().default(false) })).min(12).max(25),
-      }).parse(request.body);
-      return reply.send(await saveCfpTop25({ ...input, requestedByDiscordId: auth.mode === "user" ? auth.discordId : null }));
-    } catch (error) { return sendError(reply, error); }
-  });
-
-  app.post("/v1/schedule/cfp/generate", async (request, reply) => {
-    try {
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
-      const input = z.object({
-        guildId: z.string().min(1),
-        seasonNumber: z.number().int().positive().optional().nullable(),
-        seeds: z.array(z.object({ seed: z.number().int().min(1).max(12), teamId: z.string().uuid() })).length(12).optional(),
-      }).parse(request.body);
-      return reply.send(await generateCfpBracket({ ...input, requestedByDiscordId: auth.mode === "user" ? auth.discordId : null }));
-    } catch (error) { return sendError(reply, error); }
-  });
-
   app.post("/v1/schedule/teams", async (request, reply) => {
     try {
       await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "member" });

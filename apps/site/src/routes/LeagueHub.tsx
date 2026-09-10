@@ -6,7 +6,6 @@ import { persistCachedHubOpen, readCachedHubOpen, siteApi } from "../lib/site-ap
 import { DiscordServerSettings } from "../components/DiscordServerSettings.js";
 import { IconBack } from "../components/icons.js";
 import {
-  CfpPostseasonManager,
   FantasyDraftBoardPage,
   DeleteLeagueHome,
   HubChromeProvider,
@@ -231,7 +230,6 @@ function HubMgmtRoutes() {
       <Route path="manage-league" element={<MgmtSubPage><ManageLeagueHome /></MgmtSubPage>} />
       <Route path="manage-league/roles" element={<MgmtSubPage><RolesHome /></MgmtSubPage>} />
       <Route path="manage-league/player-stats" element={<MgmtSubPage><PlayerStatsReview /></MgmtSubPage>} />
-      <Route path="manage-league/postseason" element={<MgmtSubPage><CfpPostseasonManager /></MgmtSubPage>} />
       <Route path="manage-league/playoff-bracket" element={<MgmtSubPage><NflPlayoffBracket /></MgmtSubPage>} />
       <Route path="manage-league/teams" element={<MgmtSubPage><TeamOwnershipTable /></MgmtSubPage>} />
       <Route path="manage-league/teams/link" element={<MgmtSubPage><LinkTeamForm /></MgmtSubPage>} />

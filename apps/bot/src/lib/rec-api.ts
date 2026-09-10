@@ -864,9 +864,6 @@ export const recApi = {
   getPurchaseCounts: (discordId: string, guildId: string) =>
     recFetch<any>("/v1/purchases/counts", { method: "POST", body: JSON.stringify({ discordId, guildId }) }),
 
-  isDisplayingBoxScoreCommand: (guildId: string) =>
-    recFetch<{ includeBoxScore: boolean }>("/v1/league-week/box-score-command-state", { method: "POST", body: JSON.stringify({ guildId }) }),
-
   backfillImmortalityProspectReviews: (guildId: string) =>
     recFetch<{ backfilled: number }>("/v1/immortality/prospect/backfill-reviews", { method: "POST", body: JSON.stringify({ guildId }) }),
 

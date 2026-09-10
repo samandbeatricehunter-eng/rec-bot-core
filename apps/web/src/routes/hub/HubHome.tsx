@@ -35,13 +35,11 @@ import { EosAwardVotingBlock } from "../../components/hub/EosAwardVotingBlock.js
 import { CommissionerPollsVotingBlock } from "../../components/hub/CommissionerPollsVotingBlock.js";
 import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
-import { UploadBoxScoreModal } from "../league-mgmt/manage-league/UploadBoxScoreModal.js";
 import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.js";
 import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
 import { RecruitingBoardModal } from "../../components/hub/RecruitingBoardModal.js";
 import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestModal.js";
 import { RelocateTeamWizard } from "../../components/hub/RelocateTeamWizard.js";
-import { AssignBoxScoreStatsModal } from "../../components/hub/AssignBoxScoreStatsModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { ExpandableMatchupCard } from "../../components/matchups/ExpandableMatchupCard.js";
 import { RosterHome } from "../roster/RosterHome.js";
@@ -503,14 +501,12 @@ function ScheduleWeekList({
   game,
   currentWeek,
   highlightCounts,
-  onUploadBoxScore,
   onUploadHighlight,
 }: {
   weeks: TeamScheduleManualState["weeks"];
   game?: LeagueGame;
   currentWeek?: number;
   highlightCounts?: Record<number, number>;
-  onUploadBoxScore?: (week: TeamScheduleManualState["weeks"][number]) => void;
   onUploadHighlight?: (week: TeamScheduleManualState["weeks"][number]) => void;
 }) {
   return <div className="hub-schedule-week-list">
@@ -519,7 +515,6 @@ function ScheduleWeekList({
         week.alreadyConfirmed && !week.isBye && Boolean(week.gameId) &&
         (currentWeek == null || week.weekNumber <= currentWeek);
       const highlightCount = highlightCounts?.[week.weekNumber] ?? 0;
-      const missingBoxScore = eligibleForActions && !week.boxScoreSubmissionId;
       const missingHighlight = eligibleForActions && highlightCount < 2;
       const isPostseasonUndetermined = !week.alreadyConfirmed && !week.isBye && Boolean(game) && week.weekNumber > regularSeasonWeeks(game!);
       return <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : isPostseasonUndetermined ? "postseason-tbd" : "missing"}${week.matchupCard ? " has-card" : ""}`}>
@@ -538,11 +533,8 @@ function ScheduleWeekList({
       )}
       <div className="hub-schedule-week-aside">
         {onUploadHighlight ? <span className="hub-schedule-highlight-chip">Highlights {highlightCount}/2</span> : null}
-        {(onUploadBoxScore && missingBoxScore) || (onUploadHighlight && missingHighlight) ? (
+        {onUploadHighlight && missingHighlight ? (
           <div className="hub-schedule-week-actions">
-            {onUploadBoxScore && missingBoxScore && (
-              <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadBoxScore(week)}>Box Score</button>
-            )}
             {onUploadHighlight && missingHighlight && (
               <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadHighlight(week)}>
                 Upload
@@ -595,7 +587,10 @@ export function HubHome() {
   );
   const [rankByConference, setRankByConference] = useState(false);
   const gotwGames = useMemo(() => (matchupSchedule?.games ?? []).filter((game) => Boolean(game.gotw)), [matchupSchedule]);
-  const isCfbLeague = hub?.league.game === "cfb_27";
+  // CFB support has been removed; this is permanently false now, left as a variable (rather
+  // than hand-editing every conditional below) so every existing isCfbLeague branch still
+  // resolves correctly to its non-CFB path with zero behavior change.
+  const isCfbLeague = false;
   const powerRankingsByConference = useMemo(() => {
     const teams = hub?.powerRankings?.teams ?? [];
     const groups = new Map<string, typeof teams>();
@@ -633,7 +628,6 @@ export function HubHome() {
   const [mediaBusy, setMediaBusy] = useState(false);
   const [mediaArticle, setMediaArticle] = useState({ title: "", body: "", imageUrl: "" });
   const mediaArticleBodyRef = useRef<HTMLTextAreaElement>(null);
-  const [boxScoreUploadGame, setBoxScoreUploadGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [playerStatsGame, setPlayerStatsGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [shareStreamGame, setShareStreamGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [highlightUploadGame, setHighlightUploadGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
@@ -656,13 +650,11 @@ export function HubHome() {
   const [mySchedule, setMySchedule] = useState<TeamScheduleManualState | null>(null);
   const [myScheduleError, setMyScheduleError] = useState<string | null>(null);
   const [myHighlightCounts, setMyHighlightCounts] = useState<Record<number, number> | null>(null);
-  const [scheduleBoxScoreWeek, setScheduleBoxScoreWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
   const [scheduleHighlightWeek, setScheduleHighlightWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
-  const [lateSubmissionsFocus, setLateSubmissionsFocus] = useState<"boxScore" | "highlight" | null>(null);
+  const [lateSubmissionsFocus, setLateSubmissionsFocus] = useState<"highlight" | null>(null);
   const [lateSubmissionsWeek, setLateSubmissionsWeek] = useState<number | undefined>(undefined);
   const [recruitingBoardOpen, setRecruitingBoardOpen] = useState(false);
   const [editRosterOpen, setEditRosterOpen] = useState(false);
-  const [assignStatsSubmissionId, setAssignStatsSubmissionId] = useState<string | null>(null);
   const [linkedTeams, setLinkedTeams] = useState<LinkedTeamRow[] | null>(null);
   const [teamScheduleTeamId, setTeamScheduleTeamId] = useState<string | null>(null);
   const [teamSchedule, setTeamSchedule] = useState<TeamScheduleManualState | null>(null);
@@ -770,23 +762,21 @@ export function HubHome() {
   }, [searchParams]);
 
   // Deep link from the /highlights or /boxscore Discord commands: ?openHighlights=1 or
-  // ?openBoxScore=1 (optionally [&week=N]) opens the same late-submissions flow the in-app
-  // "Upload Highlight(s)"/"Upload Box Score" buttons use, pre-selecting the week if one was
-  // named (still subject to the modal's own eligibility check — a week that's since been filled
-  // or aged out just falls back to the picker). Consumed once, then stripped from the URL so it
-  // doesn't reopen on back-navigation or a refresh.
+  // ?openHighlights=1 (optionally [&week=N]) opens the same late-submissions flow the in-app
+  // "Upload Highlight(s)" button uses, pre-selecting the week if one was named (still subject
+  // to the modal's own eligibility check — a week that's since been filled or aged out just
+  // falls back to the picker). Consumed once, then stripped from the URL so it doesn't reopen
+  // on back-navigation or a refresh.
   useEffect(() => {
     const openHighlights = searchParams.get("openHighlights") === "1";
-    const openBoxScore = searchParams.get("openBoxScore") === "1";
-    if (!openHighlights && !openBoxScore) return;
+    if (!openHighlights) return;
     const weekParam = searchParams.get("week");
     const week = weekParam ? Number(weekParam) : undefined;
-    setLateSubmissionsFocus(openHighlights ? "highlight" : "boxScore");
+    setLateSubmissionsFocus("highlight");
     setLateSubmissionsWeek(Number.isFinite(week) ? week : undefined);
     setLateSubmissionsOpen(true);
     const next = new URLSearchParams(searchParams);
     next.delete("openHighlights");
-    next.delete("openBoxScore");
     next.delete("week");
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1433,7 +1423,8 @@ export function HubHome() {
     );
   }
   const readyGuildId = auth.status === "ready" ? auth.guildId : null;
-  const boxScoreMode = hubChrome.currentLeague?.dataMode === "box_scores";
+  // Box-score data mode was removed; every league is on EA import (or manual) now.
+  const boxScoreMode = false;
   const isRise = hub.league.rosterType === "rise_to_immortality";
   const riseHubUnlocked = !isRise || hub.league.riseHubUnlocked === true;
   const rtiGates = hub.league.rtiGates ?? null;
@@ -1787,7 +1778,6 @@ export function HubHome() {
                 matchup={heroMatchup}
                 boxScoreMode={boxScoreMode}
                 onChanged={() => setMatchupReloadKey((value) => value + 1)}
-                onOpenBoxScore={() => setBoxScoreUploadGame(heroMatchup)}
                 onOpenPlayerStats={() => void openPlayerStats(heroMatchup)}
                 onOpenShareStream={() => setShareStreamGame(heroMatchup)}
                 onUploadHighlight={() => setHighlightUploadGame(heroMatchup)}
@@ -2167,17 +2157,9 @@ export function HubHome() {
                       <div className="hub-team-side"><span>{game.homeTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</div><small>{game.homeConference ?? "Home team"}</small></div>
                     </div>
                     <div className="hub-matchup-rails">
-                      {/* Madden's box-score/player-stats controls only make sense when the league is
-                          actually entering box scores by hand -- an EA-import or manual-score league
-                          has nothing for these buttons to do, so hide them entirely instead of
-                          showing a permanently-disabled control. CFB is untouched (always box-score-driven). */}
-                      {isCfbLeague || boxScoreMode ? (
-                        game.matchupType === "human_cpu" ? <div className="hub-team-control-rail away"><button disabled={!boxScoreMode || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button></div> : <div className="hub-team-control-rail away"><button disabled={!boxScoreMode || game.viewerSide !== "away" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={!boxScoreMode || game.viewerSide !== "away" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>
-                      ) : <div className="hub-team-control-rail away" />}
+                      <div className="hub-team-control-rail away" />
                       <div className="hub-center-control-rail">{game.matchupType === "human_cpu" ? game.streams[0] ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : <StatusChip status="info" label="Stream" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="primary" size="compact" onClick={() => void openWager(game)}>Wager</Button> : game.streams.length ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : game.isFinal ? <StatusChip status="info" label="Final" /> : null}</div>
-                      {isCfbLeague || boxScoreMode ? (
-                        game.matchupType === "human_cpu" ? <div className="hub-team-control-rail home"><button disabled={!boxScoreMode || game.isFinal || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div> : <div className="hub-team-control-rail home"><button disabled={!boxScoreMode || game.viewerSide !== "home" || game.isFinal || Boolean(game.boxScoreSubmissionId)} onClick={() => setBoxScoreUploadGame(game)}>Box Score</button><button disabled={!boxScoreMode || game.viewerSide !== "home" || !game.boxScoreSubmissionId} onClick={() => void openPlayerStats(game)}>Player Stats</button></div>
-                      ) : <div className="hub-team-control-rail home" />}
+                      <div className="hub-team-control-rail home" />
                     </div>
                     {game.matchupType === "human_cpu" ? null : <>
                       {(() => {
@@ -2235,9 +2217,6 @@ export function HubHome() {
       />
     ) : null}
     {lightboxImage && <ImageLightbox src={lightboxImage} onClose={() => setLightboxImage(null)} />}
-    {boxScoreUploadGame && auth.status === "ready" && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={boxScoreUploadGame.weekNumber} seasonNumber={hub.league.seasonNumber} gameId={boxScoreUploadGame.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setBoxScoreUploadGame(null)} onSubmitted={async (submissionId) => { const weekNumber = matchupSchedule?.selectedWeek ?? boxScoreUploadGame.weekNumber; setBoxScoreUploadGame(null); setAssignStatsSubmissionId(submissionId); setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber })); }} />}
-    {scheduleBoxScoreWeek && scheduleBoxScoreWeek.gameId && auth.status === "ready" && mySchedule && <UploadBoxScoreModal guildId={auth.guildId} discordId={auth.discordId} weekNumber={scheduleBoxScoreWeek.weekNumber} seasonNumber={mySchedule.seasonNumber} gameId={scheduleBoxScoreWeek.gameId} commissionerSubmission={false} requireSecondImage onClose={() => setScheduleBoxScoreWeek(null)} onSubmitted={(submissionId) => { setScheduleBoxScoreWeek(null); setAssignStatsSubmissionId(submissionId); setMySchedule(null); void viewMySchedule(); }} />}
-    {assignStatsSubmissionId && auth.status === "ready" && <AssignBoxScoreStatsModal guildId={auth.guildId} submissionId={assignStatsSubmissionId} onClose={() => setAssignStatsSubmissionId(null)} />}
     {shareStreamGame && auth.status === "ready" && <ShareStreamModal guildId={auth.guildId} gameId={shareStreamGame.gameId} onClose={() => setShareStreamGame(null)} onSubmitted={() => { setShareStreamGame(null); setMatchupReloadKey((value) => value + 1); }} />}
     {highlightUploadGame && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={highlightUploadGame.gameId} onClose={() => setHighlightUploadGame(null)} onSubmitted={() => { setHighlightUploadGame(null); setMatchupReloadKey((value) => value + 1); }} />}
     {requestHelpGame && auth.status === "ready" && <RequestHelpSheet matchup={requestHelpGame} guildId={auth.guildId} onClose={() => setRequestHelpGame(null)} onSubmitted={() => setRequestHelpGame(null)} />}
@@ -2374,7 +2353,6 @@ export function HubHome() {
             game={mySchedule.game as LeagueGame}
             currentWeek={hub.league.weekNumber}
             highlightCounts={myHighlightCounts ?? undefined}
-            onUploadBoxScore={isCfbLeague ? setScheduleBoxScoreWeek : undefined}
           />
       ) : (
         <div className="hub-schedule-league-week">
@@ -2416,6 +2394,6 @@ export function HubHome() {
       {retireError && <p className="hub-transfer-status">{retireError}</p>}
       <div className="advance-modal-actions"><Button variant="ghost" disabled={retireBusy} onClick={() => setRetireModalOpen(false)}>Cancel</Button><Button variant="danger" disabled={retireBusy} onClick={async () => { setRetireBusy(true); setRetireError(null); try { await hubChrome.retireFromCurrentLeague(); setRetireModalOpen(false); } catch (error) { setRetireError(error instanceof Error ? error.message : "Failed to retire from this league."); } finally { setRetireBusy(false); } }}>{retireBusy ? "Retiring..." : "Confirm Retirement"}</Button></div>
     </div></Modal>}
-    {lateSubmissionsOpen && auth.status === "ready" && <LateSubmissionsModal guildId={auth.guildId} currentWeek={hub.league.weekNumber} focus={lateSubmissionsFocus ?? undefined} initialWeek={lateSubmissionsWeek} onClose={() => { setLateSubmissionsOpen(false); setLateSubmissionsFocus(null); setLateSubmissionsWeek(undefined); }} />}
+    {lateSubmissionsOpen && auth.status === "ready" && <LateSubmissionsModal guildId={auth.guildId} currentWeek={hub.league.weekNumber} initialWeek={lateSubmissionsWeek} onClose={() => { setLateSubmissionsOpen(false); setLateSubmissionsFocus(null); setLateSubmissionsWeek(undefined); }} />}
   </div>;
 }

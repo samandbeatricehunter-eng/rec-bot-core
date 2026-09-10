@@ -10,7 +10,7 @@ import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { parseScheduleImages, type ParsedScheduleGame } from "../schedule/schedule.parser.js";
 import { buildAbbrMap, resolveScheduleAbbr } from "../schedule/schedule.service.js";
-import { persistStitchedUploadImage } from "../box-score/box-score.service.js";
+import { persistStitchedUploadImage } from "../box-score/upload-images.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 
 const SCHEDULE_SOURCE = "schedule_screenshot";

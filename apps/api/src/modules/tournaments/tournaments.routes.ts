@@ -14,7 +14,7 @@ import {
 import { sendError, ApiError } from "../../lib/errors.js";
 import { isSiteAdminEmail, requireSiteAdmin } from "../../lib/site-admin.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
-import { persistUploadedImageBuffer } from "../box-score/box-score.service.js";
+import { persistUploadedImageBuffer } from "../box-score/upload-images.js";
 import { requireLinkedRecUser } from "../site-leagues/site-leagues.service.js";
 import {
   createTournamentHighlightDirectUpload,

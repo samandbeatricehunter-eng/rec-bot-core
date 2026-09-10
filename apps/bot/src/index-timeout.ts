@@ -7,7 +7,6 @@ import { userFacingError } from "./lib/errors.js";
 import { isMissingDiscordAccountError, recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getRouteChannels, getVotingPollsChannel } from "./lib/route-channels.js";
 import { publishRecGuide, REC_GUIDE_CUSTOM_IDS } from "./flows/rec-guide.js";
-import { handleWeeklyBoxScores, handleWeeklyPlayerStats, handleWeeklyRecruiting, handleWeeklySubmissionButton, handleWeeklySubmissionMessage, handleWeeklySubmissionModal, handleWeeklySubmissionSelect, WEEKLY_SUBMISSIONS_CUSTOM_IDS } from "./flows/weekly-submissions.js";
 import { ACTIVE_CHECK_CUSTOM_IDS, handleActiveCheck, handleActiveCheckEditSelect, handleActiveCheckReviewButton, recoverOpenActiveChecks } from "./flows/active-check.js";
 import {
   EOS_PAYOUT_CUSTOM_IDS,
@@ -194,7 +193,6 @@ import {
   handleReadyToAdvanceButton, handleH2hYesButton, handleH2hNoButton, handleH2hScoreModalSubmit,
   handleCpuPlayedButton, handleCpuFwButton, handleCpuScoreModalSubmit,
 } from "./flows/ready-to-advance.js";
-import { handleBoxScoreSlash } from "./flows/boxscore-slash.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
   handleCoachAbilitiesRestrictionModal,
@@ -249,27 +247,6 @@ import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, ha
 import { handleLiveStreamInteraction, isLiveStreamCustomId } from "./handlers/live-stream-prompt.js";
 import { syncManagedRoleFromDiscord } from "./handlers/managed-role-sync.js";
 import {
-  BOX_SCORE_CUSTOM_IDS,
-  handleBoxScoreApprove,
-  handleBoxScoreAdminCancel,
-  handleBoxScoreAdminAnother,
-  handleBoxScoreAdminGameSelect,
-  handleBoxScoreAdminWeekSelect,
-  handleBoxScoreCancel,
-  handleBoxScoreChannelMessage,
-  handleBoxScoreSubmissions,
-  handleCommissionerBoxScoreSubmissionMessage,
-  handleBoxScoreDenyModal,
-  handleBoxScoreDenySubmit,
-  handleBoxScoreCorrectionsOpen,
-  handleBoxScoreCorrectionsFieldSelect,
-  handleBoxScoreCorrectionsMatchupSelect,
-  handleBoxScoreCorrectionsModal,
-  handleBoxScoreCorrectionsCancel,
-  handleBoxScoreSubmitConfirm,
-  sweepBoxScoreExchanges,
-} from "./flows/box-score.js";
-import {
   WEEKLY_SCORES_CUSTOM_IDS,
   handleWeeklyScoresUploadOpen,
   handleWeeklyScoresUploadMessage,
@@ -297,34 +274,6 @@ import {
   handleScheduleImportSave,
   handleScheduleImportCancel,
 } from "./flows/schedule-import.js";
-import {
-  CFB_TEAM_SCHEDULE_CUSTOM_IDS,
-  startCfbTeamScheduleImport,
-  handleCfbTeamScheduleConferenceSelect,
-  handleCfbTeamScheduleTeamSelect,
-  handleCfbTeamScheduleUploadMessage,
-  handleCfbTeamScheduleEditWeekSelect,
-  handleCfbTeamScheduleEditTeamSelect,
-  handleCfbTeamScheduleEditHome,
-  handleCfbTeamScheduleEditAway,
-  handleCfbTeamScheduleEditBack,
-  handleCfbTeamScheduleApprove,
-  handleCfbTeamScheduleCancel,
-} from "./flows/cfb-team-schedule-import.js";
-import {
-  CFB_SCHEDULE_MANUAL_CUSTOM_IDS,
-  startCfbTeamScheduleManualEntry,
-  handleCfbScheduleManualTeamSelect,
-  handleCfbScheduleManualTeamPagePrev,
-  handleCfbScheduleManualTeamPageNext,
-  handleCfbScheduleManualConferenceSelect,
-  handleCfbScheduleManualOpponentSelect,
-  handleCfbScheduleManualHome,
-  handleCfbScheduleManualAway,
-  handleCfbScheduleManualSkip,
-  handleCfbScheduleManualContinue,
-  handleCfbScheduleManualCancel,
-} from "./flows/cfb-team-schedule-manual.js";
 
 const client = new Client({
   intents: [
@@ -365,7 +314,6 @@ const CO_COMMISSIONER_ALLOWED_LEAGUE_MGMT_IDS = new Set<string>([
 ]);
 
 function isRestrictedLeagueMgmtButton(customId: string) {
-  if (customId === BOX_SCORE_CUSTOM_IDS.inboxBack) return false;
   if (!customId.startsWith("rec:league_mgmt:")) return false;
   return !CO_COMMISSIONER_ALLOWED_LEAGUE_MGMT_IDS.has(customId);
 }
@@ -387,7 +335,6 @@ setInterval(() => {
   leagueSetupSessions.cleanup();
   eosProjectionSessions.cleanup();
   cleanupRosterSessions();
-  sweepBoxScoreExchanges();
 }, 60_000).unref();
 
 // Per-guild "last checked" watermark for the commissioner-notification DM ping (1e). A
@@ -428,36 +375,6 @@ async function pollCommissionerNotifications() {
 
 setInterval(() => {
   pollCommissionerNotifications().catch((error) => console.error("[ERROR] Commissioner notification poll failed:", error));
-}, 150_000).unref();
-
-// Deletes the original box-score screenshot message(s) once a submission is approved or
-// denied. Approvals from the web dashboard never reach the bot directly (it runs no HTTP
-// server, so the API can't push to it) — this poll is how the bot learns to clean up either way.
-async function pollBoxScoreDiscordCleanup() {
-  for (const guild of client.guilds.cache.values()) {
-    let result: { submissions: Array<{ submissionId: string; discordChannelId: string; discordMessageId: string; extraDiscordMessageIds: string[] }> };
-    try {
-      result = await recApi.listBoxScoresPendingDiscordCleanup(guild.id);
-    } catch (error) {
-      console.error(`[ERROR] Failed to poll box score Discord cleanup for guild ${guild.id}:`, error);
-      continue;
-    }
-    for (const submission of result.submissions) {
-      const channel = await client.channels.fetch(submission.discordChannelId).catch(() => null);
-      if (channel?.isTextBased()) {
-        const messageIds = new Set([submission.discordMessageId, ...submission.extraDiscordMessageIds]);
-        for (const messageId of messageIds) {
-          await channel.messages.delete(messageId).catch(() => undefined);
-        }
-      }
-      await recApi.markBoxScoreDiscordCleanupDone(submission.submissionId)
-        .catch((error) => console.error(`[ERROR] Failed to mark box score Discord cleanup done for ${submission.submissionId}:`, error));
-    }
-  }
-}
-
-setInterval(() => {
-  pollBoxScoreDiscordCleanup().catch((error) => console.error("[ERROR] Box score Discord cleanup poll failed:", error));
 }, 150_000).unref();
 
 // Guarantees an RTI prospect's commissioner review-log row eventually exists even if the
@@ -813,11 +730,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isModalSubmit() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.cpuScoreModal)) return handleCpuScoreModalSubmit(interaction);
 
 
-    if (interaction.isChatInputCommand() && interaction.commandName === "boxscore") {
-      await handleBoxScoreSlash(interaction);
-      return;
-    }
-
     if (interaction.isButton() && interaction.customId === MENU_CUSTOM_IDS.leagueMgmtOpenDashboard) {
       await handleLeagueMgmtOpenDashboard(interaction);
       return;
@@ -838,12 +750,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.settingsPagePrefix}:`)) return handleRecruitingBoardSettings(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.requestPagePrefix}:`)) return handleRecruitingBoardRequestPage(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.requestPickPrefix}:`)) return handleRecruitingBoardRequestPick(interaction);
-    if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.boxScores) return handleWeeklyBoxScores(interaction);
-    if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.playerStats) return handleWeeklyPlayerStats(interaction);
-    if (interaction.isButton() && interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruiting) return handleWeeklyRecruiting(interaction);
-    if (interaction.isStringSelectMenu() && [WEEKLY_SUBMISSIONS_CUSTOM_IDS.statPlayer, WEEKLY_SUBMISSIONS_CUSTOM_IDS.statCategory, WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruitPosition, WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruitStars].includes(interaction.customId as any)) return handleWeeklySubmissionSelect(interaction);
-    if(interaction.isButton()&&[WEEKLY_SUBMISSIONS_CUSTOM_IDS.statAnotherPlayer,WEEKLY_SUBMISSIONS_CUSTOM_IDS.statRemoveLast,WEEKLY_SUBMISSIONS_CUSTOM_IDS.statFinish].includes(interaction.customId as any))return handleWeeklySubmissionButton(interaction);
-    if (interaction.isModalSubmit() && (interaction.customId.startsWith(`${WEEKLY_SUBMISSIONS_CUSTOM_IDS.statModal}:`) || interaction.customId === WEEKLY_SUBMISSIONS_CUSTOM_IDS.recruitHometown)) return handleWeeklySubmissionModal(interaction);
 
     if (interaction.isButton() && interaction.customId.startsWith("rec:stream_review:")) {
       await handleStreamReviewButton(interaction);
@@ -881,14 +787,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     // session, so route them before the session-touch guard (otherwise the guard
     // expires the window, deleting the embed without ever issuing the payout). The
     // pull-inbox versions share these custom IDs and route here harmlessly too.
-    if (interaction.isButton() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.approvePrefix)) return handleBoxScoreApprove(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenyModal(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctOpenPrefix)) return handleBoxScoreCorrectionsOpen(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctCancelPrefix)) return handleBoxScoreCorrectionsCancel(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctFieldPrefix)) return handleBoxScoreCorrectionsFieldSelect(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctMatchupPrefix)) return handleBoxScoreCorrectionsMatchupSelect(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctModalPrefix)) return handleBoxScoreCorrectionsModal(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
 
     // Wagers run on public messages (pending-payouts, announcements), and the placement flows
     // shouldn't depend on an active menu session — so route all wager interactions before the guard.
@@ -968,21 +866,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === TEAM_REQUEST_CUSTOM_IDS.conferenceSelect) return handleTeamRequestConference(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transferDirection) return handleWalletTransferDirection(interaction);
       if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
-      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminWeekSelect) return handleBoxScoreAdminWeekSelect(interaction);
-      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminGameSelect) return handleBoxScoreAdminGameSelect(interaction);
       if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.weekSelect) return handleManualScoresWeekSelect(interaction);
       if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.gameSelect) return handleManualScoresGameSelect(interaction);
-      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctFieldPrefix)) return handleBoxScoreCorrectionsFieldSelect(interaction);
-      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctMatchupPrefix)) return handleBoxScoreCorrectionsMatchupSelect(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctGameSelectPrefix)) return handleWeeklyScoresCorrectGameSelect(interaction);
       if (interaction.customId === SCHEDULE_IMPORT_CUSTOM_IDS.weekSelect) return handleScheduleImportWeekSelect(interaction);
-      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.conferenceSelect) return handleCfbTeamScheduleConferenceSelect(interaction);
-      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.teamSelect) return handleCfbTeamScheduleTeamSelect(interaction);
-      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editWeekSelect) return handleCfbTeamScheduleEditWeekSelect(interaction);
-      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editTeamSelect) return handleCfbTeamScheduleEditTeamSelect(interaction);
-      if (interaction.customId === CFB_SCHEDULE_MANUAL_CUSTOM_IDS.teamSelect) return handleCfbScheduleManualTeamSelect(interaction);
-      if (interaction.customId === CFB_SCHEDULE_MANUAL_CUSTOM_IDS.conferenceSelect) return handleCfbScheduleManualConferenceSelect(interaction);
-      if (interaction.customId === CFB_SCHEDULE_MANUAL_CUSTOM_IDS.opponentSelect) return handleCfbScheduleManualOpponentSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.dateSelect) return handleAdvanceTimeDateSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.tzSelect) return handleAdvanceTimeTzSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.timeSelect) return handleAdvanceTimeTimeSelect(interaction);
@@ -1124,15 +1011,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.stream) return handleStreamMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.streamBack) return renderMainMenuFromComponent(interaction);
-      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.cancel) return handleBoxScoreCancel(interaction);
-      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.submissionsOpen) return handleBoxScoreSubmissions(interaction);
-      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.adminCancel) return handleBoxScoreAdminCancel(interaction);
-      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.adminAnotherPrefix)) return handleBoxScoreAdminAnother(interaction);
-      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.inboxBack) return renderAdminPanelFromComponent(interaction);
-      if (interaction.customId === BOX_SCORE_CUSTOM_IDS.submitConfirm) return handleBoxScoreSubmitConfirm(interaction);
-      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.approvePrefix)) return handleBoxScoreApprove(interaction);
-      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctOpenPrefix)) return handleBoxScoreCorrectionsOpen(interaction);
-      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctCancelPrefix)) return handleBoxScoreCorrectionsCancel(interaction);
       if (interaction.customId === WEEKLY_SCORES_CUSTOM_IDS.uploadOpen) return handleWeeklyScoresUploadOpen(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.approvePrefix)) return handleWeeklyScoresApprove(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctOpenPrefix)) return handleWeeklyScoresCorrectOpen(interaction);
@@ -1145,19 +1023,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix)) return handleManualScoresAnother(interaction, Number(interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix.length)));
       if (interaction.customId.startsWith(SCHEDULE_IMPORT_CUSTOM_IDS.savePrefix)) return handleScheduleImportSave(interaction);
       if (interaction.customId === SCHEDULE_IMPORT_CUSTOM_IDS.cancel) return handleScheduleImportCancel(interaction);
-      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editHome) return handleCfbTeamScheduleEditHome(interaction);
-      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editAway) return handleCfbTeamScheduleEditAway(interaction);
-      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.editBack) return handleCfbTeamScheduleEditBack(interaction);
-      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.approve) return handleCfbTeamScheduleApprove(interaction, buildScheduleMgmtRows);
-      if (interaction.customId === CFB_TEAM_SCHEDULE_CUSTOM_IDS.cancel) return handleCfbTeamScheduleCancel(interaction, buildScheduleMgmtRows);
-      if (interaction.customId === CFB_SCHEDULE_MANUAL_CUSTOM_IDS.teamPagePrev) return handleCfbScheduleManualTeamPagePrev(interaction);
-      if (interaction.customId === CFB_SCHEDULE_MANUAL_CUSTOM_IDS.teamPageNext) return handleCfbScheduleManualTeamPageNext(interaction);
-      if (interaction.customId === CFB_SCHEDULE_MANUAL_CUSTOM_IDS.home) return handleCfbScheduleManualHome(interaction);
-      if (interaction.customId === CFB_SCHEDULE_MANUAL_CUSTOM_IDS.away) return handleCfbScheduleManualAway(interaction);
-      if (interaction.customId === CFB_SCHEDULE_MANUAL_CUSTOM_IDS.skip) return handleCfbScheduleManualSkip(interaction);
-      if (interaction.customId === CFB_SCHEDULE_MANUAL_CUSTOM_IDS.continue) return handleCfbScheduleManualContinue(interaction);
-      if (interaction.customId === CFB_SCHEDULE_MANUAL_CUSTOM_IDS.cancel) return handleCfbScheduleManualCancel(interaction, buildScheduleMgmtRows);
-      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenyModal(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.teamsPage}:`)) return handleTeamsPage(interaction);
@@ -1196,13 +1061,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustomModal}:`)) return handleWalletCustomTransferModal(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
       if (interaction.customId.startsWith(`${STREAM_CUSTOM_IDS.linkModal}:`)) return handleStreamLinkModal(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:`) || interaction.customId === TEAM_LINK_CUSTOM_IDS.editTeamModal) return handleCustomTeamModal(interaction);
-      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.correctModalPrefix)) return handleBoxScoreCorrectionsModal(interaction);
       if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctModalPrefix)) return handleWeeklyScoresCorrectModal(interaction);
       if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.scoreModalPrefix)) {
         const [outcome, gameId] = interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.scoreModalPrefix.length).split(":");
         return handleManualScoresScoreModal(interaction, outcome as "home" | "away" | "tie", gameId);
       }
-      if (interaction.customId.startsWith(BOX_SCORE_CUSTOM_IDS.denyModalPrefix)) return handleBoxScoreDenySubmit(interaction);
       if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonManualModal) return handleSetSeasonManual(interaction, buildAdvanceMgmtRows);
     }
   } catch (error) {
@@ -1212,14 +1075,10 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
-  if (await handleWeeklySubmissionMessage(message).catch(() => false)) return;
   if (await handleStreamChannelMessage(message).catch(() => false)) return;
   if (await handleHighlightChannelMessage(message).catch(() => false)) return;
   if (await handleWeeklyScoresUploadMessage(message).catch(() => false)) return;
   if (await handleScheduleImportUploadMessage(message).catch(() => false)) return;
-  if (await handleCfbTeamScheduleUploadMessage(message).catch(() => false)) return;
-  if (await handleCommissionerBoxScoreSubmissionMessage(message).catch(() => false)) return;
-  await handleBoxScoreChannelMessage(message).catch(() => undefined);
 });
 
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
@@ -1443,27 +1302,14 @@ async function handleLeagueMgmtServerSetup(interaction: ButtonInteraction) {
   return interaction.update(buildServerSetupPanel());
 }
 
-async function isCfbLeagueForGuild(guildId: string | null): Promise<boolean> {
-  if (!guildId) return false;
-  const week = await recApi.viewLeagueWeek(guildId).catch(() => null);
-  return week?.league?.game === "cfb_27";
-}
-
 async function handleLeagueMgmtSchedule(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
-  const isCfbLeague = await isCfbLeagueForGuild(interaction.guildId);
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Schedule")
-      .setDescription(isCfbLeague ? [
-        "Build, review, or publish the league schedule.",
-        "",
-        "**Schedule Wizard** / **Upload One Week** - upload a team's in-game **Team Schedule** screenshot (1-2 images cover a full season); pick a conference, then the team. Saving a team's schedule also populates each opponent's matching week.",
-        "**Set Manually** - choose teams from league-loaded conference dropdowns and save matchups.",
-        "**View Schedule** - page through every week and optionally post a week publicly.",
-      ].join("\n") : [
+      .setDescription([
         "Build, review, or publish the league schedule.",
         "",
         "**Schedule Wizard** - upload schedule screenshots in order, starting at Week 1.",
@@ -1492,15 +1338,10 @@ function buildScheduleMgmtRows() {
   ];
 }
 
-// Both "Schedule Wizard" and "Upload One Week" route to the CFB Team Schedule import
-// (conference -> team -> upload) for CFB leagues — CFB's in-game schedule screen is per-team,
-// full-season, not per-week/all-teams like Madden's, so there's no CFB equivalent of a
-// single-week screenshot to route "Upload One Week" to separately.
 async function handleLeagueMgmtScheduleWizard(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
-  if (await isCfbLeagueForGuild(interaction.guildId)) return startCfbTeamScheduleImport(interaction, buildScheduleMgmtRows);
   return startScheduleImportWizard(interaction, buildScheduleMgmtRows);
 }
 
@@ -1508,18 +1349,13 @@ async function handleLeagueMgmtScheduleOneWeek(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
-  if (await isCfbLeagueForGuild(interaction.guildId)) return startCfbTeamScheduleImport(interaction, buildScheduleMgmtRows);
   return startScheduleImportOneWeek(interaction, buildScheduleMgmtRows);
 }
 
-// CFB's "Set Manually" routes to the team-first weekly wizard (pick a user-controlled team,
-// then walk its whole season one week at a time) instead of the older week-first/all-teams
-// matchup-by-matchup flow, which stays the default for Madden leagues.
 async function handleLeagueMgmtScheduleManual(interaction: ButtonInteraction) {
   if (!isFullLeagueAdminInteraction(interaction)) {
     return replyFullAdminOnly(interaction, "manage league schedule imports");
   }
-  if (await isCfbLeagueForGuild(interaction.guildId)) return startCfbTeamScheduleManualEntry(interaction, buildScheduleMgmtRows);
   return startManualScheduleEntry(interaction);
 }
 
@@ -1578,7 +1414,6 @@ async function handleLeagueMgmtUploadScores(interaction: ButtonInteraction) {
       ].join("\n"))],
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(BOX_SCORE_CUSTOM_IDS.submissionsOpen).setLabel("Box Scores").setStyle(ButtonStyle.Primary),
         new ButtonBuilder().setCustomId(WEEKLY_SCORES_CUSTOM_IDS.uploadOpen).setLabel("Weekly Scores").setStyle(ButtonStyle.Primary),
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(

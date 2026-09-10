@@ -5,7 +5,7 @@ import { sendError, ApiError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
 import { parseCfbBoxScoreImages } from "../box-score/box-score-cfb.parser.js";
 import { parseBoxScoreImages } from "../box-score/box-score.parser.js";
-import { persistUploadedImageBuffer } from "../box-score/box-score.service.js";
+import { persistUploadedImageBuffer } from "../box-score/upload-images.js";
 import { getUserCompDetail, listConnectedUsers } from "./comp.service.js";
 import {
   cancelCompMatch,
