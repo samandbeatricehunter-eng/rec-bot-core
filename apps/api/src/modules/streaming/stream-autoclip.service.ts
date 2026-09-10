@@ -2,11 +2,9 @@ import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import sharp from "sharp";
 import { createStreamDirectUpload, enableStreamDownload, streamPlaybackUrls } from "../../lib/cloudflare-stream.js";
 import { supabase } from "../../lib/supabase.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
-import { parseScorebugFrameAuto } from "../scorebug-ocr/scorebug-parser.js";
 import { detectStreamPlatform } from "./streaming-labels.js";
 
 const execFileAsync = promisify(execFile);
@@ -23,7 +21,7 @@ const RECAP_ASSETS = {
   overlay: path.resolve(process.cwd(), "assets/weekly-recap/overlay.png"),
   musicDir: path.resolve(process.cwd(), "assets/weekly-recap/music"),
 } as const;
-const WORK_DIR = path.resolve(process.env.STREAM_OCR_WORK_DIR?.trim() || ".rec-stream-ocr");
+const WORK_DIR = path.resolve(process.env.STREAM_WORK_DIR?.trim() || process.env.STREAM_OCR_WORK_DIR?.trim() || ".rec-stream-work");
 const FFMPEG = process.env.FFMPEG_BIN?.trim() || "ffmpeg";
 const FFPROBE = process.env.FFPROBE_BIN?.trim() || "ffprobe";
 const RESOLVER = process.env.STREAM_RESOLVER_BIN?.trim() || "yt-dlp";
@@ -35,16 +33,13 @@ const CLIP_PRE_ROLL_SECONDS = 20;
 const CLIP_POST_ROLL_SECONDS = 5;
 const CLIP_DURATION_SECONDS = CLIP_PRE_ROLL_SECONDS + CLIP_POST_ROLL_SECONDS;
 
-// A stream's game may not have kicked off yet when a coach posts the link, so the resolver (and,
-// once recording starts, the OCR check below) is allowed to keep failing for a while before this
-// is treated as a real problem. Budget is measured against `phase_started_at`, which covers BOTH
-// repeated resolve failures and a successful recording that never produces a usable scorebug
-// frame -- either way, "no usable stream after this long" means the same thing. Phase 0 is the
+// A stream's game may not have kicked off yet when a coach posts the link, so the resolver is
+// allowed to keep failing for a while before this is treated as a real problem. Phase 0 is the
 // first window; if it runs out, the job waits out COOLDOWN_MS once, then gets exactly one more
 // window (phase 1) before being abandoned for good.
 const INITIAL_BUDGET_MS = 10 * 60_000;
 const COOLDOWN_MS = 5 * 60_000;
-const PROBE_INTERVAL_MS = 60_000;
+const SCOREBUG_OCR_RETIRED_MESSAGE = "Live scorebug OCR/autoclip extraction has been retired; no event clips were generated.";
 
 function missingTable(error: any) {
   return ["42P01", "PGRST205"].includes(String(error?.code ?? ""));
@@ -199,53 +194,6 @@ async function startCapture(job: any) {
   });
 }
 
-// Spot-checks an in-progress recording by grabbing one live frame straight from the stream (not
-// the growing capture file -- an unfinalized mkv's duration/seek behavior is unreliable while
-// it's still being written) roughly once a minute, and gives up on this attempt once the phase
-// budget elapses with no usable frame ever seen -- see the module doc comment for why this exists
-// (a recording that never has usable OCR data would otherwise just run until the stream ends).
-async function monitorCapturingJob(job: any) {
-  if (job.first_usable_frame_at) return;
-  const sinceProbe = job.last_probe_at ? Date.now() - new Date(job.last_probe_at).getTime() : Infinity;
-  if (sinceProbe >= PROBE_INTERVAL_MS) {
-    await updateJob(job.id, { last_probe_at: new Date().toISOString() });
-    try {
-      const mediaUrl = await resolveMediaUrl(job.stream_url);
-      // PNG, not mjpeg: some streams' HLS encode is full-range YUV, which ffmpeg's mjpeg
-      // encoder rejects outright ("Non full-range YUV is non-standard") without the caller
-      // negotiating -strict unofficial -- confirmed live in rec_stream_capture_jobs.last_error
-      // ("Could not open encoder before EOF"), silently producing zero probe bytes and burning
-      // that minute's check. PNG has no such colorspace restriction and sharp decodes it the same.
-      const frame = await outputBuffer(FFMPEG, ["-loglevel", "error", "-i", mediaUrl, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "png", "pipe:1"]);
-      const meta = await sharp(frame).metadata();
-      const parsed = await parseScorebugFrameAuto(frame);
-      // The region calibration (docs/scorebug-ocr-regions.md) was built against 1920x1080
-      // reference frames -- a real live stream's actual resolution varies per streamer (a
-      // non-partnered Twitch broadcaster's single source-quality encode is very often well
-      // under 1080p) and was previously invisible here entirely: a probe that never found a
-      // usable frame left no trace of WHY -- not the resolution, not the OCR reading, nothing.
-      console.log(`[stream-ocr] probe job=${job.id} frame=${meta.width}x${meta.height} framing=${parsed.framing} isLiveScorebug=${parsed.isLiveScorebug} away=${parsed.awayScore} home=${parsed.homeScore} quarter=${parsed.quarter} clock=${parsed.gameClock}`);
-      if (parsed.isLiveScorebug && parsed.awayScore != null && parsed.homeScore != null) {
-        await updateJob(job.id, { first_usable_frame_at: new Date().toISOString(), last_error: null });
-        return;
-      }
-    } catch (error) {
-      // Transient (game hasn't kicked off, brief resolver hiccup) -- the elapsed check below
-      // still governs whether this has gone on too long. Logged (not swallowed) so a run of
-      // resolver/ffmpeg failures is distinguishable after the fact from a run of frames that
-      // simply never matched a valid scorebug reading.
-      console.error(`[stream-ocr] probe failed job=${job.id}:`, error instanceof Error ? error.message : error);
-    }
-  }
-
-  const elapsed = Date.now() - new Date(job.phase_started_at).getTime();
-  if (elapsed >= INITIAL_BUDGET_MS) {
-    activeCaptures.get(job.streaming_session_id)?.kill("SIGINT");
-    activeCaptures.delete(job.streaming_session_id);
-    await handleAttemptFailure(job, "No usable scorebug frames detected in the first 10 minutes of recording.");
-  }
-}
-
 async function promoteDueCooldowns() {
   const due = await supabase.from("rec_stream_capture_jobs").select("id").eq("status", "cooldown").lte("cooldown_until", new Date().toISOString());
   if (due.error) { if (!missingTable(due.error)) console.error("[ERROR] Failed to load cooldown stream capture jobs (non-fatal):", due.error); return; }
@@ -256,36 +204,6 @@ async function promoteDueCooldowns() {
       last_error: "Retrying after the 5-minute cooldown -- this is the final attempt.",
     });
   }
-}
-
-// No timeout here previously -- a single hung ffmpeg frame-extract (bad byte range, an I/O
-// hiccup on the persistent volume, anything) blocked forever with no way out, and since this
-// runs inside processCapture behind runStreamAutoclipSweep's single-job `processing` mutex, one
-// stuck frame permanently wedged the entire autoclip pipeline for every league, not just the
-// stuck job. Confirmed live: a capture job sat at status='processing' with zero progress for
-// 1.5+ hours while the rest of the API kept serving requests fine (the hang was isolated to this
-// one unbounded child process, not the whole event loop).
-async function outputBuffer(command: string, args: string[], timeoutMs = 20_000): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
-    const chunks: Buffer[] = []; const errors: Buffer[] = [];
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill("SIGKILL");
-      reject(new Error(`${command} timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-    child.stdout?.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
-    child.stderr?.on("data", (chunk) => errors.push(Buffer.from(chunk)));
-    child.once("error", (error) => { if (settled) return; settled = true; clearTimeout(timer); reject(error); });
-    child.once("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      code === 0 ? resolve(Buffer.concat(chunks)) : reject(new Error(Buffer.concat(errors).toString("utf8").slice(-2000)));
-    });
-  });
 }
 
 async function durationSeconds(file: string) {
@@ -300,10 +218,6 @@ async function uploadVideo(file: string, meta: Record<string, string>, maxDurati
   const uploaded = await fetch(direct.uploadURL, { method: "POST", body: data, signal: AbortSignal.timeout(120_000) });
   if (!uploaded.ok) throw new Error(`Cloudflare Stream upload failed (${uploaded.status}).`);
   return { uid: direct.uid, playbackUrl: streamPlaybackUrls(direct.uid).watch };
-}
-
-function downDistanceText(value: Awaited<ReturnType<typeof parseScorebugFrameAuto>>["downDistance"]) {
-  return value === "kickoff" ? "KICKOFF" : value ? `${value.down} & ${value.distance}` : null;
 }
 
 function parseClockSeconds(clock: string | null): number | null {
@@ -360,100 +274,7 @@ export function computeClipValue(input: {
 
 async function processCapture(job: any) {
   if (!job.capture_path) throw new Error("Capture job has no recording path.");
-  // rec_games has no season_number column of its own (only week_number -- season is tracked via
-  // season_id, not a raw number on the game row); the league's current season_number is what
-  // rec_player_weekly_stats/rec_stream_event_clips actually key on elsewhere in this codebase.
-  const [game, league] = await Promise.all([
-    supabase.from("rec_games").select("week_number").eq("id", job.game_id).maybeSingle(),
-    supabase.from("rec_leagues").select("season_number").eq("id", job.league_id).maybeSingle(),
-  ]);
-  if (game.error) throw game.error;
-  if (league.error) throw league.error;
-  if (!game.data) throw new Error("Capture game no longer exists.");
-  const duration = await durationSeconds(job.capture_path);
-  type Reading = { away: number; home: number; possession: Awaited<ReturnType<typeof parseScorebugFrameAuto>>["possession"]; downDistance: Awaited<ReturnType<typeof parseScorebugFrameAuto>>["downDistance"] };
-  const sameReading = (a: Reading, b: Reading) => a.away === b.away && a.home === b.home && a.possession === b.possession;
-  // A single sampled frame's OCR read is too fragile to trust outright -- confirmed live: video
-  // compression/motion-blur artifacts produced wildly non-monotonic, sometimes impossible scores
-  // (e.g. a "149" point jump) when every sample was taken at face value. Requiring the SAME
-  // away/home/possession reading to repeat across CONFIRM_SAMPLES consecutive 3s samples before
-  // it's trusted as the real game state filters out nearly all of that one-off noise, at the cost
-  // of the event landing (CONFIRM_SAMPLES-1)*3 seconds later than the true moment -- comfortably
-  // inside the clip's existing 10s pre-roll. down_distance is deliberately excluded from the
-  // match check (it changes almost every play and isn't gated behind confirmation) but still
-  // carried through from whichever frame completes the confirmation, for the kickoff check below.
-  const CONFIRM_SAMPLES = 3;
-  let confirmed: Reading | null = null;
-  let candidate: { reading: Reading; count: number; firstSecond: number } | null = null;
-  const events: Array<{ second: number; parsed: Awaited<ReturnType<typeof parseScorebugFrameAuto>>; value: number; eventType: "score_change" | "turnover" }> = [];
-  for (let second = 3; second < duration; second += 3) {
-    const frame = await outputBuffer(FFMPEG, ["-loglevel", "error", "-ss", String(second), "-i", job.capture_path, "-frames:v", "1", "-f", "image2pipe", "-vcodec", "mjpeg", "pipe:1"]);
-    const parsed = await parseScorebugFrameAuto(frame);
-    if (!parsed.isLiveScorebug || parsed.awayScore == null || parsed.homeScore == null) continue;
-    const reading: Reading = { away: parsed.awayScore, home: parsed.homeScore, possession: parsed.possession, downDistance: parsed.downDistance };
-
-    if (candidate && sameReading(candidate.reading, reading)) candidate.count += 1;
-    else candidate = { reading, count: 1, firstSecond: second };
-    if (candidate.count < CONFIRM_SAMPLES) continue;
-    if (confirmed && sameReading(confirmed, reading)) continue;
-
-    const eventSecond = candidate.firstSecond;
-    const scored = Boolean(confirmed) && (reading.away > confirmed!.away || reading.home > confirmed!.home);
-    // Every kickoff flips possession as a matter of course -- that's not a takeaway, so it
-    // shouldn't compete for clip budget as one. A kick/punt return (or onside recovery) that
-    // ends in a touchdown is still caught, just via the score branch below instead of this one,
-    // since `scored` already takes priority over `possessionFlipped` for the same confirmed change.
-    const aroundKickoff = confirmed?.downDistance === "kickoff" || reading.downDistance === "kickoff";
-    // A forced turnover doesn't move the score, so it needs its own signal: the possession
-    // glyph flipping sides between confirmed readings. "neutral"/"unknown" reads (dead ball, or a
-    // bad OCR read) are excluded from both sides of the comparison so a flicker through those
-    // states between two confirmed readings on the SAME side never reads as a flip.
-    const possessionFlipped = !scored && !aroundKickoff && Boolean(confirmed)
-      && confirmed!.possession !== "neutral" && confirmed!.possession !== "unknown"
-      && reading.possession !== "neutral" && reading.possession !== "unknown"
-      && reading.possession !== confirmed!.possession;
-    // Extra points and routine field goals fired constantly and bloated the recap with clips
-    // nobody wanted (confirmed live: a ~6-minute recap full of PAT/FG clutter). An extra point is
-    // never clip-worthy on its own -- always exactly +1, always suppressed. A field goal (+3) is
-    // only clip-worthy when the game is actually on the line: inside 2:00 of the 2nd or 4th
-    // quarter, or in overtime -- a 3rd-quarter or garbage-time field goal isn't.
-    const pointsScored = Math.max(1, reading.away - confirmed!.away, reading.home - confirmed!.home);
-    const clockSeconds = parseClockSeconds(parsed.gameClock);
-    const inClutchWindow = parsed.quarter === "OT" || ((parsed.quarter === 2 || parsed.quarter === 4) && clockSeconds != null && clockSeconds <= 120);
-    const isExtraPoint = pointsScored === 1;
-    const isRoutineFieldGoal = pointsScored === 3 && !inClutchWindow;
-    if (scored && !isExtraPoint && !isRoutineFieldGoal) {
-      const value = computeClipValue({
-        quarter: parsed.quarter == null ? null : String(parsed.quarter), gameClock: parsed.gameClock,
-        awayBefore: confirmed!.away, homeBefore: confirmed!.home, awayAfter: reading.away, homeAfter: reading.home,
-      });
-      events.push({ second: eventSecond, parsed, value, eventType: "score_change" });
-    } else if (possessionFlipped) {
-      const value = computeClipValue({
-        quarter: parsed.quarter == null ? null : String(parsed.quarter), gameClock: parsed.gameClock,
-        awayBefore: confirmed!.away, homeBefore: confirmed!.home, awayAfter: reading.away, homeAfter: reading.home,
-        turnover: true,
-      });
-      events.push({ second: eventSecond, parsed, value, eventType: "turnover" });
-    }
-    confirmed = reading;
-  }
-  for (const [index, event] of events.entries()) {
-    const clipPath = path.join(WORK_DIR, `${job.id}-event-${index}.mp4`);
-    await execFileAsync(FFMPEG, ["-y", "-ss", String(Math.max(0, event.second - CLIP_PRE_ROLL_SECONDS)), "-i", job.capture_path, "-t", String(CLIP_DURATION_SECONDS), "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-movflags", "+faststart", clipPath], { timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
-    const media = await uploadVideo(clipPath, { name: `REC auto-clip W${game.data.week_number}`, captureJobId: job.id, gameId: job.game_id }, 45);
-    await supabase.from("rec_stream_event_clips").upsert({
-      capture_job_id: job.id, league_id: job.league_id, game_id: job.game_id,
-      season_number: Number(league.data?.season_number ?? 1), week_number: Number(game.data.week_number ?? 1),
-      event_type: event.eventType, event_second: event.second,
-      away_score: event.parsed.awayScore, home_score: event.parsed.homeScore,
-      quarter: event.parsed.quarter == null ? null : String(event.parsed.quarter), game_clock: event.parsed.gameClock,
-      down_distance: downDistanceText(event.parsed.downDistance), yard_line: event.parsed.yardLine,
-      possession: event.parsed.possession, cloudflare_stream_uid: media.uid, playback_url: media.playbackUrl,
-      value_score: event.value, ocr_payload: event.parsed,
-    }, { onConflict: "capture_job_id,event_second,event_type" });
-  }
-  await updateJob(job.id, { status: "completed", last_error: null });
+  await updateJob(job.id, { status: "completed", last_error: SCOREBUG_OCR_RETIRED_MESSAGE });
 }
 
 export async function enqueueWeeklyHighlightRecap(input: { leagueId: string; seasonNumber: number; weekNumber: number; seasonStage: string }) {
@@ -784,9 +605,6 @@ export async function runStreamAutoclipSweep() {
   const pending = await supabase.from("rec_stream_capture_jobs").select("*").in("status", ["pending", "retry"]).order("created_at").limit(2);
   if (pending.error) { if (missingTable(pending.error)) return; throw pending.error; }
   for (const job of pending.data ?? []) await startCapture(job).catch((error) => handleAttemptFailure(job, error instanceof Error ? error.message : String(error)));
-
-  const capturing = await supabase.from("rec_stream_capture_jobs").select("*").eq("status", "capturing");
-  if (!capturing.error) for (const job of capturing.data ?? []) await monitorCapturingJob(job).catch((error) => console.error("[ERROR] Failed to monitor stream capture job (non-fatal):", job.id, error));
 
   if (processing) return;
   const ready = await supabase.from("rec_stream_capture_jobs").select("*").eq("status", "processing").order("ended_at").limit(1).maybeSingle();

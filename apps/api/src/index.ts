@@ -116,9 +116,9 @@ setInterval(() => {
   runStreamingSweep().catch((error) => app.log.error({ err: error }, "Streaming account sweep failed"));
 }, 60_000).unref();
 
-setTimeout(() => runStreamAutoclipSweep().catch((error) => app.log.error({ err: error }, "Stream OCR/autoclip sweep failed")), 10_000).unref();
+setTimeout(() => runStreamAutoclipSweep().catch((error) => app.log.error({ err: error }, "Stream autoclip sweep failed")), 10_000).unref();
 setInterval(() => {
-  runStreamAutoclipSweep().catch((error) => app.log.error({ err: error }, "Stream OCR/autoclip sweep failed"));
+  runStreamAutoclipSweep().catch((error) => app.log.error({ err: error }, "Stream autoclip sweep failed"));
 }, 30_000).unref();
 
 // Waitlist delivery is polled from durable database state so every team-opening path is
