@@ -1314,15 +1314,6 @@ export const recAvailabilityOverrides = pgTable("rec_availability_overrides", {
   expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" })
 });
 
-export const recAvailabilityBoardMessages = pgTable("rec_availability_board_messages", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
-  discordChannelId: text("discord_channel_id").notNull(),
-  sectionKey: text("section_key").notNull(),
-  discordMessageId: text("discord_message_id").notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
 export const recGameScheduling = pgTable("rec_game_scheduling", {
   gameId: uuid("game_id").primaryKey().references(() => recGames.id),
   leagueId: uuid("league_id").notNull().references(() => recLeagues.id),

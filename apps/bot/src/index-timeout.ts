@@ -148,10 +148,6 @@ import { handleRulesSlash, handleRulesCategorySelect, handleRulesPost, RULES_SLA
 import { handleTweetsSlash } from "./flows/tweets-slash.js";
 import { handleTwitterSlash, handleTwitterPersonaAutocomplete } from "./flows/twitter-slash.js";
 import {
-  AVAILABILITY_BOARD_CUSTOM_IDS,
-  handleBoardSetAvailability, handleBoardSetTimezone, handleBoardThisWeek,
-} from "./flows/availability-board-panel.js";
-import {
   GAME_SCHEDULING_CUSTOM_IDS,
   handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelGameStarted,
   handleProposalCounterButton, handleProposalAcceptButton, handleProposeOrCounterSelect,
@@ -723,10 +719,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    // /settimezone was removed as a standalone slash command -- the League Availability panel's
-    // Set Timezone button (and the site) cover the same flow now. handleSetTimezoneSlash and its
-    // select/modal follow-ups stay wired since availability-board-panel.ts's button handler
-    // still calls straight into them.
+    // /settimezone was removed as a standalone slash command -- the /schedule Availability
+    // button (and the site) cover the same flow now. handleSetTimezoneSlash and its
+    // select/modal follow-ups stay wired since that button calls straight into them.
     if (interaction.isStringSelectMenu() && interaction.customId === SETTIMEZONE_CUSTOM_IDS.select) return handleSetTimezoneSelect(interaction);
     if (interaction.isModalSubmit() && interaction.customId === SETTIMEZONE_CUSTOM_IDS.otherModal) return handleSetTimezoneOtherModal(interaction);
 
@@ -817,9 +812,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isModalSubmit() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.h2hScoreModal)) return handleH2hScoreModalSubmit(interaction);
     if (interaction.isModalSubmit() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.cpuScoreModal)) return handleCpuScoreModalSubmit(interaction);
 
-    if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.setAvailability) return handleBoardSetAvailability(interaction);
-    if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.setTimezone) return handleBoardSetTimezone(interaction);
-    if (interaction.isButton() && interaction.customId === AVAILABILITY_BOARD_CUSTOM_IDS.thisWeek) return handleBoardThisWeek(interaction);
 
     if (interaction.isChatInputCommand() && interaction.commandName === "boxscore") {
       await handleBoxScoreSlash(interaction);

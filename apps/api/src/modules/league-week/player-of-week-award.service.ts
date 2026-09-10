@@ -5,7 +5,6 @@
 import { gameplaySeasonStages, type LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { getSchedulingPayoutMultiplier } from "../scheduling/scheduling-bonus.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { postDiscordChannelMessageWithFile } from "../../lib/discord-guild.js";
 import { findServerRoutesForLeague } from "../league-context/league-context.service.js";
@@ -25,21 +24,6 @@ async function alreadyAwarded(leagueId: string, seasonNumber: number, weekNumber
   return Boolean(existing.data?.length);
 }
 
-// The winner's game that week -- needed to check whether their matchup went through the
-// propose/accept scheduling flow (getSchedulingPayoutMultiplier, the same helper the game
-// result payout bonus already uses) for the coin-doubling bonus.
-async function loadWinnerGame(leagueId: string, weekNumber: number, teamId: string) {
-  const result = await supabase
-    .from("rec_games")
-    .select("id,home_team_id,away_team_id,home_user_id,away_user_id")
-    .eq("league_id", leagueId)
-    .eq("week_number", weekNumber)
-    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-    .maybeSingle();
-  if (result.error) return null;
-  return result.data;
-}
-
 async function resolveUserIdForTeam(leagueId: string, teamId: string): Promise<string | null> {
   const result = await supabase
     .from("rec_team_assignments")
@@ -52,24 +36,14 @@ async function resolveUserIdForTeam(leagueId: string, teamId: string): Promise<s
   return result.data?.user_id ?? null;
 }
 
-type AwardedWinner = PlayerOfWeekWinner & { userId: string | null; coinsAwarded: number; doubled: boolean };
+type AwardedWinner = PlayerOfWeekWinner & { userId: string | null; coinsAwarded: number };
 
 async function awardOneWinner(input: {
   leagueId: string; seasonNumber: number; weekNumber: number; winner: PlayerOfWeekWinner;
 }): Promise<AwardedWinner> {
   const { leagueId, seasonNumber, weekNumber, winner } = input;
   const userId = await resolveUserIdForTeam(leagueId, winner.teamId);
-  let doubled = false;
-  if (userId) {
-    const game = await loadWinnerGame(leagueId, weekNumber, winner.teamId);
-    if (game) {
-      const multiplier = await getSchedulingPayoutMultiplier({
-        gameId: game.id, homeUserId: game.home_user_id, awayUserId: game.away_user_id,
-      });
-      doubled = multiplier === 2;
-    }
-  }
-  const coinsAwarded = userId ? POTW_BASE_COINS * (doubled ? 2 : 1) : 0;
+  const coinsAwarded = userId ? POTW_BASE_COINS : 0;
 
   const inserted = await supabase.from("rec_player_of_week_awards").insert({
     league_id: leagueId, season_number: seasonNumber, week_number: weekNumber,
@@ -77,7 +51,7 @@ async function awardOneWinner(input: {
     player_id: winner.playerId, player_name: winner.playerName, position: winner.position,
     team_id: winner.teamId, team_name: winner.teamName, user_id: userId,
     score: winner.score, stat_line: winner.statLine,
-    coins_awarded: coinsAwarded, scheduling_bonus_doubled: doubled,
+    coins_awarded: coinsAwarded,
   });
   if (inserted.error) throw new ApiError(500, "Failed to record a Player of the Week award.", inserted.error);
 
@@ -88,14 +62,14 @@ async function awardOneWinner(input: {
   if (userId && coinsAwarded > 0) {
     await creditOrBacklog({
       leagueId, seasonNumber, userId, amount: coinsAwarded,
-      description: `Player of the Week (${winner.conference} ${winner.side}) — Wk ${weekNumber}${doubled ? " (scheduling bonus)" : ""}`,
+      description: `Player of the Week (${winner.conference} ${winner.side}) — Wk ${weekNumber}`,
       transactionType: "player_of_week_payout",
       source: "player_of_week",
       sourceReference: { leagueId, seasonNumber, weekNumber, conference: winner.conference, side: winner.side, playerId: winner.playerId },
     });
   }
 
-  return { ...winner, userId, coinsAwarded, doubled };
+  return { ...winner, userId, coinsAwarded };
 }
 
 async function postPlayerOfWeekHeadline(input: {

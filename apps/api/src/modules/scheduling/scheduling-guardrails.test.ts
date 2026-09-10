@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasFailureToScheduleWaitElapsed, isGameChannelQuietHours, isTransientGameSchedulingMessage, qualifiesForSchedulingPayoutBonus } from "./scheduling-guardrails.js";
+import { hasFailureToScheduleWaitElapsed, isGameChannelQuietHours, isTransientGameSchedulingMessage } from "./scheduling-guardrails.js";
 
 test("game-channel quiet hours use Central time and end at 6 AM", () => {
   assert.equal(isGameChannelQuietHours(new Date("2026-08-21T05:00:00Z")), true); // midnight CDT
@@ -25,13 +25,6 @@ test("failure-to-schedule wait pauses during the recipient's local midnight-7AM"
   const outreach = "2026-08-22T04:00:00.000Z"; // 11 PM CDT on 2026-08-21
   assert.equal(hasFailureToScheduleWaitElapsed(outreach, null, "America/Chicago", new Date("2026-08-22T12:00:00.000Z").getTime()), false); // 8h of wall time (11PM-7AM), but only 1h counts (11PM-midnight)
   assert.equal(hasFailureToScheduleWaitElapsed(outreach, null, "America/Chicago", new Date("2026-08-22T19:00:00.000Z").getTime()), true); // 15h of wall time (11PM-2PM); 1h (11PM-midnight) + 7h (7AM-2PM) = 8h counted
-});
-
-test("scheduling payout bonus requires a confirmed time and game-over", () => {
-  const complete = { confirmedAt: "2026-08-21T13:00:00.000Z", homeUserId: "home", awayUserId: "away", markedOver: true };
-  assert.equal(qualifiesForSchedulingPayoutBonus(complete), true);
-  assert.equal(qualifiesForSchedulingPayoutBonus({ ...complete, confirmedAt: null }), false);
-  assert.equal(qualifiesForSchedulingPayoutBonus({ ...complete, markedOver: false }), false);
 });
 
 test("scheduling cleanup preserves humans and original embeds", () => {

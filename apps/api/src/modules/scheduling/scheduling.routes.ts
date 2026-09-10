@@ -15,14 +15,9 @@ import {
 } from "./matchup-scheduling.service.js";
 import { userIdFromDiscordId } from "./shared.js";
 import { zonedWallTimeToUtcIana } from "../../lib/timezone.js";
-import { syncAvailabilityBoard } from "./availability-board.service.js";
 import { markGameOver } from "./game-announcement.service.js";
 import { getReadyToAdvanceStatus, reportOwnGameScore, requestCpuForceWin } from "./ready-to-advance.service.js";
 import { runGameDayAudit } from "./game-day-audit.service.js";
-
-function resyncBoard(guildId: string) {
-  syncAvailabilityBoard(guildId).catch((error) => console.error("[ERROR] Failed to resync availability board (non-fatal):", error));
-}
 
 function refreshPanels(userId: string) {
   refreshSchedulingPanelsForUser(userId).catch((error) => console.error("[ERROR] Failed to refresh scheduling panels (non-fatal):", error));
@@ -81,7 +76,6 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId });
       const userId = await userIdFromDiscordId(actorDiscordId(auth, body.discordId));
       const result = await setTimezone({ userId, timezone: body.timezone, source: body.source });
-      resyncBoard(body.guildId);
       refreshPanels(userId);
       return reply.send(result);
     } catch (error) { return sendError(reply, error); }
@@ -118,7 +112,6 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const userId = await userIdFromDiscordId(actorDiscordId(auth, body.discordId));
       const leagueId = body.leagueScoped ? (await getCurrentLeagueContext(body.guildId)).leagueId : null;
       const result = await markAvailabilityDayUnavailable({ userId, leagueId, weekday: body.weekday });
-      resyncBoard(body.guildId);
       refreshPanels(userId);
       return reply.send(result);
     } catch (error) { return sendError(reply, error); }
@@ -131,7 +124,6 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const userId = await userIdFromDiscordId(actorDiscordId(auth, body.discordId));
       const leagueId = body.leagueScoped ? (await getCurrentLeagueContext(body.guildId)).leagueId : null;
       const result = await clearAvailabilityDayUnavailable({ userId, leagueId, weekday: body.weekday });
-      resyncBoard(body.guildId);
       refreshPanels(userId);
       return reply.send(result);
     } catch (error) { return sendError(reply, error); }
@@ -148,7 +140,6 @@ export async function schedulingRoutes(app: FastifyInstance) {
       const userId = await userIdFromDiscordId(actorDiscordId(auth, body.discordId));
       const leagueId = body.leagueScoped ? (await getCurrentLeagueContext(body.guildId)).leagueId : null;
       const result = await setRecurringWindowsForDay({ userId, leagueId, weekday: body.weekday, windows: body.windows });
-      resyncBoard(body.guildId);
       refreshPanels(userId);
       return reply.send(result);
     } catch (error) { return sendError(reply, error); }

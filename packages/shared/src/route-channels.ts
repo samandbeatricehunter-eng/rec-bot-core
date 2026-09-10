@@ -69,12 +69,6 @@ export const REC_ROUTE_CHANNELS = {
     inputField: "votingPollsChannelId",
     dbField: "voting_polls_channel_id",
   },
-  availability: {
-    label: "Availability (Game Scheduling)",
-    defaultName: "availability",
-    inputField: "schedulingChannelId",
-    dbField: "scheduling_channel_id",
-  },
   matchups: {
     label: "Matchups (Weekly Schedule)",
     defaultName: "matchups",

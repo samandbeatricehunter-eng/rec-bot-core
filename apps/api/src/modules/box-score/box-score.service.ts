@@ -24,7 +24,6 @@ import { sendPushToUser } from "../push/push.service.js";
 import { createSiteNotification } from "../site-notifications/site-notifications.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
-import { getSchedulingPayoutMultiplier, topUpOtherWeeklyPayoutsForSchedulingBonus } from "../scheduling/scheduling-bonus.service.js";
 
 type BoxScorePaidPlayer = {
   userId: string;
@@ -1396,11 +1395,6 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
   // no one (the commissioner who uploaded it is never paid).
   const payouts: { userId: string; amount: number }[] = [];
   const payoutConfig = (await getGlobalEconomyConfig()).submissions;
-  const schedulingMultiplier = await getSchedulingPayoutMultiplier({
-    gameId: sub.game_id,
-    homeUserId: sub.home_user_id,
-    awayUserId: sub.away_user_id,
-  });
   const payoutLeagueGame = (await supabase.from("rec_leagues").select("game").eq("id", sub.league_id).maybeSingle()).data?.game ?? null;
   const stageMultiplier = postseasonResultMultiplier(Number(sub.week_number), payoutLeagueGame);
   if (sub.home_team_id && sub.away_team_id) {
@@ -1424,26 +1418,6 @@ export async function reviewBoxScore(input: ReviewBoxScoreInput) {
       sourceReference: { submissionId: sub.id },
     });
     totalPaid += p.amount;
-    if (schedulingMultiplier === 2) {
-      await creditOrBacklog({
-        leagueId: sub.league_id,
-        seasonNumber: sub.season_number,
-        userId: p.userId,
-        amount: p.amount,
-        description: `Scheduling completion bonus (${formatCoins(p.amount)}) — Wk ${sub.week_number}`,
-        transactionType: "scheduling_bonus_payout",
-        source: "box_score",
-        sourceReference: { gameId: sub.game_id, userId: p.userId },
-      });
-      totalPaid += p.amount;
-      await topUpOtherWeeklyPayoutsForSchedulingBonus({
-        leagueId: sub.league_id,
-        seasonNumber: sub.season_number,
-        weekNumber: sub.week_number,
-        gameId: sub.game_id,
-        userId: p.userId,
-      }).catch((error) => console.error("[ERROR] Failed to top up other weekly payouts for scheduling bonus (non-fatal):", error));
-    }
   }
 
   if (sub.league_id && sub.season_number) {

@@ -42,7 +42,6 @@ import { clearDiscordTeamIdentityForUsers } from "../team-ownership/team-ownersh
 import { syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
 import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
 import { setMemberRole } from "../roles/roles.service.js";
-import { getSchedulingPayoutMultiplier } from "../scheduling/scheduling-bonus.service.js";
 
 // A posted stream's link and its "LIVE" tag stay active for 2 hours, then close — no REC
 // stream runs longer than that, so anything older is treated as ended for display/watch.
@@ -754,7 +753,7 @@ async function loadHub(guildId: string, discordId: string) {
       supabase.from("rec_highlight_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).eq("payout_kind", "weekly_highlight").neq("status", "denied"),
       supabase.from("rec_stream_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).neq("status", "denied"),
       supabase.from("rec_game_of_week_votes").select("is_correct,payout_amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId),
-      supabase.from("rec_dollar_ledger").select("amount,transaction_type,source_reference").eq("league_id", context.leagueId).eq("user_id", userId).in("transaction_type", ["box_score_payout", "game_result_payout", "scheduling_bonus_payout", "immortality_media_day_payout", "media_day_payout"]),
+      supabase.from("rec_dollar_ledger").select("amount,transaction_type,source_reference").eq("league_id", context.leagueId).eq("user_id", userId).in("transaction_type", ["box_score_payout", "game_result_payout", "immortality_media_day_payout", "media_day_payout"]),
       teamId
         ? supabase.from("rec_media_day_answers").select("slot,question_id,question_text,question_category,answer").eq("team_id", teamId).eq("season_number", seasonNumber).eq("season_stage", String(seasonStage)).eq("week_number", currentWeek)
         : Promise.resolve(emptyWeekly),
@@ -822,13 +821,8 @@ async function loadHub(guildId: string, discordId: string) {
     };
   });
 
-  const [weeklySubmission, schedulingMultiplier, reactions, views, storyReactions, storyComments, gameReactions, highlightGameUsers, liveGameTeamsRes, streamViews, streamReactions] = await Promise.all([
+  const [weeklySubmission, reactions, views, storyReactions, storyComments, gameReactions, highlightGameUsers, liveGameTeamsRes, streamViews, streamReactions] = await Promise.all([
     weeklyGame ? supabase.from("rec_box_score_submissions").select("id").eq("game_id", weeklyGame.gameId).eq("status", "approved").limit(1).maybeSingle() : Promise.resolve({ data: null as { id: string } | null }),
-    weeklyGame ? getSchedulingPayoutMultiplier({
-      gameId: weeklyGame.gameId,
-      homeUserId: weeklyGame.homeUserId,
-      awayUserId: weeklyGame.awayUserId,
-    }) : Promise.resolve(1),
     ids.length ? supabase.from("rec_highlight_reactions").select("highlight_post_id,user_id,reaction_key").in("highlight_post_id", ids) : Promise.resolve({ data: [], error: null }),
     ids.length ? supabase.from("rec_highlight_views").select("highlight_post_id").in("highlight_post_id", ids) : Promise.resolve({ data: [], error: null }),
     storyIds.length ? supabase.from("rec_story_reactions").select("story_id,user_id,reaction_key").in("story_id", storyIds) : Promise.resolve({ data: [], error: null }),
@@ -843,17 +837,11 @@ async function loadHub(guildId: string, discordId: string) {
     streamLogIds.length ? supabase.from("rec_stream_views").select("stream_log_id").in("stream_log_id", streamLogIds) : Promise.resolve({ data: [], error: null }),
     streamLogIds.length ? supabase.from("rec_stream_reactions").select("stream_log_id,user_id,reaction_key").in("stream_log_id", streamLogIds) : Promise.resolve({ data: [], error: null }),
   ]);
-  const weeklyGameLedger = (weeklyLedgers.data ?? []).find((row: any) => row.transaction_type !== "scheduling_bonus_payout" && (
+  const weeklyGameLedger = (weeklyLedgers.data ?? []).find((row: any) =>
     String(row.source_reference?.gameId ?? row.source_reference?.game_id ?? "") === String(weeklyGame?.gameId ?? "")
     || String(row.source_reference?.submissionId ?? "") === String(weeklySubmission.data?.id ?? "")
-  ));
-  // Two ledger rows can exist per game now: the win/loss doubling and the separate top-up for
-  // that week's other actions (see topUpOtherWeeklyPayoutsForSchedulingBonus) -- sum both so
-  // this reflects the full bonus, not just whichever row happened to be inserted first.
-  const weeklyBonusLedgerRows = (weeklyLedgers.data ?? []).filter((row: any) => row.transaction_type === "scheduling_bonus_payout"
-    && String(row.source_reference?.gameId ?? row.source_reference?.game_id ?? "") === String(weeklyGame?.gameId ?? ""));
+  );
   const weeklyGameBasePaid = Number(weeklyGameLedger?.amount ?? 0);
-  const weeklySchedulingBonusPaid = weeklyBonusLedgerRows.reduce((sum: number, row: any) => sum + Number(row.amount ?? 0), 0);
   const paid = (rows: any[]) => rows.filter((row) => row.status === "issued" || row.status === "approved").reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
   const mediaRows = weeklyMedia.data ?? [];
   const interviewRows = mediaRows.filter((row: any) => row.submission_type === "interview");
@@ -882,8 +870,7 @@ async function loadHub(guildId: string, discordId: string) {
       ? { key: "media_day", label: "Complete a player's Media Day interview", amount: RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT, current: mediaDayCurrent, limit: 2, earned: mediaDayEarned, note: "One payout per prospect (offense + defense), once all 3 of that week's questions are answered" }
       : { key: "media_day", label: "Complete your weekly Media Day interview", amount: economy.submissions.mediaDay, current: nonRtiMediaDayAnswerCount >= 3 ? 1 : 0, limit: 1, earned: nonRtiMediaDayEarned, note: "Answer all 3 of this week's questions as your team's coach to earn the payout" },
     ...(weeklyGame && !isRise ? [
-      { key: "result", label: "Complete your matchup", amount: economy.submissions.boxScoreWin, current: weeklyGame.status === "final" ? 1 : 0, limit: 1, earned: weeklyGameBasePaid, note: `${economy.submissions.boxScoreWin} for a win, ${economy.submissions.boxScoreLoss} for a loss; Fair Sims and Force Wins pay neither coach — and only count as one when it came from real scheduling engagement (checked in while your opponent didn't, proposed a time that got no response in the wait window, etc.), not a unilateral claim` },
-      { key: "scheduling_bonus", label: "Earn the scheduling completion bonus", amount: economy.submissions.boxScoreWin, current: schedulingMultiplier === 2 ? 1 : 0, limit: 1, earned: weeklySchedulingBonusPaid, note: "Schedule through REC, have both coaches check in, and mark the game over; this doubles everything you earned that week — the win/loss payout, plus any interview, article, stream, highlight, and GOTW payout" },
+      { key: "result", label: "Complete your matchup", amount: economy.submissions.boxScoreWin, current: weeklyGame.status === "final" ? 1 : 0, limit: 1, earned: weeklyGameBasePaid, note: `${economy.submissions.boxScoreWin} for a win, ${economy.submissions.boxScoreLoss} for a loss; Fair Sims and Force Wins pay neither coach` },
     ] : []),
   ];
   if (isRise) {

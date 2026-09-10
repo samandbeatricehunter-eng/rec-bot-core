@@ -125,11 +125,6 @@ export async function setServerConfig(input: SetServerConfigInput) {
 
   if (result.error) throw new ApiError(500, "Failed to update server route configuration.", result.error);
 
-  if (input.schedulingChannelId && input.schedulingChannelId !== (existing.data as any)?.scheduling_channel_id) {
-    const { syncAvailabilityBoard } = await import("../scheduling/availability-board.service.js");
-    syncAvailabilityBoard(input.guildId, { announceLinked: true }).catch((error) => console.error("[ERROR] Failed to post availability board after channel assignment (non-fatal):", error));
-  }
-
   // Rise to Immortality: post the NFL record book the moment a commissioner assigns (or
   // changes) the Record Holders channel -- the most intuitive trigger for "I just linked this
   // channel," rather than only firing on EA-franchise-link/import for a league that may have

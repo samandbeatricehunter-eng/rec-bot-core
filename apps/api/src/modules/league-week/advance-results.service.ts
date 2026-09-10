@@ -35,7 +35,6 @@ import { clearTradeBlockAtSeasonEnd } from "../trades/trades.service.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { updateAdvanceProgress } from "./advance-progress.service.js";
-import { getSchedulingPayoutMultiplier, topUpOtherWeeklyPayoutsForSchedulingBonus } from "../scheduling/scheduling-bonus.service.js";
 import { snapshotNflPlayoffBracket } from "../standings/nfl-bracket.service.js";
 import { resetLeaguePurchaseCapsForOffseason } from "../purchases/purchases.service.js";
 import { eaForceAwayWin, eaForceHomeWin, eaForceNoWin } from "../madden-ea/ea-admin-actions.service.js";
@@ -896,7 +895,6 @@ export async function completeAdvanceWeek(input: {
     // Sims and Force Wins are administrative outcomes, so neither participant is paid.
     if (result.designation !== "fair_sim" && result.designation !== "force_win" && !BOX_SCORE_SOURCES.includes(String(priorResult.data?.source ?? ""))) {
       const payoutConfig = (await getGlobalEconomyConfig()).submissions;
-      const schedulingMultiplier = await getSchedulingPayoutMultiplier({ gameId: game.data.id, homeUserId, awayUserId });
       const stageMultiplier = postseasonResultMultiplier(Number(game.data.week_number ?? currentWeek), context.rec_leagues.game);
       for (const [userId, baseAmount, outcomeLabel] of [[winningUserId, payoutConfig.boxScoreWin, "win"], [losingUserId, payoutConfig.boxScoreLoss, "loss"]] as const) {
         if (!userId || isTie) continue;
@@ -911,25 +909,6 @@ export async function completeAdvanceWeek(input: {
           source: "box_score",
           sourceReference: { gameId: game.data.id, userId, outcome: outcomeLabel },
         });
-        if (schedulingMultiplier === 2) {
-          await creditOrBacklog({
-            leagueId: context.leagueId,
-            seasonNumber,
-            userId,
-            amount,
-            description: `Scheduling completion bonus (${outcomeLabel}) — Wk ${game.data.week_number ?? currentWeek}`,
-            transactionType: "scheduling_bonus_payout",
-            source: "box_score",
-            sourceReference: { gameId: game.data.id, userId },
-          });
-          await topUpOtherWeeklyPayoutsForSchedulingBonus({
-            leagueId: context.leagueId,
-            seasonNumber,
-            weekNumber: game.data.week_number ?? currentWeek,
-            gameId: game.data.id,
-            userId,
-          }).catch((error) => console.error("[ERROR] Failed to top up other weekly payouts for scheduling bonus (non-fatal):", error));
-        }
       }
     }
     if (result.designation === "force_win") {
