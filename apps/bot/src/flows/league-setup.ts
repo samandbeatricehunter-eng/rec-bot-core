@@ -10,7 +10,6 @@ import { buildAdminPanelEmbed, buildAdminPanelRows, buildSetupDangerModal, MENU_
 import {
   applyLeagueSetupDependencies,
   buildCoachAbilitiesRestrictionModal,
-  buildCpuTradingRestrictionModal,
   buildDifficultyCustomModal,
   buildAdvanceTimingOtherModal,
   buildFourthDownCustomModal,
@@ -276,16 +275,9 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
       draft.coachAbilitiesRestrictionNotes = "";
       break;
     }
-    case LEAGUE_SETUP_CUSTOM_IDS.tradeApprovalPolicy: draft.tradeApprovalPolicy = value as LeagueSetupDraft["tradeApprovalPolicy"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.cpuTradingPolicy: {
-      draft.cpuTradingPolicy = value as LeagueSetupDraft["cpuTradingPolicy"];
-      if (draft.cpuTradingPolicy === "restricted") {
-        leagueSetupSessions.set(interaction.user.id, draft);
-        return interaction.showModal(buildCpuTradingRestrictionModal(draft));
-      }
-      draft.cpuTradingRestriction = "";
+    case LEAGUE_SETUP_CUSTOM_IDS.tradeApprovalPolicy:
+      draft.tradeApprovalPolicy = value === "no" ? "not_allowed" : "competition_committee_review";
       break;
-    }
     case LEAGUE_SETUP_CUSTOM_IDS.difficulty: {
       draft.difficulty = value as LeagueSetupDraft["difficulty"];
       draft.difficultyCustomSettings = "";
@@ -644,15 +636,6 @@ export async function handlePositionRestrictionModal(interaction: Extract<Intera
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
   draft.positionChangePolicyDescription = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.positionChangeRestrictionInput).trim();
-  return finishModalStep(interaction, draft);
-}
-
-export async function handleCpuTradingRestrictionModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
-  if (!interaction.isModalSubmit()) return;
-  const draft = leagueSetupSessions.get(interaction.user.id);
-  if (!draft) return interaction.reply({ content: "Session expired. Continue setup from the REC site.", flags: MessageFlags.Ephemeral });
-  draft.cpuTradingPolicy = "restricted";
-  draft.cpuTradingRestriction = interaction.fields.getTextInputValue(LEAGUE_SETUP_CUSTOM_IDS.cpuTradingRestrictionInput).trim();
   return finishModalStep(interaction, draft);
 }
 

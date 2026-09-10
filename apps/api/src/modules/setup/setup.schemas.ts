@@ -186,7 +186,7 @@ export const CreateLeagueSchema = z.object({
   customPlaybooksAllowed: z.boolean().default(false),
   coachAbilitiesRestricted: z.boolean().default(false),
   coachAbilitiesRestrictionNotes: z.string().optional().nullable(),
-  tradeApprovalPolicy: z.enum(["no_approval_required", "commissioner_review", "competition_committee_review"]).default("competition_committee_review"),
+  tradeApprovalPolicy: z.enum(["not_allowed", "no_approval_required", "commissioner_review", "competition_committee_review"]).default("competition_committee_review"),
   cpuTradingAllowed: z.boolean().default(true),
   cpuTradingPolicy: z.enum(["allowed", "restricted", "not_allowed"]).default("allowed"),
   cpuTradingRestriction: z.string().optional().nullable(),

@@ -26,7 +26,6 @@ import {
   buildActivityRequirementsWindow,
   buildFairSimRulesWindow,
   buildCoachAbilitiesRestrictedWindow,
-  buildCpuRulesWindow,
   buildCustomCoachesRequiredWindow,
   buildCustomPlaybooksAllowedWindow,
   buildFourthDownWindow,
@@ -216,10 +215,7 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Custom Playbooks Allowed?", "custom_playbooks_allowed"),
       option("Coach Ability Restrictions", "coach_abilities_restricted"),
       option("Position Change Policy", "position_changes"),
-      ...(isRise ? [] : [
-        option("Trade Approval Policy", "trade_approval"),
-        option("CPU Trading", "cpu_trading"),
-      ]),
+      ...(isRise ? [] : [option("Trades Allowed", "trade_approval")]),
     ],
     dynasty: [
       option("Dynasty Structure", "dynasty_structure"),
@@ -401,8 +397,7 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           `Custom Coaches Required: ${yesNo(draft.customCoachesRequired)}`,
           `Custom Playbooks Allowed: ${yesNo(draft.customPlaybooksAllowed)}`,
           `Coach Abilities Restricted: ${yesNo(draft.coachAbilitiesRestricted)}${draft.coachAbilitiesRestricted && draft.coachAbilitiesRestrictionNotes ? ` - ${draft.coachAbilitiesRestrictionNotes}` : ""}`,
-          `Trade Approval: ${fmt(draft.tradeApprovalPolicy)}`,
-          `CPU Trading: ${fmt(draft.cpuTradingPolicy)}${draft.cpuTradingPolicy === "restricted" ? ` - ${draft.cpuTradingRestriction || "Restriction text missing"}` : ""}`,
+          `Trades: ${draft.tradeApprovalPolicy === "not_allowed" ? "Off" : "On - competition committee review"}`,
           `Fair Sim: ${formatFwFsRules(draft).fairSim}`,
           `Force Win: ${formatFwFsRules(draft).forceWin}`
         ].join("\n"),
@@ -650,7 +645,6 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
     case "custom_playbooks_allowed": return buildCustomPlaybooksAllowedWindow(draft);
     case "coach_abilities_restricted": return buildCoachAbilitiesRestrictedWindow(draft);
     case "trade_approval": return buildTradeApprovalWindow(draft);
-    case "cpu_trading": return buildCpuRulesWindow(draft);
     case "difficulty": return buildDifficultyWindow(draft);
     case "sliders_adjusted": return buildSlidersAdjustedWindow(draft);
     case "coach_xp_setting": return buildCoachXpSettingWindow(draft);
@@ -720,7 +714,7 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
     draft.tradeDeadlineEnabled = locked.tradeDeadlineEnabled;
     draft.cpuTradingPolicy = locked.cpuTradingPolicy;
     draft.cpuTradingAllowed = locked.cpuTradingAllowed;
-    draft.tradeApprovalPolicy = locked.tradeApprovalPolicy;
+    draft.tradeApprovalPolicy = "not_allowed";
     draft.injuryPolicy = locked.injuryPolicy;
     draft.wearAndTearEnabled = locked.wearAndTearEnabled;
     draft.abilitiesEnabled = locked.abilitiesEnabled;
@@ -840,11 +834,15 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
   if (draft.positionChangePolicy === "open") {
     draft.positionChangePolicyDescription = "";
   }
-  draft.cpuTradingAllowed = draft.cpuTradingPolicy === "allowed";
-  draft.cpuFreeAgencyPolicy = "disabled";
-  if (draft.cpuTradingPolicy !== "restricted") {
-    draft.cpuTradingRestriction = "";
+  if (!isRiseToImmortalityDraft(draft)) {
+    draft.tradeApprovalPolicy = draft.tradeApprovalPolicy === "not_allowed" ? "not_allowed" : "competition_committee_review";
+    draft.cpuTradingPolicy = "allowed";
+    draft.cpuTradingAllowed = true;
+  } else {
+    draft.cpuTradingAllowed = draft.cpuTradingPolicy === "allowed";
   }
+  draft.cpuFreeAgencyPolicy = "disabled";
+  draft.cpuTradingRestriction = "";
   if (!draft.slidersAdjusted) {
     draft.difficultyCustomSettings = "";
   }

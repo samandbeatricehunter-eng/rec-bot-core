@@ -22,9 +22,6 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   positionChangeRestrictionModal: "rec:league_setup:position_change_restriction_modal",
   positionChangeRestrictionInput: "rec:league_setup:position_change_restriction_input",
   tradeApprovalPolicy: "rec:league_setup:trade_approval",
-  cpuTradingPolicy: "rec:league_setup:cpu_trading_policy",
-  cpuTradingRestrictionModal: "rec:league_setup:cpu_trading_restriction_modal",
-  cpuTradingRestrictionInput: "rec:league_setup:cpu_trading_restriction_input",
   difficulty: "rec:league_setup:difficulty",
   slidersAdjusted: "rec:league_setup:sliders_adjusted",
   difficultyCustomModal: "rec:league_setup:difficulty_custom_modal",
@@ -167,7 +164,6 @@ export type LeagueSetupStep =
   | "custom_playbooks_allowed"
   | "coach_abilities_restricted"
   | "trade_approval"
-  | "cpu_trading"
   | "difficulty"
   | "sliders_adjusted"
   | "quarter_length"
@@ -260,7 +256,7 @@ export type LeagueSetupDraft = {
   customPlaybooksAllowed: boolean;
   coachAbilitiesRestricted: boolean;
   coachAbilitiesRestrictionNotes: string;
-  tradeApprovalPolicy: "no_approval_required" | "commissioner_review" | "competition_committee_review";
+  tradeApprovalPolicy: "not_allowed" | "competition_committee_review";
   cpuTradingAllowed: boolean;
   cpuTradingPolicy: "allowed" | "restricted" | "not_allowed";
   cpuTradingRestriction: string;
@@ -383,7 +379,6 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "custom_playbooks_allowed",
   "coach_abilities_restricted",
   "trade_approval",
-  "cpu_trading",
   "difficulty",
   "sliders_adjusted",
   "quarter_length",
@@ -627,7 +622,7 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
   // CFB has no NFL default-schedule seeding question.
   if (isCfb && step === "activity_requirements") return "fair_sim_rules";
 
-  // CFB drops Position Change Policy entirely, and Coach Abilities/Trade Approval/CPU Trading
+  // CFB drops Position Change Policy entirely, Coach Abilities, and Trades Allowed
   // after Custom Playbooks — it keeps Custom Coaches Required and Custom Playbooks Allowed.
   if (isCfb && step === "fourth_down_playoff") return "custom_coaches_required";
   if (isCfb && step === "custom_playbooks_allowed") return "difficulty";

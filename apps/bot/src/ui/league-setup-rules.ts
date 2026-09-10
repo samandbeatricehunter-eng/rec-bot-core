@@ -226,53 +226,16 @@ export function buildPositionRestrictionModal(draft: LeagueSetupDraft) {
 
 export function buildTradeApprovalWindow(draft: LeagueSetupDraft) {
   return {
-    embeds: [baseEmbed("League Setup: Trade Approval", draft)],
+    embeds: [baseEmbed("League Setup: Trades Allowed", draft)
+      .setDescription("When trades are allowed, every trade goes through competition-committee voting. There is no unreviewed or single-commissioner approval path.")],
     components: [
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.tradeApprovalPolicy, "Select trade approval rule", [
-        option("No Approval Required", "no_approval_required"),
-        option("Commissioner Review", "commissioner_review"),
-        option("Competition Committee Review", "competition_committee_review")
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.tradeApprovalPolicy, "Allow trades?", [
+        option("Yes - committee review required", "yes"),
+        option("No - trades disabled", "no")
       ]),
       buildNavigationRow()
     ]
   };
-}
-
-export function buildCpuRulesWindow(draft: LeagueSetupDraft) {
-  const embed = baseEmbed("League Setup: CPU Trading", draft);
-  if (draft.cpuTradingPolicy === "restricted" && draft.cpuTradingRestriction) {
-    embed.addFields({ name: "Current Restriction Notes", value: draft.cpuTradingRestriction.slice(0, 1024) });
-  }
-
-  return {
-    embeds: [embed],
-    components: [
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.cpuTradingPolicy, "Select CPU trading policy", [
-        option("Allowed", "allowed"),
-        option("Restricted", "restricted", "Requires commissioner-defined restrictions."),
-        option("Not Allowed", "not_allowed")
-      ]),
-      buildNavigationRow()
-    ]
-  };
-}
-
-export function buildCpuTradingRestrictionModal(draft: LeagueSetupDraft) {
-  return new ModalBuilder()
-    .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.cpuTradingRestrictionModal)
-    .setTitle("CPU Trading Restrictions")
-    .addComponents(
-      new ActionRowBuilder<TextInputBuilder>().addComponents(
-        new TextInputBuilder()
-          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.cpuTradingRestrictionInput)
-          .setLabel("Explain CPU trading restrictions")
-          .setStyle(TextInputStyle.Paragraph)
-          .setRequired(true)
-          .setMaxLength(1000)
-          .setValue(draft.cpuTradingRestriction ?? "")
-          .setPlaceholder("e.g., Commissioner approval required; no CPU trades for star dev players.")
-      )
-    );
 }
 
 // Two small fixed-option multi-selects (regular season / postseason), each with independent

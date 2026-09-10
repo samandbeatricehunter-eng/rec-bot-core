@@ -28,6 +28,10 @@ function formatRuleKeyList(keys: unknown, labeler: (key: string) => string): str
   return keys.map((k) => labeler(String(k))).join(", ");
 }
 
+function formatTradesAllowed(policy: unknown): string {
+  return policy === "not_allowed" ? "Off" : "On - competition committee review";
+}
+
 export function buildRuleCategories(draft: Record<string, any>): RuleCategory[] {
   const categories: RuleCategory[] = [];
 
@@ -72,12 +76,8 @@ export function buildRuleCategories(draft: Record<string, any>): RuleCategory[] 
     key: "trades",
     label: "Trade Rules",
     rows: compact([
-      row("Approval Policy", draft.tradeApprovalPolicy),
+      row("Trades Allowed", formatTradesAllowed(draft.tradeApprovalPolicy)),
       row("Trade Difficulty", draft.tradeDifficulty),
-      row("CPU Trading", draft.cpuTradingPolicy),
-      row("CPU Trading Notes", draft.cpuTradingRestriction),
-      row("CPU Trades / Season Cap", draft.cpuTradesSeasonCap),
-      row("CPU Free Agency", draft.cpuFreeAgencyPolicy),
     ]),
   });
 

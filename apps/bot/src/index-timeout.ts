@@ -196,7 +196,6 @@ import {
 import { handleRulesSelect } from "./flows/rules.js";
 import {
   handleCoachAbilitiesRestrictionModal,
-  handleCpuTradingRestrictionModal,
   handleDifficultyCustomModal,
   handleAdvanceTimingOtherModal,
   handleFourthDownCustomModal,
@@ -1054,7 +1053,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.serverSetupChannelModal}:`)) return handleLeagueSetupServerChannelModal(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.fourthDownCustomModal}:`)) return handleFourthDownCustomModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.positionChangeRestrictionModal) return handlePositionRestrictionModal(interaction);
-      if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.cpuTradingRestrictionModal) return handleCpuTradingRestrictionModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.difficultyCustomModal) return handleDifficultyCustomModal(interaction);
       if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.advanceTimingOtherModal) return handleAdvanceTimingOtherModal(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapModalPrefix}:`)) return handleAttributeCapModal(interaction);

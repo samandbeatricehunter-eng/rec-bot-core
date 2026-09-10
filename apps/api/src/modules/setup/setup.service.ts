@@ -65,6 +65,10 @@ function defaultDataModeForGame(game: string | undefined): "import" | "box_score
   return game?.startsWith("madden_") ? "import" : "box_scores";
 }
 
+function normalizeTradeApprovalPolicy(policy: unknown): "not_allowed" | "competition_committee_review" {
+  return policy === "not_allowed" ? "not_allowed" : "competition_committee_review";
+}
+
 function normalizeLeagueSetupInput(input: CreateLeagueInput): CreateLeagueInput {
   const sliderSettings = resolveLeagueSliderValues(input.game, input.sliderPresetId, input.sliderSettings);
   const sliderCatalogVersion = LEAGUE_SLIDER_CATALOG_VERSION[input.game];
@@ -319,7 +323,7 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     custom_playbooks_allowed: input.customPlaybooksAllowed,
     coach_abilities_restricted: input.coachAbilitiesRestricted ?? false,
     coach_abilities_restriction_notes: input.coachAbilitiesRestrictionNotes ?? null,
-    trade_approval_policy: input.tradeApprovalPolicy,
+    trade_approval_policy: normalizeTradeApprovalPolicy(input.tradeApprovalPolicy),
     cpu_trading_allowed: input.cpuTradingPolicy ? input.cpuTradingPolicy === "allowed" : input.cpuTradingAllowed,
     cpu_trading_policy: input.cpuTradingPolicy,
     cpu_trading_restriction: input.cpuTradingRestriction ?? null,
@@ -593,7 +597,7 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     custom_playbooks_allowed: input.customPlaybooksAllowed ?? false,
     coach_abilities_restricted: input.coachAbilitiesRestricted ?? false,
     coach_abilities_restriction_notes: input.coachAbilitiesRestrictionNotes ?? null,
-    trade_approval_policy: input.tradeApprovalPolicy ?? "competition_committee_review",
+    trade_approval_policy: normalizeTradeApprovalPolicy(input.tradeApprovalPolicy),
     cpu_trading_policy: input.cpuTradingPolicy ?? "allowed",
     cpu_trading_allowed: input.cpuTradingPolicy ? input.cpuTradingPolicy === "allowed" : (input.cpuTradingAllowed ?? true),
     cpu_trading_restriction: input.cpuTradingRestriction ?? null,
@@ -1344,7 +1348,7 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     custom_playbooks_allowed: input.customPlaybooksAllowed,
     coach_abilities_restricted: input.coachAbilitiesRestricted ?? false,
     coach_abilities_restriction_notes: input.coachAbilitiesRestrictionNotes ?? null,
-    trade_approval_policy: input.tradeApprovalPolicy,
+    trade_approval_policy: normalizeTradeApprovalPolicy(input.tradeApprovalPolicy),
     cpu_trading_allowed: input.cpuTradingPolicy ? input.cpuTradingPolicy === "allowed" : input.cpuTradingAllowed,
     cpu_trading_policy: input.cpuTradingPolicy,
     cpu_trading_restriction: input.cpuTradingRestriction ?? null,
@@ -1533,7 +1537,7 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     customPlaybooksAllowed: c.custom_playbooks_allowed ?? false,
     coachAbilitiesRestricted: c.coach_abilities_restricted ?? false,
     coachAbilitiesRestrictionNotes: c.coach_abilities_restriction_notes ?? "",
-    tradeApprovalPolicy: c.trade_approval_policy ?? "competition_committee_review",
+    tradeApprovalPolicy: normalizeTradeApprovalPolicy(c.trade_approval_policy),
     cpuTradingAllowed: c.cpu_trading_policy ? c.cpu_trading_policy === "allowed" : c.cpu_trading_allowed ?? true,
     cpuTradingPolicy: c.cpu_trading_policy ?? (c.cpu_trading_allowed === false ? "not_allowed" : "allowed"),
     cpuTradingRestriction: c.cpu_trading_restriction ?? "",

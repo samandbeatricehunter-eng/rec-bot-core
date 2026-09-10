@@ -69,8 +69,6 @@ export {
   buildPositionChangeWindow,
   buildPositionRestrictionModal,
   buildTradeApprovalWindow,
-  buildCpuRulesWindow,
-  buildCpuTradingRestrictionModal,
   buildActivityRequirementsWindow,
   buildFairSimRulesWindow
 } from "./league-setup-rules.js";
