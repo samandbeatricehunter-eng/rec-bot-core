@@ -11,8 +11,7 @@ export function buildGameSelectWindow(draft: LeagueSetupDraft, notice?: string) 
       "",
       "Which game is this league for? This determines the setup options and features available.",
       "",
-      "• **Madden NFL 26** / **Madden NFL 27** — full franchise setup (Madden 27 uses the Madden 26 options for now).",
-      "• **College Football 27** — full dynasty setup with recruiting, transfer portal, and conference options."
+      "• **Madden NFL 26** / **Madden NFL 27** — full franchise setup (Madden 27 uses the Madden 26 options for now)."
     ].join("\n"));
   if (notice) embed.addFields({ name: "Heads up", value: notice });
 
@@ -21,8 +20,7 @@ export function buildGameSelectWindow(draft: LeagueSetupDraft, notice?: string) 
     components: [
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.game, "Select the game", [
         option("Madden NFL 26", "madden_26"),
-        option("Madden NFL 27", "madden_27", "Uses the Madden 26 setup for now."),
-        option("College Football 27", "cfb_27", "Dynasty setup with recruiting & transfer portal.")
+        option("Madden NFL 27", "madden_27", "Uses the Madden 26 setup for now.")
       ]),
       buildNavigationRow()
     ]

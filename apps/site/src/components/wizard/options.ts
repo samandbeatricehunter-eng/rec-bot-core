@@ -6,7 +6,6 @@ export type GameKey = "madden_26" | "madden_27" | "cfb_27";
 export const GAME_OPTIONS: { value: GameKey; label: string }[] = [
   { value: "madden_26", label: "Madden 26" },
   { value: "madden_27", label: "Madden 27" },
-  { value: "cfb_27", label: "CFB 27" },
 ];
 
 export const MADDEN_LEAGUE_TYPES = [
