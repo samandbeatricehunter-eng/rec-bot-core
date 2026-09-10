@@ -292,9 +292,9 @@ function formatCoins(amount: number): string {
 }
 
 // One shared resolve panel for the notification types that don't get their own dedicated
-// modal. Box Scores reuse ReviewBoxScoreModal, Active Checks reuse ActiveCheckReviewModal,
-// and EOS Awards reuse EosAwardResolveModal (all opened directly from NotificationsHome
-// instead of through here). Every type this modal actually handles reduces to one of three
+// modal. Active Checks reuse ActiveCheckReviewModal, and EOS Awards reuse
+// EosAwardResolveModal (both opened directly from NotificationsHome instead of through here).
+// Every type this modal actually handles reduces to one of three
 // shapes: approve/deny (with or without a reason field, depending on whether the underlying
 // table has one to store it in), or a single one-click resolve action. The active_check/
 // eos_award cases below are only a defensive fallback for the rare case a notification of

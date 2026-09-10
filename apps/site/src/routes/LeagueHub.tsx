@@ -254,9 +254,15 @@ function HubMgmtRoutes() {
 
 function LeagueSettingsSection() {
   const { leagueId = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  const category = searchParams.get("category");
+  // Mirrors SettingsHome's topTab resolution: any category value other than "discord"/null
+  // routes to the League Settings tab (including a settings-category deep link like
+  // "gameplay"), so the Discord server card should only show on the Discord tab itself.
+  const showDiscordServerCard = !category || category === "discord";
   return (
     <>
-      <DiscordServerSettings leagueId={leagueId} />
+      {showDiscordServerCard && <DiscordServerSettings leagueId={leagueId} />}
       <SettingsHome />
     </>
   );

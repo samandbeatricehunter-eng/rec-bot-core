@@ -175,6 +175,17 @@ export async function lockRecGuideChannel(guildId: string, channelId: string): P
   );
 }
 
+// Restricts a channel to @everyone-denied, then re-grants VIEW_CHANNEL to specific roles
+// (commissioner/comp-committee) -- used for channels that must stay private, like Matchup
+// Tracker. Unlike lockRecGuideChannel (read-only for everyone), this hides the channel
+// entirely from anyone not holding one of the given roles.
+export async function restrictChannelToRoles(guildId: string, channelId: string, roleIds: string[]): Promise<void> {
+  await putChannelPermissionOverwrite(channelId, guildId, 0, 0n, PERMISSION_VIEW_CHANNEL);
+  for (const roleId of roleIds) {
+    await putChannelPermissionOverwrite(channelId, roleId, 0, PERMISSION_VIEW_CHANNEL, 0n);
+  }
+}
+
 export async function listGuildChannels(guildId: string) {
   if (!isDiscordSnowflake(guildId)) return [];
   const res = await discordBotFetch(`/guilds/${guildId}/channels`);

@@ -4,7 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { bestEffort } from "../../lib/best-effort.js";
 import { sendError } from "../../lib/errors.js";
 import { getServerConfig, setServerConfig, isGuildLinkedToLeague } from "./server-config.service.js";
-import { createGuildChannel, listGuildChannels } from "../../lib/discord-guild.js";
+import { createGuildChannel, listGuildChannels, restrictChannelToRoles } from "../../lib/discord-guild.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { getRecRouteChannel } from "@rec/shared";
 import { publishRecGuideFromApi } from "./rec-guide-publisher.service.js";
@@ -83,6 +83,12 @@ export async function serverConfigRoutes(app: FastifyInstance) {
     const parentRoute = "defaultParentRoute" in route ? getRecRouteChannel(route.defaultParentRoute as string) : null;
     const parentChannelId = parentRoute ? routes?.[parentRoute.dbField] ?? null : null;
     const channel = await createGuildChannel(body.guildId, { ...body, name: route.defaultName, templateChannelId: ownTemplate ?? body.templateChannelId, parentChannelId });
+    if ("commissioner_only" in route && route.commissioner_only) {
+      const roleIds = [routes?.commissioner_role_id, routes?.comp_committee_role_id].filter((id): id is string => Boolean(id));
+      await restrictChannelToRoles(body.guildId, channel.id, roleIds).catch((error) => {
+        console.error("[ERROR] Failed to restrict channel to commissioner roles (non-fatal):", error);
+      });
+    }
     await setServerConfig({ guildId: body.guildId, [route.inputField]: channel.id });
     const guide = body.routeKey === "rec_guide" ? await publishRecGuideFromApi(body.guildId, channel.id) : null;
     return reply.send({ channel, guide });

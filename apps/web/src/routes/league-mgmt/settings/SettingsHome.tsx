@@ -42,9 +42,17 @@ export function SettingsHome() {
   const { guildId } = useReadyAuth();
   const [draft, setDraft] = useState<LeagueSettingsDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [searchParams] = useSearchParams();
-  const requestedTab = searchParams.get("category") === "delete-league" ? "delete-league" : "league";
-  const [topTab, setTopTab] = useState<TopTab>(requestedTab);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedCategory = searchParams.get("category");
+  // A deep link can pass a specific settings-category key (e.g. "gameplay" from the
+  // post-creation slider-configuration prompt) instead of a top-tab key -- treat any
+  // unrecognized value as "open League Settings", not "fall back to Discord".
+  const topTab: TopTab = requestedCategory === "delete-league" || requestedCategory === "discord" ? requestedCategory : requestedCategory ? "league" : "discord";
+  function setTopTab(next: TopTab) {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("category", next);
+    setSearchParams(nextParams, { replace: true });
+  }
   const [editCategory, setEditCategory] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -60,6 +68,17 @@ export function SettingsHome() {
       .then((res) => setDraft(res.draft))
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load league settings."));
   }, [guildId]);
+
+  // A deep link can request a specific category's edit modal open directly (e.g. the
+  // post-league-creation slider-configuration prompt links to ?category=gameplay).
+  useEffect(() => {
+    if (!draft) return;
+    if (requestedCategory && requestedCategory !== "league" && requestedCategory !== "discord" && requestedCategory !== "delete-league") {
+      setEditDraft(draft);
+      setEditCategory(requestedCategory);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
 
   if (error && !draft) {
     return (

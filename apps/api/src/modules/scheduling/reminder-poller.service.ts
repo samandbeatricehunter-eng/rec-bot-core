@@ -1,9 +1,9 @@
 // 5-minute-polled reminder sweep for the REC Game Scheduling System. Collapsed from ~10
 // chronologically-firing reminder types down to 3, all de-duped per (game, type) via
 // rec_scheduling_reminders_sent: a single 12-hour no-attempt ping, a 30-minute-to-kickoff ping,
-// and a proactive kickoff-time prompt. Availability nagging moved to be advance-triggered (see
-// availability-nag.service.ts) instead of polled. Self-service Force Win/AutoPilot escalation
-// and the post-kickoff check-in/auto-reset safety net were retired entirely in favor of
+// and a proactive kickoff-time prompt. Availability nagging was removed entirely (no longer
+// advance-triggered or polled). Self-service Force Win/AutoPilot escalation and the
+// post-kickoff check-in/auto-reset safety net were retired entirely in favor of
 // commissioner-driven /commishtools -- see apps/bot/src/flows/commish-tools-flow.ts.
 import { supabase } from "../../lib/supabase.js";
 import { postKickoffPrompt } from "./matchup-scheduling.service.js";
