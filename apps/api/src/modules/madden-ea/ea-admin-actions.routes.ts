@@ -18,6 +18,7 @@ import {
   eaTransferAdmin,
   listForceableMatches,
 } from "./ea-admin-actions.service.js";
+import { listEaAwardProbes, probeEaAwards } from "./ea-award-probe.service.js";
 
 // Every action here is a live write into a commissioner's Madden franchise via EA's Blaze API
 // -- co-commissioner or above only, same gate as the rest of League Mgmt's commish tools.
@@ -139,6 +140,34 @@ export async function eaAdminActionRoutes(app: FastifyInstance) {
       const body = teamBody.extend({ weeks: z.number().int().min(1).max(17).default(1) }).parse(request.body);
       const auth = await requireLeagueCoCommissioner(request, body.guild_id, body.league_id);
       return reply.send({ result: await eaToggleAutoPilot(body.league_id, body.team_id, body.weeks, { source: "tool", actingDiscordId: auth.discordId }) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Diagnostic only -- investigates whether EA's Blaze backend exposes native league/weekly
+  // award data (e.g. AFC/NFC Offensive/Defensive Player of the Week) separate from REC's own
+  // stat-computed Player of the Week. Read-only: runs a small hardcoded whitelist of candidate
+  // commandNames (never one supplied by the caller) and logs every attempt to
+  // rec_ea_award_probes for inspection. Gated the same as every other live EA call here so it
+  // can't be hammered by non-commissioners, even though it never writes to the franchise.
+  app.post("/v1/madden/ea/admin/probe-awards", async (request, reply) => {
+    try {
+      const body = baseBody.parse(request.body);
+      const auth = await requireLeagueCoCommissioner(request, body.guild_id, body.league_id);
+      return reply.send({ results: await probeEaAwards(body.league_id, auth.discordId) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // Re-reads previously-run probe-awards results from rec_ea_award_probes without hitting EA
+  // again.
+  app.post("/v1/madden/ea/admin/probe-awards-results", async (request, reply) => {
+    try {
+      const body = baseBody.parse(request.body);
+      await requireLeagueCoCommissioner(request, body.guild_id, body.league_id);
+      return reply.send({ results: await listEaAwardProbes(body.league_id) });
     } catch (error) {
       return sendError(reply, error);
     }

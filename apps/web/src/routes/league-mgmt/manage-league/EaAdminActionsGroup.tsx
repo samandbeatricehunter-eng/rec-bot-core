@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PlayCircle, ShieldOff, ShieldPlus, UserX, Swords, RotateCcw, Bot, ArrowRightLeft } from "lucide-react";
+import { PlayCircle, ShieldOff, ShieldPlus, UserX, Swords, RotateCcw, Bot, ArrowRightLeft, Search } from "lucide-react";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { LinkedTeamRow } from "../../../types/api.js";
 import { Button } from "../../../components/ui/Button.js";
@@ -305,6 +305,61 @@ function RemoveAdminPanel(p: { guildId: string; leagueId: string }) {
     run={(teamId) => recApi.eaAdminRemoveAdmin({ ...p, teamId })} />;
 }
 
+type AwardProbeHit = { path: string; keyword: string; snippet: string };
+type AwardProbeResultRow = { key: string; commandName: string; description: string; status: "success" | "error"; matchedKeywords: AwardProbeHit[]; errorMessage: string | null };
+
+function ProbeAwardsPanel({ guildId, leagueId }: { guildId: string; leagueId: string }) {
+  const [results, setResults] = useState<AwardProbeResultRow[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await recApi.eaAdminProbeAwards({ guildId, leagueId });
+      setResults(response.results);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "EA rejected the probe.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="form-hint" style={{ marginTop: 0 }}>
+        Diagnostic only -- never writes to the franchise. Re-fetches the League Hub in full (to
+        check for native award/state fields REC doesn't currently parse) and tries a small
+        hardcoded list of speculative award/news commandNames, so we can tell whether EA's Blaze
+        backend exposes native Player of the Week / league award winners separate from REC's own
+        stat-computed Player of the Week. Every attempt is logged to <code>rec_ea_award_probes</code>{" "}
+        for full raw-response inspection via SQL.
+      </p>
+      {error && <p className="hub-transfer-status">{error}</p>}
+      <Button variant="secondary" disabled={busy} onClick={() => void run()}>
+        <Search size={14} /> {busy ? "Probing…" : "Run Probe"}
+      </Button>
+      {results && (
+        <ul style={{ marginTop: "0.75rem", paddingLeft: "1.1rem" }}>
+          {results.map((result) => (
+            <li key={result.key} style={{ marginBottom: "0.4rem" }}>
+              <strong>{result.commandName}</strong> —{" "}
+              {result.status === "success" ? (
+                result.matchedKeywords.length > 0
+                  ? <span style={{ color: "var(--gold)" }}>responded, {result.matchedKeywords.length} award/news keyword hit(s)</span>
+                  : <span>responded, no award/news keywords found</span>
+              ) : (
+                <span className="hub-transfer-status" style={{ display: "inline" }}>failed: {result.errorMessage}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export const EA_ADMIN_TOOLS: Array<{ key: string; title: string; render: (props: { guildId: string; leagueId: string }) => React.ReactNode }> = [
   { key: "advance", title: "Advance League", render: (p) => <AdvancePanel {...p} /> },
   {
@@ -329,4 +384,5 @@ export const EA_ADMIN_TOOLS: Array<{ key: string; title: string; render: (props:
   },
   { key: "force-result", title: "Force Win / Clear Result", render: (p) => <ForceResultPanel {...p} /> },
   { key: "autopilot", title: "Toggle AutoPilot", render: (p) => <AutoPilotPanel {...p} /> },
+  { key: "probe-awards", title: "Probe EA Awards (Diagnostic)", render: (p) => <ProbeAwardsPanel {...p} /> },
 ];

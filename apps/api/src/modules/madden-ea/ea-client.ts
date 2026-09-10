@@ -678,6 +678,10 @@ export type EaClient = {
   forceAwayWin(leagueId: number, seasonGameKey: string): Promise<unknown>;
   forceNoWin(leagueId: number, seasonGameKey: string): Promise<unknown>;
   toggleAutoPilot(leagueId: number, toggleAutoPilotUserId: string, actionTimeout: number): Promise<unknown>;
+  /** Escape hatch for diagnostic probing of commandNames with no typed method yet (e.g.
+   *  ea-award-probe.service.ts). Callers own the commandName whitelist -- this does not
+   *  accept anything from outside the codebase. */
+  runDiagnosticProbe(rpc: { commandName: string; requestPayload: Record<string, unknown>; componentId?: number; commandId?: number }): Promise<unknown>;
 };
 
 export function createEaClient(
@@ -815,5 +819,6 @@ export function createEaClient(
       sendBlazeRpc(token, session, { commandName: "Mobile_GameSchedule_ForceNoWin", componentId: 2060, commandId: 865, requestPayload: { leagueId, seasonGameKey } }),
     toggleAutoPilot: (leagueId, toggleAutoPilotUserId, actionTimeout) =>
       sendBlazeRpc(token, session, { commandName: "Mobile_UserAdmin_ToggleAutoPilot", componentId: 2050, commandId: 9110, requestPayload: { leagueId, toggleAutoPilotUserId, actionTimeout } }),
+    runDiagnosticProbe: (rpc) => sendBlazeRpc(token, session, rpc),
   };
 }

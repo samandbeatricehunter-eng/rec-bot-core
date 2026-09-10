@@ -351,6 +351,14 @@ export const recApi = {
     recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/clear-forced-result", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, game_id: input.gameId }) }),
   eaAdminToggleAutoPilot: (input: { guildId: string; leagueId: string; teamId: string; weeks: number }) =>
     recApiFetch<{ result: unknown }>("/v1/madden/ea/admin/toggle-autopilot", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, team_id: input.teamId, weeks: input.weeks }) }),
+  eaAdminProbeAwards: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ results: Array<{ key: string; commandName: string; description: string; status: "success" | "error"; matchedKeywords: Array<{ path: string; keyword: string; snippet: string }>; errorMessage: string | null }> }>(
+      "/v1/madden/ea/admin/probe-awards", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) },
+    ),
+  eaAdminProbeAwardsResults: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{ results: Array<{ id: string; probeKey: string; commandName: string; status: string; matchedKeywords: Array<{ path: string; keyword: string; snippet: string }> | null; errorMessage: string | null; createdAt: string }> }>(
+      "/v1/madden/ea/admin/probe-awards-results", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) },
+    ),
   getGlobalEconomyValues: () => recApiFetch<RecGlobalEconomyConfig>("/v1/economy/global-values", { method: "POST", body: "{}", cacheTtlMs: 60_000 }),
   sendLeagueReport: (input: { guildId: string; message: string }) =>
     recApiFetch<{ ok: boolean; incidentId: string | null }>("/v1/admin/report-issue", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, message: input.message }) }),

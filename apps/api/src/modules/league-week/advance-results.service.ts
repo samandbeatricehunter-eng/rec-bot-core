@@ -415,8 +415,18 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
 
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
 
+  // rec_games.phase only distinguishes preseason/regular_season/playoffs (see phaseForWeek in
+  // schedule.service.ts), narrower than the granular season_stage names above (wild_card,
+  // divisional, ...) -- but every stage that reaches here already passed stageHasScheduledGames,
+  // so it's never "preseason". Filtering by phase matters because week numbers are reused
+  // across phases (a league's leftover, never-played preseason schedule sits on the same
+  // week_number as regular-season week 1) -- without this, a league with unplayed preseason
+  // rows still on the board shows them mixed into the "current week" games list alongside the
+  // real regular-season games for that same week number.
+  const phase = isRegularSeasonWeek(weekNumber, context.rec_leagues.game) ? "regular_season" : "playoffs";
   const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber },
-    "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,advance_outcome_override,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)");
+    "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,advance_outcome_override,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
+    .eq("phase", phase);
   if (error) throw new ApiError(500, "We couldn't load the week schedule. Please try again.", error);
 
   const [results, boxScores] = await Promise.all([
