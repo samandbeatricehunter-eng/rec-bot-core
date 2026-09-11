@@ -290,11 +290,9 @@ async function computeLeagueSosBase(guildId: string) {
     }
   }
 
-  // CPU-only teams (never assigned to a human coach) are opponent-quality inputs, not
-  // rankable entries themselves — a CFB league can have 100+ of them, which would otherwise
-  // swamp this list the same way they used to swamp Power Rankings (see that service's
-  // human-only filter). Madden leagues are typically all-human already, so this is a no-op there.
-  const rows: SosTeamRow[] = teams.filter((t) => humanTeamIds.has(t.id)).map((t) => {
+  // Include every league team (human and open/CPU). Opponent typeWeight still discounts
+  // CPU opponents as softer schedule; open teams themselves still get a full SOS row.
+  const rows: SosTeamRow[] = teams.map((t) => {
     const a = acc.get(t.id);
     return {
       teamId: t.id,
