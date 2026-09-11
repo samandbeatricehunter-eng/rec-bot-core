@@ -1,0 +1,20 @@
+update rec_legend_catalog set college = 'Geneva' where id = '6cb79458-3d9b-4afb-a396-255929cbf420'; -- Cal Hubbard (RT), Geneva; https://en.wikipedia.org/wiki/Cal_Hubbard
+update rec_legend_catalog set college = 'Georgia Tech' where id = 'c31cd444-330a-4714-ab71-70d5d5e750c3'; -- Calvin Johnson (WR), Georgia Tech; https://en.wikipedia.org/wiki/Calvin_Johnson
+update rec_legend_catalog set jersey_number = 58, college = 'Michigan State' where id = 'b19ccc23-e9d4-43ca-999e-71ed0b46fb99'; -- Carl Banks (LOLB), #58, Michigan State; https://en.wikipedia.org/wiki/Carl_Banks
+update rec_legend_catalog set hand = 'Left' where id = '65f62207-f2a4-42f2-b10a-0750d5a29f61'; -- Carl Crawford (QB), hand; https://en.wikipedia.org/wiki/Carl_Crawford
+update rec_legend_catalog set jersey_number = 71, college = 'Minnesota' where id = 'f499dff1-c806-44f8-84cc-01dda9f9d745'; -- Carl Eller (LE), #71, Minnesota; https://en.wikipedia.org/wiki/Carl_Eller
+update rec_legend_catalog set jersey_number = 85, college = 'Oregon State' where id = '62733dea-bd6d-40e1-9168-e1f15651d781'; -- Chad Johnson (WR), #85, Oregon State; https://en.wikipedia.org/wiki/Chad_Johnson
+update rec_legend_catalog set jersey_number = 80, college = 'Michigan State' where id = '2f4b0c11-bc1b-49d0-83e1-c4b32e86ae54'; -- Charles Rogers (WR), #80, Michigan State; https://en.wikipedia.org/wiki/Charles_Rogers_(wide_receiver)
+update rec_legend_catalog set jersey_number = 42, college = 'Arizona State' where id = '1e79878a-5b18-4f39-a9b0-178017a4db60'; -- Charley Taylor (WR), #42, Arizona State; https://en.wikipedia.org/wiki/Charley_Taylor
+update rec_legend_catalog set jersey_number = 2, college = 'Georgia' where id = '0450befa-ebdb-402e-9efb-3d9b2d31bfbb'; -- Charley Trippi (HB), #2, Georgia; https://en.wikipedia.org/wiki/Charley_Trippi
+update rec_legend_catalog set jersey_number = 16, college = 'Eastern Michigan' where id = '1639b035-117b-4f8e-83fe-14f30cdde62c'; -- Charlie Batch (QB), #16, Eastern Michigan; https://en.wikipedia.org/wiki/Charlie_Batch
+update rec_legend_catalog set jersey_number = 17, college = 'Florida State' where id = 'ca2f990c-3ad2-4b25-9b3a-07ff94258b25'; -- Charlie Ward (QB), #17, Florida State; https://en.wikipedia.org/wiki/Charlie_Ward
+update rec_legend_catalog set jersey_number = 41, college = 'Clemson' where id = 'ee4e5fe5-e0f9-431d-bc32-c07a690b4bfc'; -- Charlie Waters (SS), #41, Clemson; https://en.wikipedia.org/wiki/Charlie_Waters
+update rec_legend_catalog set jersey_number = 56, college = 'Pitt' where id = 'f9407294-0a3e-44c3-b380-cf0f233405eb'; -- Chris Doleman (RE), #56, Pitt; https://en.wikipedia.org/wiki/Chris_Doleman
+update rec_legend_catalog set jersey_number = 56, college = 'Virginia' where id = '3e41ff34-28f9-4eb2-8267-db43db22a12b'; -- Chris Long (LE), #56, Virginia; https://en.wikipedia.org/wiki/Chris_Long
+update rec_legend_catalog set jersey_number = 60, college = 'Penn' where id = '49f3ecaf-c065-4833-b24a-995738e3e711'; -- Chuck Bednarik (LOLB), #60, Penn; https://en.wikipedia.org/wiki/Chuck_Bednarik
+update rec_legend_catalog set jersey_number = 87, college = 'Tennessee A&I' where id = '1e6dc633-6688-4a93-b559-775aacd84950'; -- Claude Humphrey (RE), #87, Tennessee A&I; https://en.wikipedia.org/wiki/Claude_Humphrey
+update rec_legend_catalog set jersey_number = 52, college = 'USC' where id = '9eb98e3b-b223-4ac1-bed9-6be176822410'; -- Clay Matthews III (LOLB), #52, USC; https://en.wikipedia.org/wiki/Clay_Matthews_III
+update rec_legend_catalog set jersey_number = 21, college = 'Colorado' where id = 'b322c900-9a2a-4325-93fe-2aac81fc7164'; -- Cliff Branch (WR), #21, Colorado; https://en.wikipedia.org/wiki/Cliff_Branch
+update rec_legend_catalog set jersey_number = 43, college = 'Ouachita Baptist' where id = '9800cccb-e10f-48a9-806b-29ced27e8b9b'; -- Cliff Harris (FS), #43, Ouachita Baptist; https://en.wikipedia.org/wiki/Cliff_Harris
+update rec_legend_catalog set jersey_number = 96, college = 'Western Carolina' where id = '8357d061-3a71-4263-9c54-8233d5feae9e'; -- Clyde Simmons (RE), #96, Western Carolina; https://en.wikipedia.org/wiki/Clyde_Simmons

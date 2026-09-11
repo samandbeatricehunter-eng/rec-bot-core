@@ -1,0 +1,62 @@
+update rec_legend_catalog set jersey_number = 16, college = 'Washington State' where id = '8504fe94-1fad-47d6-92c0-8af3e07c6276'; -- Ryan Leaf (QB), #16, Washington State; https://en.wikipedia.org/wiki/Ryan_Leaf
+update rec_legend_catalog set jersey_number = 33, college = 'TCU' where id = '333cab63-3d67-4dd5-b73d-d2c749e882dd'; -- Sammy Baugh (QB), #33, TCU; https://en.wikipedia.org/wiki/Sammy_Baugh
+update rec_legend_catalog set jersey_number = 55, college = 'Illinois' where id = '32110a90-62c6-430c-8e23-ccddfb634707'; -- Scott Studwell (MLB), #55, Illinois; https://en.wikipedia.org/wiki/Scott_Studwell
+update rec_legend_catalog set college = 'Miami' where id = 'b2f07280-50ca-49ae-a5f4-c5f136023d8b'; -- Sean Taylor (SS), Miami; https://en.wikipedia.org/wiki/Sean_Taylor
+update rec_legend_catalog set hand = 'Left', jersey_number = 11, college = 'Florida State' where id = 'e8c75900-55bf-476a-8a1f-289df2c943e4'; -- Sebastian Janikowski (K), hand, #11, Florida State; https://en.wikipedia.org/wiki/Sebastian_Janikowski
+update rec_legend_catalog set college = 'Savannah State' where id = 'a8ab7273-9c65-4ed3-9382-e28d79c7c3e6'; -- Shannon Sharpe (TE), Savannah State; https://en.wikipedia.org/wiki/Shannon_Sharpe
+update rec_legend_catalog set jersey_number = 37, college = 'Alabama' where id = '54fd71ad-3bdf-40e7-8b76-b7b71874a8c9'; -- Shaun Alexander (HB), #37, Alabama; https://en.wikipedia.org/wiki/Shaun_Alexander
+update rec_legend_catalog set jersey_number = 42, college = 'Columbia' where id = '952a2b80-01b8-442d-8f63-09488fee3cce'; -- Sid Luckman (QB), #42, Columbia; https://en.wikipedia.org/wiki/Sid_Luckman
+update rec_legend_catalog set jersey_number = 78, college = 'Illinois' where id = '7c7c4b93-bef6-4909-90c8-598cb51d683d'; -- Simeon Rice (RE), #78, Illinois; https://en.wikipedia.org/wiki/Simeon_Rice
+update rec_legend_catalog set jersey_number = 9, college = 'Duke' where id = '3839a1a0-c70a-46ae-b65d-b63f8de327b2'; -- Sonny Jurgensen (QB), #9, Duke; https://en.wikipedia.org/wiki/Sonny_Jurgensen
+update rec_legend_catalog set jersey_number = 73, college = 'Maryland' where id = 'd6f49dfb-00d1-4484-9096-73e057f5a19c'; -- Stan Jones (LG), #73, Maryland; https://en.wikipedia.org/wiki/Stan_Jones_(American_football)
+update rec_legend_catalog set jersey_number = 84, college = 'South Carolina' where id = 'd8b494a0-8f22-4879-a722-3a9e485f5ea0'; -- Sterling Sharpe (WR), #84, South Carolina; https://en.wikipedia.org/wiki/Sterling_Sharpe
+update rec_legend_catalog set college = 'Arkansas' where id = '7b031dec-c8a2-4aba-985b-7155520e43d0'; -- Steve Atwater (SS), Arkansas; https://en.wikipedia.org/wiki/Steve_Atwater
+update rec_legend_catalog set jersey_number = 94, college = 'Washington' where id = '0e59dd57-0def-4fb8-ac0d-ea3cee2998e2'; -- Steve Emtman (DT), #94, Washington; https://en.wikipedia.org/wiki/Steve_Emtman
+update rec_legend_catalog set jersey_number = 89, college = 'Utah' where id = 'ea4b7382-d4cd-4d94-8a1e-910fc61cbe29'; -- Steve Smith Sr. (WR), #89, Utah; https://en.wikipedia.org/wiki/Steve_Smith_Sr.
+update rec_legend_catalog set jersey_number = 76, college = 'Penn State' where id = 'ec630add-d4b0-463c-b91b-9a5a5b83c82a'; -- Steve Wisniewski (LG), #76, Penn State; https://en.wikipedia.org/wiki/Steve_Wisniewski
+update rec_legend_catalog set college = 'BYU' where id = '16702b5c-ad29-48f8-ac3d-e50a4171975d'; -- Steve Young (QB), BYU; https://en.wikipedia.org/wiki/Steve_Young
+update rec_legend_catalog set jersey_number = 39, college = 'Oregon State' where id = '6a8925ce-1816-4453-8c7a-b3af49eb625e'; -- Steven Jackson (HB), #39, Oregon State; https://en.wikipedia.org/wiki/Steven_Jackson
+update rec_legend_catalog set jersey_number = 18, college = 'Abilene Christian' where id = '314acc16-8b6c-4383-acfc-9a6ed00c1865'; -- Taylor Gabriel (WR), #18, Abilene Christian; https://en.wikipedia.org/wiki/Taylor_Gabriel
+update rec_legend_catalog set college = 'Miami' where id = 'c80765ba-7717-45f1-9c48-4d5842014c58'; -- Ted Hendricks (LOLB), Miami; https://en.wikipedia.org/wiki/Ted_Hendricks
+update rec_legend_catalog set college = 'Chattanooga' where id = '6e371621-79ef-453a-9798-025fe99f0e61'; -- Terrell Owens (WR), Chattanooga; https://en.wikipedia.org/wiki/Terrell_Owens
+update rec_legend_catalog set jersey_number = 59, college = 'Western Michigan' where id = '3bc8b97f-8aa7-4418-90a1-6637d08e5970'; -- Terry Crews (RE), #59, Western Michigan; https://en.wikipedia.org/wiki/Terry_Crews
+update rec_legend_catalog set jersey_number = 36, college = 'Tennessee' where id = 'fcf13570-5f51-4520-9dc4-0005f939f9eb'; -- Terry McDaniel (CB), #36, Tennessee; https://en.wikipedia.org/wiki/Terry_McDaniel
+update rec_legend_catalog set jersey_number = 34, college = 'Oklahoma State' where id = 'e6e2eac7-38dc-473b-a907-bcf4b52ee18e'; -- Thurman Thomas (HB), #34, Oklahoma State; https://en.wikipedia.org/wiki/Thurman_Thomas
+update rec_legend_catalog set jersey_number = 21, college = 'Virginia' where id = 'cfb25556-7875-4511-aa23-3ec3e76b0a70'; -- Tiki Barber (HB), #21, Virginia; https://en.wikipedia.org/wiki/Tiki_Barber
+update rec_legend_catalog set jersey_number = 81, college = 'Notre Dame' where id = '0621bb5a-8948-4bea-bca5-14689519091d'; -- Tim Brown (WR), #81, Notre Dame; https://en.wikipedia.org/wiki/Tim_Brown_(American_football)
+update rec_legend_catalog set jersey_number = 2, college = 'Kentucky' where id = '1256fce5-1c79-461e-90c7-5627822b7cae'; -- Tim Couch (QB), #2, Kentucky; https://en.wikipedia.org/wiki/Tim_Couch
+update rec_legend_catalog set hand = 'Left', jersey_number = 15, college = 'Florida' where id = '2d34fc4d-ee88-4d24-8585-e8e9d3c6b859'; -- Tim Tebow (QB), hand, #15, Florida; https://en.wikipedia.org/wiki/Tim_Tebow
+update rec_legend_catalog set jersey_number = 46, college = 'BYU' where id = '97edf9be-d9ba-41aa-a739-19d347e3c454'; -- Todd Christensen (TE), #46, BYU; https://en.wikipedia.org/wiki/Todd_Christensen
+update rec_legend_catalog set hand = 'Left' where id = 'f8654f32-6ea6-4d06-b467-a74a6987feb3'; -- Todd Helton (QB), hand; https://en.wikipedia.org/wiki/Todd_Helton
+update rec_legend_catalog set jersey_number = 19, college = 'USC' where id = '5effcaa6-aee0-4571-a187-fb950377a7e9'; -- Todd Marinovich (QB), #19, USC; https://en.wikipedia.org/wiki/Todd_Marinovich
+update rec_legend_catalog set college = 'Michigan' where id = '7542243f-5b56-48fa-9411-6999863a61a6'; -- Tom Brady (QB), Michigan; https://en.wikipedia.org/wiki/Tom_Brady
+update rec_legend_catalog set jersey_number = 40, college = 'Colorado' where id = 'ce6268c1-881d-477d-9385-0a84d20d5b0c'; -- Tom Brookshier (CB), #40, Colorado; https://en.wikipedia.org/wiki/Tom_Brookshier
+update rec_legend_catalog set jersey_number = 65, college = 'Michigan' where id = 'a9160e29-7200-4ffc-a862-c798920dc8a2'; -- Tom Mack (LG), #65, Michigan; https://en.wikipedia.org/wiki/Tom_Mack
+update rec_legend_catalog set college = 'Boston College' where id = '8378d7fa-7861-416b-b1ba-7e0e66a46a73'; -- Tom Nalen (C), Boston College; https://en.wikipedia.org/wiki/Tom_Nalen
+update rec_legend_catalog set jersey_number = 44, college = 'Nebraska' where id = '5e460f0b-2005-40ca-90e7-c369804e472f'; -- Tom Rathman (FB), #44, Nebraska; https://en.wikipedia.org/wiki/Tom_Rathman
+update rec_legend_catalog set jersey_number = 15, college = 'Nebraska' where id = '72ed14fb-71ba-4567-a632-28f630a330e4'; -- Tommie Frazier (QB), #15, Nebraska; https://en.wikipedia.org/wiki/Tommie_Frazier
+update rec_legend_catalog set college = 'USC' where id = '9aaaab40-79a4-4590-96f1-cfaf3dab8095'; -- Tony Boselli (LT), USC; https://en.wikipedia.org/wiki/Tony_Boselli
+update rec_legend_catalog set jersey_number = 3, college = 'Gonzaga' where id = '5450337c-19bf-4c46-aa82-a3b67a0cb380'; -- Tony Canadeo (HB), #3, Gonzaga; https://en.wikipedia.org/wiki/Tony_Canadeo
+update rec_legend_catalog set jersey_number = 79, college = 'Michigan State' where id = '47e438ab-3d97-4b68-8b05-7723dffc5a9c'; -- Tony Mandarich (LT), #79, Michigan State; https://en.wikipedia.org/wiki/Tony_Mandarich
+update rec_legend_catalog set jersey_number = 98, college = 'Pitt' where id = 'd2ce45e6-f749-4915-9206-2318aef63ac1'; -- Tony Siragusa (DT), #98, Pitt; https://en.wikipedia.org/wiki/Tony_Siragusa
+update rec_legend_catalog set jersey_number = 34, college = 'Alabama' where id = 'bbde7da1-f9f9-4d73-baec-7e9c1369f6ff'; -- Trent Richardson (HB), #34, Alabama; https://en.wikipedia.org/wiki/Trent_Richardson
+update rec_legend_catalog set college = 'UCLA' where id = 'd185300d-caa5-4f35-9a61-2e93cf466f77'; -- Troy Aikman (QB), UCLA; https://en.wikipedia.org/wiki/Troy_Aikman
+update rec_legend_catalog set college = 'USC' where id = '0a46fd3f-f018-457f-81a5-12d732087217'; -- Troy Polamalu (SS), USC; https://en.wikipedia.org/wiki/Troy_Polamalu
+update rec_legend_catalog set jersey_number = 1, college = 'Ohio State' where id = '79bd3f46-4b06-42ea-9ac5-12271cba8eb8'; -- Troy Smith (QB), #1, Ohio State; https://en.wikipedia.org/wiki/Troy_Smith
+update rec_legend_catalog set jersey_number = 84, college = 'South Carolina' where id = '5817e6b5-3a76-40b5-9c6a-c2204118dd74'; -- Troy Williamson (WR), #84, South Carolina; https://en.wikipedia.org/wiki/Troy_Williamson
+update rec_legend_catalog set jersey_number = 14, college = 'BYU' where id = 'd6058795-0166-4abf-81fc-36929c80ff92'; -- Ty Detmer (QB), #14, BYU; https://en.wikipedia.org/wiki/Ty_Detmer
+update rec_legend_catalog set jersey_number = 50, college = 'Ohio State' where id = 'cd3c0d59-f913-4c88-a736-aaff77a61238'; -- Vernon Gholston (RE), #50, Ohio State; https://en.wikipedia.org/wiki/Vernon_Gholston
+update rec_legend_catalog set jersey_number = 83, college = 'Saint Joseph''s' where id = 'ce84df94-c636-4226-a2ea-eff4b6802418'; -- Vince Papale (WR), #83, Saint Joseph's; https://en.wikipedia.org/wiki/Vince_Papale
+update rec_legend_catalog set jersey_number = 16, college = 'Miami' where id = '19f26fed-db16-43ad-931a-d461b7c36abf'; -- Vinny Testaverde (QB), #16, Miami; https://en.wikipedia.org/wiki/Vinny_Testaverde
+update rec_legend_catalog set jersey_number = 71, college = 'Florida State' where id = '6f1b9d27-5a3e-4328-b346-7b1b2abcb693'; -- Walter Jones (LT), #71, Florida State; https://en.wikipedia.org/wiki/Walter_Jones_(American_football)
+update rec_legend_catalog set college = 'Jackson State' where id = '1a96230b-601b-44b9-a293-b1df3a029887'; -- Walter Payton (HB), Jackson State; https://en.wikipedia.org/wiki/Walter_Payton
+update rec_legend_catalog set college = 'Washington' where id = '399ea64c-6f57-42a0-9c6d-a194845b8c8b'; -- Warren Moon (QB), Washington; https://en.wikipedia.org/wiki/Warren_Moon
+update rec_legend_catalog set college = 'Texas Tech' where id = 'd2a7debf-9f5e-410d-9759-2e0b6d39d335'; -- Wes Welker (WR), Texas Tech; https://en.wikipedia.org/wiki/Wes_Welker
+update rec_legend_catalog set jersey_number = 68, college = 'Nebraska' where id = '0d12bef4-7820-4499-98cd-4087b91c6f4c'; -- Will Shields (RG), #68, Nebraska; https://en.wikipedia.org/wiki/Will_Shields
+update rec_legend_catalog set jersey_number = 95, college = 'Clemson' where id = '606e267d-18ee-4c9d-abb2-d94483fcd137'; -- William "Refrigerator" Perry (DT), #95, Clemson; https://en.wikipedia.org/wiki/William_Perry_(American_football)
+update rec_legend_catalog set jersey_number = 79, college = 'Auburn' where id = 'fb3d53cd-103e-452e-b507-4c38a2f8cc8b'; -- Willie Anderson (RT), #79, Auburn; https://en.wikipedia.org/wiki/Willie_Anderson_(offensive_tackle)
+update rec_legend_catalog set jersey_number = 24, college = 'Grambling' where id = '7fca6351-7349-4deb-befe-7b5f9e75a6c7'; -- Willie Brown (CB), #24, Grambling; https://en.wikipedia.org/wiki/Willie_Brown_(American_football)
+update rec_legend_catalog set jersey_number = 24, college = 'USC' where id = '1bef7ea3-47f3-4145-97cd-6a1f1c24c608'; -- Willie Wood (FS), #24, USC; https://en.wikipedia.org/wiki/Willie_Wood
+update rec_legend_catalog set jersey_number = 14, college = 'LSU' where id = '7343e683-6915-4283-a986-60957d7fc00a'; -- Y.A. Tittle (QB), #14, LSU; https://en.wikipedia.org/wiki/Y._A._Tittle
+update rec_legend_catalog set jersey_number = 55, college = 'Texas Tech' where id = 'b3168b54-2765-4e15-bbea-e92a300fea57'; -- Zach Thomas (MLB), #55, Texas Tech; https://en.wikipedia.org/wiki/Zach_Thomas
+update rec_legend_catalog set jersey_number = 70, college = 'Notre Dame' where id = 'a174755e-5d2e-4ea6-ae4c-1937dfe952a1'; -- Zack Martin (RG), #70, Notre Dame; https://en.wikipedia.org/wiki/Zack_Martin

@@ -147,8 +147,8 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
     return interaction.update(buildConferenceAssignmentsWindow(draft));
   }
 
-  // First step: pick the game. Madden titles and College Football 27 both proceed
-  // into the wizard; the game choice branches which steps the wizard presents.
+  // First step: pick the game. Madden-only (buildGameSelectWindow no longer offers College
+  // Football 27) -- draft.game can never resolve to "cfb_27" through this flow.
   if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.game) {
     draft.game = value as LeagueSetupDraft["game"];
     draft.step = getNextLeagueSetupStep("game", draft);

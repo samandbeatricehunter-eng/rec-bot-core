@@ -1,0 +1,2 @@
+update rec_legend_catalog set jersey_number = 55, college = 'Texas Tech' where id = 'b3168b54-2765-4e15-bbea-e92a300fea57'; -- Zach Thomas (MLB), #55, Texas Tech; https://en.wikipedia.org/wiki/Zach_Thomas
+update rec_legend_catalog set jersey_number = 70, college = 'Notre Dame' where id = 'a174755e-5d2e-4ea6-ae4c-1937dfe952a1'; -- Zack Martin (RG), #70, Notre Dame; https://en.wikipedia.org/wiki/Zack_Martin

@@ -1,9 +1,9 @@
 // Madden roster pre-seed — apply-to-league flow. See docs/madden-fantasy-draft-plan.md.
 //
-// Mirrors apps/api/src/modules/cfb-baseline/cfb-baseline.service.ts's
-// applyCfbBaselineToLeague, writing into the same shared rec_players table CFB already
-// uses (see plan doc §2's "Corrected 2026-08-07" note for why there's no separate Madden
-// roster table). team_abbreviation on rec_madden_baseline_players actually stores the full
+// Historically mirrored the now-removed cfb-baseline module's applyCfbBaselineToLeague,
+// writing into the same shared rec_players table CFB used to use (see plan doc §2's
+// "Corrected 2026-08-07" note for why there's no separate Madden roster table).
+// team_abbreviation on rec_madden_baseline_players actually stores the full
 // team name (e.g. "Buffalo Bills"), matching rec_teams.name — not rec_teams.abbreviation.
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";

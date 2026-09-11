@@ -1,0 +1,20 @@
+update rec_legend_catalog set jersey_number = 42, college = 'Ohio State' where id = 'a0e8df88-ce87-4168-94ae-a593825f9c47'; -- Paul Warfield (WR), #42, Ohio State; https://en.wikipedia.org/wiki/Paul_Warfield
+update rec_legend_catalog set college = 'Memphis' where id = '5e7b8d81-042a-4b3d-85d9-f1ceed557340'; -- Paxton Lynch (QB), Memphis; https://en.wikipedia.org/wiki/Paxton_Lynch
+update rec_legend_catalog set jersey_number = 99, college = 'Ohio State' where id = '071006ec-e92d-4b81-a5de-c4620f2254e5'; -- Pepper Johnson (MLB), #99, Ohio State; https://en.wikipedia.org/wiki/Pepper_Johnson
+update rec_legend_catalog set jersey_number = 81, college = 'Florida State' where id = '72a0d43a-fcad-4ec3-82c5-8968e45583d6'; -- Peter Warrick (WR), #81, Florida State; https://en.wikipedia.org/wiki/Peter_Warrick
+update rec_legend_catalog set jersey_number = 33, college = 'Arkansas' where id = '96eed18c-6255-4f8e-b650-06504b0ef8c8'; -- Peyton Hillis (HB), #33, Arkansas; https://en.wikipedia.org/wiki/Peyton_Hillis
+update rec_legend_catalog set college = 'Tennessee' where id = '160ad534-72c6-4e7a-a065-b514c1fd8cd2'; -- Peyton Manning (QB), Tennessee; https://en.wikipedia.org/wiki/Peyton_Manning
+update rec_legend_catalog set jersey_number = 9, college = 'Texas' where id = 'e31f7281-6008-496d-be73-f46c3ec64056'; -- Phil Dawson (K), #9, Texas; https://en.wikipedia.org/wiki/Phil_Dawson
+update rec_legend_catalog set jersey_number = 17, college = 'NC State' where id = '03aaa9e5-b31c-4e6e-afe0-5d1905f19f8c'; -- Philip Rivers (QB), #17, NC State; https://en.wikipedia.org/wiki/Philip_Rivers
+update rec_legend_catalog set jersey_number = 31, college = 'Texas' where id = '6f4abd8d-f33d-475f-89b6-096bc145a9f4'; -- Priest Holmes (HB), #31, Texas; https://en.wikipedia.org/wiki/Priest_Holmes
+update rec_legend_catalog set jersey_number = 1, college = 'UNLV' where id = '2585c872-111b-4f00-afa0-760954790a3b'; -- Randall Cunningham (QB), #1, UNLV; https://en.wikipedia.org/wiki/Randall_Cunningham
+update rec_legend_catalog set jersey_number = 64, college = 'Arizona State' where id = '085eb62e-9b25-45af-9e48-84d4241bf945'; -- Randall McDaniel (LG), #64, Arizona State; https://en.wikipedia.org/wiki/Randall_McDaniel
+update rec_legend_catalog set jersey_number = 51, college = 'UCLA' where id = '50843eaa-b33c-4581-a1cb-95ed51fc1d3b'; -- Randy Cross (C), #51, UCLA; https://en.wikipedia.org/wiki/Randy_Cross
+update rec_legend_catalog set jersey_number = 54, college = 'Maryland' where id = 'b627d143-67ed-4380-bf9c-5345e1858562'; -- Randy White (DT), #54, Maryland; https://en.wikipedia.org/wiki/Randy_White_(American_football)
+update rec_legend_catalog set jersey_number = 29, college = 'Colorado' where id = '5e326038-edb8-4551-ac7d-079ac6de5a08'; -- Rashaan Salaam (HB), #29, Colorado; https://en.wikipedia.org/wiki/Rashaan_Salaam
+update rec_legend_catalog set jersey_number = 81, college = 'Oklahoma State' where id = '9a1104c4-66ce-4e24-aaad-b104dfa1b603'; -- Rashaun Woods (WR), #81, Oklahoma State; https://en.wikipedia.org/wiki/Rashaun_Woods
+update rec_legend_catalog set jersey_number = 70, college = 'Fort Valley State' where id = 'dd5f0f69-ceb2-4f05-b2bf-4e05fc54d42c'; -- Rayfield Wright (RT), #70, Fort Valley State; https://en.wikipedia.org/wiki/Rayfield_Wright
+update rec_legend_catalog set jersey_number = 82, college = 'SMU' where id = '94298171-e32b-4440-94c1-607bd3190867'; -- Raymond Berry (WR), #82, SMU; https://en.wikipedia.org/wiki/Raymond_Berry
+update rec_legend_catalog set jersey_number = 11, college = 'Washington' where id = '93b4dab7-37ae-4a76-a42b-485803884dee'; -- Reggie Williams (WR), #11, Washington; https://en.wikipedia.org/wiki/Reggie_Williams_(wide_receiver)
+update rec_legend_catalog set jersey_number = 96, college = 'Tennessee State' where id = '617cdf3c-3ed6-4785-b6a2-9110183ee4e0'; -- Richard Dent (RE), #96, Tennessee State; https://en.wikipedia.org/wiki/Richard_Dent
+update rec_legend_catalog set jersey_number = 5, college = 'Stanford' where id = '6134519b-cdab-43e0-b7ce-a057b1a7fb9e'; -- Richard Sherman (CB), #5, Stanford; https://en.wikipedia.org/wiki/Richard_Sherman_(American_football)

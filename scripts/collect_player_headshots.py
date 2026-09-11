@@ -3,12 +3,14 @@ import html
 import json
 import re
 import ssl
+import struct
 import sys
 import time
 import urllib.parse
 import urllib.request
 import urllib.error
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from io import BytesIO
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
@@ -16,6 +18,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 USER_AGENT = "REC-Leagues-rights-conscious-headshot-collector/1.0 (research; contact via project owner)"
 WIKI_API = "https://en.wikipedia.org/w/api.php"
+WIKI_REST = "https://en.wikipedia.org/api/rest_v1/page/summary/"
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 FREE_MARKERS = ("public domain", "cc0", "cc by", "cc-by", "creative commons", "gfdl")
 SSL_CONTEXT = ssl._create_unverified_context()
@@ -56,10 +59,10 @@ def strip_html(value):
     return html.unescape(re.sub(r"<[^>]+>", "", value or "")).strip()
 
 
-def page_candidate(name):
+def page_candidate(name, context="American football NFL player"):
     data = api(WIKI_API, {
         "action": "query", "generator": "search",
-        "gsrsearch": f'"{name}" American football NFL player', "gsrnamespace": 0,
+        "gsrsearch": f'"{name}" {context}', "gsrnamespace": 0,
         "gsrlimit": 5, "prop": "pageimages|info", "inprop": "url",
         "piprop": "thumbnail|name|original", "pithumbsize": 1400, "format": "json",
         "formatversion": 2,
@@ -71,10 +74,29 @@ def page_candidate(name):
         -int(p.get("index", 9999) == 1),
     ))
     for p in pages:
-        image = p.get("original") or p.get("thumbnail")
-        if image and p.get("pageimage"):
-            return p, image["source"]
+        title = re.sub(r"[^a-z0-9]", "", p.get("title", "").lower())
+        if norm not in title:
+            continue
+        source = raster_source(p)
+        if source and p.get("pageimage"):
+            return p, source
     return None, None
+
+
+def wiki_rest_portrait(name):
+    slug = urllib.parse.quote(name.replace(" ", "_"))
+    req = urllib.request.Request(WIKI_REST + slug, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+    with polite_open(req, 12) as response:
+        data = json.load(response)
+    if data.get("type") in {"disambiguation", "nonexistent"}:
+        return None
+    image = data.get("originalimage") or data.get("thumbnail") or {}
+    source = image.get("source")
+    if not source or not is_raster_url(source):
+        return None
+    source = source.split("?")[0]
+    page_url = ((data.get("content_urls") or {}).get("desktop") or {}).get("page") or f"https://en.wikipedia.org/wiki/{slug}"
+    return {"canonicalurl": page_url, "title": data.get("title") or name, "pageimage": Path(urllib.parse.urlparse(source).path).name}, source
 
 
 def commons_candidate(name, context="portrait"):
@@ -84,10 +106,16 @@ def commons_candidate(name, context="portrait"):
         "iiprop": "url|mime|size|extmetadata", "iiurlwidth": 1400,
         "format": "json", "formatversion": 2,
     })
+    wanted = re.sub(r"[^a-z0-9]", "", name.lower())
     for p in data.get("query", {}).get("pages", []):
+        title = re.sub(r"[^a-z0-9]", "", (p.get("title") or "").lower())
+        if wanted not in title:
+            continue
         info = (p.get("imageinfo") or [{}])[0]
-        if info.get("mime", "").startswith("image/"):
-            return p, info.get("thumburl") or info.get("url"), info
+        if info.get("mime", "").startswith("image/") and "svg" not in info.get("mime", ""):
+            source = info.get("thumburl") or info.get("url")
+            if source and is_raster_url(source):
+                return p, source, info
     return None, None, None
 
 
@@ -116,6 +144,70 @@ def html_candidate(name, context="portrait"):
     return page_url, html.unescape(match.group(1))
 
 
+ESPN_HEADSHOT_SPORT = {
+    "28": "nfl",
+    "23": "college-football",
+    "10": "mlb",
+}
+
+
+def espn_uid_headshot(uid):
+    match = re.search(r"s:\d+~l:(\d+)~a:(\d+)", uid or "")
+    if not match:
+        return None
+    sport = ESPN_HEADSHOT_SPORT.get(match.group(1))
+    if not sport:
+        return None
+    return f"https://a.espncdn.com/i/headshots/{sport}/players/full/{match.group(2)}.png"
+
+
+SKIP_WIKI = False
+
+
+def is_raster_url(url):
+    return not urllib.parse.urlparse(url).path.lower().endswith(".svg")
+
+
+def is_raster_bytes(data):
+    if not data or len(data) < 24:
+        return False
+    if data.startswith(b"\x89PNG") or data.startswith(b"\xff\xd8\xff") or data.startswith(b"GIF8"):
+        return True
+    return data.startswith(b"RIFF") and data[8:12] == b"WEBP"
+
+
+def raster_source(page):
+    for image in (page.get("original"), page.get("thumbnail")):
+        source = (image or {}).get("source")
+        if source and is_raster_url(source):
+            return source
+    return None
+
+
+def strip_png_metadata(data):
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return data
+    out = bytearray(data[:8])
+    offset = 8
+    while offset + 8 <= len(data):
+        length = struct.unpack(">I", data[offset:offset + 4])[0]
+        chunk_type = data[offset + 4:offset + 8]
+        chunk = data[offset:offset + 12 + length]
+        if chunk_type in {b"IHDR", b"PLTE", b"IDAT", b"tRNS", b"IEND"}:
+            out.extend(chunk)
+        offset += 12 + length
+        if chunk_type == b"IEND":
+            break
+    return bytes(out)
+
+
+def save_fitted(data, target):
+    with Image.open(BytesIO(strip_png_metadata(data))) as source:
+        source = ImageOps.exif_transpose(source).convert("RGB")
+        fitted = ImageOps.pad(source, (1024, 1024), method=Image.Resampling.LANCZOS, color=(238, 240, 244), centering=(0.5, 0.42))
+        fitted.save(target, "PNG", optimize=True)
+
+
 def espn_candidate(name):
     url = "https://site.web.api.espn.com/apis/search/v2?" + urllib.parse.urlencode({"query": name, "limit": 10})
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
@@ -128,14 +220,18 @@ def espn_candidate(name):
             continue
         for item in group.get("contents", []):
             got = re.sub(r"[^a-z0-9]", "", item.get("displayName", "").lower())
-            image = (item.get("image") or {}).get("default")
-            if got == wanted and image:
+            if got == wanted:
                 choices.append(item)
-    choices.sort(key=lambda x: 0 if x.get("description") == "NFL" else 1)
-    if not choices:
-        return None
-    item = choices[0]
-    return item.get("link", {}).get("web", ""), item["image"]["default"]
+    choices.sort(key=lambda item: (
+        0 if item.get("description") == "NFL" else 1 if item.get("description") == "NCAAF" else 2,
+        0 if (item.get("image") or {}).get("default") else 1,
+    ))
+    urls = []
+    for item in choices:
+        image = (item.get("image") or {}).get("default") or espn_uid_headshot(item.get("uid"))
+        if image and is_raster_url(image):
+            urls.append((item.get("link", {}).get("web", ""), image))
+    return urls
 
 
 def image_metadata(file_title):
@@ -202,7 +298,7 @@ def process(player, output_dir, supplied_dir=None):
            "filename": player["file"], "source_page": "", "source_image_url": "", "creator": "",
            "license": "", "license_url": "", "rights_status": "", "notes": ""}
     target = output_dir / player["file"]
-    if target.exists() and target.stat().st_size > 4000:
+    if target.exists() and target.stat().st_size >= 20_000:
         return None
     search_name = player.get("search_name") or player["name"]
     search_context = player.get("search_context") or "portrait"
@@ -221,30 +317,66 @@ def process(player, output_dir, supplied_dir=None):
             })
             return row
         info = {}
-        result = espn_candidate(search_name) if player.get("subject_type") in (None, "nfl") else None
-        page_url, url = result if result else (None, None)
-        page = {"canonicalurl": page_url, "title": player["name"]} if page_url else None
-        if not url:
+        page = None
+        url = None
+        if player.get("subject_type") in (None, "nfl", "athlete"):
+            for page_url, candidate in espn_candidate(search_name):
+                try:
+                    data = download(candidate)
+                except Exception:
+                    continue
+                if not is_raster_bytes(data):
+                    continue
+                try:
+                    save_fitted(data, target)
+                except Exception:
+                    continue
+                row.update({
+                    "source_page": page_url or "", "source_image_url": candidate, "creator": "ESPN",
+                    "license": "ESPN source; redistribution permission not established", "license_url": "",
+                    "rights_status": "review_required",
+                    "notes": "License metadata was absent or not clearly reusable; manual permission/review required before commercial use.",
+                })
+                return row
+        skip_wiki = "--espn-only" in sys.argv
+        if not skip_wiki:
             try:
-                page, url = page_candidate(search_name)
-                if page:
-                    info = image_metadata(page.get("pageimage", ""))
+                rest = wiki_rest_portrait(search_name)
+                if rest:
+                    page, url = rest
+                    info = image_metadata(page.get("pageimage", "")) or info
+            except urllib.error.HTTPError as exc:
+                if exc.code == 429:
+                    globals()["SKIP_WIKI"] = True
             except Exception:
                 pass
-        if not url:
-            cp, url, info = commons_candidate(search_name, search_context)
-            if cp:
-                page = {"title": cp.get("title", ""), "canonicalurl": "https://commons.wikimedia.org/wiki/" + urllib.parse.quote(cp.get("title", "").replace(" ", "_"))}
-        if not url:
-            raise RuntimeError("No suitable Wikimedia image located")
-        raw_path = target.with_suffix(".download")
-        raw_path.write_bytes(download(url))
-        with Image.open(raw_path) as source:
-            source = ImageOps.exif_transpose(source).convert("RGB")
-            # Preserve the entire source without distortion; square-pad, then resize.
-            fitted = ImageOps.pad(source, (1024, 1024), method=Image.Resampling.LANCZOS, color=(238, 240, 244), centering=(0.5, 0.42))
-            fitted.save(target, "PNG", optimize=True)
-        raw_path.unlink(missing_ok=True)
+        if not url and not skip_wiki:
+            try:
+                page, url = page_candidate(search_name, search_context)
+                if page:
+                    info = image_metadata(page.get("pageimage", ""))
+            except urllib.error.HTTPError as exc:
+                if exc.code == 429:
+                    globals()["SKIP_WIKI"] = True
+            except Exception:
+                pass
+        if not url and not skip_wiki and not SKIP_WIKI:
+            try:
+                cp, source, wiki_info = commons_candidate(search_name, search_context)
+                if cp:
+                    url = source
+                    info = wiki_info or {}
+                    page = {"title": cp.get("title", ""), "canonicalurl": "https://commons.wikimedia.org/wiki/" + urllib.parse.quote(cp.get("title", "").replace(" ", "_"))}
+            except urllib.error.HTTPError as exc:
+                if exc.code == 429:
+                    globals()["SKIP_WIKI"] = True
+                    url = None
+        if not url or not is_raster_url(url):
+            raise RuntimeError("No suitable raster image located")
+        data = download(url)
+        if not is_raster_bytes(data):
+            raise RuntimeError("Located image was not a raster photo")
+        save_fitted(data, target)
         meta = info.get("extmetadata", {})
         license_name, status = classify_license(meta)
         if not meta:
@@ -265,7 +397,8 @@ def process(player, output_dir, supplied_dir=None):
 def main():
     source = Path(sys.argv[1])
     root = Path(sys.argv[2])
-    supplied_dir = Path(sys.argv[3]) if len(sys.argv) > 3 else None
+    extra = sys.argv[3:]
+    supplied_dir = next((Path(arg) for arg in extra if not arg.startswith("--")), None)
     images = root / "images"
     images.mkdir(parents=True, exist_ok=True)
     players = json.loads(source.read_text(encoding="utf-8"))

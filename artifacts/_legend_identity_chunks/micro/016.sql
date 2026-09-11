@@ -1,0 +1,20 @@
+update rec_legend_catalog set jersey_number = 16, college = 'Washington State' where id = '8504fe94-1fad-47d6-92c0-8af3e07c6276'; -- Ryan Leaf (QB), #16, Washington State; https://en.wikipedia.org/wiki/Ryan_Leaf
+update rec_legend_catalog set jersey_number = 33, college = 'TCU' where id = '333cab63-3d67-4dd5-b73d-d2c749e882dd'; -- Sammy Baugh (QB), #33, TCU; https://en.wikipedia.org/wiki/Sammy_Baugh
+update rec_legend_catalog set jersey_number = 55, college = 'Illinois' where id = '32110a90-62c6-430c-8e23-ccddfb634707'; -- Scott Studwell (MLB), #55, Illinois; https://en.wikipedia.org/wiki/Scott_Studwell
+update rec_legend_catalog set college = 'Miami' where id = 'b2f07280-50ca-49ae-a5f4-c5f136023d8b'; -- Sean Taylor (SS), Miami; https://en.wikipedia.org/wiki/Sean_Taylor
+update rec_legend_catalog set hand = 'Left', jersey_number = 11, college = 'Florida State' where id = 'e8c75900-55bf-476a-8a1f-289df2c943e4'; -- Sebastian Janikowski (K), hand, #11, Florida State; https://en.wikipedia.org/wiki/Sebastian_Janikowski
+update rec_legend_catalog set college = 'Savannah State' where id = 'a8ab7273-9c65-4ed3-9382-e28d79c7c3e6'; -- Shannon Sharpe (TE), Savannah State; https://en.wikipedia.org/wiki/Shannon_Sharpe
+update rec_legend_catalog set jersey_number = 37, college = 'Alabama' where id = '54fd71ad-3bdf-40e7-8b76-b7b71874a8c9'; -- Shaun Alexander (HB), #37, Alabama; https://en.wikipedia.org/wiki/Shaun_Alexander
+update rec_legend_catalog set jersey_number = 42, college = 'Columbia' where id = '952a2b80-01b8-442d-8f63-09488fee3cce'; -- Sid Luckman (QB), #42, Columbia; https://en.wikipedia.org/wiki/Sid_Luckman
+update rec_legend_catalog set jersey_number = 78, college = 'Illinois' where id = '7c7c4b93-bef6-4909-90c8-598cb51d683d'; -- Simeon Rice (RE), #78, Illinois; https://en.wikipedia.org/wiki/Simeon_Rice
+update rec_legend_catalog set jersey_number = 9, college = 'Duke' where id = '3839a1a0-c70a-46ae-b65d-b63f8de327b2'; -- Sonny Jurgensen (QB), #9, Duke; https://en.wikipedia.org/wiki/Sonny_Jurgensen
+update rec_legend_catalog set jersey_number = 73, college = 'Maryland' where id = 'd6f49dfb-00d1-4484-9096-73e057f5a19c'; -- Stan Jones (LG), #73, Maryland; https://en.wikipedia.org/wiki/Stan_Jones_(American_football)
+update rec_legend_catalog set jersey_number = 84, college = 'South Carolina' where id = 'd8b494a0-8f22-4879-a722-3a9e485f5ea0'; -- Sterling Sharpe (WR), #84, South Carolina; https://en.wikipedia.org/wiki/Sterling_Sharpe
+update rec_legend_catalog set college = 'Arkansas' where id = '7b031dec-c8a2-4aba-985b-7155520e43d0'; -- Steve Atwater (SS), Arkansas; https://en.wikipedia.org/wiki/Steve_Atwater
+update rec_legend_catalog set jersey_number = 94, college = 'Washington' where id = '0e59dd57-0def-4fb8-ac0d-ea3cee2998e2'; -- Steve Emtman (DT), #94, Washington; https://en.wikipedia.org/wiki/Steve_Emtman
+update rec_legend_catalog set jersey_number = 89, college = 'Utah' where id = 'ea4b7382-d4cd-4d94-8a1e-910fc61cbe29'; -- Steve Smith Sr. (WR), #89, Utah; https://en.wikipedia.org/wiki/Steve_Smith_Sr.
+update rec_legend_catalog set jersey_number = 76, college = 'Penn State' where id = 'ec630add-d4b0-463c-b91b-9a5a5b83c82a'; -- Steve Wisniewski (LG), #76, Penn State; https://en.wikipedia.org/wiki/Steve_Wisniewski
+update rec_legend_catalog set college = 'BYU' where id = '16702b5c-ad29-48f8-ac3d-e50a4171975d'; -- Steve Young (QB), BYU; https://en.wikipedia.org/wiki/Steve_Young
+update rec_legend_catalog set jersey_number = 39, college = 'Oregon State' where id = '6a8925ce-1816-4453-8c7a-b3af49eb625e'; -- Steven Jackson (HB), #39, Oregon State; https://en.wikipedia.org/wiki/Steven_Jackson
+update rec_legend_catalog set jersey_number = 18, college = 'Abilene Christian' where id = '314acc16-8b6c-4383-acfc-9a6ed00c1865'; -- Taylor Gabriel (WR), #18, Abilene Christian; https://en.wikipedia.org/wiki/Taylor_Gabriel
+update rec_legend_catalog set college = 'Miami' where id = 'c80765ba-7717-45f1-9c48-4d5842014c58'; -- Ted Hendricks (LOLB), Miami; https://en.wikipedia.org/wiki/Ted_Hendricks

@@ -1,0 +1,20 @@
+update rec_legend_catalog set jersey_number = 28, college = 'Arizona State' where id = '97fed433-1171-429b-b859-d8b2218dc450'; -- Darren Woodson (SS), #28, Arizona State; https://en.wikipedia.org/wiki/Darren_Woodson
+update rec_legend_catalog set college = 'Syracuse' where id = '10456e30-221a-4d14-97a9-28c72b9606f9'; -- Daryl Johnston (FB), Syracuse; https://en.wikipedia.org/wiki/Daryl_Johnston
+update rec_legend_catalog set jersey_number = 65, college = 'Purdue' where id = 'b945e289-cad5-429d-986c-4a5c48535c9e'; -- Dave Butz (DT), #65, Purdue; https://en.wikipedia.org/wiki/Dave_Butz
+update rec_legend_catalog set jersey_number = 44, college = 'Notre Dame' where id = 'e56d8d66-4260-47cd-96b7-39fa2b420588'; -- Dave Casper (TE), #44, Notre Dame; https://en.wikipedia.org/wiki/Dave_Casper
+update rec_legend_catalog set jersey_number = 64, college = 'Oregon' where id = '4a5e16a0-4d45-4db8-af87-b2ee49d07383'; -- Dave Wilcox (LOLB), #64, Oregon; https://en.wikipedia.org/wiki/Dave_Wilcox
+update rec_legend_catalog set jersey_number = 2, college = 'Louisville' where id = 'a14053f8-00f4-4cd7-8a70-e7ae0ecc577e'; -- David Akers (K), #2, Louisville; https://en.wikipedia.org/wiki/David_Akers
+update rec_legend_catalog set jersey_number = 11, college = 'Houston' where id = '23bf20db-cc94-4d99-b302-65a6b6aeff69'; -- David Klingler (QB), #11, Houston; https://en.wikipedia.org/wiki/David_Klingler
+update rec_legend_catalog set jersey_number = 13, college = 'Michigan' where id = '400bf164-f142-4cae-9b3e-314bb7f3b6a7'; -- David Terrell (WR), #13, Michigan; https://en.wikipedia.org/wiki/David_Terrell_(wide_receiver)
+update rec_legend_catalog set college = 'Mississippi Valley State' where id = 'd407b78e-40c3-492c-8276-12642811a292'; -- Deacon Jones (LE), Mississippi Valley State; https://en.wikipedia.org/wiki/Deacon_Jones
+update rec_legend_catalog set jersey_number = 11, college = 'Princeton' where id = 'fa3a6ea9-4fae-425d-93ea-4f3bf4786906'; -- Dean Cain (FS), #11, Princeton; https://en.wikipedia.org/wiki/Dean_Cain
+update rec_legend_catalog set jersey_number = 27, college = 'Alabama' where id = '55f50cfa-0967-40b5-8cb8-21809fde7ff5'; -- Dee Milliner (CB), #27, Alabama; https://en.wikipedia.org/wiki/Dee_Milliner
+update rec_legend_catalog set jersey_number = 82, college = 'Central Missouri' where id = 'ecadd835-c150-42fb-ae7d-cd170daf6574'; -- Delanie Walker (TE), #82, Central Missouri; https://en.wikipedia.org/wiki/Delanie_Walker
+update rec_legend_catalog set jersey_number = 63, college = 'Kentucky' where id = '7599a94e-fc08-45d4-b985-aef2baee635a'; -- Dermontti Dawson (C), #63, Kentucky; https://en.wikipedia.org/wiki/Dermontti_Dawson
+update rec_legend_catalog set jersey_number = 20, college = 'Rutgers' where id = '569fca10-77f9-4179-9a90-0e4b7a5ed200'; -- Deron Cherry (FS), #20, Rutgers; https://en.wikipedia.org/wiki/Deron_Cherry
+update rec_legend_catalog set jersey_number = 95, college = 'Florida' where id = '3cb63f84-8774-475e-a2e1-43be49a58a45'; -- Derrick Harvey (RE), #95, Florida; https://en.wikipedia.org/wiki/Derrick_Harvey
+update rec_legend_catalog set college = 'Miami' where id = '5eb91d67-e90e-4c94-8909-7fb398148dc4'; -- Devin Hester (WR), Miami; https://en.wikipedia.org/wiki/Devin_Hester
+update rec_legend_catalog set jersey_number = 92, college = 'Oklahoma State' where id = 'bdc61a76-faea-43cb-ba5a-57521463087a'; -- Dexter Manley (LE), #92, Oklahoma State; https://en.wikipedia.org/wiki/Dexter_Manley
+update rec_legend_catalog set jersey_number = 40, college = 'Colorado' where id = '928a3ec9-97de-4061-9ca5-f2cb965744d5'; -- Dick Anderson (SS), #40, Colorado; https://en.wikipedia.org/wiki/Dick_Anderson
+update rec_legend_catalog set college = 'Oregon' where id = '80e33c9f-aaa3-4ec8-9921-c15f65f225fe'; -- Dion Jordan (LE), Oregon; https://en.wikipedia.org/wiki/Dion_Jordan
+update rec_legend_catalog set jersey_number = 13, college = 'Texas Western' where id = 'd7995317-1e63-4c9b-9711-311f60b129bb'; -- Don Maynard (WR), #13, Texas Western; https://en.wikipedia.org/wiki/Don_Maynard

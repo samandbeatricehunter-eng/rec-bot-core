@@ -3522,29 +3522,19 @@ h1, h2, h3, .site-wordmark {
 }
 
 /* —— Midnight Glass site shell —— */
-/* Background varies by context: SiteShell stamps data-bg="madden"/"cfb"/"tournaments" when
-   the active league/route calls for it, falling back to the general background otherwise
-   (also used verbatim for .site-auth-page/.site-page, which render before SiteShell mounts). */
+/* Universal background for app, auth, league, tournament, and Rise surfaces. */
 .site-shell,
 .site-auth-page,
 .site-page {
   background-color: #05070a;
   background-image:
     linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%),
-    url("/assets/backgrounds/general-background.webp");
+    url("/assets/backgrounds/master-background.png");
   background-size: cover;
   background-position: center top;
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
-.site-shell[data-bg="madden"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/madden-background.webp"); }
-.site-shell[data-bg="cfb"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/cfb-background.webp"); }
-.site-shell[data-bg="tournaments"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/tournaments-background.webp"); }
-.site-shell[data-bg="rise"] { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/rise-background.jpg"); }
-/* .site-page repaints its own background independently of the shell behind it (see the shared
-   rule above) -- RiseOrigins renders .rise-page directly as that root element, so it needs its
-   own override too, not just the shell's, or it'd keep showing the generic background. */
-.rise-page { background-image: linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%), url("/assets/backgrounds/rise-background.jpg"); }
 @media (min-width: 960px) {
   .site-shell-main {
     padding-inline: clamp(24px, 4vw, 48px);
@@ -4366,9 +4356,8 @@ h1, h2, h3, .site-wordmark {
 }
 .rise-tree-row-origins { padding-top: 4px; }
 /* Pass 5 (Progression Engine V2): side-by-side lane columns for a tier where at least one node
-   carries a branch id -- no live catalog uses this yet (Pass 6/7 author the QB/MIKE/Owner lane
-   trees), so this never renders today. Pass 10 owns the full multi-lane visual treatment; this
-   is the minimal functional version reusing the existing node/row classes as-is. */
+   carries a branch id. Live QB/MIKE/Owner catalogs now populate branch, so this is the
+   default layout on the Legacy Sheet. */
 .rise-tree-lanes {
   display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start;
   gap: 28px; width: 100%; padding-top: 12px;
@@ -4406,7 +4395,14 @@ h1, h2, h3, .site-wordmark {
 }
 .rise-tree-node.is-available .rise-tree-node-badge { border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); color: var(--text); }
 .rise-tree-node.is-locked .rise-tree-node-badge { opacity: .4; }
-.rise-tree-node.is-selected .rise-tree-node-badge { box-shadow: 0 0 0 2px var(--accent-bright), 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent); }
+.rise-tree-node.is-capstone .rise-tree-node-badge {
+  width: 68px; height: 68px; border-radius: 18px; border-color: #e4c36a; color: #f6e2a2;
+  box-shadow: 0 0 22px color-mix(in srgb, #e4c36a 55%, transparent);
+}
+.rise-legacy-column .rise-tree-node.is-capstone .rise-tree-node-badge {
+  border-color: var(--column-accent); color: #fff;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--column-accent) 55%, transparent);
+}
 .rise-tree-node:hover:not(.is-root) .rise-tree-node-badge { border-color: var(--accent-bright); }
 .rise-tree-node-name { font-size: 11px; font-weight: 800; line-height: 1.25; }
 .rise-tree-node-cost { font-size: 10px; font-weight: 800; color: var(--accent-bright); text-transform: uppercase; letter-spacing: .04em; }
@@ -4423,7 +4419,8 @@ h1, h2, h3, .site-wordmark {
 }
 .rise-legacy-column {
   position: relative; min-width: 300px; padding: 18px 14px 16px; overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border)); border-radius: 18px;
+  --column-accent: var(--accent-bright);
+  border: 1px solid color-mix(in srgb, var(--column-accent) 34%, var(--border)); border-radius: 18px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 11%, rgba(8,8,10,.96)), rgba(8,8,10,.88));
   box-shadow: inset 0 1px rgba(255,255,255,.05), 0 16px 38px rgba(0,0,0,.2);
 }
@@ -4436,8 +4433,17 @@ h1, h2, h3, .site-wordmark {
 }
 .rise-legacy-identity { display: flex; align-items: center; gap: 12px; min-height: 72px; margin-bottom: 10px; }
 .rise-legacy-identity h2 { margin: 1px 0 3px; font-size: 18px; line-height: 1.1; }
-.rise-legacy-identity span { color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.rise-legacy-kicker { color: var(--text-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .rise-legacy-identity strong { color: var(--column-accent); font-size: 12px; }
+.rise-legacy-meter {
+  margin-top: 8px; height: 5px; border-radius: 999px; overflow: hidden;
+  background: color-mix(in srgb, var(--column-accent) 18%, rgba(255,255,255,.08));
+}
+.rise-legacy-meter span { display: block; height: 100%; background: var(--column-accent); }
+.rise-legacy-meter-label {
+  display: block; margin-top: 4px; font-style: normal; font-size: 10px; font-weight: 800;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted);
+}
 .rise-legacy-headshot { width: 62px; height: 62px; flex: 0 0 auto; object-fit: cover; object-position: center top; border-radius: 16px; border: 2px solid var(--column-accent); background: #15161a; }
 .rise-legacy-headshot.is-empty { display: grid; place-items: center; font-family: var(--font-display, inherit); font-size: 24px; font-weight: 900; }
 .rise-legacy-capstone-label, .rise-legacy-foundation > p {

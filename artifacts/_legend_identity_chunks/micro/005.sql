@@ -1,0 +1,20 @@
+update rec_legend_catalog set jersey_number = 5, college = 'Syracuse' where id = 'c25b8f9e-1b12-4177-ac27-53a646d653ba'; -- Donovan McNabb (QB), #5, Syracuse; https://en.wikipedia.org/wiki/Donovan_McNabb
+update rec_legend_catalog set jersey_number = 7, college = 'Boston College' where id = 'a57f575d-c069-442c-9846-6187979fd4f2'; -- Doug Flutie (QB), #7, Boston College; https://en.wikipedia.org/wiki/Doug_Flutie
+update rec_legend_catalog set college = 'Grambling' where id = 'a99826d2-c833-4ab1-b724-7ebca65d6fca'; -- Doug Williams (QB), Grambling; https://en.wikipedia.org/wiki/Doug_Williams_(quarterback)
+update rec_legend_catalog set jersey_number = 88, college = 'Tulsa' where id = 'fb8eb88e-8f97-4665-a05f-81992e41c549'; -- Drew Pearson (WR), #88, Tulsa; https://en.wikipedia.org/wiki/Drew_Pearson_(American_football)
+update rec_legend_catalog set jersey_number = 47, college = 'West Texas State' where id = '2a7c6cd7-c20a-40cb-b44b-64c4034c5b1d'; -- Duane Thomas (HB), #47, West Texas State; https://en.wikipedia.org/wiki/Duane_Thomas
+update rec_legend_catalog set jersey_number = 87, college = 'Clemson' where id = 'f1bf8f7e-66ee-4426-8e02-6ef92ff501cb'; -- Dwight Clark (WR), #87, Clemson; https://en.wikipedia.org/wiki/Dwight_Clark
+update rec_legend_catalog set jersey_number = 57, college = 'Alabama' where id = '3272763a-f2fa-4293-a264-ba620e63cf2e'; -- Dwight Stephenson (C), #57, Alabama; https://en.wikipedia.org/wiki/Dwight_Stephenson
+update rec_legend_catalog set jersey_number = 29, college = 'Texas' where id = '8a859c8f-3bc8-4eeb-ba0a-76bc300b6f02'; -- Earl Thomas (FS), #29, Texas; https://en.wikipedia.org/wiki/Earl_Thomas
+update rec_legend_catalog set college = 'Tennessee State' where id = '7caeb686-69d2-45e6-aa85-9829472389f2'; -- Ed "Too Tall" Jones (LE), Tennessee State; https://en.wikipedia.org/wiki/Ed_"Too_Tall"_Jones
+update rec_legend_catalog set jersey_number = 17, college = 'Houston' where id = '6a48da6d-238b-453a-9a29-7787632841fc'; -- Elmo Wright (WR), #17, Houston; https://en.wikipedia.org/wiki/Elmo_Wright
+update rec_legend_catalog set jersey_number = 65, college = 'North Carolina A&T' where id = '05d2ccef-92a8-451a-aa73-fef414cf21d4'; -- Elvin Bethea (RE), #65, North Carolina A&T; https://en.wikipedia.org/wiki/Elvin_Bethea
+update rec_legend_catalog set jersey_number = 45, college = 'Iowa' where id = '869f366f-bea9-4173-ae7f-eb9817194e47'; -- Emlen Tunnell (FS), #45, Iowa; https://en.wikipedia.org/wiki/Emlen_Tunnell
+update rec_legend_catalog set college = 'Florida' where id = '4d774831-e36c-4694-8d98-3bac1555c477'; -- Emmitt Smith (HB), Florida; https://en.wikipedia.org/wiki/Emmitt_Smith
+update rec_legend_catalog set jersey_number = 18, college = 'Bishop' where id = 'e0aca3c4-a88c-4f9f-bc33-d079260cbdd0'; -- Emmitt Thomas (CB), #18, Bishop; https://en.wikipedia.org/wiki/Emmitt_Thomas
+update rec_legend_catalog set jersey_number = 9, college = 'Nebraska' where id = 'cd4a2055-71f6-49c1-9adc-1e9e9f2f56e5'; -- Eric Crouch (QB), #9, Nebraska; https://en.wikipedia.org/wiki/Eric_Crouch
+update rec_legend_catalog set college = 'SMU' where id = 'b9acbc1b-0d1d-4ac1-8240-3e263e5f41c4'; -- Eric Dickerson (HB), SMU; https://en.wikipedia.org/wiki/Eric_Dickerson
+update rec_legend_catalog set jersey_number = 86, college = 'Liberty' where id = 'a40cb846-e439-4d01-974e-92b2b66efb9f'; -- Eric Green (TE), #86, Liberty; https://en.wikipedia.org/wiki/Eric_Green_(tight_end)
+update rec_legend_catalog set jersey_number = 42, college = 'UCLA' where id = 'fa2e754d-1c03-429d-84ce-5a2b1db08fa7'; -- Eric Turner (FS), #42, UCLA; https://en.wikipedia.org/wiki/Eric_Turner_(American_football)
+update rec_legend_catalog set jersey_number = 20, college = 'Utah' where id = 'fa71243d-a3ee-412e-8cb4-65ae8ace1d95'; -- Eric Weddle (FS), #20, Utah; https://en.wikipedia.org/wiki/Eric_Weddle
+update rec_legend_catalog set jersey_number = 84, college = 'Louisville' where id = '32a18df8-2920-4402-a840-04730bc771cd'; -- Ernest Givins (WR), #84, Louisville; https://en.wikipedia.org/wiki/Ernest_Givins

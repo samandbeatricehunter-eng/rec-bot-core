@@ -1,0 +1,20 @@
+update rec_legend_catalog set college = 'Ohio State' where id = 'd3e2c045-88a0-4d8c-8d06-f06edc038067'; -- Jim Parker (LT), Ohio State; https://en.wikipedia.org/wiki/Jim_Parker_(American_football)
+update rec_legend_catalog set college = 'Miami' where id = 'f8e1c641-2f5a-46f4-b6c4-974e03592d2a'; -- Jimmy Graham (TE), Miami; https://en.wikipedia.org/wiki/Jimmy_Graham
+update rec_legend_catalog set jersey_number = 37, college = 'UCLA' where id = 'c09034f5-8d34-4f3f-a557-424f617e5af8'; -- Jimmy Johnson (CB), #37, UCLA; https://en.wikipedia.org/wiki/Jimmy_Johnson_(cornerback)
+update rec_legend_catalog set jersey_number = 64, college = 'Michigan State' where id = '0b822dac-2bc3-4322-8c34-35066c5f8855'; -- Joe DeLamielleure (RG), #64, Michigan State; https://en.wikipedia.org/wiki/Joe_DeLamielleure
+update rec_legend_catalog set jersey_number = 66, college = 'Louisville' where id = '2f4a3e03-270e-4132-995a-7d2d3d9a74e8'; -- Joe Jacoby (LT), #66, Louisville; https://en.wikipedia.org/wiki/Joe_Jacoby
+update rec_legend_catalog set college = 'Notre Dame' where id = 'b7aef6ae-7bbf-4fb7-b6ed-436e59ff353d'; -- Joe Montana (QB), Notre Dame; https://en.wikipedia.org/wiki/Joe_Montana
+update rec_legend_catalog set jersey_number = 56, college = 'Pitt' where id = 'f0de9bf9-9515-4f2b-8ba1-6f86bfd3e2f9'; -- Joe Schmidt (MLB), #56, Pitt; https://en.wikipedia.org/wiki/Joe_Schmidt_(American_football)
+update rec_legend_catalog set jersey_number = 47, college = 'USC' where id = '37cafb78-d2b4-4ff3-883e-ab06839c12c2'; -- Joey Browner (SS), #47, USC; https://en.wikipedia.org/wiki/Joey_Browner
+update rec_legend_catalog set jersey_number = 59, college = 'Michigan' where id = '4456d96d-5dfd-44ae-913c-ef6176481ce9'; -- John Anderson (ROLB), #59, Michigan; https://en.wikipedia.org/wiki/John_Anderson_(American_football)
+update rec_legend_catalog set college = 'Stanford' where id = 'a62852f7-8a4b-4ba0-a684-4443bc6d345e'; -- John Elway (QB), Stanford; https://en.wikipedia.org/wiki/John_Elway
+update rec_legend_catalog set jersey_number = 35, college = 'Arizona State' where id = '77b183b1-e68d-45db-a5a5-4937ef7aedc1'; -- John Henry Johnson (HB), #35, Arizona State; https://en.wikipedia.org/wiki/John_Henry_Johnson
+update rec_legend_catalog set college = 'Cal Poly' where id = 'b9cd6def-e7c8-4f86-8fb0-b64456b96eb4'; -- John Madden (LT), Cal Poly; https://en.wikipedia.org/wiki/John_Madden
+update rec_legend_catalog set jersey_number = 56, college = 'Western Michigan' where id = '64673c65-9730-45bc-8571-e38b8e616765'; -- John Offerdahl (MLB), #56, Western Michigan; https://en.wikipedia.org/wiki/John_Offerdahl
+update rec_legend_catalog set college = 'Washington' where id = '0ba23a09-ace3-40c7-9dfa-0085507f156c'; -- John Ross (WR), Washington; https://en.wikipedia.org/wiki/John_Ross_(American_football)
+update rec_legend_catalog set jersey_number = 82, college = 'Alabama A&M' where id = 'fa678ddc-1c81-4207-9f0f-68c812611b4c'; -- John Stallworth (WR), #82, Alabama A&M; https://en.wikipedia.org/wiki/John_Stallworth
+update rec_legend_catalog set jersey_number = 2, college = 'Texas A&M' where id = '15347fc7-f85d-447f-9fdd-acb860927f21'; -- Johnny Manziel (QB), #2, Texas A&M; https://en.wikipedia.org/wiki/Johnny_Manziel
+update rec_legend_catalog set jersey_number = 16, college = 'Kent State' where id = 'a7b7aafb-2442-462f-842a-221b2f60882a'; -- Josh Cribbs (WR), #16, Kent State; https://en.wikipedia.org/wiki/Josh_Cribbs
+update rec_legend_catalog set college = 'Sam Houston State' where id = 'd551349e-26a7-4eb6-b2a8-68261a780443'; -- Josh McCown (QB), Sam Houston State; https://en.wikipedia.org/wiki/Josh_McCown
+update rec_legend_catalog set jersey_number = 16, college = 'UCLA' where id = 'fb870088-b77a-4ce5-a76e-71401e556ab0'; -- Josh Rosen (QB), #16, UCLA; https://en.wikipedia.org/wiki/Josh_Rosen
+update rec_legend_catalog set jersey_number = 0, college = 'Oklahoma State' where id = 'e2225b79-499d-4b45-aa1d-ff30e2ccb1fe'; -- Justin Gilbert (CB), #0, Oklahoma State; https://en.wikipedia.org/wiki/Justin_Gilbert

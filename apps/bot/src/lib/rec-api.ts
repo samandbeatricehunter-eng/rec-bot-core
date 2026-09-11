@@ -657,15 +657,6 @@ export const recApi = {
   listScheduleSeason: (input: { guildId: string; seasonNumber?: number | null }) =>
     recFetch<any>("/v1/schedule/season", { method: "POST", body: JSON.stringify(input) }),
 
-  commitCfbTeamScheduleImport: (input: {
-    guildId: string;
-    teamId: string;
-    seasonNumber?: number | null;
-    decisions: Array<{ weekNumber: number; opponentTeamId: string; homeAway: "home" | "away" }>;
-    requestedByDiscordId?: string | null;
-  }) =>
-    recFetch<any>("/v1/schedule/team-schedule-commit", { method: "POST", body: JSON.stringify(input) }),
-
   getLeagueSos: (guildId: string, discordId: string) =>
     recFetch<any>("/v1/schedule/sos", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),
 

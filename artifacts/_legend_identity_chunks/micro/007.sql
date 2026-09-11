@@ -1,0 +1,20 @@
+update rec_legend_catalog set jersey_number = 78, college = 'Auburn' where id = 'bea5f962-ea13-49a5-bcee-88a4003d8dcf'; -- Greg Robinson (LT), #78, Auburn; https://en.wikipedia.org/wiki/Greg_Robinson_(offensive_tackle)
+update rec_legend_catalog set jersey_number = 53, college = 'South Carolina State' where id = '291fd1dd-c6d8-4fd1-9ad4-32d52ef0159f'; -- Harry Carson (MLB), #53, South Carolina State; https://en.wikipedia.org/wiki/Harry_Carson
+update rec_legend_catalog set jersey_number = 79, college = 'East Texas State' where id = 'b0a65077-70f2-4c0e-919c-d5a6da9ad072'; -- Harvey Martin (RE), #79, East Texas State; https://en.wikipedia.org/wiki/Harvey_Martin
+update rec_legend_catalog set jersey_number = 83, college = 'Virginia' where id = '01707061-f16f-4520-ac1c-a2fd56c02853'; -- Heath Miller (TE), #83, Virginia; https://en.wikipedia.org/wiki/Heath_Miller
+update rec_legend_catalog set jersey_number = 5, college = 'Tennessee' where id = '8633e65c-c61d-4785-835f-106fed608ae9'; -- Heath Shuler (QB), #5, Tennessee; https://en.wikipedia.org/wiki/Heath_Shuler
+update rec_legend_catalog set college = 'Georgia' where id = 'a75213fa-1122-4c78-a277-fcd326513e65'; -- Hines Ward (WR), Georgia; https://en.wikipedia.org/wiki/Hines_Ward
+update rec_legend_catalog set jersey_number = 39, college = 'Washington' where id = '6b772764-315d-4af1-8b49-fdfd3bc85e83'; -- Hugh McElhenny (HB), #39, Washington; https://en.wikipedia.org/wiki/Hugh_McElhenny
+update rec_legend_catalog set jersey_number = 79, college = 'Georgia' where id = '977811dc-e332-4bed-9985-f57b4e3afc57'; -- Isaiah Wilson (RT), #79, Georgia; https://en.wikipedia.org/wiki/Isaiah_Wilson
+update rec_legend_catalog set jersey_number = 99, college = 'Wisconsin' where id = 'b6f0b042-d7f7-44af-8f7a-45375a930742'; -- J.J. Watt (RE), #99, Wisconsin; https://en.wikipedia.org/wiki/J._J._Watt
+update rec_legend_catalog set college = 'Penn State' where id = '90f7946e-1f02-4903-82b9-799e01d84c13'; -- Jack Ham (LOLB), Penn State; https://en.wikipedia.org/wiki/Jack_Ham
+update rec_legend_catalog set college = 'Kent State' where id = 'dfdc8733-ee17-4e47-8143-32263bab7420'; -- Jack Lambert (MLB), Kent State; https://en.wikipedia.org/wiki/Jack_Lambert_(American_football)
+update rec_legend_catalog set jersey_number = 28, college = 'Ohio State' where id = '53079e8e-0b36-45e0-81ff-cb2238a72acd'; -- Jack Tatum (FS), #28, Ohio State; https://en.wikipedia.org/wiki/Jack_Tatum
+update rec_legend_catalog set jersey_number = 85, college = 'Florida' where id = '569315dd-6a64-4510-a898-9b9a1d80acde'; -- Jack Youngblood (RE), #85, Florida; https://en.wikipedia.org/wiki/Jack_Youngblood
+update rec_legend_catalog set jersey_number = 81, college = 'Northwestern State' where id = '4bbd1ed9-6c5a-44a8-8cc5-6226bb8d3697'; -- Jackie Smith (TE), #81, Northwestern State; https://en.wikipedia.org/wiki/Jackie_Smith
+update rec_legend_catalog set jersey_number = 16, college = 'Arizona State' where id = 'e267337d-04d9-4585-87d3-fbad9ef83692'; -- Jake Plummer (QB), #16, Arizona State; https://en.wikipedia.org/wiki/Jake_Plummer
+update rec_legend_catalog set jersey_number = 92, college = 'Arkansas' where id = 'cee7b1db-d6d9-4b87-876a-ffecddf9e064'; -- Jamaal Anderson (RE), #92, Arkansas; https://en.wikipedia.org/wiki/Jamaal_Anderson
+update rec_legend_catalog set jersey_number = 31, college = 'Texas' where id = 'ed6031fd-dab6-485d-be13-6bf78701462a'; -- Jamaal Charles (HB), #31, Texas; https://en.wikipedia.org/wiki/Jamaal_Charles
+update rec_legend_catalog set jersey_number = 2, college = 'LSU' where id = '96124440-ec9c-4b04-99a8-ad1d44d50c84'; -- JaMarcus Russell (QB), #2, LSU; https://en.wikipedia.org/wiki/JaMarcus_Russell
+update rec_legend_catalog set jersey_number = 92, college = 'Kent State' where id = 'a843b5f2-75db-436d-9ed7-be7723e76617'; -- James Harrison (LOLB), #92, Kent State; https://en.wikipedia.org/wiki/James_Harrison_(American_football)
+update rec_legend_catalog set jersey_number = 22, college = 'Stanford' where id = '1d7757a2-d210-4470-8acf-a00ef41de053'; -- James Lofton (WR), #22, Stanford; https://en.wikipedia.org/wiki/James_Lofton

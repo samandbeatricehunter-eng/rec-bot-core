@@ -11,11 +11,11 @@ const SECTIONS: FaqSection[] = [
     items: [
       {
         q: "What is REC Leagues eSports?",
-        a: "A companion platform for community EA Sports College Football and Madden NFL leagues — manage rosters, schedules, stats, stories, and league content from the web app, an installable PWA, or Discord.",
+        a: "A companion platform for community Madden NFL leagues — manage rosters, schedules, stats, stories, and league content from the web app, an installable PWA, or Discord.",
       },
       {
         q: "What games are supported?",
-        a: "CFB 27, Madden 26, and Madden 27.",
+        a: "Madden 26 and Madden 27.",
       },
       {
         q: "Do I need Discord to use REC Leagues eSports?",
@@ -82,7 +82,7 @@ const SECTIONS: FaqSection[] = [
       },
       {
         q: "How does the coin economy work?",
-        a: "Coins are a virtual in-league currency earned from stat payouts, wagers, and approved highlights. Spend them in the League Store on Dev Trait upgrades, attribute points, contract adjustments, Campus Legends/Custom Recruits, and more.",
+        a: "Coins are a virtual in-league currency earned from stat payouts, wagers, and approved highlights. Spend them in the League Store on Dev Trait upgrades, attribute points, contract adjustments, Legends/Custom Players, and more.",
       },
       {
         q: "What is Rise to Immortality?",
@@ -101,8 +101,8 @@ const SECTIONS: FaqSection[] = [
         a: "Season and career badges are awarded automatically from your stat line each game. Season badges reset every year; career badges accumulate for good. Your win-loss record and point differential update automatically from approved box scores, manual entries, and week advances.",
       },
       {
-        q: "What are Legends and Custom Recruits/Players?",
-        a: "Premium store items that add a player to your roster. A Legend (Campus Legend in CFB) instantly replaces a roster spot with a top-tier historical or custom player. CFB's Custom Recruit joins at the next season as a replacement for a committed recruit; Madden's Custom Player joins through the normal annual draft instead.",
+        q: "What are Legends and Custom Players?",
+        a: "Premium store items that add a player to your roster. A Legend instantly replaces a roster spot with a top-tier historical or custom player. A Custom Player joins through the normal annual draft.",
       },
     ],
   },
@@ -115,7 +115,7 @@ const SECTIONS: FaqSection[] = [
       },
       {
         q: "How do I review pending items?",
-        a: "The Commissioner Inbox lists everything awaiting your approval: box scores, highlights, store purchases (including Legends/Custom Recruits), and payouts.",
+        a: "The Commissioner Inbox lists everything awaiting your approval: box scores, highlights, store purchases (including Legends/Custom Players), and payouts.",
       },
       {
         q: "How do I set up Discord channels?",

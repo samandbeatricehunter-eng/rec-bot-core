@@ -1,0 +1,5972 @@
+[
+  {
+    "id": "368de652-9fec-44c6-874c-d8c57a407dad",
+    "name": "Aaron Curry",
+    "position": "ROLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "a8ae4fa8-6063-4990-97ff-dd83eb1b3c58",
+    "name": "Aaron Donald",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": 99,
+    "college": "Pitt",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "911d56d5-7e1b-4798-bd35-6f129891d5a9",
+    "name": "Abner Haynes",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4b675559-32b1-42ae-aac1-c2ecd59ea641",
+    "name": "Adam Dunn",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "f3be24a1-8ab3-4c19-be4d-5b858f2d4c9f",
+    "name": "Adam Jones",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "451785a1-c80c-48f7-aaa2-7e6d6117c770",
+    "name": "Adam Vinatieri",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": 4,
+    "college": "South Dakota State",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "9969fc7b-6f48-4301-a0db-7b1a6e4f0559",
+    "name": "Adrian Peterson",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 28,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "cbadca19-4e28-4048-8a5f-733294f9e71a",
+    "name": "Aeneas Williams",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "6cf4718f-43bd-46fa-9c7e-e2df433a74c9",
+    "name": "Akili Smith",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "98250b93-1951-43e5-b03b-a116b4a50bad",
+    "name": "Alan Ameche",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 35,
+    "college": "Wisconsin",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "f70410fe-3989-41df-b6a0-0452847b198a",
+    "name": "Alan Faneca",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": 66,
+    "college": "LSU",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4b5d72d7-73ed-413f-a207-7e43d51878db",
+    "name": "Alan Page",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": 88,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "52e2d903-9651-4338-b2a6-ea5f9d51a04b",
+    "name": "Albert Lewis",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "ee273435-114d-4e2e-9b2e-5a8d2132a2f4",
+    "name": "Allen Iverson",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "e99e84f6-792a-40d7-a575-37acf147de23",
+    "name": "Alvin Mack",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "4956a763-7580-4c97-985d-5cab8f6a13f9",
+    "name": "Anders Lee",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "0ccaf0f7-3277-42cb-af6b-3e7688a3b6fc",
+    "name": "Andre Johnson",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 80,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "0e0ae6f1-de8b-450e-8f5e-03634801037f",
+    "name": "Andre Reed",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "d92ae445-5497-4ddb-886b-581997e46db3",
+    "name": "Andre Tippett",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "68115a91-1095-4429-9b55-19f3db175f74",
+    "name": "Andre Ware",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "6142693e-1ddb-46f5-be87-55533c38a167",
+    "name": "Anthony Edwards",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "e9574cb0-c222-4e43-ae85-a6339e16c383",
+    "name": "Anthony Munoz",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": 78,
+    "college": "USC",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "b61c8f36-c1b9-4c89-be24-68243fdbf6ed",
+    "name": "Antonio Cromartie",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "a090d4dc-076f-49d2-98c4-09bb12ca4333",
+    "name": "Antonio Gates",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 85,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "be2ec333-2a4a-4d31-bfe8-f4b68f0ae3aa",
+    "name": "Archie Bradley",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "7988967d-5b43-44b1-bbe4-142bf47aa7c2",
+    "name": "Art Donovan",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "10a03011-4b17-495c-8a94-d92624c10fac",
+    "name": "Art Monk",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "6304e45e-8b63-42c7-a0a4-3f7be376e3f3",
+    "name": "Art Shell",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": 78,
+    "college": "Maryland Eastern Shore",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "5c0c43b5-cf79-4604-9dff-31974658a02f",
+    "name": "Aubrey Graham",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "7127a67a-d5b9-42eb-91f0-6cdab1c82820",
+    "name": "Aundray Bruce",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "dd03d294-fbc6-4e93-9b5d-420a0db544da",
+    "name": "Barrett Jones",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": 75,
+    "college": "Alabama",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "8d6c0ec7-af19-41a3-82ad-a25cba3aa5a4",
+    "name": "Barry Sanders",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 20,
+    "college": "Oklahoma State",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "578ca71d-a117-4c0e-bcb7-89a58f368881",
+    "name": "Bart Starr",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "bc70fd31-6543-4d4a-bf3a-e8359943f9de",
+    "name": "Ben Coates",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4038112d-76e5-4ce4-93f9-9607c625f197",
+    "name": "Ben Roethlisberger",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 7,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "6639466e-d651-4d86-8266-f76ef578504e",
+    "name": "Ben Watson",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "c2a75d22-9244-4704-888e-faba25451ce7",
+    "name": "Bernie Kosar",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "e189a2dd-6620-4040-9fd7-d26a4b107b55",
+    "name": "Bill Curry",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "a262fe9a-1f0d-4db7-9f8d-e25c9b507ed3",
+    "name": "Bill Fralic",
+    "position": "RG",
+    "hand": "Right",
+    "jersey_number": 79,
+    "college": "Pitt",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "9f6185b6-8f69-4710-9ef5-397ce819adab",
+    "name": "Bill Goldberg",
+    "position": "RG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "9db1ed7d-ea1f-4cd7-8609-c91bf49bff49",
+    "name": "Bill Romanowski",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "d01855f3-2f64-487c-a95b-f892eedcca0b",
+    "name": "Billy Bob",
+    "position": "RG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "7ac72a57-389a-41e9-bfee-84a1cd21e6a2",
+    "name": "Billy Cundiff",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "873baeb9-1f55-4295-bdfe-243bb920a20c",
+    "name": "Billy Joe Dupree",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "9d597e5a-fadb-4385-a98d-3e71a60ea5c1",
+    "name": "Billy Johnson",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "dc2f6c9a-9b7c-446f-88ca-ebb4e02538d6",
+    "name": "Blair Thomas",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "f4d1c263-9fe2-4e52-a7e8-3d6e1362f35c",
+    "name": "Bo Jackson",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 34,
+    "college": "Auburn",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "3d737905-8bb3-4d94-af04-5100aad2362d",
+    "name": "Bob Brown",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "037dc4a1-eb24-43d5-a8e0-527d48008686",
+    "name": "Bob Hayes",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "f05449f3-f961-4faa-9880-e468ae8fda37",
+    "name": "Bob Lilly",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": 74,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "8b7ee76b-8c6d-43d7-ae93-630c31ce3935",
+    "name": "Bob St. Clair",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "f53b00da-f193-439d-96f2-ac51ee5f8c5b",
+    "name": "Bobby Boucher",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "fde291c6-390f-469b-8fb6-651cad30fc1b",
+    "name": "Bobby Layne",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "48216b07-866d-481e-8faf-d1d786201816",
+    "name": "Bobby Mitchell",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "d781559e-03b3-47d8-a7d3-931fe13c8677",
+    "name": "Boobie Miles",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "7c2649ed-742b-4463-9921-27ff3921fd6f",
+    "name": "Brad Van Pelt",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4f15a056-544e-4376-a7b8-8c9e30cd3f8a",
+    "name": "Brady Quinn",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "9f7deb02-91de-41ec-b049-273fdd5bd27c",
+    "name": "Brent Celek",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "579557f0-415c-4b6f-866e-9da5143e1173",
+    "name": "Brent Grimes",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "b5f55607-4584-4220-9e15-edc391d0f046",
+    "name": "Brent Jones",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "7f419685-57ca-4282-b09d-d72601246aa0",
+    "name": "Brett Favre",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 4,
+    "college": "Southern Miss",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "15e35784-5355-4d64-a3eb-f5d0ae6b50e4",
+    "name": "Brian Banks",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "60846d65-0727-437d-ae73-0a905276ccf1",
+    "name": "Brian Bosworth",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": 44,
+    "college": "Oklahoma",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "d00327e3-6054-4bed-994a-a3a077b78ad5",
+    "name": "Brian Dawkins",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": 20,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "d31568c0-05ed-40be-b2a6-677e83350dde",
+    "name": "Brian Murphy",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "ea917615-c08c-4a60-8014-e8d78081fc5c",
+    "name": "Brian Urlacher",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": 54,
+    "college": "New Mexico",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "d5c7493d-f153-47d5-a6b9-860352f993f6",
+    "name": "Brian Williams",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "d976cd0d-b5f9-4333-972e-2a55e80493d1",
+    "name": "Brock Lesnar",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "56f1a25a-6276-4db7-9a2a-356899d9c287",
+    "name": "Bronko Nagurski",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": 72,
+    "college": "Minnesota",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "f85af09c-a7cb-4303-912b-1f3368a7cb07",
+    "name": "Bruce Matthews",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": 74,
+    "college": "USC",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "fa82bc20-281a-4a02-91c8-4c7d9f2bbed2",
+    "name": "Bruce Smith",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": 78,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "6f496335-f316-4561-b130-7d408803854b",
+    "name": "Bryce Paup",
+    "position": "ROLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "c211a3f3-4202-4f42-975c-98b2e492c0e1",
+    "name": "Buck Buchanan",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "c6a6e549-11b8-42d8-a8db-a6dbb411ca66",
+    "name": "Burt Reynolds",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "6cb79458-3d9b-4afb-a396-255929cbf420",
+    "name": "Cal Hubbard",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4aa3e029-5c9f-4d3d-8a2f-c5782753bb0d",
+    "name": "Calvin Broadus",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "c31cd444-330a-4714-ab71-70d5d5e750c3",
+    "name": "Calvin Johnson",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 81,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "db994a33-d5d3-4a08-8bd6-43a79e881c48",
+    "name": "Cam Newton",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 2,
+    "college": "Auburn",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "b19ccc23-e9d4-43ca-999e-71ed0b46fb99",
+    "name": "Carl Banks",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "65f62207-f2a4-42f2-b10a-0750d5a29f61",
+    "name": "Carl Crawford",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "f499dff1-c806-44f8-84cc-01dda9f9d745",
+    "name": "Carl Eller",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "16dd69a7-ae34-4545-9227-840736d9ade5",
+    "name": "Carl Lewis",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "62733dea-bd6d-40e1-9168-e1f15651d781",
+    "name": "Chad Johnson",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "917614d0-f890-42d8-bec1-2a54da0b2c5a",
+    "name": "Champ Bailey",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 24,
+    "college": "Georgia",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "55ed0234-cc58-4d9c-9c47-64b46d429246",
+    "name": "Charles Greane",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "9bf3e906-88b6-41f8-a3ee-ee64f1bb5ae7",
+    "name": "Charles Haley",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": 94,
+    "college": "James Madison",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "2f4b0c11-bc1b-49d0-83e1-c4b32e86ae54",
+    "name": "Charles Rogers",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "7cab0ee6-64ab-4c21-bced-48e66ce661a3",
+    "name": "Charles Woodson",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 24,
+    "college": "Michigan",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "1e79878a-5b18-4f39-a9b0-178017a4db60",
+    "name": "Charley Taylor",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "0450befa-ebdb-402e-9efb-3d9b2d31bfbb",
+    "name": "Charley Trippi",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "1639b035-117b-4f8e-83fe-14f30cdde62c",
+    "name": "Charlie Batch",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "5ebe29c5-8248-4c38-910c-505bb7491647",
+    "name": "Charlie Tweeder",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "ca2f990c-3ad2-4b25-9b3a-07ff94258b25",
+    "name": "Charlie Ward",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "ee4e5fe5-e0f9-431d-bc32-c07a690b4bfc",
+    "name": "Charlie Waters",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "f9407294-0a3e-44c3-b380-cf0f233405eb",
+    "name": "Chris Doleman",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "dd5477ff-041a-498c-aebc-25427213a06d",
+    "name": "Chris Hemsworth",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "3e41ff34-28f9-4eb2-8267-db43db22a12b",
+    "name": "Chris Long",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "1dca25bb-c13d-4289-9d88-15b143cd557d",
+    "name": "Chris Spielman",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "fe4dc975-c311-44a1-9b20-2df29a041f5d",
+    "name": "Chris Weinke",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "f75fb4dd-3da9-4979-864a-e271ed9c2620",
+    "name": "Christopher Bridges",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "49f3ecaf-c065-4833-b24a-995738e3e711",
+    "name": "Chuck Bednarik",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "1e6dc633-6688-4a93-b559-775aacd84950",
+    "name": "Claude Humphrey",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "9eb98e3b-b223-4ac1-bed9-6be176822410",
+    "name": "Clay Matthews III",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "b322c900-9a2a-4325-93fe-2aac81fc7164",
+    "name": "Cliff Branch",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "9800cccb-e10f-48a9-806b-29ced27e8b9b",
+    "name": "Cliff Harris",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "f3134796-bb61-4f4a-ad29-896d5c404a7b",
+    "name": "Clifford Franklin",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "eef21898-fc59-49c5-958a-c1494cab0b88",
+    "name": "Clifford Smith",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "8357d061-3a71-4263-9c54-8233d5feae9e",
+    "name": "Clyde Simmons",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4eddd3b7-0a24-4222-9564-4f4048d8e1ae",
+    "name": "Colt Brennan",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "233eeb13-b75a-47ee-8cea-c1c7ca392b31",
+    "name": "Conrad Dobler",
+    "position": "RG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "44f2ebb3-bc07-401f-87b6-924e72c91f5f",
+    "name": "Cornell Haynes",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "ae488d08-2bd8-4db0-ab6e-6c9994040ff5",
+    "name": "Cortez Kennedy",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "1bd33a0f-5c8b-492c-823b-e770ab8dcd13",
+    "name": "Cortland Finnegan",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "3eaf8513-c7bc-44c1-bc4f-e61508225f92",
+    "name": "Courtney Brown",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "4d41acf2-f4fe-4989-a5a8-a0d6ba7add8b",
+    "name": "Craig Heyward",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "79575b76-103e-4d6f-8fe3-5ee9ffc12340",
+    "name": "Cris Carter",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 80,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "8af26d02-a36d-4519-bde6-2aac10fc70ff",
+    "name": "Curley Culp",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "e2e11373-7142-4631-afcc-f521b3b4570e",
+    "name": "Curtis Enis",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "8696e81f-d7e4-4a98-9843-272fd4676f5a",
+    "name": "Curtis Martin",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "e2219ae5-d232-475b-be58-8f19652df3e5",
+    "name": "Dalip Singh",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "74232e23-00c4-4905-bafe-910d6353ee76",
+    "name": "Dallas Clark",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 44,
+    "college": "Iowa",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "6e478d99-bcc8-41b7-9471-8269d5e3b841",
+    "name": "Dan Fouts",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 14,
+    "college": "Oregon",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "b2c83343-de7a-4808-8631-c57b4946c781",
+    "name": "Dan Hampton",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "159e61eb-854b-41f0-a58d-054a707e208a",
+    "name": "Dan Marino",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 13,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "8f057309-a6f0-4387-9c89-3dc6e0551bf4",
+    "name": "Dan McGwire",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "55913e5b-347b-468b-a995-a787b77129b9",
+    "name": "Dan Saleaumua",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "08dc1848-89e1-4a1b-a456-f343025a1536",
+    "name": "Daniel Bateman",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "60b665c4-97a0-453d-9d9d-059a75b6c4f6",
+    "name": "Danny Woodhead",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "c6bfbea1-e6f8-4db4-9a23-a36f837d582c",
+    "name": "Danny Wuerffel",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "dc9bc1f2-259b-4ed6-b946-21121e86e20c",
+    "name": "Dante Lavelli",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "57bfc87c-1ed7-474c-a0ce-1048ce537124",
+    "name": "Darin Erstad",
+    "position": "P",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "98ae3e3a-ccb4-4808-b797-9061a5ef2b58",
+    "name": "Darnell Jefferson",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "0f951016-7436-4af9-a513-4c04a76fdf87",
+    "name": "Darrell Green",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "7b31d1c8-1d8a-4af4-8d69-0b016f935cd9",
+    "name": "Darrelle Revis",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 24,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "97fed433-1171-429b-b859-d8b2218dc450",
+    "name": "Darren Woodson",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "10456e30-221a-4d14-97a9-28c72b9606f9",
+    "name": "Daryl Johnston",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 48,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "a73a0752-9e23-4b14-aed2-dae48be4bd1c",
+    "name": "Dave Bautista",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "b945e289-cad5-429d-986c-4a5c48535c9e",
+    "name": "Dave Butz",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "e56d8d66-4260-47cd-96b7-39fa2b420588",
+    "name": "Dave Casper",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "a48c72cd-a3ef-4384-a2fa-babc217a787c",
+    "name": "Dave Rimington",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": 50,
+    "college": "Nebraska",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4a5e16a0-4d45-4db8-af87-b2ee49d07383",
+    "name": "Dave Wilcox",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "fd68e61b-0522-4067-874b-511378dd6d9a",
+    "name": "Dave Winfield",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "a14053f8-00f4-4cd7-8a70-e7ae0ecc577e",
+    "name": "David Akers",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "23bf20db-cc94-4d99-b302-65a6b6aeff69",
+    "name": "David Klingler",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "400bf164-f142-4cae-9b3e-314bb7f3b6a7",
+    "name": "David Terrell",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "d407b78e-40c3-492c-8276-12642811a292",
+    "name": "Deacon Jones",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": 75,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "fa3a6ea9-4fae-425d-93ea-4f3bf4786906",
+    "name": "Dean Cain",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "55f50cfa-0967-40b5-8cb8-21809fde7ff5",
+    "name": "Dee Milliner",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "84462a33-46e0-4435-88c4-12e5a4bbee26",
+    "name": "Deion Sanders",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 21,
+    "college": "Florida State",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "ecadd835-c150-42fb-ae7d-cd170daf6574",
+    "name": "Delanie Walker",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "46147bdf-d451-40c0-8023-7bb484675007",
+    "name": "Derek Starling",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "7599a94e-fc08-45d4-b985-aef2baee635a",
+    "name": "Dermontti Dawson",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "569fca10-77f9-4179-9a90-0e4b7a5ed200",
+    "name": "Deron Cherry",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "b462a858-2906-4b37-9340-9760d7a063aa",
+    "name": "Derrick Brooks",
+    "position": "ROLB",
+    "hand": "Right",
+    "jersey_number": 55,
+    "college": "Florida State",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "3cb63f84-8774-475e-a2e1-43be49a58a45",
+    "name": "Derrick Harvey",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "06472c34-534c-4ea3-bf2d-731656934db6",
+    "name": "Derrick Thomas",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": 55,
+    "college": "Alabama",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "5eb91d67-e90e-4c94-8909-7fb398148dc4",
+    "name": "Devin Hester",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 23,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "bdc61a76-faea-43cb-ba5a-57521463087a",
+    "name": "Dexter Manley",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "928a3ec9-97de-4061-9ca5-f2cb965744d5",
+    "name": "Dick Anderson",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "7fd751c6-0d1d-4573-8bbb-114cfbcc3a0b",
+    "name": "Dick Butkus",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": 51,
+    "college": "Illinois",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "80e33c9f-aaa3-4ec8-9921-c15f65f225fe",
+    "name": "Dion Jordan",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "8fb668ce-89d8-4a31-80b1-325323b893e5",
+    "name": "Doc Blanchard",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 35,
+    "college": "Army",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "d7995317-1e63-4c9b-9711-311f60b129bb",
+    "name": "Don Maynard",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "443ef3c1-ab07-4d8a-9c83-614ab3942fff",
+    "name": "Donald Glover",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "ee9e3a65-bc7e-4a11-b5e8-f4bf4dffce07",
+    "name": "Donavan Tate",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "c25b8f9e-1b12-4177-ac27-53a646d653ba",
+    "name": "Donovan McNabb",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "a57f575d-c069-442c-9846-6187979fd4f2",
+    "name": "Doug Flutie",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "a99826d2-c833-4ab1-b724-7ebca65d6fca",
+    "name": "Doug Williams",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "1fed30e2-f563-4240-9ebb-1e29cb002902",
+    "name": "Drew Brees",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 9,
+    "college": "Purdue",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "fb8eb88e-8f97-4665-a05f-81992e41c549",
+    "name": "Drew Pearson",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "2a7c6cd7-c20a-40cb-b44b-64c4034c5b1d",
+    "name": "Duane Thomas",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "b176ce50-4dd5-4968-927c-a216b47284a9",
+    "name": "Dustin Byfuglien",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "26a3b26c-1c6e-476d-892b-31db5f180816",
+    "name": "Dwayne Carter",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "6ab74dd2-e20f-469c-b786-ffae89c7aaaf",
+    "name": "Dwayne Johnson",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "f1bf8f7e-66ee-4426-8e02-6ef92ff501cb",
+    "name": "Dwight Clark",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "3272763a-f2fa-4293-a264-ba620e63cf2e",
+    "name": "Dwight Stephenson",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "8dac0197-b921-4565-b90d-01ad5dea1118",
+    "name": "Earl Campbell",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 20,
+    "college": "Texas",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "294a8330-99fc-42fa-b2d2-719c4cd0b6b7",
+    "name": "Earl Megget",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "8a859c8f-3bc8-4eeb-ba0a-76bc300b6f02",
+    "name": "Earl Thomas",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "90d1486e-61e4-4e45-b1e5-6a5dac68800a",
+    "name": "Earl Wilkinson",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "7caeb686-69d2-45e6-aa85-9829472389f2",
+    "name": "Ed \"Too Tall\" Jones",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": 72,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "b2057f2b-4094-4898-9f26-60debdee22e0",
+    "name": "Ed O'Neill",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "dd1b2b1a-ca2e-41b8-a4b5-691445ea5ef4",
+    "name": "Ed Reed",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": 20,
+    "college": "Miami",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "ff90d18e-be4c-4223-86aa-8ca0cc28c87b",
+    "name": "Eddie Murray",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "11a33064-faaf-474a-ba32-77fa51a78896",
+    "name": "Edgerrin James",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 32,
+    "college": "Miami",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "6a48da6d-238b-453a-9a29-7787632841fc",
+    "name": "Elmo Wright",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "05d2ccef-92a8-451a-aa73-fef414cf21d4",
+    "name": "Elvin Bethea",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "869f366f-bea9-4173-ae7f-eb9817194e47",
+    "name": "Emlen Tunnell",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "4d774831-e36c-4694-8d98-3bac1555c477",
+    "name": "Emmitt Smith",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 22,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "e0aca3c4-a88c-4f9f-bc33-d079260cbdd0",
+    "name": "Emmitt Thomas",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "fa70366c-d4b5-47d5-8c41-bf2d9790262b",
+    "name": "Eric Berry",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": 14,
+    "college": "Tennessee",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "cd4a2055-71f6-49c1-9adc-1e9e9f2f56e5",
+    "name": "Eric Crouch",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "b9acbc1b-0d1d-4ac1-8240-3e263e5f41c4",
+    "name": "Eric Dickerson",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 29,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "a40cb846-e439-4d01-974e-92b2b66efb9f",
+    "name": "Eric Green",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "fa2e754d-1c03-429d-84ce-5a2b1db08fa7",
+    "name": "Eric Turner",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "fa71243d-a3ee-412e-8cb4-65ae8ace1d95",
+    "name": "Eric Weddle",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "32a18df8-2920-4402-a840-04730bc771cd",
+    "name": "Ernest Givins",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "a1951004-d4e5-4a14-acc0-4ed1aef7681e",
+    "name": "Ernie Davis",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "295bed6c-6178-41ba-869c-18a68cd97956",
+    "name": "Eugene Robinson",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "46218bc6-f7fa-45fe-8abe-839ed93c3984",
+    "name": "Everson Walls",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "73dec6a9-2b90-4aa1-944b-69ce49a5164e",
+    "name": "Flash Gordon",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "179b7564-643d-4f18-bdf9-e353010b43de",
+    "name": "Floyd Little",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "62f371c0-32c3-47ca-9b74-9a081924599a",
+    "name": "Forrest Gregg",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": 75,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "5428a39e-285d-4140-8f82-b20928ba557b",
+    "name": "Forrest Gump",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "3aa37ddf-7ef6-4a48-8681-168ada2c6259",
+    "name": "Fran Tarkenton",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "9168347e-d394-4331-8a0d-88ef818200ad",
+    "name": "Franco Harris",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 32,
+    "college": "Penn State",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "b2e2dd69-79c3-4ca1-87ec-3b6f37dbcf5b",
+    "name": "Frank Gore",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "3c91cdb0-36b6-4019-8042-7a6c607c3f4c",
+    "name": "Frank Thomas",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "65e661c8-852c-4cfd-9d4f-07c531941cd7",
+    "name": "Fred Biletnikoff",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 25,
+    "college": "Florida State",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "2080f113-12da-419b-a7e6-bc7c56db2aee",
+    "name": "Fred Jackson",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "f99c22ad-5673-4e5d-acac-aff024df5f12",
+    "name": "Fred Williamson",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "2a0ece00-694a-4af5-9166-4d403fefd833",
+    "name": "Freddie Mitchell",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "a9940806-a6bf-46a9-8062-cbdc54759c11",
+    "name": "Gable Steveson",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "00d171a5-50f8-4bf3-9878-70321da9b13e",
+    "name": "Gale Sayers",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "eac2bd8e-f403-4a8d-b2f9-2afc4fcc11cd",
+    "name": "Garo Yepremian",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "8c2d8824-bd04-45e7-b5fe-654929f35540",
+    "name": "Gary Anderson",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": 1,
+    "college": "Syracuse",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "39f9a30c-d2bf-4e6d-b089-ec761e01a639",
+    "name": "Gary Zimmerman",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "8d411e36-edd3-42f8-a9b2-62c2704b5fd6",
+    "name": "Gene Upshaw",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "0c6e84cf-bf7f-4740-8ca6-6247d7ed4b4b",
+    "name": "George Blanda",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "fea9368e-fe39-4080-b6a5-3bba1146f0b6",
+    "name": "George McAfee",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "c9e9c2f5-c8ed-4bba-b3db-0c4b05e0021a",
+    "name": "Giannis Antetokounmpo",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "cd15bcc5-5fd7-46c2-99d3-b8120869c832",
+    "name": "Gino Marchetti",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "d193dc44-abeb-4d5f-ad26-7ed752db11a3",
+    "name": "Gino Torretta",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "acb1093a-39f5-4508-be1e-0098e7dcf9e9",
+    "name": "Glenn Davis",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 41,
+    "college": "Army",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "fb2ad7d8-1696-485a-aa21-980ab15729d0",
+    "name": "Greg Kragen",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "777eba57-7cd2-4b34-9748-eb8a6ab9938b",
+    "name": "Greg Lloyd",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "01c076c7-66aa-4cce-9c0c-8247c1c274c4",
+    "name": "Greg Olsen",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 88,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "bea5f962-ea13-49a5-bcee-88a4003d8dcf",
+    "name": "Greg Robinson",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "291fd1dd-c6d8-4fd1-9ad4-32d52ef0159f",
+    "name": "Harry Carson",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "b0a65077-70f2-4c0e-919c-d5a6da9ad072",
+    "name": "Harvey Martin",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "01707061-f16f-4520-ac1c-a2fd56c02853",
+    "name": "Heath Miller",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "8633e65c-c61d-4785-835f-106fed608ae9",
+    "name": "Heath Shuler",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "895da63f-6209-43fd-b108-4723273272fa",
+    "name": "Herb Adderley",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 26,
+    "college": "Michigan State",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "71ecfdee-ed7b-417f-87b7-f190ed2fa058",
+    "name": "Herschel Walker",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 34,
+    "college": "Georgia",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "a75213fa-1122-4c78-a277-fcd326513e65",
+    "name": "Hines Ward",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "0051a4db-21d9-4ab8-8c58-084cdc98691e",
+    "name": "Howard Cassady",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 40,
+    "college": "Ohio State",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "f14b370e-5f69-444c-b56d-929ad0dd83ba",
+    "name": "Howie Long",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": 75,
+    "college": "Villanova",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "46044c00-530e-42d8-b8ff-0d5dc9922ac1",
+    "name": "Hugh Green",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": 99,
+    "college": "Pitt",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "6b772764-315d-4af1-8b49-fdfd3bc85e83",
+    "name": "Hugh McElhenny",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "78a4cd4f-2cfe-4fe1-ba63-77b65cf35132",
+    "name": "Idris Elba",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "987ef775-6e74-4cdf-a2fc-aed11856b4b4",
+    "name": "Ilona Maher",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "a69bc839-4cc6-49f3-9ed4-cd02b22d403a",
+    "name": "Isaac Bruce",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 80,
+    "college": "Memphis",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "977811dc-e332-4bed-9985-f57b4e3afc57",
+    "name": "Isaiah Wilson",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "b6f0b042-d7f7-44af-8f7a-45375a930742",
+    "name": "J.J. Watt",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "90f7946e-1f02-4903-82b9-799e01d84c13",
+    "name": "Jack Ham",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": 59,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "dfdc8733-ee17-4e47-8143-32263bab7420",
+    "name": "Jack Lambert",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": 58,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "2d6c6301-5bd6-4d69-b0fc-6d8f0d37f0ff",
+    "name": "Jack Rooney",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "53079e8e-0b36-45e0-81ff-cb2238a72acd",
+    "name": "Jack Tatum",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "569315dd-6a64-4510-a898-9b9a1d80acde",
+    "name": "Jack Youngblood",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "2f6164db-97e7-4e7d-bd6c-c6ef1b9658ef",
+    "name": "Jackie Robinson",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "d3c862fa-6577-466a-876f-a1eae1d09d04",
+    "name": "Jackie Slater",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": 78,
+    "college": "Jackson State",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4bbd1ed9-6c5a-44a8-8cc5-6226bb8d3697",
+    "name": "Jackie Smith",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "e267337d-04d9-4585-87d3-fbad9ef83692",
+    "name": "Jake Plummer",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "5e00b3d1-0096-4670-8a66-0fc8d47d1369",
+    "name": "Jalen Suggs",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "cee7b1db-d6d9-4b87-876a-ffecddf9e064",
+    "name": "Jamaal Anderson",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "ed6031fd-dab6-485d-be13-6bf78701462a",
+    "name": "Jamaal Charles",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "96124440-ec9c-4b04-99a8-ad1d44d50c84",
+    "name": "JaMarcus Russell",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "a843b5f2-75db-436d-9ed7-be7723e76617",
+    "name": "James Harrison",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "1d7757a2-d210-4470-8acf-a00ef41de053",
+    "name": "James Lofton",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "bb0305ba-0ca9-4df9-acc4-428bdddf702f",
+    "name": "Jan Stenerud",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "d5e038ff-5274-49a3-84bc-3e51a69e484b",
+    "name": "Jared Allen",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "afca2327-aa2d-4ff0-9853-81c956903a3f",
+    "name": "Jason Elam",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "fd86f1da-3969-4281-9356-5f20bdd34533",
+    "name": "Jason Momoa",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "d5863d6b-b33e-423d-9da6-c126eb6c8d1b",
+    "name": "Jason Smith",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "4b8cec78-6948-4ec1-92ee-ebaa448b753a",
+    "name": "Jason Taylor",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": 99,
+    "college": "Akron",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "f4a1575c-d295-4329-a083-e91e72808c67",
+    "name": "Jason White",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "d823909c-766f-4f64-b708-548031689042",
+    "name": "Jason Witten",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 82,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "580a11e3-36f2-4550-90d1-fb5f5d013b70",
+    "name": "Jay Berwanger",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 99,
+    "college": "Chicago",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "fe0d8963-de23-4375-9e35-3830b145e120",
+    "name": "Jay Novacek",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "e915ed06-4ae5-4458-b800-b8175136160b",
+    "name": "Jeff Francoeur",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "873ec34c-9e96-4cd1-95e7-d6171430959e",
+    "name": "Jeff George",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "4ac095f0-7529-434d-a70e-c7e1ad80c501",
+    "name": "Jeff Samardzija",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "467f584d-8493-45b0-a462-1beaba85b8d7",
+    "name": "Jeff Saturday",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "db578be3-01d6-4235-995a-4d612e4fe786",
+    "name": "Jeremy Shockey",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 88,
+    "college": "Miami",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "6033eb19-1b2f-4e96-bd86-e9319901d7a2",
+    "name": "Jerome Bettis",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 36,
+    "college": "Notre Dame",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "54c19db9-8521-4237-8dad-788ff9531cc2",
+    "name": "Jerome Brown",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "866cbe15-0c4c-4dc4-bb27-a75586687493",
+    "name": "Jerrel Wilson",
+    "position": "P",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "d4ccdb66-cb71-451e-9473-083ec272ccfe",
+    "name": "Jerry Rice",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 80,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "4807678d-5190-4ac5-9041-3981296fd377",
+    "name": "Jesse Sapolu",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "a279475a-fbeb-4dc4-bf1c-0c10ab41ece7",
+    "name": "Jessie Tuggle",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "f6ebd768-89e6-46bb-b103-8466bde534d4",
+    "name": "Jim Bakken",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "3751b439-b28a-4198-9970-849cf92c2ab5",
+    "name": "Jim Brown",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 32,
+    "college": "Syracuse",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "653759e5-99bc-4a32-8f81-30e453f67c45",
+    "name": "Jim Everett",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "3385c17a-2703-4708-92dd-1667e9ecac6c",
+    "name": "Jim Kelly",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 12,
+    "college": "Miami",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "e10fe0dd-5e92-488f-ad5b-bb1b5f9fb909",
+    "name": "Jim Lachey",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "356a2c70-f9e5-4bb7-b02a-71c3a96c8f6b",
+    "name": "Jim Langer",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "2ba84a9f-6edf-4328-aaa5-a652cab43be1",
+    "name": "Jim Marshall",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "e5a9f527-b514-4df0-935b-8df13375a098",
+    "name": "Jim McMahon",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "9c3a1799-691d-4d47-aa48-fa9b1ed6bfd5",
+    "name": "Jim Otto",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": 0,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "d3e2c045-88a0-4d8c-8d06-f06edc038067",
+    "name": "Jim Parker",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": 77,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "c75a9d43-254e-467a-992c-edd1617d4a6e",
+    "name": "Jim Ringo",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": 51,
+    "college": "Syracuse",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "c9e138da-d052-4863-9a35-d6380b394dab",
+    "name": "Jim Taylor",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 31,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "2595eeba-0b1a-4aa8-bd73-54f731a39577",
+    "name": "Jimmy Dix",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "f8e1c641-2f5a-46f4-b6c4-974e03592d2a",
+    "name": "Jimmy Graham",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 80,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "c09034f5-8d34-4f3f-a557-424f617e5af8",
+    "name": "Jimmy Johnson",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "0b822dac-2bc3-4322-8c34-35066c5f8855",
+    "name": "Joe DeLamielleure",
+    "position": "RG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "2f4a3e03-270e-4132-995a-7d2d3d9a74e8",
+    "name": "Joe Jacoby",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "aa51af98-ecde-4ec3-b952-0fe2fedef915",
+    "name": "Joe Kane",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "f741409a-748b-4703-b78e-58ce8264c3cf",
+    "name": "Joe Kingman",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "fba7999d-b368-4679-b2d7-2f10907c6136",
+    "name": "Joe Mauer",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "b7aef6ae-7bbf-4fb7-b6ed-436e59ff353d",
+    "name": "Joe Montana",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 16,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "9f278f1c-fc69-40bf-910e-8c5e60364df6",
+    "name": "Joe Pendleton",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "12e916c0-36c9-4e5c-8d2c-a7085136021b",
+    "name": "Joe Perry",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "f0de9bf9-9515-4f2b-8ba1-6f86bfd3e2f9",
+    "name": "Joe Schmidt",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "efaa4afa-65ff-4b70-a99f-fdc29e032cba",
+    "name": "Joe Theismann",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "c653f4a7-215c-4b63-ba94-6c8d09dda67b",
+    "name": "Joe Thomas",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": 72,
+    "college": "Wisconsin",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "672a6d38-cfae-4538-beb2-c44823cbea82",
+    "name": "Joel Embiid",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "37cafb78-d2b4-4ff3-883e-ab06839c12c2",
+    "name": "Joey Browner",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4456d96d-5dfd-44ae-913c-ef6176481ce9",
+    "name": "John Anderson",
+    "position": "ROLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "b32fe257-9ec7-4739-a4a9-7f11a3b29bcd",
+    "name": "John Brodie",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "1a873cbd-74f3-40de-b2cd-3818fec2987d",
+    "name": "John Cena",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "a62852f7-8a4b-4ba0-a684-4443bc6d345e",
+    "name": "John Elway",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 7,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "6f49307f-2713-4c62-b388-2343e7893092",
+    "name": "John Hannah",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": 73,
+    "college": "Alabama",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "561212ba-21d0-4e1d-a740-1af7cdf5d83a",
+    "name": "John Havlicek",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "77b183b1-e68d-45db-a5a5-4937ef7aedc1",
+    "name": "John Henry Johnson",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "10627d8e-80a3-4922-bfc5-fba7ca868503",
+    "name": "John Kimbrough",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 39,
+    "college": "Texas A&M",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "440a90d5-c840-444f-9b92-3641cfd34154",
+    "name": "John Lynch",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": 47,
+    "college": "Stanford",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "6ad7ff03-1484-4710-81c8-ff6fca3b8c3c",
+    "name": "John Mackey",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "b9cd6def-e7c8-4f86-8fb0-b64456b96eb4",
+    "name": "John Madden",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": 77,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "64673c65-9730-45bc-8571-e38b8e616765",
+    "name": "John Offerdahl",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "8fad1895-5bff-4a19-9171-75836fc69d8e",
+    "name": "John Randle",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": 93,
+    "college": "Texas A&I",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "1965ad47-ba19-4445-8350-cc1b76ed0984",
+    "name": "John Riggins",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 44,
+    "college": "Kansas",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "0ba23a09-ace3-40c7-9dfa-0085507f156c",
+    "name": "John Ross",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "fa678ddc-1c81-4207-9f0f-68c812611b4c",
+    "name": "John Stallworth",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "15347fc7-f85d-447f-9fdd-acb860927f21",
+    "name": "Johnny Manziel",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "3ee8e524-8b64-4328-af93-f6f9f56b7603",
+    "name": "Johnny Unitas",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "993f92fd-9568-47bd-938b-b487f7faa2ab",
+    "name": "Jonah Lomu",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "a307a9ac-7a57-47cb-9469-18308df3db17",
+    "name": "Jonathan Moxon",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "03382dbc-81e7-4e7e-89c5-ee11fab084d4",
+    "name": "Jonathan Ogden",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": 75,
+    "college": "UCLA",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "a7b7aafb-2442-462f-842a-221b2f60882a",
+    "name": "Josh Cribbs",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "d551349e-26a7-4eb6-b2a8-68261a780443",
+    "name": "Josh McCown",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "fb870088-b77a-4ce5-a76e-71401e556ab0",
+    "name": "Josh Rosen",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "98dc3500-f2c6-4d05-8c68-9f7200b86ff1",
+    "name": "Julian Washington",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "7b3fd6d2-6efa-4935-b283-eb3ae1049ffe",
+    "name": "Julius Peppers",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": 49,
+    "college": "North Carolina",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "bc9f8eb3-4e2c-4159-9c10-39ba91f6fb7d",
+    "name": "Jumbo Fumiko",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "0663b697-eedd-4799-b44c-f7c4e5ec7654",
+    "name": "Junior Seau",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": 55,
+    "college": "USC",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "33fc4a7a-d363-4052-be9b-7b04be9c97fb",
+    "name": "Justin Gatlin",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "e2225b79-499d-4b45-aa1d-ff30e2ccb1fe",
+    "name": "Justin Gilbert",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "4269e755-4697-4e3b-aae4-d44dac9203f4",
+    "name": "Justin Tucker",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "86174b41-ba3b-4d6c-8255-65a7d4913047",
+    "name": "Karl Mecklenburg",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "45595863-f81a-49cf-89e4-b2d446b97732",
+    "name": "Keith Jackson",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 88,
+    "college": "Oklahoma",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "6f0e9345-3215-4a62-ad76-752194ecfc90",
+    "name": "Keith Millard",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "5579f246-8183-4f60-ab6a-28c739d3cd13",
+    "name": "Kellen Winslow Sr.",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 80,
+    "college": "Missouri",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "20704d6c-461c-4833-ba22-f1a5d69070a0",
+    "name": "Ken Anderson",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "37ea3c9e-d343-4f8d-9142-1b151c3ef5cb",
+    "name": "Ken Houston",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "e357b8f6-5032-4a2c-be1c-01ee3abfa4db",
+    "name": "Ken MacAfee",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 81,
+    "college": "Notre Dame",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "0d69d25e-9634-444e-b971-97efaffbece7",
+    "name": "Ken Norton Jr.",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "55787e0b-4c10-4662-98dd-717084f2706b",
+    "name": "Ken Stabler",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "f7db037c-00e2-449a-9f81-044e9152b95b",
+    "name": "Kevin Greene",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "7671fa1f-2456-4f33-97ab-42051cc998ee",
+    "name": "Kevin Hart",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "3956ae99-1022-4599-94d6-36c70b69a1b5",
+    "name": "Kevin Mawae",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": 68,
+    "college": "LSU",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "471807f8-9446-4138-b962-c5851f1a9994",
+    "name": "Kevin White",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "79e4af49-277d-4526-8aa5-86d3a6a41fc8",
+    "name": "Kevin Williams",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "b805d2f8-36e2-42c5-87e0-1e721ba04e04",
+    "name": "Ki-Jana Carter",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "3b791b36-4dd6-4f65-b349-7cb287694f4e",
+    "name": "Kirk Gibson",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "c4d3e840-560b-4bc4-aa7d-b80ee703b229",
+    "name": "Kordell Stewart",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "a79fb55e-8a36-4676-b15a-82d98a124879",
+    "name": "Korey Stringer",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "2f5c7255-6657-4508-93ea-2ec14117d948",
+    "name": "Kurt Warner",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "da845592-dd3b-4168-9d24-9c789b8f4411",
+    "name": "Kyle Brady",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "a0c3174b-3eda-4333-b799-a4a7cb1e34fd",
+    "name": "Kyle Vanden Bosch",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "a7e7b8b2-76d0-4d88-87f1-ca314daba7f6",
+    "name": "L.C. Greenwood",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "3fcb7231-d13e-4b71-abb8-3c7880b8d7ee",
+    "name": "LaDainian Tomlinson",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 21,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "5f79349f-a711-47a3-8af2-117e9d75894e",
+    "name": "Lance Harbor",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "34567036-021b-4461-a055-61b026e3ae19",
+    "name": "Larry Allen",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": 73,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "36ed8c1a-a731-4e3f-88ab-3f40af8b1e64",
+    "name": "Larry Centers",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 37,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4469ecb6-20db-452d-9945-21403be553bf",
+    "name": "Larry Csonka",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 39,
+    "college": "Syracuse",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "cce2523c-772c-46b5-b25e-835c6d61cea0",
+    "name": "Larry Fitzgerald",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 11,
+    "college": "Pitt",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "d102fac4-44bd-4ada-8471-536c3b78183c",
+    "name": "Larry Little",
+    "position": "RG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "f179ade5-ee05-4ddb-b670-0b73319cdeaf",
+    "name": "Larry Wilson",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "daf66085-574b-4fba-8849-ab33f1ada388",
+    "name": "LaVar Arrington",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": 11,
+    "college": "Penn State",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "61de7cf2-3975-4f28-aafb-cb2c798dc707",
+    "name": "Lawrence Phillips",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "5f78f97c-0918-4cc1-883b-f9dbf249f914",
+    "name": "Lawrence Taylor",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": 56,
+    "college": "North Carolina",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "53b092b5-6d5c-4e37-966e-654ad5d86847",
+    "name": "Leati Anoa'i",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "55b4a63d-c075-42b1-b914-f0849cadf9b3",
+    "name": "LeBron James",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "f5a639e5-ebf1-4699-a4e4-64501f616739",
+    "name": "Lee Roy Selmon",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": 93,
+    "college": "Oklahoma",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "72654fb1-1675-4c98-835d-0ed92d365037",
+    "name": "Lem Barney",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "1f2b3f92-7ae8-4c0b-a93c-0ceb91901b1b",
+    "name": "Len Dawson",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "81b7d5d0-ed4b-4837-8dea-cc299673312e",
+    "name": "Lenny Moore",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "461631cf-f762-419c-b9a4-516cd8356da1",
+    "name": "Leon Lett",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "d3304506-5bef-46ba-801f-9222602d4786",
+    "name": "Leon Washington",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "200a3c94-6546-48e9-9944-e9962ca9b957",
+    "name": "Leonard Marshall",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "a6cc3009-14ca-4bb7-a6d8-eecf84604a52",
+    "name": "Leroy Butler",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "08e3070f-6977-4d40-88c8-b10ae02e76f5",
+    "name": "Leroy Kelly",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "33eb0408-4d90-4c35-a6a2-ee94d089f460",
+    "name": "Leslie O'Neal",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "a57f84a9-268b-45c1-9719-3b77c548aa33",
+    "name": "Lester Hayes",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "5cc10f51-25d4-4336-8dca-f238073d6498",
+    "name": "Lofa Tatupu",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "813b5933-3b1f-4d09-a3ad-7b4405b88423",
+    "name": "London Fletcher",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "11916acb-ca31-46c4-b354-7ba7bd8ad99c",
+    "name": "Lorenzo Neal",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 41,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "9daa4ad2-7b25-4521-b019-ab874dbdd7aa",
+    "name": "Lou Creekmur",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "9ba18a57-ec27-45b1-9e97-15c038c60200",
+    "name": "Lou Groza",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "14af362c-e9a5-459c-af71-897967b2ce46",
+    "name": "Louis Rees-Zammit",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "e9e3643e-f09c-412e-b3a1-6eccf47da89f",
+    "name": "Luke Joeckel",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "37c1e3e5-07f0-45cf-a59f-1568b891b8fa",
+    "name": "Luke Kuechly",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": 59,
+    "college": "Boston College",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "a62cb289-6d5a-42cc-a363-6315fa347abd",
+    "name": "Lynn Swann",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "be16983f-21d7-4800-bec1-8cc4d3ec5ac8",
+    "name": "Mahershala Ali",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "ee539e7b-aece-43f4-9be3-9424e67ff334",
+    "name": "Major Harris",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "be2b1456-5672-49b6-85c6-e2ddfe543187",
+    "name": "Marcus Allen",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "6da73a1b-c443-46cb-9e47-2f0ef72c58a4",
+    "name": "Marcus Dupree",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "12c614c6-e0c5-4645-8f8a-9bb43c49fe45",
+    "name": "Marion Barber III",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "0347d5b3-75b8-4815-957a-e42d63594bd2",
+    "name": "Marion Motley",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 76,
+    "college": "Nevada",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "508596a6-c051-4a25-8070-50b313357cc9",
+    "name": "Mark Bavaro",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "87ecdeb3-69b1-4f6d-a4be-c8bf43b21a85",
+    "name": "Mark Gastineau",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "c8ed9752-1384-401f-a5a7-5b38fa32cf55",
+    "name": "Mark Harmon",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "762f976f-079a-40c5-b13e-d30a35f60676",
+    "name": "Mark Rypien",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "7d833c6a-d94b-493c-ae91-1c51ea6e555f",
+    "name": "Marquette King",
+    "position": "P",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "e79cdf87-b2bf-442f-ab56-9196ff82e099",
+    "name": "Marshal Yanda",
+    "position": "RG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "99ce450f-d629-4674-8777-6a5d38b6a3f1",
+    "name": "Marshall Faulk",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 28,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "b63b9168-2e6f-42b3-ac34-59b502242286",
+    "name": "Marshawn Lynch",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4df8213a-578e-40d7-ac1f-f085843bd367",
+    "name": "Marty Lyons",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "cabeff69-1cce-4547-b451-17be0d5d9bfd",
+    "name": "Marvin Harrison",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 88,
+    "college": "Syracuse",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "dbe0c536-f66a-4bda-bb47-9340cfaa4f04",
+    "name": "Matt Barnes",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "13d83643-4b8f-48c4-823c-34ad98139219",
+    "name": "Matt Leinart",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "44288ace-cfb9-443c-873d-4af7d035c5a5",
+    "name": "Matt Stover",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "cdcbfa60-d7b2-4b66-b05c-84e4c33ab558",
+    "name": "Matthew Jones",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "73a3f9b1-d323-42a9-9200-056f17ad1877",
+    "name": "Mean Joe Greene",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": 75,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "c82e25b3-666c-4ef2-9e7e-68650d07afc7",
+    "name": "Mel Blount",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 47,
+    "college": "Southern",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "1e4c8ff3-9e93-4678-a67e-842d280efdc9",
+    "name": "Mel Renfro",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 20,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "8c588f94-c979-44de-8de0-975b21b999e0",
+    "name": "Merlin Olsen",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "1b0094c5-faa2-45eb-86f0-b6b7551de560",
+    "name": "Merril Hoge",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "7154cdb7-9941-4100-b893-7cb7fe9dd5ba",
+    "name": "Michael Irvin",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 88,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "d04e0c24-b46e-4ab3-9fbd-2ef9c2647a1e",
+    "name": "Michael Strahan",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": 92,
+    "college": "Texas Southern",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "504f40c0-de92-4f46-8f91-fffc421ee6fe",
+    "name": "Michael Vick",
+    "position": "QB",
+    "hand": "Left",
+    "jersey_number": 7,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "bbde4fb3-8848-4267-aece-0bbcef23b800",
+    "name": "Mick Tingelhoff",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4ee028df-019f-482b-9a06-33eeec566c9c",
+    "name": "Mike Alstott",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": 40,
+    "college": "Purdue",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "4efa7201-0282-4a0a-b531-65e844c18fc0",
+    "name": "Mike Ditka",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 89,
+    "college": "Pittsburgh",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "525d65c2-2fca-4b51-8363-92998f336629",
+    "name": "Mike Haynes",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 22,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "31a29670-a750-4b83-9335-8357ea3eae4f",
+    "name": "Mike Munchak",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "cbec60db-66be-42de-9733-030f356dd03a",
+    "name": "Mike Singletary",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": 50,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "5f7d307c-9e1b-42bf-95fe-2a4138241700",
+    "name": "Mike Vanderjagt",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "e19a46f8-34bd-4fd7-8dc9-9552b4ade0ec",
+    "name": "Mike Webster",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": 52,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "7db75cc3-cd1c-45ba-98e6-4d638c0dd9e9",
+    "name": "Miles Austin",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "5115c8eb-1996-4990-9264-bed36d7efdce",
+    "name": "Mohamed Sanu",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "507c648b-2956-41ba-aad5-ff93863c112b",
+    "name": "Morten Andersen",
+    "position": "K",
+    "hand": "Left",
+    "jersey_number": 7,
+    "college": "Michigan State",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "2ed65854-4808-477e-a9e3-1e670b987438",
+    "name": "Nate Robinson",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "2ddfe357-6053-4975-ac5b-871c0aab7a51",
+    "name": "Ndamukong Suh",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": 93,
+    "college": "Nebraska",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "ad91c143-69e1-402c-8368-e341669c45e3",
+    "name": "Nick Buoniconti",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "cdd1b5a1-7866-409e-adae-63a4b69339df",
+    "name": "Nick Mangold",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "019cfa67-b71c-435a-8220-9458497be731",
+    "name": "Nigel Gruff",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "294048b6-3cde-44b3-8697-8a618ad936ac",
+    "name": "Night Train Lane",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 81,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "da70645d-6af5-48e6-8860-f10892ffa569",
+    "name": "Nnamdi Asomugha",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "6843da72-6d93-4f3a-a11f-834368ba59a0",
+    "name": "Nolan Cromwell",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "befb7afb-1d33-45e7-b015-444aa3f63e17",
+    "name": "O.J. Simpson",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 32,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "b2cad59d-c072-40cb-bed1-90c70a674b24",
+    "name": "O'Shea Jackson",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "40ec886b-f2d0-4b81-b826-2ce0072535a2",
+    "name": "Olin Kreutz",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "fde21958-fae6-4f7b-813b-7a3ddd9b61de",
+    "name": "Orlando Pace",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": 76,
+    "college": "Ohio State",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "33ffa017-0bec-4349-9e0e-c4e415f217af",
+    "name": "Otis Taylor",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "cbf30ceb-7acf-4847-a157-e22392493f0e",
+    "name": "Otis Wilson",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "e3c2ce42-7d24-4240-8a46-843c3422979c",
+    "name": "Otto Graham",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "81655ce9-5ef4-4059-8fd0-495e919da289",
+    "name": "Ozzie Newsome",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "39832573-d31a-4179-9af5-51b85d62c939",
+    "name": "Pat McAfee",
+    "position": "P",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "0df4a26e-9b78-4710-b8ad-662819c7b82f",
+    "name": "Patrick Peterson",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 7,
+    "college": "LSU",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "4aef0020-b4e4-4659-b041-58dc44ba4cff",
+    "name": "Patrick Willis",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": 49,
+    "college": "Ole Miss",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "b733695e-d7d9-4ecc-8a9b-0b98d415f5a0",
+    "name": "Paul Blake",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "fb11a491-f5f7-4550-8f27-59c039aff945",
+    "name": "Paul Crewe",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "b9864324-9dba-4653-aaf0-2e148091cd05",
+    "name": "Paul Hornung",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "fc366e39-d530-4d20-850a-ce4d5607417e",
+    "name": "Paul Krause",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": 22,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "a0e8df88-ce87-4168-94ae-a593825f9c47",
+    "name": "Paul Warfield",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "5e7b8d81-042a-4b3d-85d9-f1ceed557340",
+    "name": "Paxton Lynch",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "071006ec-e92d-4b81-a5de-c4620f2254e5",
+    "name": "Pepper Johnson",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "492a1e97-37f3-44cd-ad9f-18286673b5de",
+    "name": "Pete Pihos",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "72a0d43a-fcad-4ec3-82c5-8968e45583d6",
+    "name": "Peter Warrick",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "96eed18c-6255-4f8e-b650-06504b0ef8c8",
+    "name": "Peyton Hillis",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "160ad534-72c6-4e7a-a065-b514c1fd8cd2",
+    "name": "Peyton Manning",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 18,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "e31f7281-6008-496d-be73-f46c3ec64056",
+    "name": "Phil Dawson",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "03aaa9e5-b31c-4e6e-afe0-5d1905f19f8c",
+    "name": "Philip Rivers",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "6f4abd8d-f33d-475f-89b6-096bc145a9f4",
+    "name": "Priest Holmes",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "2585c872-111b-4f00-afa0-760954790a3b",
+    "name": "Randall Cunningham",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "085eb62e-9b25-45af-9e48-84d4241bf945",
+    "name": "Randall McDaniel",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "50843eaa-b33c-4581-a1cb-95ed51fc1d3b",
+    "name": "Randy Cross",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "7ab95a44-6703-4752-986d-c5c12884d668",
+    "name": "Randy Moss",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 84,
+    "college": "Marshall",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "b627d143-67ed-4380-bf9c-5345e1858562",
+    "name": "Randy White",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "5e326038-edb8-4551-ac7d-079ac6de5a08",
+    "name": "Rashaan Salaam",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "9a1104c4-66ce-4e24-aaad-b104dfa1b603",
+    "name": "Rashaun Woods",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "485c8220-4372-4905-8cd8-7eac6307be5a",
+    "name": "Ray Guy",
+    "position": "P",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "0421923b-eca6-405c-9c09-f0e7c05c7816",
+    "name": "Ray Lewis",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": 52,
+    "college": "Miami",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "dd5f0f69-ceb2-4f05-b2bf-4e05fc54d42c",
+    "name": "Rayfield Wright",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "94298171-e32b-4440-94c1-607bd3190867",
+    "name": "Raymond Berry",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "e4939e53-c36e-4557-a050-c4c900d02bc0",
+    "name": "Reggie White",
+    "position": "LE",
+    "hand": "Right",
+    "jersey_number": 92,
+    "college": "Tennessee",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "93b4dab7-37ae-4a76-a42b-485803884dee",
+    "name": "Reggie Williams",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "617cdf3c-3ed6-4785-b6a2-9110183ee4e0",
+    "name": "Richard Dent",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "6134519b-cdab-43e0-b7ce-a057b1a7fb9e",
+    "name": "Richard Sherman",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "e87d3427-a060-4ee5-a33d-a7639a4ff736",
+    "name": "Richmond Webb",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "cacdba32-6c2c-4d32-be8f-4714141260c2",
+    "name": "Rick Mirer",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "59829008-3d39-402e-baf4-cfa3ad0fc65c",
+    "name": "Rickey Dudley",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "755a7bbb-4ce2-421f-ac25-0c7624bf6df4",
+    "name": "Rickey Jackson",
+    "position": "ROLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "51e706ae-6a21-40c8-87f1-70472f0e7690",
+    "name": "Ricky Jerret",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "4b2b4624-c0b2-4c03-b49f-b01430b94088",
+    "name": "Ricky Williams",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 34,
+    "college": "Texas",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "53f45537-9285-4e5a-9ac6-a591306e84ec",
+    "name": "Rob Gronkowski",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 87,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "76458a97-0b0d-4af1-b1e2-185723f5f850",
+    "name": "Robert Brazile",
+    "position": "ROLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "7a88f7ac-2887-4d3f-9159-34fb963114be",
+    "name": "Robert Gallery",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "3795d6a7-2db0-4767-8828-a6a0e2d6c19c",
+    "name": "Robert Griffin III",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "9ff85670-0706-4ffa-93e8-233ed7da1fba",
+    "name": "Roberto Aguayo",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "bf7bfd8b-7f32-43e1-bc96-e53c53a8bbec",
+    "name": "Rod Tidwell",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "96ad5773-f83c-4522-a1af-b79e18f29c8b",
+    "name": "Rod Woodson",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 26,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "cbeb62d9-4f3e-4dea-aec6-7d558a148d25",
+    "name": "Roger Craig",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "e667d780-26c3-47df-b26c-1af1a92c28fe",
+    "name": "Roger Staubach",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 12,
+    "college": "Navy",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "4587425a-bbc6-422c-bbea-57f5b3e1b017",
+    "name": "Roger Wehrli",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "daa835c8-4ab0-4183-8e49-26c28e71d778",
+    "name": "Ron Dayne",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "0e8b702e-9bf1-4022-9cf6-528e2ecab242",
+    "name": "Ron Mix",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "71b064b9-161e-419d-b6e4-14d69cabbd3e",
+    "name": "Ron Yary",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "e2b25f18-d412-4df4-91db-20cbbbbbb3cc",
+    "name": "Ronde Barber",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "846b95b0-06fa-42a5-809a-8dbd5ec36fb2",
+    "name": "Ronnie Lott",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": 42,
+    "college": "USC",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "9ccec0dd-5d81-4c69-88bf-853c286a32a9",
+    "name": "Roosevelt Brown",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "a812f413-6204-42a7-9adb-50f90fe28bde",
+    "name": "Rudy Ruettiger",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "95626f52-1db3-410c-94f4-7580c04d32d7",
+    "name": "Russ Grimm",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "8614461c-8494-4630-a44a-8c512245f47f",
+    "name": "Ryan Fitzpatrick",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "8504fe94-1fad-47d6-92c0-8af3e07c6276",
+    "name": "Ryan Leaf",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "333cab63-3d67-4dd5-b73d-d2c749e882dd",
+    "name": "Sammy Baugh",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "32110a90-62c6-430c-8e23-ccddfb634707",
+    "name": "Scott Studwell",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "b2f07280-50ca-49ae-a5f4-c5f136023d8b",
+    "name": "Sean Taylor",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": 21,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "e8c75900-55bf-476a-8a1f-289df2c943e4",
+    "name": "Sebastian Janikowski",
+    "position": "K",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "4f3d5570-f4e4-4283-929f-0cae41bf0d1b",
+    "name": "Shane Falco",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "477e5ade-82bb-42a9-958e-0f51c9053cf3",
+    "name": "Shane Lechler",
+    "position": "P",
+    "hand": "Right",
+    "jersey_number": 9,
+    "college": "Texas A&M",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "a8ab7273-9c65-4ed3-9382-e28d79c7c3e6",
+    "name": "Shannon Sharpe",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 84,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "7f24a724-c3e9-4d20-9aba-f71775c48603",
+    "name": "Shaquille O'Neal",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "54fd71ad-3bdf-40e7-8b76-b7b71874a8c9",
+    "name": "Shaun Alexander",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "952a2b80-01b8-442d-8f63-09488fee3cce",
+    "name": "Sid Luckman",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "7c7c4b93-bef6-4909-90c8-598cb51d683d",
+    "name": "Simeon Rice",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "3839a1a0-c70a-46ae-b65d-b63f8de327b2",
+    "name": "Sonny Jurgensen",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "57dc378e-38bf-43b9-aef4-f700b6fb4bf2",
+    "name": "Spencer James",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "d6f49dfb-00d1-4484-9096-73e057f5a19c",
+    "name": "Stan Jones",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "da2af645-9271-4c60-837e-922fd6a92851",
+    "name": "Stefen Djordjevic",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "d8b494a0-8f22-4879-a722-3a9e485f5ea0",
+    "name": "Sterling Sharpe",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "7b031dec-c8a2-4aba-985b-7155520e43d0",
+    "name": "Steve Atwater",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": 27,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "53f80b21-fc82-43ea-86dc-055144d2ab86",
+    "name": "Steve Austin",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "0e59dd57-0def-4fb8-ac0d-ea3cee2998e2",
+    "name": "Steve Emtman",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "92cab680-32a9-41f5-bf65-6d20bb629a5b",
+    "name": "Steve Hutchinson",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": 76,
+    "college": "Michigan",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "60d48685-d353-4cd8-b0c2-be715d7cd3eb",
+    "name": "Steve Largent",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 80,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "ea4b7382-d4cd-4d94-8a1e-910fc61cbe29",
+    "name": "Steve Smith Sr.",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "ec630add-d4b0-463c-b91b-9a5a5b83c82a",
+    "name": "Steve Wisniewski",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "16702b5c-ad29-48f8-ac3d-e50a4171975d",
+    "name": "Steve Young",
+    "position": "QB",
+    "hand": "Left",
+    "jersey_number": 8,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "6a8925ce-1816-4453-8c7a-b3af49eb625e",
+    "name": "Steven Jackson",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "d6749bd0-eb33-4939-a25b-0366c5beccb7",
+    "name": "Tauheed Epps",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "314acc16-8b6c-4383-acfc-9a6ed00c1865",
+    "name": "Taylor Gabriel",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "c80765ba-7717-45f1-9c48-4d5842014c58",
+    "name": "Ted Hendricks",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": 83,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "cac8361b-7a3f-4cbb-b4e2-f8136da28deb",
+    "name": "Terrell Davis",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 30,
+    "college": "Georgia",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "6e371621-79ef-453a-9798-025fe99f0e61",
+    "name": "Terrell Owens",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 81,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "a51e9d74-e9f0-4fbb-96b3-850abbd3efb4",
+    "name": "Terrell Suggs",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": 48,
+    "college": "Arizona State",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "cc7e05c2-f99d-43bf-a3c0-c433a3ebe361",
+    "name": "Terry Bradshaw",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 12,
+    "college": "Louisiana Tech",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "3bc8b97f-8aa7-4418-90a1-6637d08e5970",
+    "name": "Terry Crews",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "fcf13570-5f51-4520-9dc4-0005f939f9eb",
+    "name": "Terry McDaniel",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "e6e2eac7-38dc-473b-a907-bcf4b52ee18e",
+    "name": "Thurman Thomas",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "cfb25556-7875-4511-aa23-3ec3e76b0a70",
+    "name": "Tiki Barber",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "0621bb5a-8948-4bea-bca5-14689519091d",
+    "name": "Tim Brown",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "1256fce5-1c79-461e-90c7-5627822b7cae",
+    "name": "Tim Couch",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "326b78b5-f2c1-4311-b7f8-76b4fc2aa947",
+    "name": "Tim Riggins",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "2d34fc4d-ee88-4d24-8585-e8e9d3c6b859",
+    "name": "Tim Tebow",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "97edf9be-d9ba-41aa-a739-19d347e3c454",
+    "name": "Todd Christensen",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "f8654f32-6ea6-4d06-b467-a74a6987feb3",
+    "name": "Todd Helton",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "5effcaa6-aee0-4571-a187-fb950377a7e9",
+    "name": "Todd Marinovich",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "7542243f-5b56-48fa-9411-6999863a61a6",
+    "name": "Tom Brady",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 12,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "ce6268c1-881d-477d-9385-0a84d20d5b0c",
+    "name": "Tom Brookshier",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "a9160e29-7200-4ffc-a862-c798920dc8a2",
+    "name": "Tom Mack",
+    "position": "LG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "8378d7fa-7861-416b-b1ba-7e0e66a46a73",
+    "name": "Tom Nalen",
+    "position": "C",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "5e460f0b-2005-40ca-90e7-c369804e472f",
+    "name": "Tom Rathman",
+    "position": "FB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "72ed14fb-71ba-4567-a632-28f630a330e4",
+    "name": "Tommie Frazier",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "9aaaab40-79a4-4590-96f1-cfaf3dab8095",
+    "name": "Tony Boselli",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "5450337c-19bf-4c46-aa82-a3b67a0cb380",
+    "name": "Tony Canadeo",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "82869f52-d528-4bb3-9646-c48e4df72062",
+    "name": "Tony Dorsett",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 33,
+    "college": "Pittsburgh",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "c9eaff65-59cb-4d46-a77c-f5a90bf6ece2",
+    "name": "Tony Gonzalez",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": 88,
+    "college": "California",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "47e438ab-3d97-4b68-8b05-7723dffc5a9c",
+    "name": "Tony Mandarich",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "d2ce45e6-f749-4915-9206-2318aef63ac1",
+    "name": "Tony Siragusa",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "48e36153-8f0a-40a2-b7bf-37d29562de30",
+    "name": "Torry Holt",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": 81,
+    "college": "NC State",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "bbde7da1-f9f9-4d73-baec-7e9c1369f6ff",
+    "name": "Trent Richardson",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "d185300d-caa5-4f35-9a61-2e93cf466f77",
+    "name": "Troy Aikman",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 8,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "0a46fd3f-f018-457f-81a5-12d732087217",
+    "name": "Troy Polamalu",
+    "position": "SS",
+    "hand": "Right",
+    "jersey_number": 43,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "79bd3f46-4b06-42ea-9ac5-12271cba8eb8",
+    "name": "Troy Smith",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "5817e6b5-3a76-40b5-9c6a-c2204118dd74",
+    "name": "Troy Williamson",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "d6058795-0166-4abf-81fc-36929c80ff92",
+    "name": "Ty Detmer",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "47421dd6-0dc2-4722-a438-3f082cdfb0c3",
+    "name": "Ty Law",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": 24,
+    "college": "Michigan",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "c3d6862b-2a42-4e03-b2bd-76d1312f9a39",
+    "name": "Usain Bolt",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "cd3c0d59-f913-4c88-a736-aaff77a61238",
+    "name": "Vernon Gholston",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "bust",
+    "store_subgroup": null
+  },
+  {
+    "id": "1728ff2f-44e7-4116-a640-2680f54c7856",
+    "name": "Vernon Littlefield",
+    "position": "RE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "eb5e5493-af8e-4024-b7e7-d0136540b308",
+    "name": "Vince Howard",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "ce84df94-c636-4226-a2ea-eff4b6802418",
+    "name": "Vince Papale",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "2519642d-15de-4dc7-82c1-fc07f60e492c",
+    "name": "Vince Young",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 10,
+    "college": "Texas",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "19f26fed-db16-43ad-931a-d461b7c36abf",
+    "name": "Vinny Testaverde",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "hometown_hero",
+    "store_subgroup": null
+  },
+  {
+    "id": "21e312cd-fbcd-47ee-b4af-768d1c54e676",
+    "name": "Von Miller",
+    "position": "LOLB",
+    "hand": "Right",
+    "jersey_number": 40,
+    "college": "Texas A&M",
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "6f1b9d27-5a3e-4328-b346-7b1b2abcb693",
+    "name": "Walter Jones",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "1a96230b-601b-44b9-a293-b1df3a029887",
+    "name": "Walter Payton",
+    "position": "HB",
+    "hand": "Right",
+    "jersey_number": 34,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "399ea64c-6f57-42a0-9c6d-a194845b8c8b",
+    "name": "Warren Moon",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": 1,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "4cde98bc-e006-4a8b-95e4-450619dfdecd",
+    "name": "Warren Sapp",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": 99,
+    "college": "Miami",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "d2a7debf-9f5e-410d-9759-2e0b6d39d335",
+    "name": "Wes Welker",
+    "position": "WR",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "0d12bef4-7820-4499-98cd-4087b91c6f4c",
+    "name": "Will Shields",
+    "position": "RG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "606e267d-18ee-4c9d-abb2-d94483fcd137",
+    "name": "William \"Refrigerator\" Perry",
+    "position": "DT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "fb3d53cd-103e-452e-b507-4c38a2f8cc8b",
+    "name": "Willie Anderson",
+    "position": "RT",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "840d873c-cc9b-4110-8114-1bde6cc00766",
+    "name": "Willie Beamen",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "screen_star"
+  },
+  {
+    "id": "7fca6351-7349-4deb-befe-7b5f9e75a6c7",
+    "name": "Willie Brown",
+    "position": "CB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "a571489b-3fa9-4fa5-9403-9ad035b461c7",
+    "name": "Willie Roaf",
+    "position": "LT",
+    "hand": "Right",
+    "jersey_number": 77,
+    "college": "Louisiana Tech",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "1bef7ea3-47f3-4145-97cd-6a1f1c24c608",
+    "name": "Willie Wood",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "60d2e670-d342-401c-8fb4-6956f81e027f",
+    "name": "Wilt Chamberlain",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "7343e683-6915-4283-a986-60957d7fc00a",
+    "name": "Y.A. Tittle",
+    "position": "QB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "4615aa67-e54b-473a-bce3-6169bb9a0152",
+    "name": "Yale Lary",
+    "position": "FS",
+    "hand": "Right",
+    "jersey_number": 28,
+    "college": "Texas A&M",
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "b3168b54-2765-4e15-bbea-e92a300fea57",
+    "name": "Zach Thomas",
+    "position": "MLB",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "immortal",
+    "store_subgroup": null
+  },
+  {
+    "id": "a174755e-5d2e-4ea6-ae4c-1937dfe952a1",
+    "name": "Zack Martin",
+    "position": "RG",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "legend",
+    "store_subgroup": null
+  },
+  {
+    "id": "1fb602a4-de19-42c4-95d0-608e4fc9c5e7",
+    "name": "Zdeno Chara",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  },
+  {
+    "id": "5d988d7b-e8a2-442b-97be-99eb21213bf6",
+    "name": "Zion Williamson",
+    "position": "TE",
+    "hand": "Right",
+    "jersey_number": null,
+    "college": null,
+    "legend_tier": "celebs_couldve_beens",
+    "store_subgroup": "couldve_been"
+  }
+]

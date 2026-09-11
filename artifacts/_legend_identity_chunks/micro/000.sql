@@ -1,0 +1,20 @@
+update rec_legend_catalog set college = 'Wake Forest' where id = '368de652-9fec-44c6-874c-d8c57a407dad'; -- Aaron Curry (ROLB), Wake Forest; https://en.wikipedia.org/wiki/Aaron_Curry_(American_football)
+update rec_legend_catalog set jersey_number = 24, college = 'West Virginia' where id = 'f3be24a1-8ab3-4c19-be4d-5b858f2d4c9f'; -- Adam Jones (CB), #24, West Virginia; https://en.wikipedia.org/wiki/Adam_Jones_(American_football)
+update rec_legend_catalog set college = 'Oklahoma' where id = '9969fc7b-6f48-4301-a0db-7b1a6e4f0559'; -- Adrian Peterson (HB), Oklahoma; https://en.wikipedia.org/wiki/Adrian_Peterson
+update rec_legend_catalog set jersey_number = 35, college = 'Southern' where id = 'cbadca19-4e28-4048-8a5f-733294f9e71a'; -- Aeneas Williams (CB), #35, Southern; https://en.wikipedia.org/wiki/Aeneas_Williams
+update rec_legend_catalog set jersey_number = 17, college = 'Oregon' where id = '6cf4718f-43bd-46fa-9c7e-e2df433a74c9'; -- Akili Smith (QB), #17, Oregon; https://en.wikipedia.org/wiki/Akili_Smith
+update rec_legend_catalog set jersey_number = 29, college = 'Grambling' where id = '52e2d903-9651-4338-b2a6-ea5f9d51a04b'; -- Albert Lewis (CB), #29, Grambling; https://en.wikipedia.org/wiki/Albert_Lewis_(American_football)
+update rec_legend_catalog set college = 'Miami' where id = '0ccaf0f7-3277-42cb-af6b-3e7688a3b6fc'; -- Andre Johnson (WR), Miami; https://en.wikipedia.org/wiki/Andre_Johnson
+update rec_legend_catalog set jersey_number = 84, college = 'Kutztown' where id = '0e0ae6f1-de8b-450e-8f5e-03634801037f'; -- Andre Reed (WR), #84, Kutztown; https://en.wikipedia.org/wiki/Andre_Reed
+update rec_legend_catalog set jersey_number = 56, college = 'Iowa' where id = 'd92ae445-5497-4ddb-886b-581997e46db3'; -- Andre Tippett (LOLB), #56, Iowa; https://en.wikipedia.org/wiki/Andre_Tippett
+update rec_legend_catalog set jersey_number = 1, college = 'Houston' where id = '68115a91-1095-4429-9b55-19f3db175f74'; -- Andre Ware (QB), #1, Houston; https://en.wikipedia.org/wiki/Andre_Ware
+update rec_legend_catalog set jersey_number = 31, college = 'Florida State' where id = 'b61c8f36-c1b9-4c89-be24-68243fdbf6ed'; -- Antonio Cromartie (CB), #31, Florida State; https://en.wikipedia.org/wiki/Antonio_Cromartie
+update rec_legend_catalog set college = 'Eastern Michigan' where id = 'a090d4dc-076f-49d2-98c4-09bb12ca4333'; -- Antonio Gates (TE), Eastern Michigan; https://en.wikipedia.org/wiki/Antonio_Gates
+update rec_legend_catalog set jersey_number = 70, college = 'Boston College' where id = '7988967d-5b43-44b1-bbe4-142bf47aa7c2'; -- Art Donovan (DT), #70, Boston College; https://en.wikipedia.org/wiki/Art_Donovan
+update rec_legend_catalog set jersey_number = 85, college = 'Syracuse' where id = '10a03011-4b17-495c-8a94-d92624c10fac'; -- Art Monk (WR), #85, Syracuse; https://en.wikipedia.org/wiki/Art_Monk
+update rec_legend_catalog set jersey_number = 99, college = 'Auburn' where id = '7127a67a-d5b9-42eb-91f0-6cdab1c82820'; -- Aundray Bruce (LOLB), #99, Auburn; https://en.wikipedia.org/wiki/Aundray_Bruce
+update rec_legend_catalog set jersey_number = 15, college = 'Alabama' where id = '578ca71d-a117-4c0e-bcb7-89a58f368881'; -- Bart Starr (QB), #15, Alabama; https://en.wikipedia.org/wiki/Bart_Starr
+update rec_legend_catalog set jersey_number = 81, college = 'Livingstone' where id = 'bc70fd31-6543-4d4a-bf3a-e8359943f9de'; -- Ben Coates (TE), #81, Livingstone; https://en.wikipedia.org/wiki/Ben_Coates
+update rec_legend_catalog set college = 'Miami (OH)' where id = '4038112d-76e5-4ce4-93f9-9607c625f197'; -- Ben Roethlisberger (QB), Miami (OH); https://en.wikipedia.org/wiki/Ben_Roethlisberger
+update rec_legend_catalog set jersey_number = 84, college = 'Georgia' where id = '6639466e-d651-4d86-8266-f76ef578504e'; -- Ben Watson (TE), #84, Georgia; https://en.wikipedia.org/wiki/Benjamin_Watson
+update rec_legend_catalog set jersey_number = 18, college = 'Miami' where id = 'c2a75d22-9244-4704-888e-faba25451ce7'; -- Bernie Kosar (QB), #18, Miami; https://en.wikipedia.org/wiki/Bernie_Kosar

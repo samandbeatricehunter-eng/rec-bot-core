@@ -1,0 +1,20 @@
+update rec_legend_catalog set jersey_number = 8, college = 'Utah' where id = 'f179ade5-ee05-4ddb-b670-0b73319cdeaf'; -- Larry Wilson (SS), #8, Utah; https://en.wikipedia.org/wiki/Larry_Wilson_(American_football)
+update rec_legend_catalog set college = 'Nebraska' where id = '61de7cf2-3975-4f28-aafb-cb2c798dc707'; -- Lawrence Phillips (HB), Nebraska; https://en.wikipedia.org/wiki/Lawrence_Phillips
+update rec_legend_catalog set jersey_number = 20, college = 'Jackson State' where id = '72654fb1-1675-4c98-835d-0ed92d365037'; -- Lem Barney (CB), #20, Jackson State; https://en.wikipedia.org/wiki/Lem_Barney
+update rec_legend_catalog set jersey_number = 18, college = 'Purdue' where id = '1f2b3f92-7ae8-4c0b-a93c-0ceb91901b1b'; -- Len Dawson (QB), #18, Purdue; https://en.wikipedia.org/wiki/Len_Dawson
+update rec_legend_catalog set jersey_number = 24, college = 'Penn State' where id = '81b7d5d0-ed4b-4837-8dea-cc299673312e'; -- Lenny Moore (HB), #24, Penn State; https://en.wikipedia.org/wiki/Lenny_Moore
+update rec_legend_catalog set jersey_number = 94, college = 'Emporia State' where id = '461631cf-f762-419c-b9a4-516cd8356da1'; -- Leon Lett (DT), #94, Emporia State; https://en.wikipedia.org/wiki/Leon_Lett
+update rec_legend_catalog set college = 'Florida State' where id = 'd3304506-5bef-46ba-801f-9222602d4786'; -- Leon Washington (HB), Florida State; https://en.wikipedia.org/wiki/Leon_Washington
+update rec_legend_catalog set jersey_number = 70, college = 'LSU' where id = '200a3c94-6546-48e9-9944-e9962ca9b957'; -- Leonard Marshall (LE), #70, LSU; https://en.wikipedia.org/wiki/Leonard_Marshall
+update rec_legend_catalog set jersey_number = 36, college = 'Florida State' where id = 'a6cc3009-14ca-4bb7-a6d8-eecf84604a52'; -- Leroy Butler (SS), #36, Florida State; https://en.wikipedia.org/wiki/LeRoy_Butler
+update rec_legend_catalog set jersey_number = 44, college = 'Morgan State' where id = '08e3070f-6977-4d40-88c8-b10ae02e76f5'; -- Leroy Kelly (HB), #44, Morgan State; https://en.wikipedia.org/wiki/Leroy_Kelly
+update rec_legend_catalog set jersey_number = 91, college = 'Oklahoma State' where id = '33eb0408-4d90-4c35-a6a2-ee94d089f460'; -- Leslie O'Neal (RE), #91, Oklahoma State; https://en.wikipedia.org/wiki/Leslie_O'Neal
+update rec_legend_catalog set jersey_number = 37, college = 'Texas A&M' where id = 'a57f84a9-268b-45c1-9719-3b77c548aa33'; -- Lester Hayes (CB), #37, Texas A&M; https://en.wikipedia.org/wiki/Lester_Hayes
+update rec_legend_catalog set jersey_number = 51, college = 'USC' where id = '5cc10f51-25d4-4336-8dca-f238073d6498'; -- Lofa Tatupu (MLB), #51, USC; https://en.wikipedia.org/wiki/Lofa_Tatupu
+update rec_legend_catalog set jersey_number = 59, college = 'John Carroll' where id = '813b5933-3b1f-4d09-a3ad-7b4405b88423'; -- London Fletcher (MLB), #59, John Carroll; https://en.wikipedia.org/wiki/London_Fletcher
+update rec_legend_catalog set college = 'Fresno State' where id = '11916acb-ca31-46c4-b354-7ba7bd8ad99c'; -- Lorenzo Neal (FB), Fresno State; https://en.wikipedia.org/wiki/Lorenzo_Neal
+update rec_legend_catalog set jersey_number = 76 where id = '9daa4ad2-7b25-4521-b019-ab874dbdd7aa'; -- Lou Creekmur (RT), #76; https://en.wikipedia.org/wiki/Lou_Creekmur
+update rec_legend_catalog set jersey_number = 89, college = 'Hartpury College' where id = '14af362c-e9a5-459c-af71-897967b2ce46'; -- Louis Rees-Zammit (HB), #89, Hartpury College; https://en.wikipedia.org/wiki/Louis_Rees-Zammit
+update rec_legend_catalog set jersey_number = 78, college = 'Texas A&M' where id = 'e9e3643e-f09c-412e-b3a1-6eccf47da89f'; -- Luke Joeckel (LT), #78, Texas A&M; https://en.wikipedia.org/wiki/Luke_Joeckel
+update rec_legend_catalog set jersey_number = 88, college = 'USC' where id = 'a62cb289-6d5a-42cc-a363-6315fa347abd'; -- Lynn Swann (WR), #88, USC; https://en.wikipedia.org/wiki/Lynn_Swann
+update rec_legend_catalog set jersey_number = 9, college = 'West Virginia' where id = 'ee539e7b-aece-43f4-9be3-9424e67ff334'; -- Major Harris (QB), #9, West Virginia; https://en.wikipedia.org/wiki/Major_Harris_(American_football)

@@ -434,8 +434,7 @@ function reconcileHeaderQuarters(header: { team1Quarters: number[]; team2Quarter
 // display city/nick), never a short abbreviation like Madden's scoreboard — so
 // there's nothing to slot into the NFL parser's 2-4 letter abbr matching. Grab
 // every alpha token in each side's panel instead and hand the raw blob to a
-// fuzzy name matcher downstream (box-score.service.ts, via team-name-match.ts)
-// rather than trying to parse a clean single name out of a multi-line, often
+// fuzzy name matcher downstream rather than trying to parse a clean single name out of a multi-line, often
 // low-confidence OCR read.
 
 const TEAM_NAME_PANEL_Y = { min: 0.24, max: 0.4 };
@@ -663,10 +662,9 @@ export async function parseCfbBoxScoreBuffers(buffers: Buffer[]): Promise<Parsed
   if (!finalScore) warnings.push("Could not parse the final score from these images.");
 
   // team1Abbr/team2Abbr hold a raw multi-word OCR blob here, not a real abbreviation
-  // — CFB never displays one. box-score.service.ts's CFB-aware team resolution
-  // fuzzy-matches this blob against team name/mascot/display-city+nick instead of
-  // the NFL abbreviation matcher. Falls back to "???" (unmatchable) if OCR found
-  // nothing at all in either team's panel.
+  // — CFB never displays one. A downstream CFB-aware team resolution step fuzzy-matches this
+  // blob against team name/mascot/display-city+nick instead of the NFL abbreviation matcher.
+  // Falls back to "???" (unmatchable) if OCR found nothing at all in either team's panel.
   const score: ParsedScore | null = finalScore
     ? {
         team1Abbr: team1NameRaw || "???",

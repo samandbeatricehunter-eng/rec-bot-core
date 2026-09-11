@@ -1,0 +1,20 @@
+update rec_legend_catalog set college = 'Texas' where id = '4269e755-4697-4e3b-aae4-d44dac9203f4'; -- Justin Tucker (K), Texas; https://en.wikipedia.org/wiki/Justin_Tucker
+update rec_legend_catalog set jersey_number = 77, college = 'Minnesota' where id = '86174b41-ba3b-4d6c-8255-65a7d4913047'; -- Karl Mecklenburg (MLB), #77, Minnesota; https://en.wikipedia.org/wiki/Karl_Mecklenburg
+update rec_legend_catalog set jersey_number = 77, college = 'Washington State' where id = '6f0e9345-3215-4a62-ad76-752194ecfc90'; -- Keith Millard (DT), #77, Washington State; https://en.wikipedia.org/wiki/Keith_Millard
+update rec_legend_catalog set jersey_number = 14, college = 'Augustana' where id = '20704d6c-461c-4833-ba22-f1a5d69070a0'; -- Ken Anderson (QB), #14, Augustana; https://en.wikipedia.org/wiki/Ken_Anderson_(quarterback)
+update rec_legend_catalog set jersey_number = 27, college = 'Prairie View A&M' where id = '37ea3c9e-d343-4f8d-9142-1b151c3ef5cb'; -- Ken Houston (SS), #27, Prairie View A&M; https://en.wikipedia.org/wiki/Ken_Houston
+update rec_legend_catalog set college = 'UCLA' where id = '0d69d25e-9634-444e-b971-97efaffbece7'; -- Ken Norton Jr. (MLB), UCLA; https://en.wikipedia.org/wiki/Ken_Norton_Jr.
+update rec_legend_catalog set hand = 'Left', jersey_number = 16, college = 'Alabama' where id = '55787e0b-4c10-4662-98dd-717084f2706b'; -- Ken Stabler (QB), hand, #16, Alabama; https://en.wikipedia.org/wiki/Ken_Stabler
+update rec_legend_catalog set jersey_number = 91, college = 'Auburn' where id = 'f7db037c-00e2-449a-9f81-044e9152b95b'; -- Kevin Greene (LOLB), #91, Auburn; https://en.wikipedia.org/wiki/Kevin_Greene
+update rec_legend_catalog set jersey_number = 17, college = 'West Virginia' where id = '471807f8-9446-4138-b962-c5851f1a9994'; -- Kevin White (WR), #17, West Virginia; https://en.wikipedia.org/wiki/Kevin_White_(American_football)
+update rec_legend_catalog set jersey_number = 94, college = 'Oklahoma State' where id = '79e4af49-277d-4526-8aa5-86d3a6a41fc8'; -- Kevin Williams (DT), #94, Oklahoma State; https://en.wikipedia.org/wiki/Kevin_Williams_(defensive_tackle)
+update rec_legend_catalog set jersey_number = 23, college = 'Penn State' where id = 'b805d2f8-36e2-42c5-87e0-1e721ba04e04'; -- Ki-Jana Carter (HB), #23, Penn State; https://en.wikipedia.org/wiki/Ki-Jana_Carter
+update rec_legend_catalog set jersey_number = 10, college = 'Colorado' where id = 'c4d3e840-560b-4bc4-aa7d-b80ee703b229'; -- Kordell Stewart (QB), #10, Colorado; https://en.wikipedia.org/wiki/Kordell_Stewart
+update rec_legend_catalog set jersey_number = 77, college = 'Ohio State' where id = 'a79fb55e-8a36-4676-b15a-82d98a124879'; -- Korey Stringer (RT), #77, Ohio State; https://en.wikipedia.org/wiki/Korey_Stringer
+update rec_legend_catalog set jersey_number = 13, college = 'Northern Iowa' where id = '2f5c7255-6657-4508-93ea-2ec14117d948'; -- Kurt Warner (QB), #13, Northern Iowa; https://en.wikipedia.org/wiki/Kurt_Warner
+update rec_legend_catalog set jersey_number = 80, college = 'Penn State' where id = 'da845592-dd3b-4168-9d24-9c789b8f4411'; -- Kyle Brady (TE), #80, Penn State; https://en.wikipedia.org/wiki/Kyle_Brady
+update rec_legend_catalog set jersey_number = 93, college = 'Nebraska' where id = 'a0c3174b-3eda-4333-b799-a4a7cb1e34fd'; -- Kyle Vanden Bosch (RE), #93, Nebraska; https://en.wikipedia.org/wiki/Kyle_Vanden_Bosch
+update rec_legend_catalog set jersey_number = 68, college = 'Arkansas-Pine Bluff' where id = 'a7e7b8b2-76d0-4d88-87f1-ca314daba7f6'; -- L.C. Greenwood (LE), #68, Arkansas-Pine Bluff; https://en.wikipedia.org/wiki/L._C._Greenwood
+update rec_legend_catalog set college = 'TCU' where id = '3fcb7231-d13e-4b71-abb8-3c7880b8d7ee'; -- LaDainian Tomlinson (HB), TCU; https://en.wikipedia.org/wiki/LaDainian_Tomlinson
+update rec_legend_catalog set college = 'Sonoma State' where id = '34567036-021b-4461-a055-61b026e3ae19'; -- Larry Allen (LG), Sonoma State; https://en.wikipedia.org/wiki/Larry_Allen
+update rec_legend_catalog set jersey_number = 66, college = 'Bethune-Cookman' where id = 'd102fac4-44bd-4ada-8471-536c3b78183c'; -- Larry Little (RG), #66, Bethune-Cookman; https://en.wikipedia.org/wiki/Larry_Little

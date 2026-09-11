@@ -19,11 +19,11 @@ const PILLARS = [
   {
     title: "A real coin economy and media system",
     body:
-      "Every league runs on a coin economy — wagers between members, stat payouts, and a store for Dev Trait upgrades, attribute points, contracts, Campus Legends/Custom Recruits and more. Layer in auto-generated headlines, weekly power rankings, Game of the Week and Game of the Year voting, and highlight reels to make every season feel like a real broadcast.",
+      "Every league runs on a coin economy — wagers between members, stat payouts, and a store for Dev Trait upgrades, attribute points, contracts, Legends/Custom Players and more. Layer in auto-generated headlines, weekly power rankings, Game of the Week and Game of the Year voting, and highlight reels to make every season feel like a real broadcast.",
   },
 ];
 
-const GAMES = ["CFB 27", "Madden 26", "Madden 27"];
+const GAMES = ["Madden 26", "Madden 27"];
 
 function PreviewMock({ kind }: { kind: "matchups" | "store" | "rankings" }) {
   if (kind === "matchups") {
@@ -41,7 +41,7 @@ function PreviewMock({ kind }: { kind: "matchups" | "store" | "rankings" }) {
       <div className="site-preview-card" aria-hidden="true">
         <div className="site-preview-card-title">League Store</div>
         <div className="site-preview-store-row"><span>Dev Trait Upgrade</span><span className="site-preview-price">1,200</span></div>
-        <div className="site-preview-store-row"><span>Campus Legend</span><span className="site-preview-price">3,000</span></div>
+        <div className="site-preview-store-row"><span>Legend</span><span className="site-preview-price">3,000</span></div>
         <div className="site-preview-store-row"><span>Attribute Points ×3</span><span className="site-preview-price">900</span></div>
       </div>
     );
@@ -96,7 +96,7 @@ export function Landing() {
       </header>
 
       <main className="site-hero">
-        <h1>Manage your leagues and find new ones for CFB and Madden. All in one place, right at your fingertips.</h1>
+        <h1>Manage your Madden leagues and find new ones. All in one place, right at your fingertips.</h1>
         <p>
           Keep your matchups organized, bring your leagues to life with auto and custom headlines and interviews,
           Game of the Week, Game of the Year and Play of the Year voting. For Platinum members, a Discord bot
