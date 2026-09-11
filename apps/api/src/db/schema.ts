@@ -376,7 +376,6 @@ export const recServerRoutes = pgTable("rec_server_routes", {
   compCommitteeRoleId: text("comp_committee_role_id"),
   boxScoresChannelId: text("box_scores_channel_id"),
   weeklySubmissionsChannelId: text("weekly_submissions_channel_id"),
-  recGuideChannelId: text("rec_guide_channel_id"),
   weeklySubmissionsPanelMessageId: text("weekly_submissions_panel_message_id"),
   powerRankingsChannelId: text("power_rankings_channel_id"),
   headlinesChannelId: text("headlines_channel_id"),

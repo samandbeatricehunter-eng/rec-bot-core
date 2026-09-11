@@ -230,7 +230,7 @@ export function SettingsHome() {
               {editCategoryDef.key === "gameplay" && (
                 <div className="form-field">
                   <label className="form-label">Custom league rules</label>
-                  <p className="form-hint">Add categories and individual rules. These appear in the read-only League Rules view and the REC Guide.</p>
+                  <p className="form-hint">Add categories and individual rules. These appear in the read-only League Rules view.</p>
                   {editCustomRules.map((rule, index) => (
                     <div key={rule.id} style={{ border: "1px solid var(--card-border)", borderRadius: "var(--radius-md)", padding: "var(--space-2)", marginBottom: "var(--space-2)", background: "rgba(255,255,255,0.02)" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-2)", flexWrap: "wrap" }}>

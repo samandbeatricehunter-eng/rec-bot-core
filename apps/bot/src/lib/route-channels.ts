@@ -8,7 +8,6 @@ type ServerRoutes = {
   voting_polls_channel_id?: string | null;
   box_scores_channel_id?: string | null;
   weekly_submissions_channel_id?: string | null;
-  rec_guide_channel_id?: string | null;
 };
 
 export async function getRouteChannels(guildId: string): Promise<Record<string, any>> {
@@ -69,10 +68,6 @@ export async function getBoxScoresChannel(guild: Guild, routes: ServerRoutes) {
 
 export async function getWeeklySubmissionsChannel(guild: Guild, routes: ServerRoutes) {
   return fetchRoutedTextChannel(guild, routes.weekly_submissions_channel_id ?? routes.box_scores_channel_id);
-}
-
-export async function getRecGuideChannel(guild: Guild, routes: ServerRoutes) {
-  return fetchRoutedTextChannel(guild, routes.rec_guide_channel_id);
 }
 
 /**

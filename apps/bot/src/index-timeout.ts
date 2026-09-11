@@ -6,7 +6,6 @@ import { COLORS } from "./lib/colors.js";
 import { userFacingError } from "./lib/errors.js";
 import { isMissingDiscordAccountError, recApi } from "./lib/rec-api.js";
 import { getAnnouncementsChannel, getRouteChannels, getVotingPollsChannel } from "./lib/route-channels.js";
-import { publishRecGuide, REC_GUIDE_CUSTOM_IDS } from "./flows/rec-guide.js";
 import { ACTIVE_CHECK_CUSTOM_IDS, handleActiveCheck, handleActiveCheckEditSelect, handleActiveCheckReviewButton, recoverOpenActiveChecks } from "./flows/active-check.js";
 import {
   EOS_PAYOUT_CUSTOM_IDS,
@@ -462,12 +461,6 @@ client.once("clientReady", async () => {
   await Promise.allSettled([...client.guilds.cache.values()].map((guild) => syncRecentHighlightMessages(guild)));
   await recoverOpenActiveChecks(client);
   await recoverOpenEosAwardPolls(client, { buildRows: buildEosActionsRows, loadRouteChannels: getRouteChannels });
-  // Guide content is kept in sync by two explicit triggers: a settings save that changes the
-  // guide channel, and the commissioner's manual "Refresh Guide" action — both already call
-  // publishRecGuide. There is deliberately no startup refresh-all-guilds pass here anymore: it
-  // used to purge and repost the guide channel in every connected guild on every process boot
-  // (any deploy, crash-restart, or host-initiated restart), which is disruptive with no
-  // corresponding settings change to justify it.
 });
 
 client.on("error", (error) => {
@@ -734,8 +727,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    if (interaction.isButton() && interaction.customId === REC_GUIDE_CUSTOM_IDS.hub) return handleAppOpenDashboard(interaction);
-    if (interaction.isButton() && interaction.customId === REC_GUIDE_CUSTOM_IDS.openTeams) return handleOpenTeamsSlash(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.confPrefix}:`)) return handleOpenTeamsConfToggle(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.cfbPagePrefix}:`)) return handleOpenTeamsCfbPage(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.cfbConferenceSelect) return handleOpenTeamsCfbConference(interaction);
@@ -1773,16 +1764,9 @@ async function handleServerSetupChannelIdModal(interaction: Extract<Interaction,
 
     await recApi.setEconomyConfig({ guildId: interaction.guildId, [routeChannel.inputField]: channelId });
 
-    // Every route update can change guide mentions or feature instructions. Publishing is
-    // idempotent, and assigning REC Guide for the first time also locks its permissions.
-    const guideResult = await publishRecGuide(interaction.guild).catch((error) => {
-      console.error("[WARN] REC Guide refresh failed after route assignment:", error);
-      return null;
-    });
-
     serverSetupChannelSessions.delete(interaction.user.id);
 
-    return interaction.editReply(buildServerSetupPanel(`Assigned <#${channelId}> to **${channelType.replace(/_/g, " ")}**.${guideResult ? ` REC Guide refreshed in <#${guideResult.channelId}>.` : ""}`));
+    return interaction.editReply(buildServerSetupPanel(`Assigned <#${channelId}> to **${channelType.replace(/_/g, " ")}**.`));
   } catch (error) {
     console.error("[ERROR] Server setup channel assignment failed:", error);
     return interaction.editReply({ content: `Error assigning channel: ${userFacingError(error)}`, embeds: [], components: [] });

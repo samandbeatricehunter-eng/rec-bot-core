@@ -1064,7 +1064,6 @@ export const recApi = {
   getServerChannels: (guildId: string) => recApiFetch<{ channels: Array<{ id: string; name: string; type: "text" | "category" }>; routes: Record<string, string | null> }>("/v1/server-config/channels", { method: "POST", body: JSON.stringify({ guildId }) }),
   createServerChannel: (input: { guildId: string; routeKey: string; name: string; type: "text" | "category"; templateChannelId?: string | null }) => recApiFetch<{ channel: { id: string; name: string; type: "text" | "category" } }>("/v1/server-config/channels/create", { method: "POST", body: JSON.stringify(input) }),
   saveServerChannels: (input: Record<string, string | null> & { guildId: string }) => recApiFetch<unknown>("/v1/economy/config/set", { method: "POST", body: JSON.stringify(input) }),
-  refreshRecGuide: (guildId: string) => recApiFetch<{ posted: number; channelId: string }>("/v1/server-config/rec-guide/refresh", { method: "POST", body: JSON.stringify({ guildId }) }),
   getLeagueSettingsDraft: (guildId: string) =>
     recApiFetch<{ draft: LeagueSettingsDraft }>("/v1/setup/league/config", { method: "POST", body: JSON.stringify({ guildId }) }),
   getLeagueRulesDraft: (guildId: string) =>

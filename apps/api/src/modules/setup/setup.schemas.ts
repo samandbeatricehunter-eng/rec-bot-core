@@ -259,7 +259,6 @@ export const CreateLeagueSchema = z.object({
   streamsChannelId: z.string().optional().nullable(),
   highlightsChannelId: z.string().optional().nullable(),
   weeklySubmissionsChannelId: z.string().optional().nullable(),
-  recGuideChannelId: z.string().optional().nullable(),
   gameChannelsCategoryId: z.string().optional().nullable(),
   seedDefaultSchedule: z.boolean().default(false),
   requestedByDiscordId: z.string().min(1).optional(),
@@ -278,7 +277,6 @@ export const UpdateServerRoutesSchema = z.object({
   streamsChannelId: z.string().optional().nullable(),
   highlightsChannelId: z.string().optional().nullable(),
   weeklySubmissionsChannelId: z.string().optional().nullable(),
-  recGuideChannelId: z.string().optional().nullable(),
   gameChannelsCategoryId: z.string().optional().nullable(),
 });
 

@@ -102,23 +102,6 @@ export function ChannelSettings() {
     {error && <ErrorState message={error} />}
     {notice && <p style={{ color: "var(--success)" }}>{notice}</p>}
 
-    <Card style={{ marginBottom: "var(--space-4)" }}>
-      <p style={{ fontWeight: 500, fontSize: "var(--text-md)", margin: "0 0 4px" }}>REC Guide</p>
-      <p className="form-hint" style={{ margin: "0 0 var(--space-3)" }}>Wipe and repost the REC Guide document if it's out of date. (Discord server linking is above.)</p>
-      <Button variant="secondary" disabled={busy === "guide"} onClick={async () => {
-        setBusy("guide");
-        setError(null);
-        try {
-          const result = await recApi.refreshRecGuide(guildId);
-          window.alert(`REC Guide refreshed with ${result.posted} posts.`);
-        } catch (cause) {
-          setError(cause instanceof Error ? cause.message : "Failed to refresh the REC Guide.");
-        } finally {
-          setBusy(null);
-        }
-      }}>{busy === "guide" ? "Refreshing…" : "Wipe & Republish REC Guide"}</Button>
-    </Card>
-
     {ROUTE_CHANNEL_BLOCKS.map(({ key: block, label }) => {
       const routes = blockRoutes(block);
       if (!routes.length) return null;

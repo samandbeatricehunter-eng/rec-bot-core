@@ -8,7 +8,6 @@ type SetServerConfigInput = {
   pendingEconomyChannelId?: string | null;
   boxScoresChannelId?: string | null;
   weeklySubmissionsChannelId?: string | null;
-  recGuideChannelId?: string | null;
   powerRankingsChannelId?: string | null;
   gameChannelsCategoryId?: string | null;
   streamsChannelId?: string | null;

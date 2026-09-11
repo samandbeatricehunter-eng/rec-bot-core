@@ -1599,7 +1599,6 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     highlightsChannelId: r.highlights_channel_id ?? null,
     mainChatChannelId: r.main_chat_channel_id ?? null,
     weeklySubmissionsChannelId: r.weekly_submissions_channel_id ?? r.box_scores_channel_id ?? null,
-    recGuideChannelId: r.rec_guide_channel_id ?? null,
     boxScoresChannelId: r.box_scores_channel_id ?? r.weekly_submissions_channel_id ?? null,
     gameChannelsCategoryId: r.game_channels_category_id ?? null,
     seedDefaultSchedule: c.default_schedule_seed_requested ?? false,

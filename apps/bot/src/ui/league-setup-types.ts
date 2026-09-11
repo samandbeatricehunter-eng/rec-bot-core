@@ -332,7 +332,6 @@ export type LeagueSetupDraft = {
   boxScoresChannelId?: string | null;
   weeklySubmissionsChannelId?: string | null;
   mainChatChannelId?: string | null;
-  recGuideChannelId?: string | null;
   gameChannelsCategoryId?: string | null;
   // When true, changes are saved to DB immediately after each step and return to settings_picker.
   editMode: boolean;
@@ -537,7 +536,6 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     boxScoresChannelId: null,
     weeklySubmissionsChannelId: null,
     mainChatChannelId: null,
-    recGuideChannelId: null,
     gameChannelsCategoryId: null,
     editMode: false,
     returnToReview: false
