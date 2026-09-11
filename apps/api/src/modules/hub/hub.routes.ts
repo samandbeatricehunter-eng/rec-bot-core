@@ -16,6 +16,7 @@ import {
   reopenGameOfWeekVoting,
   createCommissionerMediaArticle,
   getHub,
+  getStandingsBoard,
   getHubStreamingAccounts,
   getHubMatchupSchedule,
   getHubMatchupDetail,
@@ -71,6 +72,16 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "Hub view is a browser-only endpoint.");
       return reply.send(await getHub(body.guildId, auth.discordId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Lean standings board (division / power / SOS) — published rankings snapshot + SOS only.
+  app.post("/v1/hub/standings-board", async (request, reply) => {
+    try {
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode === "bot") throw new ApiError(400, "Standings board is a browser-only endpoint.");
+      return reply.send(await getStandingsBoard(body.guildId, auth.discordId));
     } catch (error) { return sendError(reply, error); }
   });
 

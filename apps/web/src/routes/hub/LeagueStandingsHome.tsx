@@ -4,14 +4,14 @@ import { getTeamByAbbreviation, nflPlayoffPictureLive, NFL_TEAM_PRIMARY_COLORS }
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
 import { recApi } from "../../lib/rec-api-client.js";
+import { readStandingsBoardCache, writeStandingsBoardCache, type StandingsBoardResponse } from "../../lib/standings-board-cache.js";
 import { StandingsMiniNav, type StandingsNavId } from "../../components/hub/StandingsMiniNav.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { TeamLogo } from "../../components/ui/TeamLogo.js";
 
-type HubResponse = Awaited<ReturnType<typeof recApi.getHub>>;
-type PowerRankingTeam = NonNullable<HubResponse["powerRankings"]>["teams"][number];
-type SosTeam = NonNullable<HubResponse["sos"]>["teams"][number];
+type PowerRankingTeam = NonNullable<StandingsBoardResponse["powerRankings"]>["teams"][number];
+type SosTeam = NonNullable<StandingsBoardResponse["sos"]>["teams"][number];
 type StandingsView = Exclude<StandingsNavId, "bracket">;
 
 const NFL_DIVISION_ORDER = ["East", "North", "South", "West"] as const;
@@ -350,41 +350,68 @@ function PlayoffMarkerKey({ className }: { className: string }) {
 export function LeagueStandingsHome() {
   const { guildId } = useReadyAuth();
   const [searchParams] = useSearchParams();
-  const [hub, setHub] = useState<HubResponse | null>(null);
+  const [board, setBoard] = useState<StandingsBoardResponse | null>(() => readStandingsBoardCache(guildId));
   const [hubError, setHubError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(() => !readStandingsBoardCache(guildId));
   const viewParam = String(searchParams.get("view") ?? "division");
   const view: StandingsView = viewParam === "power" || viewParam === "sos" ? viewParam : "division";
 
   useEffect(() => {
-    recApi.getHub(guildId).then(setHub).catch((cause) => setHubError(cause instanceof Error ? cause.message : "Could not load standings."));
+    let cancelled = false;
+    const cached = readStandingsBoardCache(guildId);
+    if (cached) {
+      setBoard(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    setHubError(null);
+
+    recApi.getStandingsBoard(guildId)
+      .then((next) => {
+        if (cancelled) return;
+        writeStandingsBoardCache(guildId, next);
+        setBoard(next);
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        if (!readStandingsBoardCache(guildId)) {
+          setHubError(cause instanceof Error ? cause.message : "Could not load standings.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
   }, [guildId]);
 
-  const teams = hub?.powerRankings?.teams ?? [];
+  const teams = board?.powerRankings?.teams ?? [];
   // Live from Week 12 through postseason/offseason; also keep the button available once a
   // prior season exists (snapshot fallback) or the league is in preseason/TC so members can
   // still open last season's settled bracket until the next Week 12 projection.
-  const bracketAvailable = hub
+  const bracketAvailable = board
     ? nflPlayoffPictureLive({
-      weekNumber: Number(hub.league.weekNumber ?? 0),
-      seasonStage: String(hub.league.seasonStage ?? ""),
-      game: hub.league.game,
+      weekNumber: Number(board.league.weekNumber ?? 0),
+      seasonStage: String(board.league.seasonStage ?? ""),
+      game: board.league.game,
     })
-      || Number(hub.league.seasonNumber ?? 1) > 1
-      || ["preseason", "preseason_training_camp"].includes(String(hub.league.seasonStage ?? ""))
+      || Number(board.league.seasonNumber ?? 1) > 1
+      || ["preseason", "preseason_training_camp"].includes(String(board.league.seasonStage ?? ""))
     : false;
   const sosByTeam = useMemo(() => {
     const map = new Map<string, SosTeam>();
-    for (const team of hub?.sos?.teams ?? []) map.set(team.teamId, team);
+    for (const team of board?.sos?.teams ?? []) map.set(team.teamId, team);
     return map;
-  }, [hub?.sos?.teams]);
+  }, [board?.sos?.teams]);
 
   const boardTitle = view === "division" ? "Division Standings" : view === "power" ? "Power Rankings" : "Strength of Schedule";
 
   return (
     <div className="hub-section hub-standings-page">
-      {hubError ? <ErrorState message={hubError} /> : !hub ? <LoadingState label="Loading standings…" /> : (
+      {hubError ? <ErrorState message={hubError} /> : loading && !board ? <LoadingState label="Loading standings…" /> : !board ? null : (
         <>
-          <StandingsMiniNav active={view} leagueId={hub.league.id} bracketAvailable={bracketAvailable} />
+          <StandingsMiniNav active={view} leagueId={board.league.id} bracketAvailable={bracketAvailable} />
           <div className="hub-standings-board-wrap">
             <h2>{boardTitle}</h2>
             {view === "division" ? <PlayoffMarkerKey className="hub-standings-key" /> : null}

@@ -712,6 +712,34 @@ export async function getHub(guildId: string, discordId: string) {
   return withComputeCache(`hub:view:${guildId}:${discordId}`, 45_000, () => loadHub(guildId, discordId));
 }
 
+/** Lean standings-surface payload: published power-ranking snapshot + SOS only.
+ *  Avoids the full hub view's headlines/highlights/matchups/store work so Division /
+ *  Power / SOS pages can hydrate quickly and stay warm from compute + client caches. */
+export async function getStandingsBoard(guildId: string, discordId: string) {
+  return withComputeCache(`hub:standings-board:${guildId}:${discordId}`, 120_000, async () => {
+    const context = await getCurrentLeagueContext(guildId);
+    const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+    const weekNumber = Number(context.rec_leagues.current_week ?? 1);
+    const seasonStage = String(context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason");
+    const [powerRankings, sos] = await Promise.all([
+      computeLatestPublishedPowerRankings(guildId, discordId),
+      computeLeagueSos(guildId, discordId),
+    ]);
+    return {
+      league: {
+        id: context.leagueId,
+        name: context.rec_leagues.name ?? null,
+        game: context.rec_leagues.game,
+        seasonNumber,
+        weekNumber,
+        seasonStage,
+      },
+      powerRankings,
+      sos,
+    };
+  });
+}
+
 async function loadHub(guildId: string, discordId: string) {
 
   const contextP = getCurrentLeagueContext(guildId);

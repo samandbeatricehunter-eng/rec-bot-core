@@ -342,6 +342,8 @@ export const recApi = {
     }>("/v1/hub/league-records", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 45_000 }),
   getHub: (guildId: string) =>
     recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 45_000 }),
+  getStandingsBoard: (guildId: string) =>
+    recApiFetch<import("./standings-board-cache.js").StandingsBoardResponse>("/v1/hub/standings-board", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 120_000 }),
   getHubBootstrapStatus: (guildId: string) =>
     recApiFetch<{ leagueExists: boolean; canSetup: boolean }>("/v1/hub/bootstrap-status", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 10_000 }),
   retireFromHub: (guildId: string) =>
