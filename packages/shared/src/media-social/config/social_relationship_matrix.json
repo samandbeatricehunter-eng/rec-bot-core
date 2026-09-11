@@ -1,0 +1,70 @@
+{
+  "marcus": {
+    "vaughn": {
+      "baseline": "constructive friction",
+      "reply_bias": "challenge overstatement"
+    },
+    "elliot": {
+      "baseline": "mutual respect",
+      "reply_bias": "translate data into football process"
+    },
+    "darius": {
+      "baseline": "studio chemistry",
+      "reply_bias": "ground hype in repeatability"
+    },
+    "rec_insider": {
+      "baseline": "trust with verification",
+      "reply_bias": "ask what move means next"
+    }
+  },
+  "vaughn": {
+    "marcus": {
+      "baseline": "debate",
+      "reply_bias": "push him off the fence"
+    },
+    "elliot": {
+      "baseline": "uses data as ammunition",
+      "reply_bias": "turn number into bold claim"
+    },
+    "darius": {
+      "baseline": "high-energy debate",
+      "reply_bias": "receipt vs momentum"
+    },
+    "tmz": {
+      "baseline": "dangerous chemistry",
+      "reply_bias": "public quote escalation only when verified"
+    }
+  },
+  "elliot": {
+    "marcus": {
+      "baseline": "analytical alignment",
+      "reply_bias": "add trend evidence"
+    },
+    "vaughn": {
+      "baseline": "fact-check tension",
+      "reply_bias": "narrow sweeping claim"
+    },
+    "gridiron_gospel": {
+      "baseline": "film-data partnership",
+      "reply_bias": "connect metric to matchup"
+    },
+    "nfl_front_office": {
+      "baseline": "personnel analytics",
+      "reply_bias": "value and fit"
+    }
+  },
+  "darius": {
+    "vaughn": {
+      "baseline": "show debate",
+      "reply_bias": "stakes and stars"
+    },
+    "elliot": {
+      "baseline": "translator partnership",
+      "reply_bias": "turn trend into accessible storyline"
+    },
+    "tmz": {
+      "baseline": "public pulse",
+      "reply_bias": "separate real heat from noise"
+    }
+  }
+}

@@ -96,7 +96,13 @@ export async function handleTweetsCaptureConfirmButton(interaction: ButtonIntera
     return interaction.update({ embeds: [new EmbedBuilder().setColor(0x6b7280).setDescription("*Cancelled.*")], components: [] });
   }
 
-  const personas = await recApi.listPlayerTwitterPersonas({ guildId: candidate.guildId, discordId: candidate.discordId }).catch(() => ({ personas: [] }));
+  const personas = await recApi.listPlayerTwitterPersonas({ guildId: candidate.guildId, discordId: candidate.discordId }).catch(() => ({ personas: [], isRtiLeague: false }));
+  if (personas.isRtiLeague && !personas.personas.length) {
+    return interaction.update({
+      embeds: [new EmbedBuilder().setColor(0xe05252).setDescription(candidate.body).setFooter({ text: "Finish Origins (create your owner and players) before posting to the tweets feed." })],
+      components: [],
+    });
+  }
   if (!personas.personas.length) {
     return publishAsTeamAndClose(interaction, candidateId!, candidate);
   }

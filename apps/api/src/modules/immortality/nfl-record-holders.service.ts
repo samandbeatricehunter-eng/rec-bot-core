@@ -144,6 +144,87 @@ async function awardRecordBreakXp(playerId: string, maddenPlayerId: string | nul
   await awardRecordBreakPoints(prospectId, sourceId);
 }
 
+const RECORD_BREAK_BONUS_WINDOW_MS = 8 * 24 * 60 * 60 * 1000; // one advance cycle, generous
+const RECORD_BREAK_BONUS_PER_RECORD = 3; // one "silver medal" worth of trend score
+const RECORD_BREAK_BONUS_CAP = 6;
+
+/** Season-trend dev-promotion boost for a player who recently broke an NFL top-5 record -- see
+ * evaluateSeasonTrend's recordBreakBonusScore in season-trend.ts and progression.service.ts's
+ * evaluateSeasonTrendPromotionsAfterAdvance. Deliberately a bounded SCORE nudge, not a bypass: a
+ * prospect still needs the real gold-week counts the trend rules require, so this only helps
+ * someone who's already close on every other factor.
+ *
+ * Reads rec_media_events (not rec_immortality_nfl_records.set_at) on purpose: set_at gets
+ * refreshed to now() for every league-player row whenever ANY row in that category+scope's top 5
+ * changes (see the delete+reinsert below), not just the row that actually moved -- so it can't
+ * tell "this player broke a record this week" from "someone else climbed into rank 4 near them".
+ * checkNflRecordsAfterImport logs a record_watch media event only at the exact moment a #1 spot
+ * is actually taken, which is the reliable signal this needs. */
+export async function recentRecordBreakBonusScore(playerId: string | null | undefined): Promise<number> {
+  if (!playerId) return 0;
+  const cutoff = new Date(Date.now() - RECORD_BREAK_BONUS_WINDOW_MS).toISOString();
+  const rows = await supabase.from("rec_media_events").select("id")
+    .eq("event_type", "record_watch").eq("player_id", playerId).gte("created_at", cutoff);
+  const count = rows.data?.length ?? 0;
+  return Math.min(RECORD_BREAK_BONUS_CAP, count * RECORD_BREAK_BONUS_PER_RECORD);
+}
+
+/** Breaking a real NFL top-5 record is one of the biggest verified events the social engine can
+ * react to -- queues TWO claim-grounded reactions from different reactive personas (a real record
+ * board rarely gets just one reaction) into the same weekly tweet drip, sharing the player's
+ * "player_breakout" storyline with any weekly milestone posts so the arc stays continuous
+ * (see social-claim-engine.ts / media-storylines.service.ts). Best-effort: never blocks the
+ * record-book update or the XP award if the social engine has nothing to say. */
+async function queueRecordBreakMediaReactions(input: {
+  leagueId: string; scope: RecordScope; category: NflRecordCategory;
+  playerId: string; teamId: string | null; holderName: string; value: number;
+}): Promise<void> {
+  try {
+    const league = await supabase.from("rec_leagues").select("season_number,current_week").eq("id", input.leagueId).maybeSingle();
+    const seasonNumber = Number(league.data?.season_number ?? 1);
+    const weekNumber = Number(league.data?.current_week ?? 1);
+    const factLine = `${input.holderName} broke the REC ${SCOPE_LABELS[input.scope].toLowerCase()} record for ${CATEGORY_LABELS[input.category]} with ${Number(input.value).toLocaleString()}.`;
+    const storylineTitle = `${input.holderName}'s season-long climb`;
+    const { buildClaimGroundedPostBody, pickReactivePersona, reactivePersonaAuthor } = await import("./social-claim-engine.js");
+    const { logMediaEvent } = await import("./media-events.service.js");
+
+    // Logged unconditionally (not just when a persona reaction below actually lands a body) --
+    // this is the reliable signal recentRecordBreakBonusScore reads for the dev-promotion boost,
+    // so it must exist even on a week where every fragment combination happens to be fatigued.
+    await logMediaEvent({
+      leagueId: input.leagueId, seasonNumber, weekNumber, eventType: "record_watch",
+      teamId: input.teamId, playerId: input.playerId, importanceScore: 80,
+      facts: { factLine, scope: input.scope, category: input.category, value: input.value },
+    }).catch((error) => console.error("[ERROR] logMediaEvent for record break failed (non-fatal):", error));
+
+    // Two genuinely different personas -- Vaughn/Darius lean into the moment, Marcus/Elliot are
+    // more likely to bring the skeptical "one week" angle, giving a realistic mixed reaction.
+    const weights = { vaughn: 2, darius: 2, marcus: 1, elliot: 1 };
+    const first = pickReactivePersona(weights);
+    const second = pickReactivePersona(weights, [first]);
+
+    const rows: Array<{ league_id: string; season_number: number; week_number: number; author_kind: string; author_handle: string; author_display_name: string; body: string; status: "pending"; source: string }> = [];
+    for (const persona of [first, second]) {
+      const body = await buildClaimGroundedPostBody({
+        leagueId: input.leagueId, seasonNumber, weekNumber,
+        eventType: "record_watch", persona, subjectKey: `player:${input.playerId}`,
+        factLine, teamId: input.teamId, playerId: input.playerId, storylineTitle,
+        importanceScore: 80,
+      });
+      if (!body) continue;
+      const author = reactivePersonaAuthor(persona);
+      rows.push({
+        league_id: input.leagueId, season_number: seasonNumber, week_number: weekNumber,
+        author_kind: author.authorKind, author_handle: author.handle, author_display_name: author.displayName,
+        body, status: "pending", source: "record_break",
+      });
+    }
+    if (rows.length) await supabase.from("rec_immortality_tweet_queue").insert(rows);
+  } catch (error) {
+    console.error("[ERROR] queueRecordBreakMediaReactions failed (non-fatal):", error);
+  }
+}
+
 /** Seeds rec_immortality_nfl_records with the real NFL top-5 boards and posts them, once per
  * scope. Idempotent per scope -- a no-op for any scope that already has rows for the league, so
  * it's safe to call repeatedly (and safely picks up a newly-added scope for a league that only
@@ -302,6 +383,11 @@ export async function checkNflRecordsAfterImport(leagueId: string): Promise<void
         if (recordBroken && newRank1?.player_id) {
           changedScopes.add(scope);
           await awardRecordBreakXp(newRank1.player_id, maddenIdByPlayer.get(newRank1.player_id) ?? null, scope, category);
+          await queueRecordBreakMediaReactions({
+            leagueId, scope, category, playerId: newRank1.player_id,
+            teamId: teamIdByPlayer.get(newRank1.player_id) ?? null,
+            holderName: newRank1.holder_name, value: newRank1.value,
+          });
         }
         changedScopes.add(scope);
       }

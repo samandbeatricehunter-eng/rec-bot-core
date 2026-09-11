@@ -1,0 +1,1068 @@
+{
+  "media_statement": {
+    "focus": "a new public statement and what it commits the speaker to",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "media_receipt_fulfilled": {
+    "focus": "a prior public statement that the verified result supported",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "media_receipt_missed": {
+    "focus": "a prior public statement that the verified result did not support",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "challenge_success": {
+    "focus": "a weekly challenge that was completed",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "challenge_failure": {
+    "focus": "a weekly challenge that was missed",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "well_rounded": {
+    "focus": "production across more than one area of the game",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "complete_team_performance": {
+    "focus": "a result supported by offense, defense and situational execution",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "potw": {
+    "focus": "a verified Player of the Week performance",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "league_leader": {
+    "focus": "a player currently leading a verified league category",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "gotw_pregame": {
+    "focus": "the featured Game of the Week before kickoff",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "gotw_result": {
+    "focus": "the completed Game of the Week result",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "rivalry_pregame": {
+    "focus": "a rivalry matchup before kickoff",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "rivalry_result": {
+    "focus": "a completed rivalry result",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "rivalry_streak": {
+    "focus": "a verified streak inside a rivalry series",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "upset": {
+    "focus": "a result where the lower-rated/seeded/expected side won",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "blowout": {
+    "focus": "a game decided by a large verified margin",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "close_game": {
+    "focus": "a one-score or otherwise tightly decided game",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "win_streak": {
+    "focus": "a verified multi-game winning streak",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "loss_streak": {
+    "focus": "a verified multi-game losing streak",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "trade_block": {
+    "focus": "a player/team that has actually been placed on the trade block",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "trade_completed": {
+    "focus": "a finalized trade and its roster/resource consequences",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "trade_rejected": {
+    "focus": "a stored proposed trade that was rejected",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "trade_value_followup": {
+    "focus": "how a completed trade is aging after new games/imports",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "acquisition_breakout": {
+    "focus": "a new acquisition producing strongly after arrival",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "acquisition_struggle": {
+    "focus": "a new acquisition producing below expectation after arrival",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "free_agent_signed": {
+    "focus": "a finalized free-agent signing",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "fa_statement_fulfilled": {
+    "focus": "a Free Agency priority that the roster outcome addressed",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "fa_statement_missed": {
+    "focus": "a Free Agency priority that the roster outcome did not address",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "contract_demand": {
+    "focus": "a stored/public contract posture or demand",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "contract_extension": {
+    "focus": "a finalized extension",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "cap_pressure": {
+    "focus": "verified roster/contract constraints that reduce flexibility",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "player_hot_streak": {
+    "focus": "a player's verified multi-game production surge",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "player_cold_streak": {
+    "focus": "a player's verified multi-game production dip",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "playoff_clinch": {
+    "focus": "a verified playoff berth",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "playoff_elimination": {
+    "focus": "a verified playoff elimination",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "championship": {
+    "focus": "a verified championship result",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "record_watch": {
+    "focus": "a player/team approaching a verified REC record",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "rti_prospect_breakout": {
+    "focus": "an RTI player's verified breakout stretch",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "rti_prospect_struggle": {
+    "focus": "an RTI player's verified difficult stretch",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "rti_pair_story": {
+    "focus": "a storyline connecting the user's offensive and defensive RTI players",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  },
+  "rti_owner_receipt": {
+    "focus": "an RTI owner's prior public position compared with a verified outcome",
+    "allowed_moves": [
+      "report",
+      "interpret",
+      "compare",
+      "question",
+      "receipt",
+      "project"
+    ],
+    "required_grounding": "At least one verified fact or stored public statement must anchor the post.",
+    "thread_followups": [
+      "agree_with_context",
+      "qualify",
+      "challenge_claim",
+      "add_new_fact",
+      "ask_specific_question",
+      "surface_receipt"
+    ],
+    "avoid": [
+      "generic reaction with no new information",
+      "invented motive",
+      "invented private information",
+      "duplicate claim already made in the same burst"
+    ]
+  }
+}

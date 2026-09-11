@@ -30,6 +30,7 @@ import {
   requireImmortalityLeague,
   resolveProspectTeamName,
 } from "./immortality.service.js";
+import { recentRecordBreakBonusScore } from "./nfl-record-holders.service.js";
 
 const SELF_PROMOTION_SOURCES = ["season_trend", "self_purchase"] as const;
 const ACTIVE_PROMOTION_STATUSES = ["pending", "applied"] as const;
@@ -149,10 +150,12 @@ export async function getProgressionState(input: { guildId: string; discordId: s
   const seasonNumber = Number(recLeague.data?.season_number ?? 1);
   const weekNumber = Math.max(0, Number(recLeague.data?.current_week ?? 1) - 1);
   const medals = weekNumber > 0 ? await medalsThisSeason(String(prospect.id), seasonNumber, weekNumber) : [];
+  const recordBreakBonusScore = await recentRecordBreakBonusScore(prospect.player_id);
   const trend = evaluateSeasonTrend({
     currentDevTrait,
     medals,
     promotionCheckBonus: modifiers.promotionCheckBonus,
+    recordBreakBonusScore,
   });
   const nodes = catalog.filter((item) => item.tier >= 2).map((item) => {
     const owned = ownedKeys.includes(item.key);
@@ -654,10 +657,12 @@ export async function evaluateSeasonTrendPromotionsAfterAdvance(input: {
     const { modifiers } = await modifiersAndCatalog({ id: String(prospect.id), position: String(prospect.position) });
     const currentDevTrait = await recDevTraitForProspect(String(prospect.id), startingDevTrait(modifiers));
     const medals = await medalsThisSeason(String(prospect.id), input.seasonNumber, input.weekNumber);
+    const recordBreakBonusScore = await recentRecordBreakBonusScore(prospect.player_id);
     const trend = evaluateSeasonTrend({
       currentDevTrait,
       medals,
       promotionCheckBonus: modifiers.promotionCheckBonus,
+      recordBreakBonusScore,
     });
     if (!trend.promote) continue;
 

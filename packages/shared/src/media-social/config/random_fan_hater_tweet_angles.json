@@ -1,0 +1,126 @@
+{
+  "fan_angles": [
+    {
+      "id": "fan_01",
+      "topic": "breakout",
+      "template": "{featured_name} has {fact_line}. That is the kind of jump fans notice before the rankings catch up."
+    },
+    {
+      "id": "fan_02",
+      "topic": "clutch",
+      "template": "{featured_name} came through when {game_consequence}. {fact_line}. That is why you trust your guys late."
+    },
+    {
+      "id": "fan_03",
+      "topic": "rivalry",
+      "template": "I do not care what the records say when {team_name} sees {rival_team}. {rivalry_history_line} makes this one different."
+    },
+    {
+      "id": "fan_04",
+      "topic": "trade_win",
+      "template": "The price looked big when {team_name} made {trade_summary}. Since then: {before_after_line}. Hard not to like that return."
+    },
+    {
+      "id": "fan_05",
+      "topic": "underdog",
+      "template": "Everybody had {team_name} looking up at {opponent_team}. Then {fact_line}. Keep counting them out."
+    },
+    {
+      "id": "fan_06",
+      "topic": "potw",
+      "template": "{potw_label} after {potw_stat_line}. {featured_name} earned every bit of that one."
+    },
+    {
+      "id": "fan_07",
+      "topic": "leader",
+      "template": "{featured_name} is {league_leader_rank} in {league_leader_category}. That is not hype anymore; that is a season-long body of work."
+    },
+    {
+      "id": "fan_08",
+      "topic": "well_rounded",
+      "template": "{fact_line}. Offense, defense, special teams — that felt like a team win, not one guy saving everybody."
+    },
+    {
+      "id": "fan_09",
+      "topic": "progression",
+      "template": "Since {progression_event_label}, {featured_name} has {before_after_line}. You can actually see the development showing up."
+    },
+    {
+      "id": "fan_10",
+      "topic": "contract",
+      "template": "If {featured_name} keeps putting up {trend_line}, that next contract conversation is getting more expensive by the week."
+    },
+    {
+      "id": "fan_11",
+      "topic": "streak",
+      "template": "{team_name} is on {team_streak}, and {trend_line} is why this run feels more real than lucky."
+    },
+    {
+      "id": "fan_12",
+      "topic": "defense",
+      "template": "The box score says {fact_line}. Watching this defense make teams work for everything has been the fun part."
+    }
+  ],
+  "hater_angles": [
+    {
+      "id": "hater_01",
+      "topic": "fraud",
+      "template": "{team_name} is {rank_context}, but {contradiction_fact}. Somebody explain why I am supposed to buy the hype."
+    },
+    {
+      "id": "hater_02",
+      "topic": "turnovers",
+      "template": "{fact_line}. You cannot keep handing teams possessions and act surprised when close games disappear."
+    },
+    {
+      "id": "hater_03",
+      "topic": "trade_cost",
+      "template": "{team_name} gave up {asset_summary} for {featured_name}. The return so far: {before_after_line}. I am keeping the receipt."
+    },
+    {
+      "id": "hater_04",
+      "topic": "contract",
+      "template": "{featured_name} carries {contract_fact}. Production: {fact_line}. That math is getting loud."
+    },
+    {
+      "id": "hater_05",
+      "topic": "rivalry",
+      "template": "Series says {rivalry_history_line}. Until {team_name} changes that, I do not want speeches about this rivalry."
+    },
+    {
+      "id": "hater_06",
+      "topic": "cold_player",
+      "template": "Over the last {sample_size}, {featured_name}: {trend_line}. At some point the name cannot carry the production."
+    },
+    {
+      "id": "hater_07",
+      "topic": "statement_fail",
+      "template": "They said {media_statement_summary}. Then {fact_line}. Do not blame me for remembering."
+    },
+    {
+      "id": "hater_08",
+      "topic": "ranking",
+      "template": "{team_name} at {rank_context} while {efficiency_context}. That ranking needs an audit."
+    },
+    {
+      "id": "hater_09",
+      "topic": "playoff",
+      "template": "With {game_consequence}, {team_name} produced {fact_line}. That is when excuses get expensive."
+    },
+    {
+      "id": "hater_10",
+      "topic": "challenge_fail",
+      "template": "The matchup was screaming {matchup_theme}. The result was {fact_line}. They got beat exactly where the problem was obvious."
+    },
+    {
+      "id": "hater_11",
+      "topic": "progression",
+      "template": "After {progression_event_label}, the expectation changed. {fact_line}. Upgrades come with scrutiny too."
+    },
+    {
+      "id": "hater_12",
+      "topic": "hot_opponent",
+      "template": "Everybody knew {opponent_hot_player} was coming in with {opponent_hot_player_stat}. He still finished with {fact_line}. What was the plan?"
+    }
+  ]
+}

@@ -64,6 +64,13 @@ export function evaluateSeasonTrend(input: {
   currentDevTrait: ImmortalityDevTrait;
   medals: TrendMedal[];
   promotionCheckBonus?: number;
+  /** Extra trend-score points from real, verified events outside the weekly-challenge medal
+   *  system -- currently just "broke an NFL top-5 record recently" (see
+   *  progression.service.ts's evaluateSeasonTrendPromotionsAfterAdvance). Only nudges the score
+   *  threshold; the gold-count and consecutive-gold requirements below are untouched, so a
+   *  record break alone with no real form still can't promote someone on its own -- it only
+   *  helps a prospect who's already close on every other factor. */
+  recordBreakBonusScore?: number;
 }): SeasonTrendResult {
   const nextDevTrait = promotionPath(input.currentDevTrait);
   if (!nextDevTrait) {
@@ -82,13 +89,15 @@ export function evaluateSeasonTrend(input: {
     };
   }
   const slice = input.medals.slice(-window);
-  const score = windowScore(slice);
+  const recordBonus = Math.max(0, input.recordBreakBonusScore ?? 0);
+  const score = windowScore(slice) + recordBonus;
+  const bonusNote = recordBonus > 0 ? ` (includes +${recordBonus} for a recent record break)` : "";
   const golds = slice.filter((medal) => medal === "gold").length;
   const consecutive = trailingGoldCount(slice);
   if (score < rule.minScore) {
     return {
       promote: false,
-      reason: `Need ${rule.minScore} trend points over the last ${window} weeks (currently ${score}).`,
+      reason: `Need ${rule.minScore} trend points over the last ${window} weeks (currently ${score}${bonusNote}).`,
       window,
       score,
       golds,
@@ -118,7 +127,7 @@ export function evaluateSeasonTrend(input: {
   return {
     promote: true,
     nextDevTrait,
-    reason: `Last ${window} weeks scored ${score} with ${golds} gold${golds === 1 ? "" : "s"}.`,
+    reason: `Last ${window} weeks scored ${score} with ${golds} gold${golds === 1 ? "" : "s"}${bonusNote}.`,
     window,
     score,
     golds,

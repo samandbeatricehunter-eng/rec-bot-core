@@ -57,7 +57,7 @@ export const recApi = {
   postManualTweet: (input: { guildId: string; persona: string; customHandle?: string; customDisplayName?: string; tweetText: string; imageUrl?: string; mentionContent?: string }) =>
     recFetch<{ posted: true }>("/v1/immortality/tweets/manual", { method: "POST", body: JSON.stringify(input) }),
   listPlayerTwitterPersonas: (input: { guildId: string; discordId: string }) =>
-    recFetch<{ personas: Array<{ key: "owner" | "offense" | "defense"; name: string; handle: string; roleLabel: string }> }>(
+    recFetch<{ personas: Array<{ key: "owner" | "offense" | "defense"; name: string; handle: string; roleLabel: string }>; isRtiLeague: boolean }>(
       "/v1/immortality/tweets/personas",
       { method: "POST", body: JSON.stringify(input) },
     ),

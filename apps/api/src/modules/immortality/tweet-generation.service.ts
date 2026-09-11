@@ -4,7 +4,7 @@
 // OR rec_players rows linked from rec_immortality_prospects -- EA identity adoption replaces
 // the `rti:` prefix with a numeric franchise id) over baseline real-NFL roster fill. Posting
 // is a separate drip -- see sweepImmortalityTweetQueue below -- not done here.
-import { gameplaySeasonStages, pickRandomCommunityAccount, type LeagueGame } from "@rec/shared";
+import { gameplaySeasonStages, pickRandomCommunityAccount, type LeagueGame, type ReactivePersonaKey, type SocialEventType } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
@@ -20,10 +20,27 @@ import {
 import { conversationTemplateKey, selectConversationLine, type ConversationKind, type VoiceFamily } from "./tweet-bank-conversations.js";
 import { personaForHandle, playerVoiceFromTraits } from "./tweet-bank-voices.js";
 import { isImmortalityCreatedPlayer, loadRtiProspectPlayerIds } from "./player-identity.service.js";
+import { buildClaimGroundedPostBody, pickReactivePersona, reactivePersonaAuthor } from "./social-claim-engine.js";
 
 const QUEUE_SIZE = 10;
+const REACTIVE_PERSONA_KEYS = new Set<string>(["marcus", "vaughn", "elliot", "darius"]);
 
-type Candidate = { category: TweetCategory; slots: TweetSlots; weight: number };
+/** Claim-plan grounding for a candidate -- see social-claim-engine.ts. Populated only for
+ *  categories with a real, verified fact to anchor on; categories without one (hype filler etc.)
+ *  stay on the legacy static-template bank, matching the architecture's fact-discipline rule
+ *  that a claim-grounded post must cite at least one verified fact. */
+type MediaSocialMeta = {
+  eventType: SocialEventType;
+  subjectKey: string;
+  factLine: string;
+  teamId?: string | null;
+  playerId?: string | null;
+  gameId?: string | null;
+  storylineTitle?: string;
+  personaWeights: Partial<Record<ReactivePersonaKey, number>>;
+};
+
+type Candidate = { category: TweetCategory; slots: TweetSlots; weight: number; mediaSocial?: MediaSocialMeta };
 
 function fillTemplate(template: string, slots: TweetSlots): string {
   return template.replace(/\{(\w+)\}/g, (match, key: string) => {
@@ -134,15 +151,15 @@ function teamLabel(team: any): string {
 
 async function loadOpponentNameByTeamId(leagueId: string, seasonNumber: number, weekNumber: number, seasonStage?: string): Promise<{
   opponentByTeamId: Map<string, string>;
-  gameRows: Array<{ home_team_id: string | null; away_team_id: string | null; home_score: number; away_score: number; is_tie: boolean }>;
+  gameRows: Array<{ id: string; home_team_id: string | null; away_team_id: string | null; home_score: number; away_score: number; is_tie: boolean }>;
   gameTeamById: Map<string, any>;
 }> {
   let resultsQuery = supabase.from("rec_game_results")
-    .select("home_team_id,away_team_id,home_score,away_score,is_tie")
+    .select("id,home_team_id,away_team_id,home_score,away_score,is_tie")
     .eq("league_id", leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber);
   if (seasonStage) resultsQuery = resultsQuery.eq("game_type", seasonStage);
   const results = await resultsQuery;
-  const gameRows = (results.data ?? []) as Array<{ home_team_id: string | null; away_team_id: string | null; home_score: number; away_score: number; is_tie: boolean }>;
+  const gameRows = (results.data ?? []) as Array<{ id: string; home_team_id: string | null; away_team_id: string | null; home_score: number; away_score: number; is_tie: boolean }>;
   const gameTeamIds = [...new Set(gameRows.flatMap((g) => [g.home_team_id, g.away_team_id]).filter((id): id is string => Boolean(id)))];
   const gameTeams = gameTeamIds.length
     ? await supabase.from("rec_teams").select("id,name,display_city,display_nick,is_relocated,abbreviation,display_abbr").in("id", gameTeamIds)
@@ -192,20 +209,74 @@ async function buildCandidates(leagueId: string, seasonNumber: number, weekNumbe
     const opponent = player.teamId ? games.opponentByTeamId.get(player.teamId) : undefined;
     const baseSlots: TweetSlots = { player: player.fullName ?? "That player", team: teamLabel(player.team), week: weekNumber, ...(opponent ? { opponent } : {}) };
 
-    if (line.passYards >= 250) candidates.push({ category: "big_pass", weight, slots: { ...baseSlots, value: line.passYards, statLabel: "pass yards", secondValue: line.passTds, secondStatLabel: "pass TDs" } });
-    if (line.rushYards >= 100) candidates.push({ category: "big_rush", weight, slots: { ...baseSlots, value: line.rushYards, statLabel: "rush yards" } });
-    if (line.receivingYards >= 100) candidates.push({ category: "big_receiving", weight, slots: { ...baseSlots, value: line.receivingYards, statLabel: "receiving yards" } });
+    const playerSubjectKey = `player:${row.player_id}`;
+    const playerId = row.player_id;
+    const teamIdForPlayer = player.teamId ?? null;
+
+    if (line.passYards >= 250) candidates.push({ category: "big_pass", weight, slots: { ...baseSlots, value: line.passYards, statLabel: "pass yards", secondValue: line.passTds, secondStatLabel: "pass TDs" }, mediaSocial: {
+      eventType: "player_hot_streak", subjectKey: playerSubjectKey, playerId, teamId: teamIdForPlayer,
+      factLine: `${baseSlots.player} threw for ${line.passYards} yards and ${line.passTds} touchdown${line.passTds === 1 ? "" : "s"} against ${opponent ?? "their opponent"} in Week ${weekNumber}.`,
+      storylineTitle: `${baseSlots.player}'s breakout stretch`,
+      personaWeights: { vaughn: 2, darius: 2, marcus: 1, elliot: 1 },
+    } });
+    if (line.rushYards >= 100) candidates.push({ category: "big_rush", weight, slots: { ...baseSlots, value: line.rushYards, statLabel: "rush yards" }, mediaSocial: {
+      eventType: "player_hot_streak", subjectKey: playerSubjectKey, playerId, teamId: teamIdForPlayer,
+      factLine: `${baseSlots.player} rushed for ${line.rushYards} yards against ${opponent ?? "their opponent"} in Week ${weekNumber}.`,
+      storylineTitle: `${baseSlots.player}'s breakout stretch`,
+      personaWeights: { vaughn: 2, darius: 2, marcus: 1, elliot: 1 },
+    } });
+    if (line.receivingYards >= 100) candidates.push({ category: "big_receiving", weight, slots: { ...baseSlots, value: line.receivingYards, statLabel: "receiving yards" }, mediaSocial: {
+      eventType: "player_hot_streak", subjectKey: playerSubjectKey, playerId, teamId: teamIdForPlayer,
+      factLine: `${baseSlots.player} caught for ${line.receivingYards} yards against ${opponent ?? "their opponent"} in Week ${weekNumber}.`,
+      storylineTitle: `${baseSlots.player}'s breakout stretch`,
+      personaWeights: { vaughn: 2, darius: 2, marcus: 1, elliot: 1 },
+    } });
     const tds = line.passTds + line.rushTds + line.receivingTds;
-    if (tds >= 2) candidates.push({ category: "multi_td", weight, slots: { ...baseSlots, value: tds, statLabel: "touchdowns" } });
+    if (tds >= 2) candidates.push({ category: "multi_td", weight, slots: { ...baseSlots, value: tds, statLabel: "touchdowns" }, mediaSocial: {
+      eventType: "player_hot_streak", subjectKey: playerSubjectKey, playerId, teamId: teamIdForPlayer,
+      factLine: `${baseSlots.player} scored ${tds} touchdowns against ${opponent ?? "their opponent"} in Week ${weekNumber}.`,
+      storylineTitle: `${baseSlots.player}'s breakout stretch`,
+      personaWeights: { darius: 2, vaughn: 2, marcus: 1, elliot: 1 },
+    } });
     const giveaways = line.interceptionsThrown + line.rushingFumbles;
-    if (giveaways >= 2) candidates.push({ category: "turnover_heavy", weight, slots: { ...baseSlots, value: giveaways, statLabel: "turnovers" } });
-    if (line.tackles >= 10) candidates.push({ category: "def_takeover", weight, slots: { ...baseSlots, value: line.tackles, statLabel: "tackles" } });
-    if (line.sacks >= 2) candidates.push({ category: "def_takeover", weight, slots: { ...baseSlots, value: line.sacks, statLabel: "sacks" } });
+    if (giveaways >= 2) candidates.push({ category: "turnover_heavy", weight, slots: { ...baseSlots, value: giveaways, statLabel: "turnovers" }, mediaSocial: {
+      eventType: "player_cold_streak", subjectKey: playerSubjectKey, playerId, teamId: teamIdForPlayer,
+      factLine: `${baseSlots.player} turned the ball over ${giveaways} times against ${opponent ?? "their opponent"} in Week ${weekNumber}.`,
+      storylineTitle: `${baseSlots.player}'s rough stretch`,
+      personaWeights: { vaughn: 3, marcus: 1, elliot: 1 },
+    } });
+    if (line.tackles >= 10) candidates.push({ category: "def_takeover", weight, slots: { ...baseSlots, value: line.tackles, statLabel: "tackles" }, mediaSocial: {
+      eventType: "player_hot_streak", subjectKey: playerSubjectKey, playerId, teamId: teamIdForPlayer,
+      factLine: `${baseSlots.player} recorded ${line.tackles} tackles against ${opponent ?? "their opponent"} in Week ${weekNumber}.`,
+      storylineTitle: `${baseSlots.player}'s breakout stretch`,
+      personaWeights: { darius: 2, elliot: 2, marcus: 1, vaughn: 1 },
+    } });
+    if (line.sacks >= 2) candidates.push({ category: "def_takeover", weight, slots: { ...baseSlots, value: line.sacks, statLabel: "sacks" }, mediaSocial: {
+      eventType: "player_hot_streak", subjectKey: playerSubjectKey, playerId, teamId: teamIdForPlayer,
+      factLine: `${baseSlots.player} recorded ${line.sacks} sacks against ${opponent ?? "their opponent"} in Week ${weekNumber}.`,
+      storylineTitle: `${baseSlots.player}'s breakout stretch`,
+      personaWeights: { darius: 2, elliot: 2, marcus: 1, vaughn: 1 },
+    } });
     if (line.interceptions >= 1 || line.forcedFumbles >= 1 || line.defensiveTds >= 1) {
-      candidates.push({ category: "playmaker", weight, slots: baseSlots });
+      const details = [
+        line.interceptions >= 1 ? `${line.interceptions} interception${line.interceptions === 1 ? "" : "s"}` : null,
+        line.forcedFumbles >= 1 ? `${line.forcedFumbles} forced fumble${line.forcedFumbles === 1 ? "" : "s"}` : null,
+        line.defensiveTds >= 1 ? `${line.defensiveTds} defensive touchdown${line.defensiveTds === 1 ? "" : "s"}` : null,
+      ].filter((part): part is string => Boolean(part));
+      candidates.push({ category: "playmaker", weight, slots: baseSlots, mediaSocial: {
+        eventType: "player_hot_streak", subjectKey: playerSubjectKey, playerId, teamId: teamIdForPlayer,
+        factLine: `${baseSlots.player} came up with ${details.join(" and ")} against ${opponent ?? "their opponent"} in Week ${weekNumber}.`,
+        storylineTitle: `${baseSlots.player}'s breakout stretch`,
+        personaWeights: { darius: 2, vaughn: 1, marcus: 1, elliot: 1 },
+      } });
     }
     if (tds === 0 && line.passYards === 0 && line.rushYards === 0 && line.receivingYards === 0 && line.tackles === 0 && line.sacks === 0) {
-      candidates.push({ category: "quiet_game", weight: weight * 0.4, slots: baseSlots });
+      candidates.push({ category: "quiet_game", weight: weight * 0.4, slots: baseSlots, mediaSocial: {
+        eventType: "player_cold_streak", subjectKey: playerSubjectKey, playerId, teamId: teamIdForPlayer,
+        factLine: `${baseSlots.player} was held without a notable stat against ${opponent ?? "their opponent"} in Week ${weekNumber}.`,
+        storylineTitle: `${baseSlots.player}'s rough stretch`,
+        personaWeights: { marcus: 2, elliot: 2, darius: 1, vaughn: 1 },
+      } });
     }
 
     const prior = priorTotalsByPlayer.get(row.player_id) ?? { passYards: 0, rushYards: 0, receivingYards: 0, tackles: 0 } as any;
@@ -213,7 +284,12 @@ async function buildCandidates(leagueId: string, seasonNumber: number, weekNumbe
       const before = num(prior[milestone.statKey]);
       const after = before + line[milestone.statKey];
       const crossed = milestone.steps.find((step) => before < step && after >= step);
-      if (crossed) candidates.push({ category: "milestone", weight: weight * 1.5, slots: { ...baseSlots, value: crossed, statLabel: milestone.label } });
+      if (crossed) candidates.push({ category: "milestone", weight: weight * 1.5, slots: { ...baseSlots, value: crossed, statLabel: milestone.label }, mediaSocial: {
+        eventType: "record_watch", subjectKey: playerSubjectKey, playerId, teamId: teamIdForPlayer,
+        factLine: `${baseSlots.player} crossed ${crossed} ${milestone.label} for the season.`,
+        storylineTitle: `${baseSlots.player}'s season-long climb`,
+        personaWeights: { marcus: 2, elliot: 2, vaughn: 1, darius: 1 },
+      } });
     }
   }
 
@@ -227,10 +303,24 @@ async function buildCandidates(leagueId: string, seasonNumber: number, weekNumbe
     const loser = game.home_team_id && game.away_team_id ? games.gameTeamById.get(String(winnerIsHome ? game.away_team_id : game.home_team_id)) : null;
     if (!winner || !loser) continue;
     const score = winnerIsHome ? `${homeScore}-${awayScore}` : `${awayScore}-${homeScore}`;
-    const slots: TweetSlots = { team: teamLabel(winner), opponent: teamLabel(loser), week: weekNumber, score, margin };
-    if (margin >= 21) candidates.push({ category: "blowout_win", weight: 2, slots });
-    else if (margin <= 3) candidates.push({ category: "close_game", weight: 2, slots });
-    if (margin >= 14) candidates.push({ category: "bad_loss", weight: 2, slots: { ...slots, team: teamLabel(loser), opponent: teamLabel(winner) } });
+    const winnerLabel = teamLabel(winner);
+    const loserLabel = teamLabel(loser);
+    const slots: TweetSlots = { team: winnerLabel, opponent: loserLabel, week: weekNumber, score, margin };
+    if (margin >= 21) candidates.push({ category: "blowout_win", weight: 2, slots, mediaSocial: {
+      eventType: "blowout", subjectKey: `team:${winner.id}`, teamId: winner.id, gameId: game.id,
+      factLine: `${winnerLabel} beat ${loserLabel} ${score} in Week ${weekNumber}.`,
+      personaWeights: { vaughn: 1, darius: 1, marcus: 1, elliot: 1 },
+    } });
+    else if (margin <= 3) candidates.push({ category: "close_game", weight: 2, slots, mediaSocial: {
+      eventType: "close_game", subjectKey: `team:${winner.id}`, teamId: winner.id, gameId: game.id,
+      factLine: `${winnerLabel} beat ${loserLabel} ${score} in a one-score game in Week ${weekNumber}.`,
+      personaWeights: { marcus: 1, elliot: 1, darius: 1, vaughn: 1 },
+    } });
+    if (margin >= 14) candidates.push({ category: "bad_loss", weight: 2, slots: { ...slots, team: loserLabel, opponent: winnerLabel }, mediaSocial: {
+      eventType: "blowout", subjectKey: `team:${loser.id}`, teamId: loser.id, gameId: game.id,
+      factLine: `${loserLabel} lost to ${winnerLabel} ${score} in Week ${weekNumber}.`,
+      personaWeights: { vaughn: 2, marcus: 1, elliot: 1, darius: 1 },
+    } });
   }
 
   // Flavor-only hype is a bye-week filler. Once created-player stat lines exist, skip it so
@@ -704,9 +794,17 @@ export type PlayerTwitterPersona = {
 type ResolvedPlayerTwitterPersona = PlayerTwitterPersona & { avatarUrl: string | undefined };
 
 async function resolveOwnedTwitterPersonas(guildId: string, discordId: string): Promise<ResolvedPlayerTwitterPersona[]> {
+  const { personas } = await resolveOwnedTwitterPersonasWithLeagueType(guildId, discordId);
+  return personas;
+}
+
+async function resolveOwnedTwitterPersonasWithLeagueType(
+  guildId: string,
+  discordId: string,
+): Promise<{ personas: ResolvedPlayerTwitterPersona[]; isRtiLeague: boolean }> {
   const context = await getCurrentLeagueContext(guildId);
   const league = await loadImmortalityLeague(context.leagueId);
-  if (!league) return [];
+  if (!league) return { personas: [], isRtiLeague: false };
   const userId = await recUserIdFromDiscordId(discordId);
   const [owner, prospects] = await Promise.all([
     supabase.from("rec_immortality_owners")
@@ -740,7 +838,7 @@ async function resolveOwnedTwitterPersonas(guildId: string, discordId: string): 
       avatarUrl: prospect.headshot_url ? String(prospect.headshot_url) : undefined,
     });
   }
-  return personas;
+  return { personas, isRtiLeague: true };
 }
 
 /** Autocomplete source for the player /twitter slash command -- at most the caller's owner plus
@@ -748,9 +846,9 @@ async function resolveOwnedTwitterPersonas(guildId: string, discordId: string): 
 export async function listPlayerTwitterPersonas(input: {
   guildId: string;
   discordId: string;
-}): Promise<{ personas: PlayerTwitterPersona[] }> {
-  const personas = await resolveOwnedTwitterPersonas(input.guildId, input.discordId);
-  return { personas: personas.map(({ key, name, handle, roleLabel }) => ({ key, name, handle, roleLabel })) };
+}): Promise<{ personas: PlayerTwitterPersona[]; isRtiLeague: boolean }> {
+  const { personas, isRtiLeague } = await resolveOwnedTwitterPersonasWithLeagueType(input.guildId, input.discordId);
+  return { personas: personas.map(({ key, name, handle, roleLabel }) => ({ key, name, handle, roleLabel })), isRtiLeague };
 }
 
 /** Member-authored tweet from /twitter -- posts immediately as one of the caller's own RTI
@@ -818,23 +916,65 @@ async function generateAndQueueImmortalityTweets(leagueId: string, seasonNumber:
   const chosen = weightedSample(candidates, QUEUE_SIZE);
   if (!chosen.length) return;
 
-  const rows = chosen.map((candidate) => {
+  // Sequential, not Promise.all: the claim-grounded path below does a read-modify-write against
+  // rec_account_memory (and rec_media_storylines) keyed by persona/subject, and with only 4
+  // reactive personas across up to QUEUE_SIZE candidates, running these concurrently would race
+  // -- two candidates landing on the same persona in the same batch could both read the
+  // pre-update memory and each clobber the other's write on save, silently dropping fingerprint
+  // history and defeating the fatigue tracking this is built for.
+  const rows: Array<{ league_id: string; season_number: number; week_number: number; author_kind: string; author_handle: string; author_display_name: string; body: string; status: "pending"; source: string }> = [];
+  for (const candidate of chosen) {
     const templates = TWEET_TEMPLATES.filter((tmpl) => tmpl.category === candidate.category && templateFits(tmpl.text, candidate.slots));
     const template = pick(templates) as TweetTemplate | null;
-    if (!template) return null;
+    if (!template) continue;
+
+    // Claim-grounded path (see social-claim-engine.ts): candidates with real verified-fact
+    // metadata and a reactive-host-eligible category get a chance at the deterministic
+    // claim-plan/fragment-catalog wording instead of the legacy static template bank. Falls
+    // through to the legacy bank below whenever the engine can't produce a body (event/persona
+    // not covered, or every fragment combination was recently used).
+    if (candidate.mediaSocial && REACTIVE_PERSONA_KEYS.has(template.voice)) {
+      const persona = pickReactivePersona(candidate.mediaSocial.personaWeights);
+      const claimBody = await buildClaimGroundedPostBody({
+        leagueId, seasonNumber, weekNumber,
+        eventType: candidate.mediaSocial.eventType,
+        persona,
+        subjectKey: candidate.mediaSocial.subjectKey,
+        factLine: candidate.mediaSocial.factLine,
+        teamId: candidate.mediaSocial.teamId,
+        playerId: candidate.mediaSocial.playerId,
+        gameId: candidate.mediaSocial.gameId,
+        storylineTitle: candidate.mediaSocial.storylineTitle,
+      }).catch((error) => {
+        console.error(`[ERROR] buildClaimGroundedPostBody failed for league ${leagueId} (non-fatal, falling back to legacy bank):`, error);
+        return null;
+      });
+      if (claimBody) {
+        const author = reactivePersonaAuthor(persona);
+        rows.push({
+          league_id: leagueId, season_number: seasonNumber, week_number: weekNumber,
+          author_kind: author.authorKind, author_handle: author.handle, author_display_name: author.displayName,
+          body: claimBody, status: "pending", source: "weekly_recap",
+        });
+        continue;
+      }
+    }
+
     const author = resolveAuthor(template.voice);
-    return {
+    const body = fillTemplate(template.text, candidate.slots);
+    if (!body.length) continue;
+    rows.push({
       league_id: leagueId,
       season_number: seasonNumber,
       week_number: weekNumber,
       author_kind: author.authorKind,
       author_handle: author.handle,
       author_display_name: author.displayName,
-      body: fillTemplate(template.text, candidate.slots),
-      status: "pending" as const,
+      body,
+      status: "pending",
       source: "weekly_recap",
-    };
-  }).filter((row): row is NonNullable<typeof row> => row != null && row.body.length > 0);
+    });
+  }
 
   if (!rows.length) return;
   await supabase.from("rec_immortality_tweet_queue").insert(rows);
