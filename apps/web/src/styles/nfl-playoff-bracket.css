@@ -10,52 +10,257 @@
 .nfl-bracket-meta { display: flex; align-items: center; gap: var(--space-2); font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; }
 .nfl-bracket-meta .is-live { color: var(--accent-bright); }
 
+/* —— Settled / postseason left-right bracket (broadcast reference) —— */
+.nfl-bracket-board {
+  --bracket-gold: #e8c547;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 12px 8px 20px;
+  background: var(--bg, #0b0d10);
+  color: var(--text-primary, #fff);
+  overflow-x: auto;
+}
+
+.nfl-bracket-board-header {
+  text-align: center;
+  padding: 4px 12px 18px;
+}
+.nfl-bracket-board-header h1 {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: baseline;
+  gap: 10px 14px;
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: clamp(22px, 3.2vw, 36px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.15;
+}
+.nfl-bracket-board-header em {
+  font-style: normal;
+  color: var(--bracket-gold);
+}
+.nfl-bracket-board-sep {
+  opacity: 0.55;
+  font-weight: 400;
+}
+
 .nfl-bracket {
-  --bracket-line: var(--border);
-  /* Fixed (not minmax/1fr) column widths on purpose: letting columns grow to fill a wide
-     viewport was exactly what made this "too spaced out" -- the matchup cards are a fixed
-     width, so any extra column width just became dead air around them. A fixed total width
-     that comfortably fits a normal desktop content area (no zooming out needed) beats one that
-     stretches to whatever the viewport happens to be. */
   width: max-content;
   max-width: 100%;
   margin: 0 auto;
   display: grid;
-  /* 7 explicit columns (AFC wild card/divisional/conference, center, NFC conference/
-     divisional/wild card) -- every child is placed with an explicit inline gridColumn/gridRow
-     (see NflPlayoffBracket.tsx) rather than relying on DOM-order auto-placement, which is what
-     previously scattered/duplicated the layout: the old 9-column template never actually
-     contained 9 real elements per row, so nothing lined up with the round label above it.
-     Side columns are wide enough that real team names (Buccaneers, Commanders) never wrap or
-     truncate -- narrower columns were the actual cause of names getting cut off/wrapped. */
-  grid-template-columns: repeat(3, 190px) 170px repeat(3, 190px);
-  /* 1 label row + 4 equal wild-card-slot rows. Divisional/conference/Super Bowl children span
-     multiple of these rows with align-self:center, which is what centers a divisional game
-     vertically between the two wild-card slots that feed it (see ConferenceSide in the .tsx). */
+  /* NFC WC/DIV/CONF | Super Bowl | AFC CONF/DIV/WC */
+  grid-template-columns: repeat(3, 148px) 168px repeat(3, 148px);
   grid-template-rows: auto repeat(4, auto);
-  gap: 0 4px;
+  gap: 0 10px;
   position: relative;
 }
 
 .nfl-bracket-round-label {
-  font-family: var(--font-display);
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
   font-weight: 700;
   font-size: 11px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.88);
   text-align: center;
-  padding-bottom: 10px;
+  padding: 0 4px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  margin-bottom: 8px;
 }
-.nfl-bracket-round-label.is-active { color: var(--accent-secondary, var(--accent-bright)); }
 
-.nfl-bracket-matchup-group { display: flex; flex-direction: column; justify-content: center; padding: 4px 6px; position: relative; }
-.nfl-bracket-matchup { display: flex; flex-direction: column; gap: 4px; }
+.nfl-bracket-matchup-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 6px 4px;
+  position: relative;
+}
+.nfl-bracket-matchup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.nfl-bracket-team-tile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nfl-bracket-team-tile.is-right {
+  flex-direction: row;
+  justify-content: flex-end;
+}
+.nfl-bracket-team-tile.is-left {
+  justify-content: flex-start;
+}
+.nfl-bracket-team-tile.is-loser {
+  opacity: 0.48;
+}
+
+.nfl-bracket-seed {
+  flex: 0 0 18px;
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--bracket-gold);
+  text-align: center;
+}
+
+.nfl-bracket-logo-box {
+  position: relative;
+  width: 112px;
+  height: 48px;
+  border-radius: 10px;
+  border: 1.5px solid var(--bracket-gold);
+  background: #0a0a0a;
+  overflow: hidden;
+  box-shadow: none;
+}
+.nfl-bracket-team-tile.is-winner .nfl-bracket-logo-box {
+  border-color: #ffe38a;
+  box-shadow: 0 0 0 1px rgba(232, 197, 71, 0.35);
+}
+.nfl-bracket-logo {
+  position: absolute !important;
+  left: 50%;
+  top: 50%;
+  width: 150% !important;
+  height: 160% !important;
+  max-width: none !important;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.55));
+}
+
+.nfl-bracket-result {
+  margin-top: 2px;
+  text-align: center;
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
+}
+.nfl-bracket-result.is-bye {
+  color: var(--bracket-gold);
+  letter-spacing: 0.12em;
+}
 
 .nfl-bracket-tbd {
-  display: flex; align-items: center; justify-content: center;
-  min-height: 64px; padding: 12px; border: 1px dashed var(--border); border-radius: 8px;
-  color: var(--text-secondary); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding: 12px;
+  border: 1px dashed rgba(232, 197, 71, 0.45);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.nfl-bracket-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px 6px;
+  position: relative;
+}
+.nfl-bracket-sb-label {
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-weight: 700;
+  font-size: clamp(18px, 2.2vw, 28px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--bracket-gold);
+}
+.nfl-bracket-sb-matchup {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+.nfl-bracket-sb-matchup .nfl-bracket-team-tile {
+  justify-content: center;
+}
+.nfl-bracket-sb-matchup .nfl-bracket-logo-box {
+  width: 128px;
+  height: 54px;
+}
+.nfl-bracket-champion-banner {
+  margin-top: 2px;
+  text-align: center;
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+.nfl-bracket-champion-banner strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+  color: var(--bracket-gold);
+}
+
+.nfl-bracket-prior {
+  margin: 22px auto 0;
+  max-width: 420px;
+  padding: 14px 16px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  text-align: center;
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+}
+.nfl-bracket-prior-heading {
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--bracket-gold);
+}
+.nfl-bracket-prior-row {
+  display: grid;
+  grid-template-columns: 88px 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.nfl-bracket-prior-label {
+  text-align: left;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+.nfl-bracket-prior-row strong {
+  text-align: left;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nfl-bracket-prior-record {
+  color: rgba(255, 255, 255, 0.78);
+  font-variant-numeric: tabular-nums;
 }
 
 .nfl-bracket-mgmt-link {
@@ -73,69 +278,15 @@
 }
 .nfl-bracket-mgmt-link:hover { color: var(--text-primary); border-color: var(--border-strong, var(--border)); }
 
-.nfl-bracket-tag { display: none; }
-/* The bye card's tag is the only thing that tells you it's a bye rather than an in-progress
-   matchup missing its second team, so it stays visible on desktop too (every other round tag
-   is redundant with the round-label header above its column and stays desktop-hidden). */
-.nfl-bracket-tag.is-bye {
-  display: block; font-family: var(--font-display); font-weight: 700; font-size: 10px;
-  letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-secondary, var(--accent-bright));
-  margin-bottom: 6px; padding-left: 2px;
+.nfl-bracket-legend {
+  max-width: 1240px;
+  margin: var(--space-4) auto 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  text-align: center;
 }
-
-.nfl-bracket-team-row {
-  display: grid;
-  grid-template-columns: 18px 34px 1fr auto;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 9px;
-  border-radius: 6px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--team, var(--border)) 16%, var(--surface)) 0%, var(--surface) 55%);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--team, var(--border));
-  box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 4px 10px -6px rgba(0,0,0,0.6);
-}
-.nfl-bracket-team-row.is-winner {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--team, var(--border)) 24%, var(--surface-raised)) 0%, var(--surface-raised) 60%);
-  border-color: color-mix(in srgb, var(--team, var(--border)) 45%, var(--border));
-}
-.nfl-bracket-team-row.is-loser { opacity: 0.55; }
-.nfl-bracket-team-row .nfl-bracket-seed { font-family: var(--font-display); font-weight: 700; font-size: 11px; color: var(--text-secondary); text-align: center; }
-.nfl-bracket-team-row.is-winner .nfl-bracket-seed { color: var(--accent-secondary, var(--accent-bright)); }
-
-.nfl-bracket-badge {
-  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
-  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--team, #444) 92%, white 8%), color-mix(in srgb, var(--team, #444) 85%, black 30%));
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.06) inset, 0 2px 6px -2px rgba(0,0,0,0.6);
-  padding: 4px;
-}
-.nfl-bracket-badge img { width: 100%; height: 100%; object-fit: contain; }
-.nfl-bracket-badge .nfl-bracket-badge-fallback { font-family: var(--font-display); font-weight: 700; font-size: 9px; color: #fff; }
-
-.nfl-bracket-name { min-width:0; font-weight:700; font-size:13px; line-height:1.2; display:block; }
-.nfl-bracket-name-text { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.nfl-bracket-record { display: block; font-weight: 500; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); }
-.nfl-bracket-score { font-family: var(--font-display); font-weight: 700; font-size: 19px; min-width: 24px; text-align: right; }
-.nfl-bracket-team-row.is-winner .nfl-bracket-score {
-  color: var(--team, var(--accent-bright));
-  text-shadow: 0 0 8px color-mix(in srgb, var(--team, var(--accent-bright)) 75%, transparent), 0 0 20px color-mix(in srgb, var(--team, var(--accent-bright)) 45%, transparent);
-}
-.nfl-bracket-team-row.is-loser .nfl-bracket-score { color: var(--text-secondary); text-shadow: none; }
-
-.nfl-bracket-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 4px 8px; position: relative; }
-.nfl-bracket-center::before {
-  content: ""; position: absolute; inset: -16px -10px; z-index: -1;
-  background: radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--accent-secondary, var(--accent-bright)) 14%, transparent), transparent 68%);
-}
-.nfl-bracket-trophy-wrap { width:82px; height:96px; border-radius:42px; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--surface-raised) 90%,black),var(--bg)); box-shadow:0 0 0 1px color-mix(in srgb,var(--accent-secondary,var(--accent-bright)) 30%,transparent) inset,0 0 30px -4px color-mix(in srgb,var(--accent-secondary,var(--accent-bright)) 45%,transparent); }
-.nfl-bracket-trophy { width:60px; height:84px; object-fit:contain; filter:drop-shadow(0 0 8px rgba(230,235,240,.55)); }
-.nfl-bracket-sb-label { font-family: var(--font-display); font-weight: 700; font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--accent-secondary, var(--accent-bright)); }
-.nfl-bracket-sb-matchup { width: 100%; display: flex; flex-direction: column; gap: 5px; }
-.nfl-bracket-champion-banner { margin-top: 6px; text-align: center; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-secondary); }
-.nfl-bracket-champion-banner strong { display: block; margin-top: 4px; font-family: var(--font-display); font-weight: 700; font-size: 21px; color: var(--accent-secondary, var(--accent-bright)); text-shadow: 0 0 14px color-mix(in srgb, var(--accent-secondary, var(--accent-bright)) 55%, transparent); }
-
-.nfl-bracket-legend { max-width: 1240px; margin: var(--space-4) auto 0; font-size: 11px; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 12px; text-align: center; }
 
 /* —— Broadcast playoff picture board (AFC red / NFC blue) —— */
 .nfl-picture-board {
@@ -308,15 +459,11 @@
 }
 
 @media (max-width: 900px) {
-  /* Inline gridColumn/gridRow styles are simply inert once the parent stops being a grid, so
-     this just stacks every column (in DOM order: AFC WC -> AFC DIV -> AFC CONF -> center -> NFC
-     CONF -> NFC DIV -> NFC WC) top to bottom -- no per-round CSS needed to make that work. */
-  .nfl-bracket { display: flex; flex-direction: column; gap: 16px; }
-  .nfl-bracket { min-width:0; }
-  .nfl-bracket-round-label { display: none; }
+  .nfl-bracket-board { width: 100%; }
+  .nfl-bracket { display: flex; flex-direction: column; gap: 16px; min-width: 0; width: 100%; }
+  .nfl-bracket-round-label { display: block; text-align: left; margin-bottom: 4px; }
   .nfl-bracket-matchup-group { gap: 12px; padding: 0; }
-  .nfl-bracket-tag { display: block; font-family: var(--font-display); font-weight: 700; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 6px; padding-left: 2px; }
-  .nfl-bracket-tag.is-active { color: var(--accent-secondary, var(--accent-bright)); }
-  .nfl-bracket-center { padding: 10px 4px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  .nfl-standings-grid { grid-template-columns: 1fr; }
+  .nfl-bracket-center { padding: 16px 4px; border-top: 1px solid rgba(255,255,255,.15); border-bottom: 1px solid rgba(255,255,255,.15); }
+  .nfl-bracket-team-tile.is-right { justify-content: flex-start; }
+  .nfl-bracket-prior-row { grid-template-columns: 72px 1fr auto; }
 }

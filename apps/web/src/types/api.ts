@@ -970,7 +970,7 @@ export type NflPlayoffMatchup = {
 };
 
 export type NflPlayoffPicture = {
-  league: { leagueId: string; game: string; currentWeek: number; seasonStage: string };
+  league: { leagueId: string; game: string; name: string | null; currentWeek: number; seasonStage: string; seasonNumber: number };
   showBracket: boolean;
   isLiveProjection: boolean;
   conferences: Array<{
@@ -983,6 +983,13 @@ export type NflPlayoffPicture = {
   }>;
   rounds: Array<{ round: "wild_card" | "divisional" | "conference_championship" | "super_bowl"; matchups: NflPlayoffMatchup[] }>;
   champion: NflTeamSummary | null;
+  priorChampionship: null | {
+    seasonNumber: number;
+    winner: NflTeamSummary;
+    runnerUp: NflTeamSummary;
+    winnerRecord: { wins: number; losses: number; ties: number };
+    runnerUpRecord: { wins: number; losses: number; ties: number };
+  };
 };
 
 export type LegendCatalogEntry = {

@@ -277,7 +277,7 @@ export type NflPlayoffMatchup = {
 };
 
 export type NflPlayoffPicture = {
-  league: { leagueId: string; game: string; currentWeek: number; seasonStage: string };
+  league: { leagueId: string; game: string; name: string | null; currentWeek: number; seasonStage: string; seasonNumber: number };
   showBracket: boolean;
   isLiveProjection: boolean;
   conferences: Array<{
@@ -287,29 +287,126 @@ export type NflPlayoffPicture = {
   }>;
   rounds: Array<{ round: NflRound; matchups: NflPlayoffMatchup[] }>;
   champion: TeamSummary | null;
+  /** Prior season's Super Bowl result with full-season (regular + playoff) records — shown under the live bracket. */
+  priorChampionship: null | {
+    seasonNumber: number;
+    winner: TeamSummary;
+    runnerUp: TeamSummary;
+    winnerRecord: { wins: number; losses: number; ties: number };
+    runnerUpRecord: { wins: number; losses: number; ties: number };
+  };
 };
 
-/** "If it advanced by chalk" fallback winner for a not-yet-decided matchup: the better
- *  (numerically lower) seed. Only used to keep the live-projection view showing a full
- *  bracket through to a champion before real games exist -- real results always override
- *  this the moment a round's games are actually played. */
 function chalkWinner(matchup: RoundMatchup): AliveSeed {
   return matchup.homeSeed <= matchup.awaySeed
     ? { seed: matchup.homeSeed, teamId: matchup.homeTeamId, conference: matchup.conference }
     : { seed: matchup.awaySeed, teamId: matchup.awayTeamId, conference: matchup.conference };
 }
 
+async function loadTeamFullSeasonRecords(
+  leagueId: string,
+  seasonNumber: number,
+  teamIds: string[],
+): Promise<Map<string, { wins: number; losses: number; ties: number }>> {
+  const map = new Map<string, { wins: number; losses: number; ties: number }>();
+  for (const id of teamIds) map.set(id, { wins: 0, losses: 0, ties: 0 });
+  if (!teamIds.length) return map;
+  const result = await getPgPool().query(
+    `select home_team_id,away_team_id,winning_team_id,losing_team_id,is_tie
+     from rec_game_results
+     where league_id=$1 and season_number=$2
+       and (home_team_id = any($3::uuid[]) or away_team_id = any($3::uuid[]))`,
+    [leagueId, seasonNumber, teamIds],
+  );
+  for (const row of result.rows as any[]) {
+    const home = row.home_team_id ? String(row.home_team_id) : null;
+    const away = row.away_team_id ? String(row.away_team_id) : null;
+    const winner = row.winning_team_id ? String(row.winning_team_id) : null;
+    const loser = row.losing_team_id ? String(row.losing_team_id) : null;
+    const isTie = Boolean(row.is_tie);
+    for (const teamId of [home, away]) {
+      if (!teamId || !map.has(teamId)) continue;
+      const rec = map.get(teamId)!;
+      if (isTie) rec.ties++;
+      else if (winner === teamId) rec.wins++;
+      else if (loser === teamId) rec.losses++;
+    }
+  }
+  return map;
+}
+
+/** Super Bowl winner/runner-up for the season before `seasonNumber`, with playoff-inclusive records. */
+async function loadPriorChampionship(
+  leagueId: string,
+  seasonNumber: number,
+  teamSummary: (teamId: string) => TeamSummary,
+): Promise<NflPlayoffPicture["priorChampionship"]> {
+  const priorSeason = seasonNumber - 1;
+  if (priorSeason < 1) return null;
+
+  const snap = await getPgPool().query(
+    `select bracket,champion_team_id from rec_league_playoff_bracket_snapshots
+     where league_id=$1 and season_number=$2 limit 1`,
+    [leagueId, priorSeason],
+  );
+  let winnerId: string | null = snap.rows[0]?.champion_team_id ? String(snap.rows[0].champion_team_id) : null;
+  let runnerUpId: string | null = null;
+  const bracket = snap.rows[0]?.bracket as NflPlayoffPicture | undefined;
+  const sb = bracket?.rounds?.find((r) => r.round === "super_bowl")?.matchups?.[0];
+  if (sb?.winnerTeamId) {
+    winnerId = String(sb.winnerTeamId);
+    const homeId = sb.homeTeam?.teamId ? String(sb.homeTeam.teamId) : null;
+    const awayId = sb.awayTeam?.teamId ? String(sb.awayTeam.teamId) : null;
+    runnerUpId = winnerId === homeId ? awayId : homeId;
+  }
+
+  if (!winnerId || !runnerUpId) {
+    const slot = await getPgPool().query(
+      `select s.home_team_id,s.away_team_id,
+              coalesce(g.home_score,r.home_score) as home_score,
+              coalesce(g.away_score,r.away_score) as away_score
+       from rec_nfl_bracket_slots s
+       join rec_nfl_brackets b on b.id=s.bracket_id
+       left join rec_games g on g.id=s.game_id
+       left join rec_game_results r on r.league_id=b.league_id and r.season_number=b.season_number
+         and r.week_number=g.week_number
+         and r.home_team_id=s.home_team_id and r.away_team_id=s.away_team_id
+       where b.league_id=$1 and b.season_number=$2 and s.round='super_bowl'
+       limit 1`,
+      [leagueId, priorSeason],
+    );
+    const row = slot.rows[0] as any;
+    if (!row?.home_team_id || !row?.away_team_id || row.home_score == null || row.away_score == null) return null;
+    const hs = Number(row.home_score);
+    const as_ = Number(row.away_score);
+    if (hs === as_) return null;
+    winnerId = hs > as_ ? String(row.home_team_id) : String(row.away_team_id);
+    runnerUpId = hs > as_ ? String(row.away_team_id) : String(row.home_team_id);
+  }
+  if (!winnerId || !runnerUpId) return null;
+
+  const records = await loadTeamFullSeasonRecords(leagueId, priorSeason, [winnerId, runnerUpId]);
+  return {
+    seasonNumber: priorSeason,
+    winner: teamSummary(winnerId),
+    runnerUp: teamSummary(runnerUpId),
+    winnerRecord: records.get(winnerId) ?? { wins: 0, losses: 0, ties: 0 },
+    runnerUpRecord: records.get(runnerUpId) ?? { wins: 0, losses: 0, ties: 0 },
+  };
+}
+
 /** Full read-model: current standings + all 4 rounds, matchups resolved from real completed
  *  games where they exist and live-projected (chalk winners) for any round not yet locked. */
 export async function getNflPlayoffPicture(leagueId: string, seasonNumber: number): Promise<NflPlayoffPicture> {
   const leagueRow = await getPgPool().query(
-    `select game,current_week,season_stage from rec_leagues where id=$1`,
+    `select name,game,current_week,season_stage from rec_leagues where id=$1`,
     [leagueId],
   );
-  const league = leagueRow.rows[0] as { game: string; current_week: number; season_stage: string } | undefined;
+  const league = leagueRow.rows[0] as { name: string | null; game: string; current_week: number; season_stage: string } | undefined;
   const currentWeek = Number(league?.current_week ?? 0);
   const seasonStage = String(league?.season_stage ?? "regular_season");
   const game = String(league?.game ?? "");
+  const leagueName = league?.name ?? null;
 
   const standings = await computeNflStandings(leagueId, seasonNumber);
 
@@ -480,14 +577,16 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
 
   const superBowl = rounds.find((r) => r.round === "super_bowl")?.matchups[0] ?? null;
   const champion = superBowl?.winnerTeamId ? teamSummary(superBowl.winnerTeamId) : null;
+  const priorChampionship = await loadPriorChampionship(leagueId, seasonNumber, teamSummary);
 
   return {
-    league: { leagueId, game, currentWeek, seasonStage },
+    league: { leagueId, game, name: leagueName, currentWeek, seasonStage, seasonNumber },
     showBracket,
     isLiveProjection,
     conferences,
     rounds,
     champion,
+    priorChampionship,
   };
 }
 
@@ -533,7 +632,21 @@ export async function getLatestNflPlayoffBracketSnapshot(leagueId: string): Prom
     [leagueId],
   );
   const row = result.rows[0] as { season_number: number; bracket: NflPlayoffPicture } | undefined;
-  if (row) return { seasonNumber: Number(row.season_number), picture: row.bracket };
+  if (row) {
+    const seasonNumber = Number(row.season_number);
+    const frozen = row.bracket;
+    // Re-attach league meta + prior-championship footer (older snapshots predate those fields).
+    const live = await getNflPlayoffPicture(leagueId, seasonNumber);
+    return {
+      seasonNumber,
+      picture: {
+        ...frozen,
+        league: { ...live.league, seasonNumber },
+        priorChampionship: live.priorChampionship,
+        champion: frozen.champion ?? live.champion,
+      },
+    };
+  }
 
   const leagueRow = await getPgPool().query(
     `select season_number,season_stage from rec_leagues where id=$1`,

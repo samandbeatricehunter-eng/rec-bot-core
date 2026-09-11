@@ -10,97 +10,122 @@ import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { TeamLogo } from "../../../components/ui/TeamLogo.js";
 
-const ROUND_LABELS: Record<NflPlayoffPicture["rounds"][number]["round"], string> = {
-  wild_card: "Wild Card",
-  divisional: "Divisional",
-  conference_championship: "Conference",
-  super_bowl: "Super Bowl",
-};
-
 function teamColorStyle(team: NflTeamSummary): CSSProperties {
   return team.primaryColor ? ({ "--team": team.primaryColor } as CSSProperties) : {};
 }
 
-function TeamBadge({ team, size = 30 }: { team: NflTeamSummary; size?: number }) {
-  return (
-    <span className="nfl-bracket-badge" style={{ ...teamColorStyle(team), width: size, height: size }}>
-      <TeamLogo abbreviation={team.abbreviation} logoUrl={team.logoUrl} alt={team.name} />
-    </span>
-  );
+function teamShort(team: NflTeamSummary): string {
+  if (team.abbreviation?.trim()) return team.abbreviation.trim().toUpperCase();
+  const parts = team.name.trim().split(/\s+/);
+  return (parts[parts.length - 1] || "TEAM").toUpperCase();
 }
 
-// A team's `division` field sometimes already carries its conference prefix ("AFC West") and
-// sometimes doesn't (just "West") depending on how the league's team data was seeded -- render
-// whichever shape it is without ever duplicating the conference ("AFC AFC West").
-function divisionLabel(team: NflTeamSummary): string {
-  const division = team.division?.trim() ?? "";
-  if (!division) return team.conference;
-  return division.toUpperCase().startsWith(team.conference.toUpperCase()) ? division : `${team.conference} ${division}`;
+function formatRecord(record: { wins: number; losses: number; ties: number }): string {
+  return record.ties > 0
+    ? `${record.wins}-${record.losses}-${record.ties}`
+    : `${record.wins}-${record.losses}`;
 }
 
-function TeamRow({ team, seed, score, isWinner, isDecided }: {
-  team: NflTeamSummary; seed: number; score: number | null; isWinner: boolean; isDecided: boolean;
+function matchupResultLine(matchup: NflPlayoffMatchup): string | null {
+  if (matchup.status !== "completed" || matchup.homeScore == null || matchup.awayScore == null || !matchup.winnerTeamId) {
+    return null;
+  }
+  const winner = matchup.winnerTeamId === matchup.homeTeam.teamId ? matchup.homeTeam : matchup.awayTeam;
+  const high = Math.max(matchup.homeScore, matchup.awayScore);
+  const low = Math.min(matchup.homeScore, matchup.awayScore);
+  return `${teamShort(winner)} WIN ${high}-${low}`;
+}
+
+function TeamTile({ team, seed, side, isWinner, isDecided }: {
+  team: NflTeamSummary;
+  seed: number;
+  side: "left" | "right";
+  isWinner: boolean;
+  isDecided: boolean;
 }) {
   return (
-    <div className={`nfl-bracket-team-row${isDecided ? (isWinner ? " is-winner" : " is-loser") : ""}`} style={teamColorStyle(team)}>
-      <span className="nfl-bracket-seed">{seed}</span>
-      <TeamBadge team={team} />
-      <span className="nfl-bracket-name">
-        <span className="nfl-bracket-name-text" title={team.name}>{team.name}</span>
-        <span className="nfl-bracket-record">{divisionLabel(team)}</span>
-      </span>
-      <span className="nfl-bracket-score">{score ?? ""}</span>
+    <div
+      className={`nfl-bracket-team-tile is-${side}${isDecided ? (isWinner ? " is-winner" : " is-loser") : ""}`}
+      style={teamColorStyle(team)}
+    >
+      {side === "left" ? <span className="nfl-bracket-seed">{seed}</span> : null}
+      <div className="nfl-bracket-logo-box" title={team.name}>
+        <TeamLogo abbreviation={team.abbreviation} logoUrl={team.logoUrl} alt={team.name} className="nfl-bracket-logo" priority />
+      </div>
+      {side === "right" ? <span className="nfl-bracket-seed">{seed}</span> : null}
     </div>
   );
 }
 
-function MatchupBlock({ matchup, tag }: { matchup: NflPlayoffMatchup; tag?: string }) {
+function MatchupBlock({ matchup, side }: { matchup: NflPlayoffMatchup; side: "left" | "right" }) {
   const decided = matchup.status === "completed";
+  const result = matchupResultLine(matchup);
   return (
     <div className="nfl-bracket-matchup" data-round={matchup.conference}>
-      {tag && <span className="nfl-bracket-tag">{tag}</span>}
-      <TeamRow team={matchup.homeTeam} seed={matchup.homeSeed} score={matchup.homeScore} isWinner={matchup.winnerTeamId === matchup.homeTeam.teamId} isDecided={decided} />
-      <TeamRow team={matchup.awayTeam} seed={matchup.awaySeed} score={matchup.awayScore} isWinner={matchup.winnerTeamId === matchup.awayTeam.teamId} isDecided={decided} />
+      <TeamTile
+        team={matchup.homeTeam}
+        seed={matchup.homeSeed}
+        side={side}
+        isWinner={matchup.winnerTeamId === matchup.homeTeam.teamId}
+        isDecided={decided}
+      />
+      <TeamTile
+        team={matchup.awayTeam}
+        seed={matchup.awaySeed}
+        side={side}
+        isWinner={matchup.winnerTeamId === matchup.awayTeam.teamId}
+        isDecided={decided}
+      />
+      {result ? <div className="nfl-bracket-result">{result}</div> : null}
     </div>
   );
-}
-
-function TrophyIcon() {
-  return <img className="nfl-bracket-trophy" src="/assets/nfl-playoff-bracket/lombardi.png" alt="Lombardi Trophy" />;
 }
 
 function TbdSlot({ label, gridColumn, gridRow }: { label: string; gridColumn: number; gridRow: string }) {
-  return <div className="nfl-bracket-matchup-group" style={{ gridColumn, gridRow, alignSelf: "center" }}><div className="nfl-bracket-tbd">{label}</div></div>;
+  return (
+    <div className="nfl-bracket-matchup-group" style={{ gridColumn, gridRow, alignSelf: "center" }}>
+      <div className="nfl-bracket-tbd">{label}</div>
+    </div>
+  );
 }
 
-/** The #1 seed's own card, styled like every other matchup box -- it sits IN the divisional
- * round's slot as that game's already-known participant (the other slot fills in once the
- * wild-card game beneath it is decided), not as a disconnected pill floating above the bracket. */
-function ByeCard({ team, gridColumn, gridRow }: { team: NflTeamSummary; gridColumn: number; gridRow: string }) {
+function ByeCard({ team, side, gridColumn, gridRow }: {
+  team: NflTeamSummary;
+  side: "left" | "right";
+  gridColumn: number;
+  gridRow: string;
+}) {
   return (
     <div className="nfl-bracket-matchup-group" style={{ gridColumn, gridRow, alignSelf: "center" }}>
       <div className="nfl-bracket-matchup">
-        <span className="nfl-bracket-tag is-bye">First-Round Bye</span>
-        <TeamRow team={team} seed={1} score={null} isWinner={false} isDecided={false} />
+        <TeamTile team={team} seed={1} side={side} isWinner={false} isDecided={false} />
+        <div className="nfl-bracket-result is-bye">FIRST-ROUND BYE</div>
       </div>
     </div>
   );
 }
 
-function MatchupSlot({ matchup, tag, gridColumn, gridRow, tbdLabel }: {
-  matchup: NflPlayoffMatchup | null; tag: string; gridColumn: number; gridRow: string; tbdLabel?: string;
+function MatchupSlot({ matchup, side, gridColumn, gridRow, tbdLabel }: {
+  matchup: NflPlayoffMatchup | null;
+  side: "left" | "right";
+  gridColumn: number;
+  gridRow: string;
+  tbdLabel?: string;
 }) {
   if (!matchup) return <TbdSlot label={tbdLabel ?? "TBD"} gridColumn={gridColumn} gridRow={gridRow} />;
-  return <div className="nfl-bracket-matchup-group" style={{ gridColumn, gridRow, alignSelf: "center" }}><MatchupBlock matchup={matchup} tag={tag} /></div>;
+  return (
+    <div className="nfl-bracket-matchup-group" style={{ gridColumn, gridRow, alignSelf: "center" }}>
+      <MatchupBlock matchup={matchup} side={side} />
+    </div>
+  );
 }
 
-/** One conference's full side of the bracket: 4 wild-card-round slots (the #1 seed's bye plus
- * its 3 wild-card games, ordered by seed) stacked in a shared 4-row track, with the 2 divisional
- * games and the conference championship centered across the wild-card slot(s) that feed them --
- * exactly the classic broadcast-bracket shape (bye card sits directly across from the divisional
- * game it plays into, not above the bracket as a separate element). */
-function ConferenceSide({ picture, conference, columns }: {
-  picture: NflPlayoffPicture; conference: "AFC" | "NFC"; columns: { wildCard: number; divisional: number; conference: number };
+/** One conference side: NFC left / AFC right, matching broadcast bracket column flow. */
+function ConferenceSide({ picture, conference, side, columns }: {
+  picture: NflPlayoffPicture;
+  conference: "AFC" | "NFC";
+  side: "left" | "right";
+  columns: { wildCard: number; divisional: number; conference: number };
 }) {
   const byRound = new Map(picture.rounds.map((r) => [r.round, r.matchups]));
   const decidedInto = (round: NflPlayoffPicture["rounds"][number]["round"]) => (byRound.get(round)?.length ?? 0) > 0;
@@ -113,55 +138,101 @@ function ConferenceSide({ picture, conference, columns }: {
   const championship = forConf("conference_championship")[0] ?? null;
   const divisionalTbd = decidedInto("divisional") ? undefined : "TBD";
   const championshipTbd = decidedInto("conference_championship") ? undefined : "TBD";
-  const tag = `${conference} ·`;
 
   return (
     <>
-      <div className="nfl-bracket-round-label" style={{ gridColumn: columns.wildCard, gridRow: 1 }}>Wild Card</div>
-      <div className="nfl-bracket-round-label" style={{ gridColumn: columns.divisional, gridRow: 1 }}>Divisional</div>
-      <div className="nfl-bracket-round-label" style={{ gridColumn: columns.conference, gridRow: 1 }}>Conference</div>
+      <div className="nfl-bracket-round-label" style={{ gridColumn: columns.wildCard, gridRow: 1 }}>{conference} Wild Card</div>
+      <div className="nfl-bracket-round-label" style={{ gridColumn: columns.divisional, gridRow: 1 }}>{conference} Divisional</div>
+      <div className="nfl-bracket-round-label" style={{ gridColumn: columns.conference, gridRow: 1 }}>{conference} Championship</div>
 
       {byeTeam
-        ? <ByeCard team={byeTeam} gridColumn={columns.wildCard} gridRow="2" />
+        ? <ByeCard team={byeTeam} side={side} gridColumn={columns.wildCard} gridRow="2" />
         : <TbdSlot label="TBD" gridColumn={columns.wildCard} gridRow="2" />}
-      <MatchupSlot matchup={wildCard[0] ?? null} tag={`${tag} Wild Card`} gridColumn={columns.wildCard} gridRow="3" />
-      <MatchupSlot matchup={wildCard[1] ?? null} tag={`${tag} Wild Card`} gridColumn={columns.wildCard} gridRow="4" />
-      <MatchupSlot matchup={wildCard[2] ?? null} tag={`${tag} Wild Card`} gridColumn={columns.wildCard} gridRow="5" />
+      <MatchupSlot matchup={wildCard[0] ?? null} side={side} gridColumn={columns.wildCard} gridRow="3" />
+      <MatchupSlot matchup={wildCard[1] ?? null} side={side} gridColumn={columns.wildCard} gridRow="4" />
+      <MatchupSlot matchup={wildCard[2] ?? null} side={side} gridColumn={columns.wildCard} gridRow="5" />
 
-      <MatchupSlot matchup={divisional[0] ?? null} tag={`${tag} Divisional`} gridColumn={columns.divisional} gridRow="2 / 4" tbdLabel={divisionalTbd} />
-      <MatchupSlot matchup={divisional[1] ?? null} tag={`${tag} Divisional`} gridColumn={columns.divisional} gridRow="4 / 6" tbdLabel={divisionalTbd} />
+      <MatchupSlot matchup={divisional[0] ?? null} side={side} gridColumn={columns.divisional} gridRow="2 / 4" tbdLabel={divisionalTbd} />
+      <MatchupSlot matchup={divisional[1] ?? null} side={side} gridColumn={columns.divisional} gridRow="4 / 6" tbdLabel={divisionalTbd} />
 
-      <MatchupSlot matchup={championship} tag={`${tag} Championship`} gridColumn={columns.conference} gridRow="2 / 6" tbdLabel={championshipTbd} />
+      <MatchupSlot matchup={championship} side={side} gridColumn={columns.conference} gridRow="2 / 6" tbdLabel={championshipTbd} />
     </>
+  );
+}
+
+function PriorChampionshipFooter({ prior }: { prior: NonNullable<NflPlayoffPicture["priorChampionship"]> }) {
+  return (
+    <footer className="nfl-bracket-prior">
+      <div className="nfl-bracket-prior-heading">Season {prior.seasonNumber} Super Bowl</div>
+      <div className="nfl-bracket-prior-row">
+        <span className="nfl-bracket-prior-label">Winner</span>
+        <strong>{prior.winner.name}</strong>
+        <span className="nfl-bracket-prior-record">{formatRecord(prior.winnerRecord)}</span>
+      </div>
+      <div className="nfl-bracket-prior-row">
+        <span className="nfl-bracket-prior-label">Runner-up</span>
+        <strong>{prior.runnerUp.name}</strong>
+        <span className="nfl-bracket-prior-record">{formatRecord(prior.runnerUpRecord)}</span>
+      </div>
+    </footer>
   );
 }
 
 export function DesktopBracket({ picture }: { picture: NflPlayoffPicture }) {
   const byRound = new Map(picture.rounds.map((r) => [r.round, r.matchups]));
   const superBowl = (byRound.get("super_bowl") ?? [])[0] ?? null;
+  const leagueName = picture.league.name?.trim() || "League";
+  const seasonNumber = picture.league.seasonNumber || 1;
+  const sbResult = superBowl ? matchupResultLine(superBowl) : null;
 
   return (
-    <div className="nfl-bracket">
-      <ConferenceSide picture={picture} conference="AFC" columns={{ wildCard: 1, divisional: 2, conference: 3 }} />
+    <div className="nfl-bracket-board" data-bracket-render-root="">
+      <header className="nfl-bracket-board-header">
+        <h1>
+          <span>{leagueName}</span>
+          <span className="nfl-bracket-board-sep">-</span>
+          <span>Season {seasonNumber}</span>
+          <span className="nfl-bracket-board-sep">-</span>
+          <em>PLAYOFFS</em>
+        </h1>
+      </header>
 
-      <div className="nfl-bracket-center" style={{ gridColumn: 4, gridRow: "2 / 6" }}>
-        <div className="nfl-bracket-trophy-wrap"><TrophyIcon /></div>
-        <div className="nfl-bracket-sb-label">Super Bowl</div>
-        {superBowl ? (
-          <div className="nfl-bracket-sb-matchup">
-            <TeamRow team={superBowl.homeTeam} seed={superBowl.homeSeed} score={superBowl.homeScore} isWinner={superBowl.winnerTeamId === superBowl.homeTeam.teamId} isDecided={superBowl.status === "completed"} />
-            <TeamRow team={superBowl.awayTeam} seed={superBowl.awaySeed} score={superBowl.awayScore} isWinner={superBowl.winnerTeamId === superBowl.awayTeam.teamId} isDecided={superBowl.status === "completed"} />
-          </div>
-        ) : <div className="nfl-bracket-tbd">TBD</div>}
-        {picture.champion && (
-          <div className="nfl-bracket-champion-banner">
-            Champion
-            <strong>{picture.champion.name}</strong>
-          </div>
-        )}
+      <div className="nfl-bracket">
+        <ConferenceSide picture={picture} conference="NFC" side="left" columns={{ wildCard: 1, divisional: 2, conference: 3 }} />
+
+        <div className="nfl-bracket-center" style={{ gridColumn: 4, gridRow: "2 / 6" }}>
+          <div className="nfl-bracket-sb-label">Super Bowl</div>
+          {superBowl ? (
+            <div className="nfl-bracket-sb-matchup">
+              <TeamTile
+                team={superBowl.homeTeam}
+                seed={superBowl.homeSeed}
+                side="left"
+                isWinner={superBowl.winnerTeamId === superBowl.homeTeam.teamId}
+                isDecided={superBowl.status === "completed"}
+              />
+              <TeamTile
+                team={superBowl.awayTeam}
+                seed={superBowl.awaySeed}
+                side="left"
+                isWinner={superBowl.winnerTeamId === superBowl.awayTeam.teamId}
+                isDecided={superBowl.status === "completed"}
+              />
+              {sbResult ? <div className="nfl-bracket-result">{sbResult}</div> : null}
+            </div>
+          ) : <div className="nfl-bracket-tbd">TBD</div>}
+          {picture.champion ? (
+            <div className="nfl-bracket-champion-banner">
+              Champion
+              <strong>{picture.champion.name}</strong>
+            </div>
+          ) : null}
+        </div>
+
+        <ConferenceSide picture={picture} conference="AFC" side="right" columns={{ wildCard: 7, divisional: 6, conference: 5 }} />
       </div>
 
-      <ConferenceSide picture={picture} conference="NFC" columns={{ wildCard: 7, divisional: 6, conference: 5 }} />
+      {picture.priorChampionship ? <PriorChampionshipFooter prior={picture.priorChampionship} /> : null}
     </div>
   );
 }
@@ -283,10 +354,17 @@ export function NflPlayoffBracket() {
       .catch(() => setSnapshot(null));
   }, [guildId, picture]);
 
+  const showingDesktop = Boolean(
+    (picture && picture.showBracket && !picture.isLiveProjection)
+    || (picture && !picture.showBracket && snapshot),
+  );
+
   return (
     <div className="nfl-bracket-page">
       {showStandingsBack && <button type="button" className="hub-page-back" onClick={() => navigate("../standings")}>← Back to Standings</button>}
-      <PageHeader title="Playoff Picture" subtitle="Real NFL seeding computed automatically from your league's standings — reseeds live as every round plays out." />
+      {!showingDesktop && (
+        <PageHeader title="Playoff Picture" subtitle="Real NFL seeding computed automatically from your league's standings — reseeds live as every round plays out." />
+      )}
       {error && <ErrorState message={error} />}
       {!picture && !error && <LoadingState label="Loading the playoff picture…" />}
 
@@ -298,10 +376,7 @@ export function NflPlayoffBracket() {
 
       {picture && !picture.showBracket && snapshot && (
         <>
-          <div className="nfl-bracket-meta">
-            <span className="is-live">● Final — Season {snapshot.seasonNumber}</span>
-          </div>
-          <Card><DesktopBracket picture={snapshot.picture} /></Card>
+          <DesktopBracket picture={snapshot.picture} />
           <p className="nfl-bracket-legend">
             This season's postseason is complete. The next live playoff picture unlocks starting
             Week 12 of the new regular season.
@@ -314,13 +389,7 @@ export function NflPlayoffBracket() {
           {picture.isLiveProjection ? (
             <PlayoffPictureBoard picture={picture} />
           ) : (
-            <>
-              <div className="nfl-bracket-meta">
-                <span className="is-live">● {picture.champion ? "Final" : "Postseason"}</span>
-                {!picture.champion ? <span>Week {picture.league.currentWeek}</span> : null}
-              </div>
-              <Card><DesktopBracket picture={picture} /></Card>
-            </>
+            <DesktopBracket picture={picture} />
           )}
           <p className="nfl-bracket-legend">
             {picture.champion
