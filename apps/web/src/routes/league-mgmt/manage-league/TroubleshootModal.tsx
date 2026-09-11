@@ -11,7 +11,6 @@ import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { RepairGameChannelsModal } from "./RepairGameChannelsModal.js";
 import { ManageGameWagersModal } from "./ManageGameWagersModal.js";
 import { ManageGotwToolsModal } from "./ManageGotwToolsModal.js";
-import { ResetSpendCapModal } from "./ResetSpendCapModal.js";
 import { EosPayoutsToolsModal } from "./EosPayoutsToolsModal.js";
 import { EA_ADMIN_TOOLS } from "./EaAdminActionsGroup.js";
 import { TeamOwnershipTable } from "./TeamOwnershipTable.js";
@@ -47,7 +46,6 @@ export function TroubleshootModal({
   const [repairOpen, setRepairOpen] = useState(false);
   const [wagersOpen, setWagersOpen] = useState(false);
   const [gotwOpen, setGotwOpen] = useState(false);
-  const [resetCapOpen, setResetCapOpen] = useState(false);
   const [eosPayoutsOpen, setEosPayoutsOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -64,7 +62,6 @@ export function TroubleshootModal({
     );
   }
   if (wagersOpen) return <ManageGameWagersModal guildId={guildId} onClose={() => setWagersOpen(false)} onDone={(message) => { setWagersOpen(false); setNotice(message); }} />;
-  if (resetCapOpen) return <ResetSpendCapModal guildId={guildId} onClose={() => setResetCapOpen(false)} onDone={(message) => { setResetCapOpen(false); setNotice(message); }} />;
   if (eosPayoutsOpen) return <EosPayoutsToolsModal guildId={guildId} onClose={() => setEosPayoutsOpen(false)} />;
   if (gotwOpen) {
     return (
@@ -124,12 +121,6 @@ export function TroubleshootModal({
           </CollapsibleSection>
         </ToolGroup>
         <ToolGroup label="Economy">
-          <CollapsibleSection title="Reset Spend Cap">
-            <p className="form-hint" style={{ marginTop: 0 }}>
-              Reset how much a player (or everyone) has spent this season, so they can spend a fresh budget.
-            </p>
-            <Button variant="secondary" onClick={() => setResetCapOpen(true)}><Coins size={14} /> Open Reset Tool</Button>
-          </CollapsibleSection>
           <CollapsibleSection title="EOS Payouts">
             <p className="form-hint" style={{ marginTop: 0 }}>
               Run end-of-season payouts, wipe and recalculate an open batch, or preview projected payouts

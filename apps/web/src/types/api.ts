@@ -942,16 +942,6 @@ export type StorePurchaseContext = {
   seasonNumber: number;
   wallet: number;
   coreAttributes: string[];
-  coreAttributeDefaultCap: number;
-  coreAttributeCapOverrides: Record<string, number>;
-  coreAttributeGroupCap: number;
-  nonCoreAttributeCap: number;
-  nonCoreAttributeCapOverrides: Record<string, number>;
-  nonCoreAttributeCapMode: "group" | "individual";
-  usedCoreByCode: Record<string, number>;
-  usedNonCoreByCode: Record<string, number>;
-  usedCore: number;
-  usedNonCore: number;
   seasonCaps: Partial<Record<"age_reset" | "dev_upgrade" | "contract" | "player_trait" | "legend" | "custom_player", number>>;
   seasonActive: Record<string, number>;
 };

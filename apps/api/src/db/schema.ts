@@ -1093,11 +1093,6 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   // resetLeaguePurchaseCapsForOffseason in purchases.service.ts) -- gives a fresh offseason
   // allotment without touching season_number, which only advances on entering preseason.
   purchaseCapsResetAt: timestamp("purchase_caps_reset_at", { withTimezone: true, mode: "string" }),
-  coreAttributePurchasesSeasonCap: integer("core_attribute_purchases_season_cap").notNull().default(0),
-  nonCoreAttributePurchasesSeasonCap: integer("non_core_attribute_purchases_season_cap").notNull().default(0),
-  coreAttributeGroupCap: integer("core_attribute_group_cap").notNull().default(0),
-  nonCoreAttributeCapOverrides: jsonb("non_core_attribute_cap_overrides").$type<Record<string, unknown> | null>(),
-  nonCoreAttributeCapMode: text("non_core_attribute_cap_mode").notNull().default("group"),
   coreAttributes: jsonb("core_attributes").$type<Record<string, unknown> | null>(),
   dynastyType: text("dynasty_type"),
   recruitingDifficulty: text("recruiting_difficulty"),
@@ -1107,7 +1102,6 @@ export const recLeagueConfiguration = pgTable("rec_league_configuration", {
   homeFieldAdvantageEnabled: boolean("home_field_advantage_enabled"),
   stadiumPulseEnabled: boolean("stadium_pulse_enabled"),
   teamBuilderAllowed: boolean("team_builder_allowed"),
-  coreAttributeCapOverrides: jsonb("core_attribute_cap_overrides").$type<Record<string, unknown> | null>(),
   activeRostersEnabled: boolean("active_rosters_enabled"),
   trackRostersEnabled: boolean("track_rosters_enabled"),
   coachFiringPolicy: text("coach_firing_policy").notNull().default("on"),

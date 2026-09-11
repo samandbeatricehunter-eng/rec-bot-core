@@ -268,46 +268,6 @@ export const recApi = {
     recApiFetch<ImportAuditReport>("/v1/import/madden/ea/audit", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   getImportProgress: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ events: EaImportProgressEvent[]; running: boolean; source: "manual" | "auto" | null; weekLabel: string | null }>("/v1/import/madden/ea/import-progress", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
-  /** SSE streaming variant — calls onEvent for each progress event, returns final results. */
-  importMaddenEaDatasetsStream: async (input: { guildId: string; leagueId: string; connectionId: string; datasets?: EaDataset[]; weekRefs?: Array<{ stage: 0 | 1; weekIndex: number }>; weekScope?: "current" | "through_current" }, onEvent: (event: EaImportProgressEvent) => void): Promise<EaImportResult[]> => {
-    const response = await fetch(`${apiBaseUrl()}/v1/import/madden/ea/import-stream`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
-        ...(hubGuildId ? { "x-rec-guild-id": hubGuildId } : {}),
-      },
-      body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId, connection_id: input.connectionId, ...(input.datasets ? { datasets: input.datasets } : {}), ...(input.weekRefs ? { week_refs: input.weekRefs.map((ref) => ({ stage: ref.stage, week_index: ref.weekIndex })) } : {}), ...(input.weekScope ? { week_scope: input.weekScope } : {}) }),
-    });
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || `Import failed with status ${response.status}`);
-    }
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("No response body");
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let results: EaImportResult[] = [];
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        try {
-          const event = JSON.parse(line.slice(6)) as EaImportProgressEvent;
-          onEvent(event);
-          if (event.type === "done") results = event.results;
-          if (event.type === "error") throw new Error(event.error);
-        } catch (e) {
-          if (e instanceof Error && e.message === (JSON.parse(line.slice(6)) as EaImportProgressEvent & { error: string }).error) throw e;
-        }
-      }
-    }
-    return results;
-  },
   listMaddenEaImportJobs: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ jobs: Array<{ id: string; task_key: string; status: string; completed_at: string | null; record_count: number; rolled_back_at: string | null; duplicate_of_job_id: string | null }> }>("/v1/import/madden/ea/jobs", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   disconnectMaddenEaConnection: (input: { guildId: string; leagueId: string; connectionId: string }) =>
@@ -789,8 +749,6 @@ export const recApi = {
     recApiFetch<any>("/v1/purchases/create", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   getStorePurchaseContext: (guildId: string) =>
     recApiFetch<import("../types/api.js").StorePurchaseContext>("/v1/purchases/store-context", { method: "POST", body: JSON.stringify({ guildId }) }),
-  resetAttributeCapSpend: (input: { guildId: string; categories: Array<"core" | "non_core">; userIds?: string[] }) =>
-    recApiFetch<{ userCount: number; resetCount: number; seasonNumber?: number }>("/v1/purchases/reset-attribute-cap", { method: "POST", body: JSON.stringify(input) }),
   listHubLegends: (guildId: string) =>
     recApiFetch<{ legends: import("../types/api.js").LegendCatalogEntry[] }>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
   listHubLegendAvailability: (guildId: string) =>
