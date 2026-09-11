@@ -44,7 +44,7 @@
 .hub-story-item-nav { display: inline-grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface-raised); color: var(--gold); font-size: 13px; line-height: 1; cursor: pointer; vertical-align: middle; }
 .hub-story-item-nav:hover { border-color: var(--gold); }
 
-/* Expanded article reader â full-screen on mobile, sized scrollable panel on desktop */
+/* Expanded article reader Ã¢ÂÂ full-screen on mobile, sized scrollable panel on desktop */
 .expanded-article-overlay {
   position: fixed;
   inset: 0;
@@ -220,7 +220,7 @@
   gap: 8px;
 }
 .hub-hero-metric-scores > div { min-width: 0; }
-/* Condensed wallet/savings block â one card, balances row + actions row (View Transactions /
+/* Condensed wallet/savings block Ã¢ÂÂ one card, balances row + actions row (View Transactions /
    Transfer Coins), shared by the Campus Buzz hero and the My Team Funds & Savings panel. */
 .hub-wallet-card {
   grid-column: 1 / -1;
@@ -260,7 +260,7 @@ button.poty:disabled {
 }
 .hub-eyebrow { display: flex; align-items: center; gap: var(--space-1); margin: 0 0 var(--space-1); color: var(--gold) !important; font-size: var(--text-xs); font-weight: 900; text-transform: uppercase !important; letter-spacing: .08em; }
 .hub-manage-button { flex-shrink: 0; text-decoration: none; }
-/* Sidebar navigation â replaces the old top hub-tabs pill bar. Sidebar on desktop
+/* Sidebar navigation Ã¢ÂÂ replaces the old top hub-tabs pill bar. Sidebar on desktop
    (persistent left column). Below the 768px breakpoint (matches useIsMobile's JS
    threshold, so the drawer and the League subheaders it hides never disagree with each
    other) it becomes a real pop-out drawer: off-canvas by default, slid in over a
@@ -512,7 +512,7 @@ button.poty:disabled {
 }
 
 /* Modal header for the Full Season Schedule (and any future broadcast-style modal reusing
-   this class) â a metallic gold bar instead of the generic flat header, matching the hero
+   this class) Ã¢ÂÂ a metallic gold bar instead of the generic flat header, matching the hero
    matchup card treatment elsewhere in the hub. */
 .modal-panel.hub-schedule-modal { padding: 0; overflow: hidden; }
 .modal-panel.hub-schedule-modal .modal-panel-header {
@@ -576,7 +576,7 @@ button.poty:disabled {
 .hub-matchup-summary span { color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; }
 .hub-matchup-lines { display: flex; flex-wrap: wrap; gap: var(--space-2); width: 100%; }
 .hub-matchup-lines span { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px 8px; font-size: var(--text-xs); text-transform: none; }
-/* ââ Team Roster viewer ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Team Roster viewer Ã¢ÂÂÃ¢ÂÂ */
 .hub-roster-view-toggle { display: flex; gap: var(--space-2); }
 .hub-roster-view-toggle button { padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); color: var(--text-muted); font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; cursor: pointer; }
 .hub-roster-view-toggle button.active { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
@@ -633,7 +633,7 @@ button.poty:disabled {
 .hub-roster-pos { display: block; color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; }
 .hub-roster-increase { margin-left: 6px; color: var(--success); font-size: var(--text-xs); font-weight: 700; }
 
-/* Selected-player detail header, above the sortable list â same idea as the in-game roster
+/* Selected-player detail header, above the sortable list Ã¢ÂÂ same idea as the in-game roster
    viewer's player card: photo/silhouette, name + position, key bio, big OVR readout. */
 .hub-roster-detail { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4); margin-bottom: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-raised); }
 .hub-roster-detail-photo { width: 64px; height: 64px; flex-shrink: 0; border-radius: var(--radius-md); background: var(--surface); display: grid; place-items: center; overflow: hidden; color: var(--text-muted); font-size: var(--text-xs); font-weight: 800; text-transform: uppercase; }
@@ -815,7 +815,7 @@ button.poty:disabled {
 .hub-my-wager-row--won { border-color: color-mix(in srgb, var(--success, #3fbf6f) 40%, var(--border)); }
 .hub-my-wager-row--lost { opacity: .75; }
 /* The figures (stake/payout/status) and actions (edit/cancel) blocks both refuse to shrink
-   (flex-shrink:0), so on a narrow phone the info column â the only shrinkable child â gets
+   (flex-shrink:0), so on a narrow phone the info column Ã¢ÂÂ the only shrinkable child Ã¢ÂÂ gets
    squeezed down to almost nothing, wrapping every single word onto its own line; combined with
    align-items:center, that tall wrapped text then visually straddles the vertically-centered
    figures/actions blocks, making the whole card look scrambled. Stack into a column instead of
@@ -841,7 +841,7 @@ button.poty:disabled {
 .hub-trade-center h3:first-child { margin-top: 0; }
 /* Center headers/fields throughout Trade Center, except the offer-vs-request two-column
    split (.hub-trade-sides/.hub-trade-side) and the evaluator's own proposing/receiving
-   split (.hub-trade-evaluator-sides) â those stay left-aligned within their columns so the
+   split (.hub-trade-evaluator-sides) Ã¢ÂÂ those stay left-aligned within their columns so the
    two sides read as a comparison, not a centered block. */
 .hub-trade-center > .hub-section-heading { display: flex; justify-content: center; width: 100%; text-align: center; }
 .hub-trade-center > .hub-section-heading > div { width: 100%; text-align: center; }
@@ -918,8 +918,8 @@ button.poty:disabled {
 .hub-trade-selected-items { padding: var(--space-2) var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(0,0,0,.15); }
 .hub-trade-selected-items h5 { margin: 0 0 var(--space-1); color: var(--text-muted); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .04em; }
 
-/* ââ Trade asset cards â the redesigned "one card per player/pick" layout, used by the
-   builder's selected-assets list, replacing the old plain text row. âââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Trade asset cards Ã¢ÂÂ the redesigned "one card per player/pick" layout, used by the
+   builder's selected-assets list, replacing the old plain text row. Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 .trade-asset-card-list { display: grid; gap: 6px; }
 .trade-asset-card { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: #0b0f14; }
 .trade-asset-card-photo { width: 36px; height: 36px; min-width: 36px; border-radius: 6px; object-fit: cover; object-position: top center; background: var(--surface); }
@@ -964,7 +964,7 @@ button.poty:disabled {
 .hub-notice { padding: var(--space-2) var(--space-3); border: 1px solid color-mix(in srgb, var(--success, #3fbf6f) 40%, var(--border)); border-radius: var(--radius-md); color: var(--success, #3fbf6f); font-size: var(--text-sm); }
 .hub-error { padding: var(--space-2) var(--space-3); border: 1px solid color-mix(in srgb, #ff6b6b 40%, var(--border)); border-radius: var(--radius-md); color: #ff8a8a; font-size: var(--text-sm); }
 
-/* ââ Trade Targets âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Trade Targets Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 .hub-trade-targets { display: flex; flex-direction: column; gap: var(--space-3); }
 .hub-trade-targets-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-3); }
 .hub-trade-targets-attr-picker { display: flex; gap: var(--space-2); align-items: center; }
@@ -985,7 +985,7 @@ button.poty:disabled {
 .hub-trade-targets-offer-header { display: flex; align-items: center; justify-content: space-between; }
 .hub-trade-targets-offer-legs { margin: 0; font-size: var(--text-sm); color: var(--text-secondary); }
 
-/* ââ Collapsible trade sections âââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Collapsible trade sections Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 .hub-trade-collapsible { margin-bottom: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.03); overflow: hidden; }
 .hub-trade-collapsible-header { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: var(--space-3) var(--space-4); border: none; background: rgba(255,255,255,.04); color: var(--text-primary); font-size: var(--text-md); font-weight: 700; cursor: pointer; text-align: left; }
 .hub-trade-collapsible-header:hover { background: rgba(255,255,255,.07); }
@@ -1015,7 +1015,7 @@ button.poty:disabled {
   box-shadow: 0 0 6px rgba(220,53,69,.6);
 }
 
-/* ââ Pending trade detail card ââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢ÂÂÃ¢ÂÂ Pending trade detail card Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */
 .hub-trade-pending-card { padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-md); background: rgba(255,255,255,.02); margin-bottom: var(--space-2); }
 .hub-trade-pending-card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
 .hub-trade-pending-card-header span { font-size: var(--text-sm); color: var(--text-muted); }
@@ -1043,7 +1043,7 @@ button.poty:disabled {
 .hub-highlight-views { display: flex; align-items: center; justify-content: center; gap: 5px; padding: 0 var(--space-3) var(--space-2); color: var(--text-muted); font-size: var(--text-xs); }
 .hub-highlight-views svg { color: var(--accent); }
 
-/* Clean highlight embed â replaces the old baked chassis. A simple bordered card: video,
+/* Clean highlight embed Ã¢ÂÂ replaces the old baked chassis. A simple bordered card: video,
    meta, view count, and exactly three reactions (Like / POTY / Dislike). */
 .hub-highlight-embed { position: relative; display: flex; flex-direction: column; border-color: color-mix(in srgb, var(--accent) 32%, var(--border-strong)); box-shadow: 0 18px 44px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.05); }
 .hub-highlight-embed .hub-highlight-meta strong { font-family: var(--font-display); font-size: var(--text-lg); text-transform: uppercase; }
@@ -1304,7 +1304,7 @@ button.poty:disabled {
 @media (max-width: 720px) {
   .hub-my-team-grid { grid-template-columns: 1fr; }
 }
-/* Text-only quick-action button â no icon well. Used by the My Team grid and the Buzz page's
+/* Text-only quick-action button Ã¢ÂÂ no icon well. Used by the My Team grid and the Buzz page's
    Quick Actions row, both of which used to pair a Lucide icon with an IconWell housing at a
    size too small for the glyph to render legibly (looked like a stray smudge, misaligned
    against the two-line label next to it). */
@@ -1427,7 +1427,7 @@ button.poty:disabled {
 .hub-store-lock strong { color: var(--warning); }
 .hub-store-lock span { color: var(--text-secondary); font-size: var(--text-sm); }
 
-/* One-time attention card (e.g. "Request Game Invite") atop the main league page â bright
+/* One-time attention card (e.g. "Request Game Invite") atop the main league page Ã¢ÂÂ bright
    enough to catch the eye, gone for good once resolved. */
 .hub-attention-card {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3);
@@ -1450,7 +1450,7 @@ button.poty:disabled {
 .hub-store-form { max-width: 680px; margin: var(--space-4) auto 0; padding: var(--space-4); border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface); }
 .hub-store-form h3 { margin-top: 0; }
 .hub-team-wordmark { display:grid; place-items:center; min-height:72px; padding:10px; border:2px solid var(--gold); border-radius:50% 50% 45% 45%; background:linear-gradient(145deg,#252525,#070707); color:var(--gold); font-family:var(--font-display); font-size:clamp(.78rem,2vw,1.15rem); font-weight:950; font-style:italic; text-align:center; text-transform:uppercase; text-shadow:0 2px 0 #000; box-shadow:inset 0 0 0 3px #111,0 8px 18px rgba(0,0,0,.35); }
-/* Left corner, not right â the chat launcher FAB (UniversalChatDrawer, portaled to body,
+/* Left corner, not right Ã¢ÂÂ the chat launcher FAB (UniversalChatDrawer, portaled to body,
    z-index 2000) owns the bottom-right corner everywhere else in the app; sharing that corner
    here put this button underneath it regardless of z-index since they occupied the same
    fixed coordinates. */
@@ -1687,14 +1687,14 @@ button.poty:disabled {
 .hub-week-select { display: grid; grid-template-columns: auto minmax(180px, 260px); justify-content: end; align-items: center; gap: var(--space-2); }
 .hub-week-select span { color: var(--gold); font-size: var(--text-xs); font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 /* The select itself picks up .form-input's near-white text color on a transparent
-   background, which reads fine against the dark page â but the option POPUP list falls
+   background, which reads fine against the dark page Ã¢ÂÂ but the option POPUP list falls
    through to native rendering with no explicit color/background, and many browsers still
    inherit that near-white text color into the popup's native (light) background, making
    every option unreadable. Force a legible light popup explicitly, matching .form-select's
    existing option override elsewhere. */
 .hub-week-select select option { color: #111; background: #fff; }
 /* Without an explicit column track, a single-column grid sizes its column to fit
-   content's max-content width â a long unwrapped team name (e.g. "MISSISSIPPI STATE" at
+   content's max-content width Ã¢ÂÂ a long unwrapped team name (e.g. "MISSISSIPPI STATE" at
    the wordmark's ~50px font) blew this column out past the viewport, and every
    width:100% descendant (including the aspect-ratio-locked card) inflated right along
    with it. minmax(0, 1fr) pins the column to the container's actual width instead. */
@@ -1826,7 +1826,7 @@ button.poty:disabled {
 
 /* The floating trigger is a rendered asset, not a stretched application button. The
    render already draws its own gold bezel ring, so the CSS border/box-shadow ring from
-   the block above is dropped here â layering both produced a doubled, misaligned edge
+   the block above is dropped here Ã¢ÂÂ layering both produced a doubled, misaligned edge
    that read as "cut off." Showing the PNG at 100% (not zoomed) keeps its full ring intact
    instead of cropping into it. */
 .hub-nav-toggle {
@@ -2186,9 +2186,9 @@ button.poty:disabled {
   right:4.2% !important;
 }
 
-/* League-themed backdrop â the field/tunnel photo is replaced by the active theme's palette
+/* League-themed backdrop Ã¢ÂÂ the field/tunnel photo is replaced by the active theme's palette
    (see docs/theme-palettes.md): a soft accent glow up top, faint vertical yard-line texture,
-   and a deep surfaceâbg wash. Fixed so content scrolls over a stable field. */
+   and a deep surfaceÃ¢ÂÂbg wash. Fixed so content scrolls over a stable field. */
 .app-backdrop--hub,
 .hub-page { background:transparent !important; }
 .app-backdrop--hub::before {
@@ -3082,7 +3082,7 @@ button.poty:disabled {
   .matchup-preview__lane-label { font-size:.68rem; }
 }
 
-/* ââ Discord hub chrome (bottom nav + league selector + notifications) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Discord hub chrome (bottom nav + league selector + notifications) Ã¢ÂÂÃ¢ÂÂ */
 [data-site-theme="app"] {
   --chrome-nav-bg:
     repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.045) 0 1px, transparent 1px 3px),
@@ -3425,7 +3425,7 @@ button.poty:disabled {
 .hub-placeholder-page p { margin: 0; color: var(--text-secondary); line-height: 1.45; }
 .hub-placeholder-page code { color: var(--accent-bright); }
 
-/* ââ Desktop chrome (960px+): persistent global sidebar + optional league bottom nav ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Desktop chrome (960px+): persistent global sidebar + optional league bottom nav Ã¢ÂÂÃ¢ÂÂ */
 .hub-desktop-sidebar {
   display: none;
 }
@@ -3511,7 +3511,7 @@ button.poty:disabled {
     padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
   }
 
-  /* Site iframe embed: site owns the sidebar â give hub content the full frame */
+  /* Site iframe embed: site owns the sidebar Ã¢ÂÂ give hub content the full frame */
   .app-backdrop.is-hub-embed .hub-desktop-sidebar,
   .app-backdrop.is-hub-embed .hub-chrome-stack {
     display: none !important;
@@ -3619,7 +3619,7 @@ button.poty:disabled {
 }
 .rec-coin-amount__value { line-height: 1; }
 
-/* ââ Midnight Glass + Campus Buzz layout ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Midnight Glass + Campus Buzz layout Ã¢ÂÂÃ¢ÂÂ */
 /* Standalone-app fallback; embedded-in-site mode gets the same universal background from SiteShell. */
 .hub-page {
   background-color: #05070a;
@@ -3633,8 +3633,29 @@ button.poty:disabled {
   padding-bottom: clamp(48px, 6vw, 88px);
 }
 @media (max-width: 900px) {
+  /*
+    scroll + cover on a tall .hub-page zooms the art to document height (blurry crop).
+    Paint a viewport-fixed layer instead — avoids iOS background-attachment:fixed bugs.
+  */
   .hub-page {
+    background-image: none;
     background-attachment: scroll;
+    isolation: isolate;
+  }
+  .hub-page::before {
+    display: block;
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-color: #05070a;
+    background-image:
+      linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%),
+      url("/assets/backgrounds/master-background.png");
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
   }
 }
 /* Free-standing blocks: strip wrapper container chrome and glass blur.
@@ -3999,7 +4020,7 @@ button.poty:disabled {
 }
 .hub-standings-mini-nav button:disabled { opacity:.42; cursor:not-allowed; }
 
-/* Stats mini-nav: fixed 5+5 desktop rows (Leaders…Records / Standings…History). */
+/* Stats mini-nav: fixed 5+5 desktop rows (Leadersâ¦Records / Standingsâ¦History). */
 @media (min-width: 901px) {
   .hub-section-mini-nav--stats {
     display: grid;
@@ -4050,7 +4071,7 @@ button.poty:disabled {
      0 1px 0 rgba(255,255,255,.9);
 }
 
-/* ââ Division standings board (NFC | AFC) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Division standings board (NFC | AFC) Ã¢ÂÂÃ¢ÂÂ */
 .hub-div-standings-board {
   display:grid;
   grid-template-columns:minmax(0,1fr) 14px minmax(0,1fr);
@@ -4351,7 +4372,7 @@ button.poty:disabled {
 .hub-hero-prediction strong em { padding: 0 7px; color: var(--accent-bright); font-style: normal; }
 .hub-hero-prediction small { color: var(--text-muted); }
 
-/* ââ Player of the Week card (site headline article body + Discord render target) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Player of the Week card (site headline article body + Discord render target) Ã¢ÂÂÃ¢ÂÂ */
 .potw-card { background: rgba(5, 7, 10, .48); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: var(--radius-lg); overflow: hidden; }
 .potw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
 .potw-panel { background: rgba(5, 7, 10, .78); display: flex; flex-direction: column; min-height: 150px; }
@@ -4376,7 +4397,7 @@ button.poty:disabled {
   .potw-grid { grid-template-columns: 1fr; }
 }
 
-/* ââ Rise to Immortality prospect "player card" (Discord render target on team pick) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Rise to Immortality prospect "player card" (Discord render target on team pick) Ã¢ÂÂÃ¢ÂÂ */
 .prospect-card { width: 1100px; background: rgba(5, 7, 10, .92); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); border-radius: var(--radius-lg); overflow: hidden; font-family: var(--font-sans); }
 .prospect-card-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; background: color-mix(in srgb, var(--accent) 14%, transparent); border-bottom: 1px solid var(--border); }
 .prospect-card-position { font-family: var(--font-display); font-size: 20px; font-weight: 900; letter-spacing: .04em; color: #fff; }
@@ -4404,7 +4425,7 @@ button.poty:disabled {
 .prospect-card-backstory { margin: 0; padding: 0 24px 20px; color: var(--text-secondary); font-size: 14px; line-height: 1.5; }
 .prospect-card-footer { padding: 12px 24px; text-align: center; color: var(--text-muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; background: color-mix(in srgb, var(--accent) 8%, transparent); border-top: 1px solid var(--border); }
 
-/* ââ Rise to Immortality Pro Tracker weekly recap (Discord render target, per advance) ââ */
+/* Ã¢ÂÂÃ¢ÂÂ Rise to Immortality Pro Tracker weekly recap (Discord render target, per advance) Ã¢ÂÂÃ¢ÂÂ */
 .protracker-card { width: 1300px; background: rgba(5, 7, 10, .92); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: var(--radius-lg); overflow: hidden; font-family: var(--font-sans); }
 .protracker-header { padding: 12px 20px; text-align: center; font-family: var(--font-display); font-size: 16px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; background: color-mix(in srgb, var(--accent) 14%, transparent); border-bottom: 1px solid var(--border); }
 .protracker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); }
@@ -4487,7 +4508,7 @@ button.poty:disabled {
 .hub-headshot-upload { position: relative; width: 100%; height: 100%; cursor: pointer; }
 .hub-headshot-upload:focus-visible { outline: 2px solid #d9a521; outline-offset: -2px; }
 .hub-headshot-upload:not(.is-disabled)::after {
-  content: "â"; position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; z-index: 1;
+  content: "Ã¢ÂÂ"; position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; z-index: 1;
   display: grid; place-items: center; border-radius: 50%; background: rgba(5,7,10,.65);
   color: #fff; font-size: 11px; pointer-events: none;
 }
@@ -4685,7 +4706,7 @@ button.poty:disabled {
   object-fit: contain;
 }
 
-/* Live Games card â one hyperlinked row per active stream league-wide. */
+/* Live Games card Ã¢ÂÂ one hyperlinked row per active stream league-wide. */
 .hub-live-games {
   display: flex;
   flex-direction: column;
@@ -4747,7 +4768,7 @@ button.poty:disabled {
   line-height: 1.6;
 }
 
-/* Universal Chat Drawer â self-mounted launcher + slide-out panel, shared between apps/web
+/* Universal Chat Drawer Ã¢ÂÂ self-mounted launcher + slide-out panel, shared between apps/web
    standalone and the apps/site in-process hub embed (see UniversalChatDrawer.tsx). */
 .chat-drawer-launcher {
   position: fixed;
@@ -4814,7 +4835,7 @@ button.poty:disabled {
   display: flex;
   flex-direction: column;
   width: min(460px, 100%);
-  /* dvh accounts for mobile browser chrome (address bar) resizing the viewport â a plain
+  /* dvh accounts for mobile browser chrome (address bar) resizing the viewport Ã¢ÂÂ a plain
      100%/100vh here left the composer below the fold with no way to scroll down to it. */
   height: 100dvh;
   max-height: 100dvh;
@@ -4967,7 +4988,7 @@ button.poty:disabled {
   }
 }
 
-/* Import Status drawer â bottom-left so it never fights the chat FAB (bottom-right). */
+/* Import Status drawer Ã¢ÂÂ bottom-left so it never fights the chat FAB (bottom-right). */
 .import-status-drawer {
   position: fixed;
   left: var(--space-4);
@@ -5305,7 +5326,7 @@ button.poty:disabled {
 }
 
 /* Fantasy/offseason draft: a pure turn-order/pick-clock coordinator (no player pool/board UI
- * anymore â see fantasy-draft.service.ts for why). */
+ * anymore Ã¢ÂÂ see fantasy-draft.service.ts for why). */
 .fantasy-draft-card { display: flex; flex-direction: column; gap: var(--space-4); }
 .fantasy-draft-card.compact { gap: var(--space-3); }
 .fantasy-draft-notice { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: var(--space-3) var(--space-4); border: 1px solid color-mix(in srgb, var(--accent, #d9a521) 45%, var(--border)); border-radius: var(--radius-md); background: color-mix(in srgb, var(--accent, #d9a521) 8%, transparent); }
@@ -5340,7 +5361,7 @@ button.poty:disabled {
   .fantasy-draft-pickorder-grid { grid-template-columns: 1fr; }
 }
 
-/* ââ League Stats page â category pills + card-based stat lines âââââââââââââââ
+/* Ã¢ÂÂÃ¢ÂÂ League Stats page Ã¢ÂÂ category pills + card-based stat lines Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
    Replaces the old wide data-table layout, which produced unreadable
    letter-wrapped headers once more than a few stat columns were on screen at
    mobile widths. Every stat line is now a horizontally-scrolling strip of
@@ -5411,7 +5432,7 @@ button.poty:disabled {
 .hub-ways-paid-list p { margin:0; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface-raised); }
 
 
-/*  Game Day empty / schedule / matchup extras  */
+/* ÂÂ Game Day empty / schedule / matchup extras ÂÂ */
 .hub-gameday-empty {
   display: flex;
   flex-direction: column;

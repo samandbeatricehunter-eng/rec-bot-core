@@ -3647,10 +3647,33 @@ h1, h2, h3, .site-wordmark {
   background-repeat: no-repeat;
 }
 @media (max-width: 900px) {
+  /*
+    background-attachment:fixed is janky on mobile, but switching to scroll + cover makes the
+    image scale to the *full document height* on long pages — extremely zoomed/blurry. Keep the
+    art viewport-sized via a fixed layer instead (position:fixed is fine; attachment:fixed is not).
+  */
   .site-shell,
   .site-auth-page,
   .site-page {
+    background-image: none;
     background-attachment: scroll;
+    isolation: isolate;
+  }
+  .site-shell::before,
+  .site-auth-page::before,
+  .site-page::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: #05070a;
+    background-image:
+      linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%),
+      url("/assets/backgrounds/master-background.png");
+    background-size: cover;
+    background-position: center top;
+    background-repeat: no-repeat;
   }
 }
 @media (min-width: 960px) {
