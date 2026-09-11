@@ -1,6 +1,21 @@
 /* Component classes for apps/web/src/components/ui/* — kept in one file since the app is
    small; hover/focus/transition states need real CSS (inline styles can't do :hover). */
 
+:root {
+  --template-surface-image: url("/assets/surfaces/master-card-button-template.png");
+  --template-surface-bg:
+    linear-gradient(180deg, rgba(6, 6, 8, 0.66) 0%, rgba(5, 5, 7, 0.9) 100%),
+    var(--template-surface-image);
+  --template-surface-hover:
+    linear-gradient(180deg, rgba(18, 4, 5, 0.72) 0%, rgba(7, 6, 8, 0.92) 100%),
+    var(--template-surface-image);
+  --template-surface-border: 1px solid rgba(255, 42, 42, 0.5);
+  --template-surface-shadow:
+    0 16px 42px rgba(0, 0, 0, 0.46),
+    inset 0 0 22px rgba(255, 16, 16, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
 /* Button */
 .btn {
   display: inline-flex;
@@ -11,7 +26,13 @@
   font-size: var(--text-sm);
   font-weight: 600;
   border-radius: var(--radius-md);
-  border: 1px solid transparent;
+  border: var(--template-surface-border, 1px solid rgba(255, 42, 42, 0.5));
+  background: var(--template-surface-bg, linear-gradient(180deg, rgba(6, 6, 8, 0.66), rgba(5, 5, 7, 0.9)));
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: var(--template-surface-shadow, 0 16px 42px rgba(0, 0, 0, 0.46));
+  color: var(--text-primary);
   padding: var(--space-3) var(--space-4);
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
@@ -21,21 +42,24 @@
   opacity: 0.5;
 }
 .btn-primary {
-  background: linear-gradient(180deg, var(--gold-light), var(--gold) 60%, var(--gold-dark));
-  color: var(--text-on-gold);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 4px 12px rgba(255, 215, 0, 0.25);
+  border-color: rgba(255, 58, 58, 0.78);
+  background: var(--template-surface-hover, var(--template-surface-bg));
+  background-size: 100% 100%;
+  color: var(--text-primary);
 }
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 6px 16px rgba(255, 215, 0, 0.35);
+  filter: brightness(1.16);
 }
 .btn-secondary {
-  background: var(--surface-raised);
-  border-color: var(--border-strong);
+  background: var(--template-surface-bg, var(--surface-raised));
+  background-size: 100% 100%;
+  border-color: rgba(255, 42, 42, 0.5);
   color: var(--text-primary);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: var(--surface-hover);
+  background: var(--template-surface-hover, var(--surface-hover));
+  background-size: 100% 100%;
 }
 .btn-danger {
   background: var(--error);
@@ -45,22 +69,29 @@
   filter: brightness(1.1);
 }
 .btn-ghost {
-  background: transparent;
-  color: var(--text-secondary);
+  background: var(--template-surface-bg, transparent);
+  background-size: 100% 100%;
+  color: var(--text-primary);
 }
 .btn-ghost:hover:not(:disabled) {
   color: var(--text-primary);
-  background: var(--surface-hover);
+  background: var(--template-surface-hover, var(--surface-hover));
+  background-size: 100% 100%;
 }
 
 /* Card */
 .card {
+  position: relative;
   min-width: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--template-surface-bg, var(--surface));
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  border: var(--template-surface-border, 1px solid rgba(255, 42, 42, 0.5));
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--template-surface-shadow, var(--shadow-card));
   padding: var(--space-5);
+  overflow: hidden;
 }
 
 .league-home-panels {

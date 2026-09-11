@@ -68,13 +68,21 @@
   --shadow-card: 0 10px 32px rgba(0, 0, 0, 0.34);
   --card-border: 1px solid rgba(255, 255, 255, 0.12);
   --card-border-strong: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  --glass-panel-bg: linear-gradient(165deg, rgba(22, 26, 34, 0.18) 0%, rgba(10, 12, 16, 0.24) 100%);
+  --template-surface-image: url("/assets/surfaces/master-card-button-template.png");
+  --template-surface-bg:
+    linear-gradient(180deg, rgba(6, 6, 8, 0.66) 0%, rgba(5, 5, 7, 0.9) 100%),
+    var(--template-surface-image);
+  --template-surface-hover:
+    linear-gradient(180deg, rgba(18, 4, 5, 0.72) 0%, rgba(7, 6, 8, 0.92) 100%),
+    var(--template-surface-image);
+  --template-surface-border: 1px solid rgba(255, 42, 42, 0.5);
+  --template-surface-shadow:
+    0 16px 42px rgba(0, 0, 0, 0.46),
+    inset 0 0 22px rgba(255, 16, 16, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --glass-panel-bg: var(--template-surface-bg);
   --glass-panel-blur: blur(22px);
-  --glass-panel-grain: repeating-linear-gradient(
-    -18deg,
-    rgba(255, 255, 255, 0.05) 0 1px,
-    transparent 1px 3px
-  );
+  --glass-panel-grain: none;
 }
 
 /* Legacy game-theme attributes map to the universal Platinum app face. */
@@ -128,7 +136,7 @@ h1, h2, h3, .site-wordmark {
   text-transform: uppercase;
 }
 
-/* Midnight Glass cards — frosted panels over stadium BG */
+/* Universal card and block frame */
 .site-card,
 .site-auth-card,
 .site-page-card,
@@ -143,11 +151,14 @@ h1, h2, h3, .site-wordmark {
 .site-spotlight-card {
   position: relative;
   border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--accent) 26%, rgba(255, 255, 255, 0.12));
+  border: var(--template-surface-border);
   background: var(--glass-panel-bg);
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
   backdrop-filter: var(--glass-panel-blur);
   -webkit-backdrop-filter: var(--glass-panel-blur);
-  box-shadow: var(--shadow-card), var(--card-bevel), inset 0 -24px 40px -24px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--template-surface-shadow);
   overflow: hidden;
 }
 .site-card::before,
@@ -179,8 +190,10 @@ h1, h2, h3, .site-wordmark {
   transition: border-color 140ms ease, background 140ms ease;
 }
 .site-card--interactive:hover {
-  border-color: rgba(201, 162, 39, 0.4);
-  background: linear-gradient(165deg, rgba(28, 32, 40, 0.34) 0%, rgba(14, 16, 20, 0.42) 100%);
+  border-color: rgba(255, 78, 78, 0.72);
+  background: var(--template-surface-hover);
+  background-size: 100% 100%;
+  background-position: center;
 }
 
 .site-page { min-height: 100%; display: flex; flex-direction: column; }
@@ -694,7 +707,7 @@ h1, h2, h3, .site-wordmark {
   gap: var(--space-2);
   min-height: 42px;
   padding: 10px 18px;
-  border: 1px solid transparent;
+  border: var(--template-surface-border);
   border-radius: var(--radius-md);
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -702,26 +715,34 @@ h1, h2, h3, .site-wordmark {
   cursor: pointer;
   font-size: 14px;
   font-family: var(--font);
-  transition: border-color 140ms ease, background 140ms ease, filter 140ms ease;
+  background: var(--template-surface-bg);
+  background-size: 100% 100%;
+  background-position: center;
+  box-shadow: var(--template-surface-shadow);
+  color: var(--text);
+  transition: border-color 140ms ease, background 140ms ease, filter 140ms ease, transform 140ms ease;
 }
 .site-btn-primary {
-  background: var(--accent);
-  color: var(--btn-primary-text);
+  border-color: rgba(255, 58, 58, 0.78);
+  background: var(--template-surface-hover);
+  background-size: 100% 100%;
+  color: var(--text);
 }
 .site-btn-primary:hover {
-  background: var(--accent-bright);
+  filter: brightness(1.16);
+  transform: translateY(-1px);
 }
 .site-btn-ghost {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--template-surface-bg);
+  background-size: 100% 100%;
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--card-bevel);
-  border-color: rgba(255, 255, 255, 0.16);
   color: var(--text);
 }
 .site-btn-ghost:hover {
-  border-color: rgba(201, 162, 39, 0.45);
-  background: rgba(201, 162, 39, 0.08);
+  border-color: rgba(255, 78, 78, 0.72);
+  background: var(--template-surface-hover);
+  background-size: 100% 100%;
 }
 .site-btn-lg { min-height: 48px; padding: 14px 28px; font-size: 16px; }
 .site-btn:disabled { opacity: 0.6; cursor: not-allowed; filter: none; }
@@ -4608,4 +4629,118 @@ h1, h2, h3, .site-wordmark {
 @media (max-width: 520px) {
   .rise-contract-parties, .rise-contract-terms { grid-template-columns: 1fr; }
   .rise-page { padding-left: 12px; padding-right: 12px; }
+}
+
+/* Universal Master Card/Button template overrides.
+   Kept late in the cascade so older page-local card/block backgrounds do not reappear. */
+:where(
+  .site-card,
+  .site-auth-card,
+  .site-page-card,
+  .site-home-panel,
+  .site-home-hero,
+  .site-home-platinum-banner,
+  .site-league-search-card,
+  .site-leagues-filters,
+  .site-billing-panel,
+  .site-league-card,
+  .site-home-announce-card,
+  .site-spotlight-card,
+  .site-preview-card,
+  .site-public-league-list li,
+  .site-discord-owner-notice,
+  .site-league-pill-info-panel,
+  .site-update-notice,
+  .demo-news-grid article,
+  .demo-matchup-card,
+  .demo-stat-grid article,
+  .demo-empty,
+  .demo-table-card,
+  .demo-draft-status,
+  .demo-draft-table-wrap,
+  .demo-personal-board,
+  .wizard-game-card,
+  .wizard-option-card,
+  .wizard-template-card,
+  .wizard-team-card,
+  .site-plan-card,
+  .site-tournament-card,
+  .site-tournament-home-card,
+  .site-tournament-register,
+  .site-tournament-wagers,
+  .site-tournament-rosters,
+  .site-tournament-lottery,
+  .site-tournament-roster-admin,
+  .site-tournament-round-scheduler,
+  .site-tournament-review-queue,
+  .site-tournament-review-card,
+  .site-tournament-admin-section,
+  .site-tournament-report,
+  .site-tournament-highlight-card,
+  .site-linked-account-card,
+  .rise-card,
+  .rise-identity-card,
+  .rise-reveal-card,
+  .rise-grade-card,
+  .rise-tree-card,
+  .rise-legacy-column,
+  .rise-split-card,
+  .rise-headshot-option,
+  .rise-trait-option
+) {
+  border: var(--template-surface-border) !important;
+  background: var(--template-surface-bg) !important;
+  background-size: 100% 100% !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  box-shadow: var(--template-surface-shadow) !important;
+}
+
+:where(
+  .site-btn,
+  .site-btn-secondary,
+  .site-messages-link,
+  .site-notif-bell-trigger,
+  .site-league-pill-info,
+  .wizard-game-card,
+  .wizard-option-card,
+  .wizard-template-card,
+  .wizard-team-card,
+  .site-public-league-season-tabs button,
+  .demo-phase-tabs button,
+  .demo-draft-toolbar button,
+  .demo-draft-footer button,
+  .demo-draft-row-actions button,
+  .demo-personal-board li button,
+  .rise-stage-nav button
+) {
+  border: var(--template-surface-border) !important;
+  background: var(--template-surface-bg) !important;
+  background-size: 100% 100% !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  box-shadow: var(--template-surface-shadow) !important;
+  color: var(--text) !important;
+}
+
+:where(
+  .site-btn-primary,
+  .site-btn:hover:not(:disabled),
+  .site-btn-secondary:hover,
+  .site-messages-link:hover,
+  .site-notif-bell-trigger:hover,
+  .site-league-pill-info:hover,
+  .site-league-pill-info[aria-expanded="true"],
+  .wizard-game-card:hover,
+  .wizard-option-card:hover,
+  .wizard-template-card:hover,
+  .wizard-team-card:hover,
+  .rise-stage-nav button.is-active,
+  .rise-headshot-option.is-selected,
+  .rise-trait-option:hover,
+  .rise-trait-option-active
+) {
+  border-color: rgba(255, 78, 78, 0.72) !important;
+  background: var(--template-surface-hover) !important;
+  background-size: 100% 100% !important;
 }

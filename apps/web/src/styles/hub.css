@@ -5007,3 +5007,121 @@ button.poty:disabled {
 .hub-ways-paid-body h3 { margin:0 0 var(--space-2); }
 .hub-ways-paid-list { display:grid; gap:8px; }
 .hub-ways-paid-list p { margin:0; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface-raised); }
+
+/* Universal Master Card/Button template overrides.
+   This is intentionally late so old feature-level surface styles cannot win the cascade. */
+:where(
+  .card,
+  .modal-panel,
+  .hub-section,
+  .hub-hero,
+  .hub-story-card,
+  .hub-highlight,
+  .hub-profile-panel,
+  .hub-store-card,
+  .hub-matchup-card,
+  .hub-shortcut-card,
+  .hub-wallet-card,
+  .hub-media-day-card,
+  .hub-quick-actions-card,
+  .hub-schedule-mini-card .rec-matchup-card,
+  .hub-roster-grade-card,
+  .hub-wager-board-feature,
+  .hub-wager-board-feature article,
+  .hub-wager-carousel > article,
+  .hub-announce-carousel article,
+  .hub-stat-grid article,
+  .hub-profile-sections details,
+  .hub-profile-stat-list div,
+  .hub-ledger-row,
+  .hub-rti-challenges article,
+  .hub-eos-progress-card,
+  .roundtable-panel,
+  .matchup-preview__wager-card,
+  .matchup-scheduling-card,
+  .scoreboard-card,
+  .fp-panel,
+  .potw-card,
+  .prospect-card,
+  .protracker-card,
+  .hub-rti-player-snapshot-card,
+  .fantasy-draft-card,
+  .rec-stat-player-card,
+  .hub-ways-paid,
+  .hub-ways-paid-list p,
+  .hub-store-form,
+  .hub-state,
+  .legend-tier-card,
+  .legend-card,
+  .league-actions-card,
+  .league-mgmt-poll-banner-card,
+  .advance-card,
+  .pending-item-card
+) {
+  border: var(--template-surface-border) !important;
+  background: var(--template-surface-bg) !important;
+  background-size: 100% 100% !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  box-shadow: var(--template-surface-shadow) !important;
+}
+
+:where(
+  .btn,
+  .hub-subtabs button,
+  .hub-sidebar-nav > button,
+  .hub-sidebar-subnav button,
+  .hub-wallet-transfer-toggle button,
+  .hub-rich-text-toolbar button,
+  .hub-relocate-choice,
+  .hub-roster-view-toggle button,
+  .hub-history-season-tabs button,
+  .hub-gotw-choice,
+  .hub-eos-vote-nominees button,
+  .hub-eos-ballot-review-row,
+  .roster-player-select-groups button,
+  .hub-stats-resource-grid button,
+  .hub-standings-actions button,
+  .hub-hero-action-pills button,
+  .hub-funds-switcher button,
+  .hub-wager-modal-tabs button,
+  .hub-buzz-toggle button,
+  .rec-stats-category-pills button
+) {
+  border: var(--template-surface-border) !important;
+  background: var(--template-surface-bg) !important;
+  background-size: 100% 100% !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  box-shadow: var(--template-surface-shadow) !important;
+  color: var(--text-primary) !important;
+}
+
+:where(
+  .btn-primary,
+  .btn:hover:not(:disabled),
+  .hub-subtabs button.active,
+  .hub-sidebar-nav button.active,
+  .hub-sidebar-subnav button.active,
+  .hub-wallet-transfer-toggle button.active,
+  .hub-relocate-choice:hover,
+  .hub-roster-view-toggle button.active,
+  .hub-history-season-tabs button.active,
+  .hub-gotw-choice:hover:not(:disabled),
+  .hub-gotw-choice.active,
+  .hub-eos-vote-nominees button:hover,
+  .hub-eos-ballot-review-row:hover,
+  .roster-player-select-groups button:hover,
+  .hub-stats-resource-grid button.active,
+  .hub-standings-actions button:hover:not(:disabled),
+  .hub-hero-action-pills button:hover,
+  .hub-funds-switcher button.active,
+  .hub-wager-modal-tabs button.active,
+  .hub-buzz-toggle button.active,
+  .rec-stats-category-pills button.active
+) {
+  border-color: rgba(255, 78, 78, 0.72) !important;
+  background: var(--template-surface-hover) !important;
+  background-size: 100% 100% !important;
+  color: var(--text-primary) !important;
+}
