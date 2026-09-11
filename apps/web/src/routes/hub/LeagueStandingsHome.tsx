@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { getTeamByAbbreviation, nflPlayoffPictureLive, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
 import { recApi } from "../../lib/rec-api-client.js";
+import { StandingsMiniNav, type StandingsNavId } from "../../components/hub/StandingsMiniNav.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { TeamLogo } from "../../components/ui/TeamLogo.js";
@@ -11,20 +12,9 @@ import { TeamLogo } from "../../components/ui/TeamLogo.js";
 type HubResponse = Awaited<ReturnType<typeof recApi.getHub>>;
 type PowerRankingTeam = NonNullable<HubResponse["powerRankings"]>["teams"][number];
 type SosTeam = NonNullable<HubResponse["sos"]>["teams"][number];
-type StandingsView = "division" | "power" | "sos";
+type StandingsView = Exclude<StandingsNavId, "bracket">;
 
 const NFL_DIVISION_ORDER = ["East", "North", "South", "West"] as const;
-
-const STANDINGS_NAV: Array<{
-  id: StandingsView | "bracket";
-  top: string;
-  bottom: string;
-}> = [
-  { id: "division", top: "Division", bottom: "Standings" },
-  { id: "power", top: "Power", bottom: "Rankings" },
-  { id: "sos", top: "Strength of", bottom: "Schedule" },
-  { id: "bracket", top: "Playoff", bottom: "Bracket" },
-];
 
 function winPct(team: PowerRankingTeam) {
   const games = team.wins + team.losses + team.ties;
@@ -359,10 +349,11 @@ function PlayoffMarkerKey({ className }: { className: string }) {
 
 export function LeagueStandingsHome() {
   const { guildId } = useReadyAuth();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [hub, setHub] = useState<HubResponse | null>(null);
   const [hubError, setHubError] = useState<string | null>(null);
-  const [view, setView] = useState<StandingsView>("division");
+  const viewParam = String(searchParams.get("view") ?? "division");
+  const view: StandingsView = viewParam === "power" || viewParam === "sos" ? viewParam : "division";
 
   useEffect(() => {
     recApi.getHub(guildId).then(setHub).catch((cause) => setHubError(cause instanceof Error ? cause.message : "Could not load standings."));
@@ -393,32 +384,7 @@ export function LeagueStandingsHome() {
     <div className="hub-section hub-standings-page">
       {hubError ? <ErrorState message={hubError} /> : !hub ? <LoadingState label="Loading standings…" /> : (
         <>
-          <nav className="hub-standings-mini-nav" aria-label="Standings views">
-            {STANDINGS_NAV.map((item) => {
-              const isBracket = item.id === "bracket";
-              const selected = !isBracket && item.id === view;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={selected ? "is-selected" : undefined}
-                  disabled={isBracket && !bracketAvailable}
-                  title={isBracket ? (bracketAvailable ? "Open playoff bracket" : "Playoff bracket unlocks in Week 12") : undefined}
-                  aria-pressed={!isBracket ? selected : undefined}
-                  onClick={() => {
-                    if (isBracket) {
-                      navigate(`/l/${hub.league.id}/playoff-bracket`);
-                      return;
-                    }
-                    setView(item.id);
-                  }}
-                >
-                  <span>{item.top}</span>
-                  <strong>{item.bottom}</strong>
-                </button>
-              );
-            })}
-          </nav>
+          <StandingsMiniNav active={view} leagueId={hub.league.id} bracketAvailable={bracketAvailable} />
           <div className="hub-standings-board-wrap">
             <h2>{boardTitle}</h2>
             {view === "division" ? <PlayoffMarkerKey className="hub-standings-key" /> : null}
