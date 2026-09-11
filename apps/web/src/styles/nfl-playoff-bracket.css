@@ -12,14 +12,31 @@
 
 /* —— Settled / postseason left-right bracket (broadcast reference) —— */
 .nfl-bracket-board {
-  --bracket-gold: #e8c547;
+  --bracket-accent: #ff3b4a;
+  --bracket-win: #2ecc71;
+  --bracket-lose: #e74c3c;
+  --bracket-font: "REC Quantico", "Arial Narrow", Impact, sans-serif;
   width: max-content;
   max-width: 100%;
   margin: 0 auto;
-  padding: 12px 8px 20px;
-  background: var(--bg, #0b0d10);
+  padding: 16px 14px 22px;
+  background: rgba(0, 0, 0, 0.52);
   color: var(--text-primary, #fff);
   overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(220, 40, 40, 0.85);
+  font-family: var(--bracket-font);
+}
+
+.nfl-bracket-accent-text {
+  color: var(--bracket-accent);
+  paint-order: stroke fill;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.95);
+  text-shadow:
+    -1px 0 0 rgba(255, 255, 255, 0.9),
+     1px 0 0 rgba(255, 255, 255, 0.9),
+     0 -1px 0 rgba(255, 255, 255, 0.9),
+     0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .nfl-bracket-board-header {
@@ -33,7 +50,7 @@
   justify-content: center;
   align-items: baseline;
   gap: 10px 14px;
-  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-family: var(--bracket-font);
   font-size: clamp(22px, 3.2vw, 36px);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -42,7 +59,14 @@
 }
 .nfl-bracket-board-header em {
   font-style: normal;
-  color: var(--bracket-gold);
+  color: var(--bracket-accent);
+  paint-order: stroke fill;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.95);
+  text-shadow:
+    -1px 0 0 rgba(255, 255, 255, 0.9),
+     1px 0 0 rgba(255, 255, 255, 0.9),
+     0 -1px 0 rgba(255, 255, 255, 0.9),
+     0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .nfl-bracket-board-sep {
   opacity: 0.55;
@@ -62,7 +86,7 @@
 }
 
 .nfl-bracket-round-label {
-  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-family: var(--bracket-font);
   font-weight: 700;
   font-size: 11px;
   letter-spacing: 0.14em;
@@ -101,17 +125,24 @@
   justify-content: flex-start;
 }
 .nfl-bracket-team-tile.is-loser {
-  opacity: 0.48;
+  opacity: 0.72;
 }
 
 .nfl-bracket-seed {
   flex: 0 0 18px;
-  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-family: var(--bracket-font);
   font-weight: 700;
   font-size: 18px;
   line-height: 1;
-  color: var(--bracket-gold);
+  color: var(--bracket-accent);
   text-align: center;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.85px rgba(255, 255, 255, 0.95);
+  text-shadow:
+    -1px 0 0 rgba(255, 255, 255, 0.85),
+     1px 0 0 rgba(255, 255, 255, 0.85),
+     0 -1px 0 rgba(255, 255, 255, 0.85),
+     0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .nfl-bracket-logo-box {
@@ -119,14 +150,18 @@
   width: 112px;
   height: 48px;
   border-radius: 10px;
-  border: 1.5px solid var(--bracket-gold);
-  background: #0a0a0a;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.72);
   overflow: hidden;
   box-shadow: none;
 }
 .nfl-bracket-team-tile.is-winner .nfl-bracket-logo-box {
-  border-color: #ffe38a;
-  box-shadow: 0 0 0 1px rgba(232, 197, 71, 0.35);
+  border-color: var(--bracket-win);
+  box-shadow: 0 0 0 1px rgba(46, 204, 113, 0.25);
+}
+.nfl-bracket-team-tile.is-loser .nfl-bracket-logo-box {
+  border-color: var(--bracket-lose);
+  box-shadow: 0 0 0 1px rgba(231, 76, 60, 0.2);
 }
 .nfl-bracket-logo {
   position: absolute !important;
@@ -143,7 +178,7 @@
 .nfl-bracket-result {
   margin-top: 2px;
   text-align: center;
-  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-family: var(--bracket-font);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -151,8 +186,15 @@
   color: rgba(255, 255, 255, 0.82);
 }
 .nfl-bracket-result.is-bye {
-  color: var(--bracket-gold);
+  color: var(--bracket-accent);
   letter-spacing: 0.12em;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.7px rgba(255, 255, 255, 0.95);
+  text-shadow:
+    -1px 0 0 rgba(255, 255, 255, 0.85),
+     1px 0 0 rgba(255, 255, 255, 0.85),
+     0 -1px 0 rgba(255, 255, 255, 0.85),
+     0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .nfl-bracket-tbd {
@@ -161,10 +203,10 @@
   justify-content: center;
   min-height: 64px;
   padding: 12px;
-  border: 1px dashed rgba(232, 197, 71, 0.45);
+  border: 1px dashed rgba(255, 59, 74, 0.45);
   border-radius: 10px;
   color: rgba(255, 255, 255, 0.55);
-  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-family: var(--bracket-font);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -179,14 +221,24 @@
   gap: 14px;
   padding: 8px 6px;
   position: relative;
+  text-align: center;
 }
 .nfl-bracket-sb-label {
-  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  width: 100%;
+  text-align: center;
+  font-family: var(--bracket-font);
   font-weight: 700;
   font-size: clamp(18px, 2.2vw, 28px);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--bracket-gold);
+  color: var(--bracket-accent);
+  paint-order: stroke fill;
+  -webkit-text-stroke: 1.05px rgba(255, 255, 255, 0.95);
+  text-shadow:
+    -1px 0 0 rgba(255, 255, 255, 0.9),
+     1px 0 0 rgba(255, 255, 255, 0.9),
+     0 -1px 0 rgba(255, 255, 255, 0.9),
+     0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .nfl-bracket-sb-matchup {
   width: 100%;
@@ -196,7 +248,15 @@
   align-items: center;
 }
 .nfl-bracket-sb-matchup .nfl-bracket-team-tile {
+  position: relative;
   justify-content: center;
+  width: 128px;
+}
+.nfl-bracket-sb-matchup .nfl-bracket-seed {
+  position: absolute;
+  left: -22px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 .nfl-bracket-sb-matchup .nfl-bracket-logo-box {
   width: 128px;
@@ -205,7 +265,7 @@
 .nfl-bracket-champion-banner {
   margin-top: 2px;
   text-align: center;
-  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-family: var(--bracket-font);
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -216,7 +276,14 @@
   margin-top: 4px;
   font-size: 16px;
   letter-spacing: 0.06em;
-  color: var(--bracket-gold);
+  color: var(--bracket-accent);
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.9px rgba(255, 255, 255, 0.95);
+  text-shadow:
+    -1px 0 0 rgba(255, 255, 255, 0.9),
+     1px 0 0 rgba(255, 255, 255, 0.9),
+     0 -1px 0 rgba(255, 255, 255, 0.9),
+     0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .nfl-bracket-prior {
@@ -225,7 +292,7 @@
   padding: 14px 16px 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.18);
   text-align: center;
-  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-family: var(--bracket-font);
 }
 .nfl-bracket-prior-heading {
   margin-bottom: 10px;
@@ -233,7 +300,14 @@
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--bracket-gold);
+  color: var(--bracket-accent);
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.85px rgba(255, 255, 255, 0.95);
+  text-shadow:
+    -1px 0 0 rgba(255, 255, 255, 0.9),
+     1px 0 0 rgba(255, 255, 255, 0.9),
+     0 -1px 0 rgba(255, 255, 255, 0.9),
+     0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .nfl-bracket-prior-row {
   display: grid;

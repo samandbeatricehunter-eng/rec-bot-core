@@ -1,14 +1,38 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useReadyAuth } from "../../../lib/auth-context.js";
-import { useHubChrome } from "../../../lib/hub-chrome-context.js";
 import { recApi } from "../../../lib/rec-api-client.js";
+import { useReadyAuth } from "../../../lib/auth-context.js";
 import type { NflPlayoffMatchup, NflPlayoffPicture, NflTeamSummary } from "../../../types/api.js";
-import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { Card } from "../../../components/ui/Card.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { TeamLogo } from "../../../components/ui/TeamLogo.js";
+
+const BRACKET_CACHE_PREFIX = "rec:nfl-playoff-bracket:v1:";
+
+type CachedBracketView = {
+  mode: "desktop" | "picture" | "empty";
+  picture: NflPlayoffPicture;
+};
+
+function readBracketCache(guildId: string): CachedBracketView | null {
+  try {
+    const raw = sessionStorage.getItem(`${BRACKET_CACHE_PREFIX}${guildId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CachedBracketView;
+    if (!parsed?.picture || (parsed.mode !== "desktop" && parsed.mode !== "picture" && parsed.mode !== "empty")) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeBracketCache(guildId: string, value: CachedBracketView) {
+  try {
+    sessionStorage.setItem(`${BRACKET_CACHE_PREFIX}${guildId}`, JSON.stringify(value));
+  } catch {
+    // ignore quota / private mode
+  }
+}
 
 function teamColorStyle(team: NflTeamSummary): CSSProperties {
   return team.primaryColor ? ({ "--team": team.primaryColor } as CSSProperties) : {};
@@ -333,75 +357,76 @@ export function PlayoffPictureBoard({ picture }: { picture: NflPlayoffPicture })
 
 export function NflPlayoffBracket() {
   const { guildId } = useReadyAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const showStandingsBack = location.pathname.includes("/playoff-bracket") && !location.pathname.includes("/mgmt/");
-  const isCommissioner = useHubChrome().currentLeague?.isCommissioner ?? false;
-  const [picture, setPicture] = useState<NflPlayoffPicture | null>(null);
+  const [view, setView] = useState<CachedBracketView | null>(() => readBracketCache(guildId));
   const [error, setError] = useState<string | null>(null);
-  const [snapshot, setSnapshot] = useState<{ seasonNumber: number; picture: NflPlayoffPicture } | null | undefined>(undefined);
+  const [loading, setLoading] = useState(() => !readBracketCache(guildId));
 
   useEffect(() => {
-    recApi.getNflPlayoffPicture(guildId)
-      .then(setPicture)
-      .catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load the playoff picture."));
+    let cancelled = false;
+    const cached = readBracketCache(guildId);
+    if (cached) {
+      setView(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
+
+    (async () => {
+      try {
+        const picture = await recApi.getNflPlayoffPicture(guildId);
+        if (cancelled) return;
+
+        if (picture.showBracket) {
+          const next: CachedBracketView = {
+            mode: picture.isLiveProjection ? "picture" : "desktop",
+            picture,
+          };
+          writeBracketCache(guildId, next);
+          setView(next);
+          return;
+        }
+
+        const snapshot = await recApi.getNflPlayoffBracketSnapshot(guildId);
+        if (cancelled) return;
+        const next: CachedBracketView = snapshot
+          ? { mode: "desktop", picture: snapshot.picture }
+          : { mode: "empty", picture };
+        writeBracketCache(guildId, next);
+        setView(next);
+      } catch (cause) {
+        if (cancelled) return;
+        if (!readBracketCache(guildId)) {
+          setError(cause instanceof Error ? cause.message : "Could not load the playoff picture.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
   }, [guildId]);
-
-  useEffect(() => {
-    if (!picture || picture.showBracket) return;
-    recApi.getNflPlayoffBracketSnapshot(guildId)
-      .then(setSnapshot)
-      .catch(() => setSnapshot(null));
-  }, [guildId, picture]);
-
-  const showingDesktop = Boolean(
-    (picture && picture.showBracket && !picture.isLiveProjection)
-    || (picture && !picture.showBracket && snapshot),
-  );
 
   return (
     <div className="nfl-bracket-page">
-      {showStandingsBack && <button type="button" className="hub-page-back" onClick={() => navigate("../standings")}>← Back to Standings</button>}
-      {!showingDesktop && (
-        <PageHeader title="Playoff Picture" subtitle="Real NFL seeding computed automatically from your league's standings — reseeds live as every round plays out." />
-      )}
       {error && <ErrorState message={error} />}
-      {!picture && !error && <LoadingState label="Loading the playoff picture…" />}
+      {loading && !view && <LoadingState label="Loading the playoff picture…" />}
 
-      {picture && !picture.showBracket && snapshot === undefined && <LoadingState label="Checking for a settled bracket…" />}
-
-      {picture && !picture.showBracket && snapshot === null && (
+      {view?.mode === "empty" && (
         <Card><p className="nfl-bracket-empty">The playoff picture unlocks starting Week 12 of the regular season, once there's enough of a season to project seeding from.</p></Card>
       )}
 
-      {picture && !picture.showBracket && snapshot && (
-        <>
-          <DesktopBracket picture={snapshot.picture} />
-          <p className="nfl-bracket-legend">
-            This season's postseason is complete. The next live playoff picture unlocks starting
-            Week 12 of the new regular season.
-          </p>
-        </>
-      )}
+      {view?.mode === "picture" && <PlayoffPictureBoard picture={view.picture} />}
 
-      {picture && picture.showBracket && (
+      {view?.mode === "desktop" && (
         <>
-          {picture.isLiveProjection ? (
-            <PlayoffPictureBoard picture={picture} />
-          ) : (
-            <DesktopBracket picture={picture} />
-          )}
+          <DesktopBracket picture={view.picture} />
           <p className="nfl-bracket-legend">
-            {picture.champion
+            {view.picture.champion
               ? "This season's postseason is complete. The next live playoff picture unlocks starting Week 12 of the new regular season."
               : "Seven teams per conference — the No. 1 seed gets the first-round bye, and each conference reseeds (lowest surviving seed vs. highest) after every round."}
           </p>
         </>
-      )}
-      {isCommissioner && (
-        <button type="button" className="nfl-bracket-mgmt-link" onClick={() => navigate("/league-mgmt")}>
-          League Management
-        </button>
       )}
     </div>
   );

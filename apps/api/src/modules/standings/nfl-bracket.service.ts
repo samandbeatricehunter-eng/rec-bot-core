@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { nflPlayoffPictureLive } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
+import { withComputeCache } from "../../lib/compute-cache.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { computeNflStandings } from "./nfl-standings.service.js";
+
+const NFL_PLAYOFF_PICTURE_CACHE_TTL_MS = 60_000;
 
 export type NflRound = "wild_card" | "divisional" | "conference_championship" | "super_bowl";
 export const NFL_ROUNDS: NflRound[] = ["wild_card", "divisional", "conference_championship", "super_bowl"];
@@ -398,6 +401,14 @@ async function loadPriorChampionship(
 /** Full read-model: current standings + all 4 rounds, matchups resolved from real completed
  *  games where they exist and live-projected (chalk winners) for any round not yet locked. */
 export async function getNflPlayoffPicture(leagueId: string, seasonNumber: number): Promise<NflPlayoffPicture> {
+  return withComputeCache(
+    `nfl-playoff-picture:${leagueId}:${seasonNumber}`,
+    NFL_PLAYOFF_PICTURE_CACHE_TTL_MS,
+    () => getNflPlayoffPictureUncached(leagueId, seasonNumber),
+  );
+}
+
+async function getNflPlayoffPictureUncached(leagueId: string, seasonNumber: number): Promise<NflPlayoffPicture> {
   const leagueRow = await getPgPool().query(
     `select name,game,current_week,season_stage from rec_leagues where id=$1`,
     [leagueId],

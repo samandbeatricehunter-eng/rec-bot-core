@@ -695,9 +695,9 @@ export const recApi = {
   removeTeamScheduleGame: (input: { guildId: string; teamId: string; weekNumber: number }) =>
     recApiFetch<{ removed: true }>("/v1/schedule/team-schedule-remove-game", { method: "POST", body: JSON.stringify(input) }),
   getNflPlayoffPicture: (guildId: string) =>
-    recApiFetch<import("../types/api.js").NflPlayoffPicture>("/v1/standings/nfl-playoff-picture", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 45_000 }),
+    recApiFetch<import("../types/api.js").NflPlayoffPicture>("/v1/standings/nfl-playoff-picture", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 120_000 }),
   getNflPlayoffBracketSnapshot: (guildId: string) =>
-    recApiFetch<{ seasonNumber: number; picture: import("../types/api.js").NflPlayoffPicture } | null>("/v1/standings/nfl-playoff-bracket-snapshot", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<{ seasonNumber: number; picture: import("../types/api.js").NflPlayoffPicture } | null>("/v1/standings/nfl-playoff-bracket-snapshot", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 120_000 }),
   setGameRivalry: (input: Record<string, unknown>) =>
     recApiFetch<{ enabled: boolean }>(REC_API_ROUTES.setGameRivalry, { method: "POST", body: JSON.stringify(input) }),
   getTeamManagementSummary: (guildId: string) =>
