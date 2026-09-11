@@ -63,6 +63,8 @@ export const recApi = {
     ),
   postPlayerTwitterTweet: (input: { guildId: string; discordId: string; persona: "owner" | "offense" | "defense"; tweetText: string; imageUrl?: string; mentionContent?: string }) =>
     recFetch<{ postedAs: string }>("/v1/immortality/tweets/player", { method: "POST", body: JSON.stringify(input) }),
+  publishUserSubmittedTweet: (input: { guildId: string; discordId: string; body: string; identity: "team" | "owner" | "offense" | "defense" }) =>
+    recFetch<{ postedAs: string }>("/v1/immortality/tweets/user-submit", { method: "POST", body: JSON.stringify(input) }),
   grantImmortalityCommissionerBonus: (input: { guildId: string; targetDiscordId: string }) =>
     recFetch<{ granted: true; teamName: string }>("/v1/immortality/commissioner-bonus/grant", { method: "POST", body: JSON.stringify(input) }),
   health: () => recFetch<{ ok: boolean; service: string }>(REC_API_ROUTES.health),

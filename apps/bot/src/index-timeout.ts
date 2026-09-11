@@ -224,6 +224,7 @@ import {
   handleWagerAccept,
 } from "./flows/wagers.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild, syncRecentHighlightMessages } from "./handlers/highlights.js";
+import { handleTweetsChannelMessage, handleTweetsCaptureConfirmButton, handleTweetsCaptureIdentitySelect, isTweetsCaptureConfirmButton, isTweetsCaptureIdentitySelect } from "./flows/tweets-capture.js";
 import { handleTradeReleaseCoinsButton, handleTradeVoteReactionAdd, handleTradeVoteReactionRemove, TRADE_RELEASE_COINS_PREFIX } from "./flows/trade-vote-reactions.js";
 import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import { handleLiveStreamInteraction, isLiveStreamCustomId } from "./handlers/live-stream-prompt.js";
@@ -726,6 +727,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId === WAGER_CUSTOM_IDS.parlayPlace) return handleWagerParlayPlace(interaction);
     if (interaction.isModalSubmit() && interaction.customId === WAGER_CUSTOM_IDS.stakeModal) return handleWagerStakeModal(interaction);
 
+    if (interaction.isButton() && isTweetsCaptureConfirmButton(interaction.customId)) return handleTweetsCaptureConfirmButton(interaction);
+    if (interaction.isStringSelectMenu() && isTweetsCaptureIdentitySelect(interaction.customId)) return handleTweetsCaptureIdentitySelect(interaction);
+
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);
       await expireWindow(interaction);
@@ -984,6 +988,7 @@ client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   if (await handleStreamChannelMessage(message).catch(() => false)) return;
   if (await handleHighlightChannelMessage(message).catch(() => false)) return;
+  if (await handleTweetsChannelMessage(message).catch(() => false)) return;
 });
 
 client.on("guildMemberUpdate", async (oldMember, newMember) => {

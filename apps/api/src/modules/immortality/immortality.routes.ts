@@ -51,7 +51,7 @@ import {
   grantImmortalityCommissionerBonus,
 } from "./immortality.service.js";
 import { signImmortalityContract } from "./contracts.service.js";
-import { postManualImmortalityTweet, listPlayerTwitterPersonas, postPlayerTwitterTweet } from "./tweet-generation.service.js";
+import { postManualImmortalityTweet, listPlayerTwitterPersonas, postPlayerTwitterTweet, publishUserSubmittedTweet } from "./tweet-generation.service.js";
 import {
   getProgressionState,
   purchaseProgressionPerk,
@@ -536,6 +536,23 @@ export async function immortalityRoutes(app: FastifyInstance) {
       }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       return reply.send(await postPlayerTwitterTweet(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Bot-only: backs the Tweets-channel capture-and-confirm flow (a human's message in the
+  // configured Tweets channel, confirmed via a 90-second public Yes/No -- see
+  // apps/bot/src/flows/tweets-capture.ts). "team" identity is any league; owner/offense/defense
+  // require RTI and are re-resolved server-side by publishUserSubmittedTweet the same way
+  // postPlayerTwitterTweet above does, so a typed identity that isn't the caller's own can't post.
+  app.post("/v1/immortality/tweets/user-submit", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({
+        discordId: z.string().min(1),
+        body: z.string().trim().min(1).max(1000),
+        identity: z.enum(["team", "owner", "offense", "defense"]),
+      }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send(await publishUserSubmittedTweet(body));
     } catch (error) { return sendError(reply, error); }
   });
 

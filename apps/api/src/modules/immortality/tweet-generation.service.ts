@@ -600,6 +600,98 @@ export async function postManualImmortalityTweet(input: {
   });
 }
 
+export type UserTweetIdentity = "team" | "owner" | "offense" | "defense";
+
+/**
+ * Publishes a human-authored message captured from the configured Tweets channel (see
+ * apps/bot/src/flows/tweets-capture.ts) after the 90-second public Yes/No confirmation. Ordinary
+ * leagues always publish as "team" (the caller's own active team/organization); RTI leagues
+ * publish under one of the caller's own owner/offense/defense personas (re-resolved server-side,
+ * same guard as postPlayerTwitterTweet, so a typed identity that isn't theirs cannot post).
+ *
+ * Writes the confirmed post into rec_tweets (the new canonical conversation root -- see
+ * supabase/migrations/20260911140000_media_social_event_graph.sql) as well as the legacy
+ * rec_immortality_tweet_queue for RTI leagues, so existing ambient-chatter/feed code that still
+ * reads the old table keeps seeing it during the transition.
+ */
+export async function publishUserSubmittedTweet(input: {
+  guildId: string;
+  discordId: string;
+  body: string;
+  identity: UserTweetIdentity;
+}): Promise<{ postedAs: string }> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const routes = await findServerRoutesForLeague(context.leagueId);
+  const channelId = (routes?.routes as any)?.tweets_channel_id as string | null | undefined;
+  if (!channelId) throw new ApiError(400, "This server has no tweets channel configured yet.");
+
+  let handle: string;
+  let displayName: string;
+  let avatarUrl: string | undefined;
+  let authorKey: string;
+
+  if (input.identity === "team") {
+    const userId = await recUserIdFromDiscordId(input.discordId);
+    if (!userId) throw new ApiError(400, "Link your REC account before posting to the tweets feed.");
+    const assignment = await supabase.from("rec_team_assignments").select("team_id")
+      .eq("league_id", context.leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+    if (assignment.error) throw new ApiError(500, "We couldn't load your team. Please try again.", assignment.error);
+    if (!assignment.data?.team_id) throw new ApiError(400, "You need an active team to post to the tweets feed.");
+    const team = await supabase.from("rec_teams").select("id,name,display_city,display_nick,is_relocated,abbreviation")
+      .eq("id", assignment.data.team_id).maybeSingle();
+    if (team.error || !team.data) throw new ApiError(500, "We couldn't load your team. Please try again.", team.error);
+    displayName = formatTeamDisplayName(team.data) ?? "Team";
+    handle = `@${String(team.data.abbreviation ?? "REC").toUpperCase()}Official`;
+    authorKey = `team:${team.data.id}`;
+  } else {
+    const personas = await resolveOwnedTwitterPersonas(input.guildId, input.discordId);
+    const chosen = personas.find((row) => row.key === input.identity);
+    if (!chosen) {
+      if (!personas.length) throw new ApiError(400, "Create your owner and players in Origins before posting to the tweets feed.");
+      throw new ApiError(400, `Pick one of your personas: ${personas.map((row) => row.roleLabel).join(", ")}.`);
+    }
+    handle = chosen.handle; displayName = chosen.name; avatarUrl = chosen.avatarUrl;
+    authorKey = `rti:${chosen.key}:${input.discordId}`;
+  }
+
+  const posted = await postDiscordChannelMessage(channelId, {
+    embeds: [{
+      author: { name: `${displayName} (${handle})`, icon_url: avatarUrl },
+      description: input.body,
+      color: 0x1d9bf0,
+    }],
+  });
+  if (!posted) throw new ApiError(502, "Discord rejected the tweet -- check the tweets channel still exists and the bot can post there.");
+
+  const nowIso = new Date().toISOString();
+  await supabase.from("rec_tweets").insert({
+    league_id: context.leagueId,
+    author_key: authorKey,
+    body: input.body,
+    status: "posted",
+    platform_channel_id: channelId,
+    posted_at: nowIso,
+  });
+
+  if (input.identity !== "team") {
+    const league = await supabase.from("rec_leagues").select("season_number,current_week").eq("id", context.leagueId).maybeSingle();
+    await supabase.from("rec_immortality_tweet_queue").insert({
+      league_id: context.leagueId,
+      season_number: Number(league.data?.season_number ?? 1),
+      week_number: Number(league.data?.current_week ?? 1),
+      author_kind: "player",
+      author_handle: handle,
+      author_display_name: displayName,
+      body: input.body,
+      status: "posted",
+      posted_at: nowIso,
+      source: "player_twitter",
+    });
+  }
+
+  return { postedAs: `${displayName} (${handle})` };
+}
+
 export type PlayerTwitterPersonaKey = "owner" | "offense" | "defense";
 
 export type PlayerTwitterPersona = {
