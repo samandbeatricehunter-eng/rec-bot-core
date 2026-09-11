@@ -1,4 +1,4 @@
-import { firstOffseasonStage, isCfb, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, postseasonResultMultiplier, stageForWeek, stageLabel } from "@rec/shared";
+import { firstOffseasonStage, isCfb, isOffseasonPipelineStage, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, postseasonResultMultiplier, stageForWeek, stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -1004,17 +1004,16 @@ export async function completeAdvanceWeek(input: {
     await autoPrepareEosAwards(input.guildId).catch((err) => console.error("[ERROR] autoPrepareEosAwards failed after advance (non-fatal):", err));
   }
 
-  // Purchase caps (age resets, dev upgrades, contracts, custom players, legends, attribute
-  // points) get a fresh offseason allotment on the same postseason-end boundary — announce it
-  // to the same Announcements channel every other advance headline goes to.
+  // Purchase caps (age resets, dev upgrades, contracts, custom players, legends) get a fresh
+  // offseason allotment on the same postseason-end boundary — announce it to the same
+  // Announcements channel every other advance headline goes to. Attribute purchases have no
+  // season cap anymore (retired in favor of the coming Player-XP-funded system).
   if (isPostseasonEnd) {
     await resetLeaguePurchaseCapsForOffseason({ guildId: input.guildId, resetByDiscordId: input.advancedByDiscordId })
-      .then((result) => recordHubAnnouncement({
+      .then(() => recordHubAnnouncement({
         guildId: input.guildId,
         title: "Purchase Caps Have Reset",
-        body: result.attributeCapsReset
-          ? "The postseason has ended — every purchase cap (age resets, dev upgrades, contracts, custom players, legends, and attribute points) has refreshed with a fresh offseason allotment."
-          : "The postseason has ended — every purchase cap (age resets, dev upgrades, contracts, custom players, and legends) has refreshed with a fresh offseason allotment. Attribute-point caps could not be reset automatically this time — a commissioner should reset them manually from Tools > Economy.",
+        body: "The postseason has ended — every purchase cap (age resets, dev upgrades, contracts, custom players, and legends) has refreshed with a fresh offseason allotment.",
       }))
       .catch((err) => console.error("[ERROR] resetLeaguePurchaseCapsForOffseason failed after advance (non-fatal):", err));
   }
@@ -1120,9 +1119,19 @@ export async function completeAdvanceWeek(input: {
   }).catch((err) => {
     console.error("[ERROR] publishLeagueAdvanceAnnouncement failed after advance (non-fatal):", err);
   });
-  updateAdvanceProgress(input.advanceRunId, "Posting weekly final-results recap");
-  await postWeeklyFinalResultsRecap({ guildId: input.guildId, leagueId: context.leagueId, seasonNumber, weekNumber: currentWeek, game: context.rec_leagues.game })
-    .catch((err) => console.error("[ERROR] Weekly final-results recap failed after advance (non-fatal):", err));
+  // currentStage is the stage we just advanced FROM. Every offseason-pipeline stage after the
+  // first (coach_hiring -> final_resigning -> free_agency -> draft, CFB's equivalent chain, and
+  // transfer_portal's 1-4 advance counter) reuses weekNumber as a plain stage-sequencing
+  // placeholder (always 1, or a 1-4 counter) rather than a real played week -- it is never reset
+  // to null, so without this guard every offseason advance after the terminal stage re-queries
+  // rec_game_results for that stale week number and re-announces a real (already-recapped, often
+  // months-old) week's scores as if they just happened. Only the advance OUT of a stage that
+  // actually has games (regular_season or a postseason round) should trigger this recap.
+  if (!isOffseasonPipelineStage(currentStage)) {
+    updateAdvanceProgress(input.advanceRunId, "Posting weekly final-results recap");
+    await postWeeklyFinalResultsRecap({ guildId: input.guildId, leagueId: context.leagueId, seasonNumber, weekNumber: currentWeek, game: context.rec_leagues.game })
+      .catch((err) => console.error("[ERROR] Weekly final-results recap failed after advance (non-fatal):", err));
+  }
   await publishPurchaseDeadlineReminder({
     guildId: input.guildId,
     leagueId: context.leagueId,
