@@ -1,0 +1,248 @@
+{
+  "persistence_rule": "Assign a subset of community accounts to a league/season and reuse them so the social feed develops recognizable recurring users.",
+  "fan_accounts": [
+    {
+      "handle": "@DesertRedZone",
+      "voice": "Cardinals-style diehard; optimistic until the fourth quarter.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@FourthAndForever",
+      "voice": "General football obsessive; reacts to fourth-down decisions.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@FilmRoomDad",
+      "voice": "Older fan who talks assignments and fundamentals.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@SundaySweat",
+      "voice": "Nervous fan who lives every close game possession by possession.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@StatLineStan",
+      "voice": "Production-focused fan who quotes standings and player totals.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@RoadGameRay",
+      "voice": "Loves road wins and hostile-environment narratives.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@TwoMinuteTina",
+      "voice": "Late-game and comeback specialist.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@DraftBoardDan",
+      "voice": "Always thinking about roster construction and young players.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@RedZoneRae",
+      "voice": "Obsessed with finishing drives.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@PocketWatcher",
+      "voice": "QB/pass-protection focused fan.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@TrenchTalk",
+      "voice": "OL/DL focused supporter.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@PlayoffMath",
+      "voice": "Seed/odds focused account.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@RECCollector",
+      "voice": "League-history and record watcher.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@DefenseFirst",
+      "voice": "Prefers low-scoring, physical football.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@BigPlayBenny",
+      "voice": "Explosive-play enthusiast.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@SundayScout",
+      "voice": "Neutral fan who picks one matchup detail to watch.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@HomeFieldHank",
+      "voice": "Home-field/rivalry enthusiast.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@CapAndCoffee",
+      "voice": "Casual roster/contract follower.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@ScoreboardSage",
+      "voice": "Result-first fan with dry humor.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@RookieWatch",
+      "voice": "Tracks young/created/RTI player development.",
+      "verified": false,
+      "headshot": null
+    }
+  ],
+  "hater_accounts": [
+    {
+      "handle": "@ReceiptSeason",
+      "voice": "Keeps public predictions and waits for misses.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@NotBuyingIt",
+      "voice": "Skeptical of every hot streak until it lasts.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@FraudWatchREC",
+      "voice": "Provocative but must stay tied to results.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@ExcuseDept",
+      "voice": "Pushes back on post-loss explanations.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@OverratedMeter",
+      "voice": "Targets rankings/hype, not personal traits.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@TradePolice",
+      "voice": "Second-guesses roster moves.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@FourthDownCritic",
+      "voice": "Lives for questionable game decisions.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@BoxScoreBully",
+      "voice": "Uses verified stat lines to needle teams.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@PaperChampREC",
+      "voice": "Challenges early-season hype.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@ColdTakeArchive",
+      "voice": "Resurfaces public misses.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@DefenseWhere",
+      "voice": "Critiques poor defensive results.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@RunTheBallGuy",
+      "voice": "Complains when teams abandon the run.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@ClockManager",
+      "voice": "Critiques late-game situational outcomes.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@RankingsHater",
+      "voice": "Argues power-ranking placement.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@NoMoralWins",
+      "voice": "Rejects praise after close losses.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@ShowMeInJanuary",
+      "voice": "Discounts regular-season hype without playoff proof.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@TurnoverTax",
+      "voice": "Targets giveaway-heavy performances.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@ScheduleMerchant",
+      "voice": "Questions weak-schedule narratives when SOS supports it.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@OneScoreLuck",
+      "voice": "Questions unsustainable close-game streaks.",
+      "verified": false,
+      "headshot": null
+    },
+    {
+      "handle": "@FreeAgencyCritic",
+      "voice": "Second-guesses roster-building outcomes.",
+      "verified": false,
+      "headshot": null
+    }
+  ],
+  "safety_rule": "Critical accounts attack public football results, rankings, claims and decisions—not protected traits, private life or invented misconduct."
+}

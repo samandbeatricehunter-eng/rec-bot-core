@@ -1,10 +1,13 @@
 // Re-runnable upload for the RTI tweet-feed avatar catalog: the 4 named host personas
-// (tweet-bank.ts's TWEET_HOSTS), the 2 standalone accounts (tweet-bank.ts's STANDALONE_ACCOUNTS
-// -- Jalen Cross, no longer a reactive host but still posting; NFL Front Office, one-off
-// announcements), and a pool of generic account headshots used by the curated 50-account
+// (tweet-bank.ts's TWEET_HOSTS), the standalone accounts (tweet-bank.ts's STANDALONE_ACCOUNTS
+// -- NFL Front Office, one-off announcements; Gridiron Gospel reuses an existing generic photo,
+// no separate upload needed), and a pool of generic account headshots used by the curated
 // catalog (media companies, analyst-archetypes, fan/hater accounts). Mirrors
 // upload-rti-headshots.ts's convention -- deterministic Cloudflare Images IDs so re-running this
 // script (e.g. swapping a photo later) updates the same URL in place.
+// REC Insider / TMZ are new STANDALONE_ACCOUNTS entries with no headshot supplied yet -- add them
+// here (matching id: "rti-tweet-standalone-rec-insider" / "rti-tweet-standalone-tmz") once real
+// artwork exists.
 import { existsSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import sharp from "sharp";
@@ -23,7 +26,6 @@ const hosts = [
 // Not TWEET_HOSTS -- these are STANDALONE_ACCOUNTS (manual /tweets picker + persona-autopost
 // jobs only, never picked by the reactive stat-commentary engine).
 const standalone = [
-  { file: "Jalen Cross.png", id: "rti-tweet-standalone-jalen" },
   { file: "nfl logo.png", id: "rti-tweet-standalone-nfl-front-office" },
 ] as const;
 

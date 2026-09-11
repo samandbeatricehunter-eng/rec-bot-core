@@ -9,6 +9,8 @@
 // Plain JSON in Discord's Application Command Object shape (not discord.js's SlashCommandBuilder)
 // because @rec/shared has no runtime dependencies and apps/api has no discord.js dependency.
 
+import { discordTweetPersonaChoices } from "./media-social/tweet-personalities.js";
+
 export const DISCORD_COMMAND_OPTION_TYPE = {
   STRING: 3,
   BOOLEAN: 5,
@@ -55,19 +57,9 @@ export const DISCORD_COMMANDS: DiscordCommandDefinition[] = [
         name: "persona",
         description: "Who's posting this tweet?",
         required: true,
-        choices: [
-          { name: "Marcus Vale", value: "marcus" },
-          { name: "Vaughn Price", value: "vaughn" },
-          { name: "Jalen Cross", value: "jalen" },
-          { name: "Elliot Mercer", value: "elliot" },
-          { name: "Darius King", value: "darius" },
-          { name: "NFL Front Office", value: "nfl_front_office" },
-          { name: "Gridiron Gospel", value: "generic1" },
-          { name: "Cold Takes Only", value: "generic2" },
-          { name: "The Tape Don't Lie", value: "generic3" },
-          { name: "RTI Recap Radio", value: "generic4" },
-          { name: "Custom handle", value: "custom" },
-        ],
+        // Sourced from the canonical tweet_personalities.json roster (media-social/tweet-personalities.ts)
+        // rather than hand-typed here, so the command can never drift from the identity catalog.
+        choices: [...discordTweetPersonaChoices(), { name: "Custom handle", value: "custom" }],
       },
       { type: DISCORD_COMMAND_OPTION_TYPE.STRING, name: "tweet", description: "The tweet text.", required: true, max_length: 1000 },
       { type: DISCORD_COMMAND_OPTION_TYPE.STRING, name: "custom_handle", description: "Handle to post as (only used when persona is Custom handle).", max_length: 50 },

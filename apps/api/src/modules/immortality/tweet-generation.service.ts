@@ -4,7 +4,7 @@
 // OR rec_players rows linked from rec_immortality_prospects -- EA identity adoption replaces
 // the `rti:` prefix with a numeric franchise id) over baseline real-NFL roster fill. Posting
 // is a separate drip -- see sweepImmortalityTweetQueue below -- not done here.
-import { gameplaySeasonStages, type LeagueGame } from "@rec/shared";
+import { gameplaySeasonStages, pickRandomCommunityAccount, type LeagueGame } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
@@ -13,7 +13,7 @@ import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { discordIdForRecUser, loadImmortalityLeague, prospectAvatarUrlForHandle, recUserIdFromDiscordId, requireImmortalityLeague, twitterHandleForProspect } from "./immortality.service.js";
 import { ensurePlayerPersonasForLeague, listPlayerPersonasForLeague, playerPersonaFor, playerPersonaAvatarForHandle } from "./player-personas.service.js";
 import {
-  GENERIC_HANDLES, JALEN_DECLINE_LINES, MANUAL_TWEET_GENERIC_HANDLES, PLAYER_CHATTER_TEMPLATES, STANDALONE_ACCOUNTS,
+  GENERIC_HANDLES, PLAYER_CHATTER_TEMPLATES, STANDALONE_ACCOUNTS,
   TWEET_HOSTS, TWEET_TEMPLATES, VAUGHN_SIGNATURE_LINES, staticAvatarUrlForHandle,
   type StandaloneAccountKey, type TweetAuthor, type TweetCategory, type TweetHostKey, type TweetSlots, type TweetTemplate,
 } from "./tweet-bank.js";
@@ -529,8 +529,6 @@ export async function queueContractSigningTweets(input: {
   });
 }
 
-const MANUAL_GENERIC_PERSONA_KEYS = ["generic1", "generic2", "generic3", "generic4"] as const;
-
 /** Commissioner-authored tweet from the bot's /tweets command (immortality.routes.ts's
  * /v1/immortality/tweets/manual) -- posts immediately rather than joining the drip queue, and
  * logs a "posted" row in the same table (source: "manual") so it shows up alongside the
@@ -557,11 +555,15 @@ export async function postManualImmortalityTweet(input: {
     const host = TWEET_HOSTS[input.persona as TweetHostKey];
     handle = host.handle; displayName = host.displayName; avatarUrl = host.avatarUrl; authorKind = "host";
   } else if (input.persona in STANDALONE_ACCOUNTS) {
-    // Jalen Cross (post-scandal, no longer a reactive host) and NFL Front Office (one-off
-    // official announcements) -- selectable from /tweets like a host, but never picked by the
-    // stat-reaction template engine.
+    // REC Insider / NFL Front Office / Gridiron Gospel / TMZ -- selectable from /tweets like a
+    // host, but never picked by the automatic stat-reaction template engine.
     const account = STANDALONE_ACCOUNTS[input.persona as StandaloneAccountKey];
     handle = account.handle; displayName = account.displayName; avatarUrl = account.avatarUrl; authorKind = "host";
+  } else if (input.persona === "random_hater" || input.persona === "random_fan") {
+    // Persistent per-league assignment (the same handle sticking across posts) is a later phase;
+    // for now each manual post draws a fresh deterministic pick from the persistent community pool.
+    const account = pickRandomCommunityAccount(input.persona === "random_hater" ? "hater" : "fan", Date.now());
+    handle = account.handle; displayName = account.handle.replace(/^@/, ""); authorKind = "generic";
   } else if (input.persona === "custom") {
     const rawHandle = input.customHandle?.trim();
     if (!rawHandle) throw new ApiError(400, "A custom handle is required.");
@@ -569,10 +571,7 @@ export async function postManualImmortalityTweet(input: {
     displayName = input.customDisplayName?.trim() || handle;
     authorKind = "custom";
   } else {
-    const index = MANUAL_GENERIC_PERSONA_KEYS.indexOf(input.persona as (typeof MANUAL_GENERIC_PERSONA_KEYS)[number]);
-    const account = index === -1 ? null : MANUAL_TWEET_GENERIC_HANDLES[index];
-    if (!account) throw new ApiError(400, "Unknown tweet persona.");
-    handle = account.handle; displayName = account.displayName; avatarUrl = account.avatarUrl; authorKind = "generic";
+    throw new ApiError(400, "Unknown tweet persona.");
   }
 
   const posted = await postDiscordChannelMessage(channelId, {
@@ -1109,14 +1108,12 @@ async function sweepAmbientFanChatter(): Promise<void> {
   }
 }
 
-// Jalen Cross (post-scandal, ~every 2-3 days) and Vaughn Price's own signature one-liners
-// (~18h, on top of his normal stat-reaction takes -- see isPersonaCoolingDown above for the
-// combined total-presence cap) each get a small verbatim pool posted on their own cadence,
-// independent of any game result. Same shape as queueAmbientFanChatterIfDue, just gated by
-// source + a per-persona cooldown instead of the shared ambient-chatter cooldown.
-const JALEN_AUTOPOST_SOURCE = "persona_autopost:jalen";
+// Vaughn Price's own signature one-liners (~18h, on top of his normal stat-reaction takes -- see
+// isPersonaCoolingDown above for the combined total-presence cap) get a small verbatim pool
+// posted on their own cadence, independent of any game result. Same shape as
+// queueAmbientFanChatterIfDue, just gated by source + a per-persona cooldown instead of the
+// shared ambient-chatter cooldown.
 const VAUGHN_SIGNATURE_AUTOPOST_SOURCE = "persona_autopost:vaughn_signature";
-const JALEN_AUTOPOST_COOLDOWN_MS = 60 * 60 * 60 * 1000; // ~60h, "every couple of days"
 const VAUGHN_SIGNATURE_AUTOPOST_COOLDOWN_MS = 18 * 60 * 60 * 1000; // ~18h
 
 async function queuePersonaAutopostIfDue(
@@ -1163,10 +1160,6 @@ async function queuePersonaAutopostIfDue(
 async function sweepPersonaAutoposts(): Promise<void> {
   const leagues = await supabase.from("rec_immortality_leagues").select("id,league_id");
   for (const row of (leagues.data ?? []) as Array<{ id: string; league_id: string }>) {
-    await queuePersonaAutopostIfDue(row.league_id, row.id, {
-      source: JALEN_AUTOPOST_SOURCE, cooldownMs: JALEN_AUTOPOST_COOLDOWN_MS, pool: JALEN_DECLINE_LINES,
-      author: STANDALONE_ACCOUNTS.jalen,
-    }).catch((err) => console.error(`[ERROR] Jalen decline autopost failed for league ${row.league_id} (non-fatal):`, err));
     await queuePersonaAutopostIfDue(row.league_id, row.id, {
       source: VAUGHN_SIGNATURE_AUTOPOST_SOURCE, cooldownMs: VAUGHN_SIGNATURE_AUTOPOST_COOLDOWN_MS, pool: VAUGHN_SIGNATURE_LINES,
       author: TWEET_HOSTS.vaughn,

@@ -26,30 +26,20 @@ export const TWEET_HOSTS: Record<TweetHostKey, { handle: string; displayName: st
   darius: { handle: "@DariusKingREC", displayName: "Darius King", avatarUrl: avatarUrlFor("rti-tweet-host-darius") },
 };
 
-// Jalen Cross was written off the show after a blackmail scandal (see JALEN_DECLINE_LINES below)
-// and NFL Front Office is a one-off official-announcement account -- neither reacts to games, so
-// neither is a TweetHostKey/part of the reactive template engine. Both stay selectable from the
-// commissioner's /tweets command and staticAvatarUrlForHandle below, same as the 4 real hosts.
-export type StandaloneAccountKey = "jalen" | "nfl_front_office";
+// REC Insider, NFL Front Office, Gridiron Gospel and TMZ are curated beat-reporter identities --
+// selectable from the commissioner's /tweets command like the 4 reactive hosts above, but not
+// part of the automatic stat-reaction template engine (TweetHostKey). Content/handle/beat data
+// comes from the canonical roster (packages/shared/src/media-social/tweet-personalities.ts);
+// avatars are uploaded separately (apps/api/scripts/upload-tweet-avatars.ts) under the same
+// Cloudflare Images account, using the "rti-tweet-standalone-<key>" naming convention below.
+// Jalen Cross (formerly a 5th standalone account here) has been retired from the roster entirely.
+export type StandaloneAccountKey = "rec_insider" | "nfl_front_office" | "gridiron_gospel" | "tmz";
 export const STANDALONE_ACCOUNTS: Record<StandaloneAccountKey, { handle: string; displayName: string; avatarUrl?: string }> = {
-  jalen: { handle: "@JalenCrossREC", displayName: "Jalen Cross", avatarUrl: avatarUrlFor("rti-tweet-standalone-jalen") },
+  rec_insider: { handle: "@RECInsider", displayName: "REC Insider", avatarUrl: avatarUrlFor("rti-tweet-standalone-rec-insider") },
   nfl_front_office: { handle: "@NFLFrontOfficeHQ", displayName: "NFL Front Office", avatarUrl: avatarUrlFor("rti-tweet-standalone-nfl-front-office") },
+  gridiron_gospel: { handle: "@GridironGospel", displayName: "Gridiron Gospel", avatarUrl: genericAvatarUrl(0) },
+  tmz: { handle: "@RECTMZ", displayName: "TMZ", avatarUrl: avatarUrlFor("rti-tweet-standalone-tmz") },
 };
-
-// Jalen's own posts now, roughly once every couple of days (see queuePersonaAutopostsIfDue in
-// tweet-generation.service.ts) -- posted verbatim, no {slot} filling, per Samuel's exact wording.
-export const JALEN_DECLINE_LINES: string[] = [
-  "Dealing with an active legal matter. No comment at this time.",
-  "No new updates on the court date or sentencing.",
-  "I'll get out one day. And when I do, watch out.",
-  "REC Network! Please! I need some way to earn money for my books when the trial date hits!",
-  "Doing shows on OF, please help. I haven't eaten in days.",
-  "Don't do drugs, kids, unless you're exposed for blackmail and your life is ruined. If that happens, fuck it.",
-  "I used to be high on life. Now I'm just HIGH with NO LIFE.",
-  "Elliott, please unblock me. I'll do research for your spots, just help me pay the rent, man.",
-  "Guess I'm goin' back to the UK. No American dream over here.",
-  "Shit's sad, man, just sad.",
-];
 
 // Vaughn's own signature one-liners (distinct from his stat-reaction TWEET_TEMPLATES voice below)
 // -- these post on their own ~18h cadence (see queuePersonaAutopostsIfDue), and count toward his
@@ -86,8 +76,7 @@ export function genericAvatarUrl(index: number): string {
 // with real avatar-having identities and a `kind` tag.
 export type GenericAccountKind = "media" | "analyst" | "fan";
 export const GENERIC_HANDLES: Array<{ handle: string; displayName: string; avatarUrl: string; kind: GenericAccountKind }> = [
-  // ================= media outlets (15) =================
-  { handle: "@GridironGospel", displayName: "Gridiron Gospel", kind: "media", avatarUrl: genericAvatarUrl(0) },
+  // ================= media outlets (14; Gridiron Gospel promoted to a curated STANDALONE_ACCOUNTS entry above) =================
   { handle: "@RTIRecapRadio", displayName: "RTI Recap Radio", kind: "media", avatarUrl: genericAvatarUrl(1) },
   { handle: "@TheFilmRoomNet", displayName: "The Film Room Network", kind: "media", avatarUrl: genericAvatarUrl(2) },
   { handle: "@ThirdAndLongPod", displayName: "Third & Long Pod", kind: "media", avatarUrl: genericAvatarUrl(3) },
@@ -138,12 +127,6 @@ export const GENERIC_HANDLES: Array<{ handle: string; displayName: string; avata
   { handle: "@FourthQuarterFred", displayName: "Fourth Quarter Fred", kind: "fan", avatarUrl: genericAvatarUrl(4) },
   { handle: "@BlitzPickupBetty", displayName: "Blitz Pickup Betty", kind: "fan", avatarUrl: genericAvatarUrl(5) },
 ];
-
-// Fixed subset of GENERIC_HANDLES surfaced by the /tweets commissioner command -- a curated
-// 4-account picker, not the full 50-account pool ambient chatter draws from at random.
-export const MANUAL_TWEET_GENERIC_HANDLES: Array<{ handle: string; displayName: string; avatarUrl: string; kind: GenericAccountKind }> = [
-  "@GridironGospel", "@ColdTakesOnly", "@TapeDontLie", "@RTIRecapRadio",
-].map((handle) => GENERIC_HANDLES.find((h) => h.handle === handle)!);
 
 export type TweetCategory =
   | "big_pass" | "big_rush" | "big_receiving" | "multi_td" | "turnover_heavy"

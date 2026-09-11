@@ -1,12 +1,13 @@
 import { GuildMember, MessageFlags, Role, User, type ChatInputCommandInteraction } from "discord.js";
+import { discordTweetPersonaChoices } from "@rec/shared";
 import { isDiscordAdminInteraction, replyFullAdminOnly } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 
+// Sourced from the canonical roster (same one the command's own choices come from) rather than
+// hand-typed, so this reply text can't drift from the identity catalog either.
 const PERSONA_LABELS: Record<string, string> = {
-  marcus: "Marcus Vale", vaughn: "Vaughn Price", jalen: "Jalen Cross", elliot: "Elliot Mercer", darius: "Darius King",
-  nfl_front_office: "NFL Front Office",
-  generic1: "Gridiron Gospel", generic2: "Cold Takes Only", generic3: "The Tape Don't Lie", generic4: "RTI Recap Radio",
+  ...Object.fromEntries(discordTweetPersonaChoices().map((choice) => [choice.value, choice.name])),
   custom: "a custom handle",
 };
 

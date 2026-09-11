@@ -13,6 +13,7 @@ export * from "./nfl-schedules.js";
 export * from "./route-channels.js";
 export * from "./discord-commands.js";
 export * from "./roundtable-personalities.js";
+export * from "./media-social/tweet-personalities.js";
 export * from "./real-analyst-blocklist.js";
 export * from "./stats/index.js";
 export * from "./player-of-week.js";
