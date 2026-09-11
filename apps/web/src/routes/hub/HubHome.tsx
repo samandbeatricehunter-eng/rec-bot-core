@@ -588,7 +588,11 @@ export function HubHome() {
   const gotwGames = useMemo(() => (matchupSchedule?.games ?? []).filter((game) => Boolean(game.gotw)), [matchupSchedule]);
   // CFB support has been removed; this is permanently false now, left as a variable (rather
   // than hand-editing every conditional below) so every existing isCfbLeague branch still
-  // resolves correctly to its non-CFB path with zero behavior change.
+  // resolves correctly to its non-CFB path with zero behavior change. Every direct
+  // `hub.league.game === "cfb_27"` check below was folded into this same variable (previously
+  // some read live league data directly instead of this constant -- harmless today since no
+  // CFB league exists, but it meant those specific spots wouldn't have degraded gracefully if a
+  // CFB league somehow existed, e.g. after a restore).
   const isCfbLeague = false;
   const powerRankingsByConference = useMemo(() => {
     const teams = hub?.powerRankings?.teams ?? [];
@@ -1481,8 +1485,8 @@ export function HubHome() {
     <div className="hub-body">
       <main className="hub-content">
     {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{coachName}</p></div></div>
-      {hub.league.game === "cfb_27" && <DefenseNicknamePrompt />}
-      {hub.league.game === "cfb_27" ? <>
+      {isCfbLeague && <DefenseNicknamePrompt />}
+      {isCfbLeague ? <>
       <div className="hub-gameday-card hub-quick-actions-card hub-my-team-quick-actions">
         <p className="hub-eyebrow">Quick actions</p>
         <div className="hub-gameday-actions hub-quick-actions-row hub-quick-actions-row-compact">
@@ -1521,11 +1525,11 @@ export function HubHome() {
         isRise={isRise}
         riseHubUnlocked={riseHubUnlocked}
       />}
-      {hub.league.game !== "cfb_27" && careerStatsModalOpen && <Modal title="Career Stats" onClose={() => setCareerStatsModalOpen(false)}>
+      {!isCfbLeague && careerStatsModalOpen && <Modal title="Career Stats" onClose={() => setCareerStatsModalOpen(false)}>
         <ProfileStats values={profile.careerStats} hideBoxScoresUploaded />
         <p className="hub-muted">League career only — global totals live on My Account. Player-level career stats aren't tracked yet — League Stats has a per-player season breakdown.</p>
       </Modal>}
-      {hub.league.game !== "cfb_27" && powerRankingsModalOpen && <Modal title="Power Rankings" onClose={() => setPowerRankingsModalOpen(false)}>
+      {!isCfbLeague && powerRankingsModalOpen && <Modal title="Power Rankings" onClose={() => setPowerRankingsModalOpen(false)}>
         {hub.powerRankings?.teams?.length ? <RankingListSearch
           items={hub.powerRankings.teams}
           getSearchText={(team) => team.teamName}
@@ -1546,10 +1550,10 @@ export function HubHome() {
           </div>
         ) : null}
       </Modal>}
-      {hub.league.game !== "cfb_27" && bankModalOpen && <Modal title="Bank" onClose={() => setBankModalOpen(false)}>
+      {!isCfbLeague && bankModalOpen && <Modal title="Bank" onClose={() => setBankModalOpen(false)}>
         <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
       </Modal>}
-      {hub.league.game !== "cfb_27" && financialModalOpen && <Modal title="Financials" onClose={() => setFinancialModalOpen(false)}>
+      {!isCfbLeague && financialModalOpen && <Modal title="Financials" onClose={() => setFinancialModalOpen(false)}>
         <div className="hub-modal-pill-row">
           <button type="button" className={financialsTab === "ledger" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => setFinancialsTab("ledger")}>Ledger</button>
           <button type="button" className={financialsTab === "transfer" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => setFinancialsTab("transfer")}>Transfer</button>
@@ -1734,7 +1738,7 @@ export function HubHome() {
       {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
       <div className="hub-wager-carousel">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? <><button className="hub-highlight-arrow prev" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>{(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; const isActive = wager.boardState === "active" || wager.status === "pending"; return <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{displayLabel(wager.market)} · {wager.pickLabel} · <CoinAmount amount={wager.stake} /></span><span className="hub-wager-parties">Placed by {wager.isMine ? "you" : wager.placedByName}{isActive && wager.acceptedByName ? ` · Accepted by ${wager.acceptedByName}` : ""}</span></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button>}{wager.canEdit && <><button className="hub-icon-action" title="Edit wager terms" aria-label="Edit wager terms" onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}><Pencil size={17} /></button><button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button></>}</div></article>; })()}<button className="hub-highlight-arrow next" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button><p>{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</p></> : <p className="hub-empty">No open user wagers yet.</p>}</div>
 
-    </section> : section === "roster" ? <>{hub.league.game !== "cfb_27" && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<RosterHome /></> : section === "trades" ? <>{hub.league.game !== "cfb_27" && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<TradeCenterHome /></> : <div className="hub-league-tab">
+    </section> : section === "roster" ? <>{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<RosterHome /></> : section === "trades" ? <>{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<TradeCenterHome /></> : <div className="hub-league-tab">
       {(subTab === "buzz" || subTab === "news") && <>
         {subTab === "buzz" && <>
         <div className="hub-buzz-top">
@@ -1886,7 +1890,7 @@ export function HubHome() {
                 <button type="button" className="hub-my-team-btn" onClick={() => openSportsbook()}><strong>Place a Wager</strong><span>Sportsbook</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/store`)}><strong>Store</strong><span>Franchise marketplace</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>
-                {hub.league.game !== "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>}
+                {!isCfbLeague && <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>}
                 <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => setManageFundsOpen(true)}><strong>Manage Funds</strong><span>Transfer &amp; transactions</span></button>
                   </>

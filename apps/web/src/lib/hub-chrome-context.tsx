@@ -108,7 +108,7 @@ export function HubChromeProvider({
       }
       const id = header.league.id;
       const name = header.league.name ?? "League";
-      const game = header.league.game ?? "cfb_27";
+      const game = header.league.game ?? "madden_27";
       const meta: HubLeagueMeta = {
         id,
         name,

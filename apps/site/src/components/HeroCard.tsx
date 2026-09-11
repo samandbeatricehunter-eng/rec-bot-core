@@ -101,8 +101,8 @@ export function HeroCard({
               </strong>
             </article>
             <article>
-              <span>{card?.currentGame?.startsWith("madden") ? "Franchise" : "Dynasty"} power rank</span>
-              <strong title={`Ranked against other site-linked ${card?.currentGame?.startsWith("madden") ? "Madden" : "CFB"} players with a computed power ranking -- not every REC user plays this game or has linked their site account yet, so this pool is smaller than the full user base.`}>
+              <span>{!card?.currentGame || card.currentGame.startsWith("madden") ? "Franchise" : "Dynasty"} power rank</span>
+              <strong title={`Ranked against other site-linked ${!card?.currentGame || card.currentGame.startsWith("madden") ? "Madden" : "CFB"} players with a computed power ranking -- not every REC user plays this game or has linked their site account yet, so this pool is smaller than the full user base.`}>
                 {card?.dynastyPowerRank ? `#${card.dynastyPowerRank.rank} of ${card.dynastyPowerRank.of}` : "Unranked"}
               </strong>
               {card?.dynastyPowerRank ? (

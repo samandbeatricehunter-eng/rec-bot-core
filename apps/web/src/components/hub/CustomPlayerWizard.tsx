@@ -110,7 +110,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
       setIdentity({ ...EMPTY_IDENTITY, ...savedIdentity, replacementPlayerId: undefined }); setReplacementPlayerId(savedIdentity.replacementPlayerId ?? ""); setAttributes(draft.attributes ?? {});
       setNotice("Your saved custom-player draft was restored.");
     } else {
-      const initialGame = (value.game ?? "CFB") as RecGameFamily;
+      const initialGame = (value.game ?? "MADDEN") as RecGameFamily;
       const initialTemplates = initialGame === "MADDEN" ? getRecArchetypeTemplates("QB", 1) : [];
       const initialArchetypeKey = initialTemplates[0]?.archetypeKey ?? "";
       setArchetypeKeyState(initialArchetypeKey);
@@ -118,7 +118,7 @@ export function CustomPlayerWizard({ guildId, onPurchased }: { guildId: string; 
     }
     setHydrated(true);
   }).catch((error) => setNotice(error instanceof Error ? error.message : String(error))); return () => { active = false; }; }, [guildId]);
-  const game = (config?.game ?? "CFB") as RecGameFamily; const pkg = config?.packages?.find((entry: any) => entry.tier === tier);
+  const game = (config?.game ?? "MADDEN") as RecGameFamily; const pkg = config?.packages?.find((entry: any) => entry.tier === tier);
   // CFB recruits inherit the replaced player's position — no free position pick, and a
   // replacement must be chosen before continuing past Step 3. Madden isn't locked this way.
   const positionLocked = game === "CFB" && Boolean(config?.replacementRequired);

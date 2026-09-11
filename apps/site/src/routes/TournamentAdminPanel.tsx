@@ -321,7 +321,6 @@ function RosterLibraryAdmin() {
           <span>Game</span>
           <select className="site-select" value={game} onChange={(event) => setGame(event.target.value as typeof game)}>
             <option value="madden_27">Madden 27</option>
-            <option value="cfb_27">CFB 27</option>
             <option value="madden_26">Madden 26</option>
           </select>
         </label>

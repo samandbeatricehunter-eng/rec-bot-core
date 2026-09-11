@@ -17,11 +17,16 @@ import {
   type SiteTournamentSummary,
 } from "../lib/site-api.js";
 
+// Includes cfb_27 so gameLabel() still renders correctly for any pre-existing tournament rows
+// tagged that way; CFB is Madden-only-pivot dead but not creatable anymore (see below).
 const GAME_OPTIONS = [
   { value: "madden_27", label: "Madden 27" },
   { value: "cfb_27", label: "CFB 27" },
   { value: "madden_26", label: "Madden 26" },
 ] as const;
+
+// Active league-management functionality is Madden-only -- new tournaments can't be created as CFB.
+const CREATABLE_GAME_OPTIONS = GAME_OPTIONS.filter((option) => option.value !== "cfb_27");
 
 export function gameLabel(game: string): string {
   return GAME_OPTIONS.find((option) => option.value === game)?.label ?? game;
@@ -188,7 +193,7 @@ export function CreateTournamentForm({ onCreated }: { onCreated: (id: string) =>
         <label className="site-field">
           <span>Game</span>
           <select className="site-select" value={game} onChange={(event) => changeGame(event.target.value as typeof game)}>
-            {GAME_OPTIONS.map((option) => (
+            {CREATABLE_GAME_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
