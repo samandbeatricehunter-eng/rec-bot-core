@@ -1,0 +1,80 @@
+{
+  "scope": {
+    "madden_only": true,
+    "neutral_college_reference_retained": true,
+    "cfb_game_features_allowed": false
+  },
+  "ea": {
+    "automatic_sync_hours": 4,
+    "user_toggle": false,
+    "partial_import_side_effects": false,
+    "authoritative_ovr_field": "playerBestOvr"
+  },
+  "discord": {
+    "member_commands": [
+      "league",
+      "teams",
+      "matchup",
+      "schedule",
+      "standings",
+      "powerrankings",
+      "wallet",
+      "rules",
+      "highlights",
+      "profile"
+    ],
+    "commissioner_commands": [
+      "commishtools",
+      "tweets"
+    ],
+    "setup_commands": [
+      "linkleague"
+    ],
+    "removed_commands": [
+      "twitter",
+      "availability",
+      "draft",
+      "openteams",
+      "viewleague"
+    ],
+    "rules_channel": false
+  },
+  "highlights": {
+    "destination": "Highlights",
+    "clip_seconds": 10,
+    "clips_per_part": 10,
+    "discord_target_mb": 10,
+    "encoder_target_mb": 9.5,
+    "part1_everyone": true,
+    "later_parts_everyone": false
+  },
+  "ui": {
+    "blur": false,
+    "centered_content_shell": true,
+    "ordinary_cards_full_viewport": false,
+    "texture_stretching": false
+  },
+  "legend": {
+    "rec_calculates_ovr": false,
+    "one_time_ovr_capture": true,
+    "one_time_head_number_capture": true,
+    "replacement_per_purchase": true
+  },
+  "progression": {
+    "franchise_xp_and_player_xp_separate": true,
+    "attribute_discount_cap_pct": 35,
+    "one_unresolved_attribute_batch_per_player": true,
+    "non_rti_tree_total_xp": 133,
+    "node_cost_map_release_gate": true,
+    "ordinary_player_xp_earning_table_release_gate": false,
+    "ordinary_player_xp_system_defined": true,
+    "dev_xp_multipliers": {
+      "normal": 1.0,
+      "star": 1.1,
+      "superstar": 1.2,
+      "xfactor": 1.3
+    },
+    "weekly_raw_xp_cap_regular": 5,
+    "weekly_raw_xp_cap_postseason": 6
+  }
+}

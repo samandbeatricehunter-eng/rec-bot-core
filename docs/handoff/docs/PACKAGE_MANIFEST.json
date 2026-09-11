@@ -1,0 +1,58 @@
+[
+  {
+    "path": "README.md",
+    "bytes": 1394
+  },
+  {
+    "path": "assets/reference/card_texture_reference.png",
+    "bytes": 349927
+  },
+  {
+    "path": "docs/ACCEPTANCE_MATRIX.json",
+    "bytes": 1876
+  },
+  {
+    "path": "docs/COPY_ERRORS_ACCESSIBILITY.md",
+    "bytes": 1836
+  },
+  {
+    "path": "docs/ECONOMY_PROGRESSION.md",
+    "bytes": 2460
+  },
+  {
+    "path": "docs/FINAL_AUDIT.md",
+    "bytes": 4052
+  },
+  {
+    "path": "docs/IMPLEMENTATION_HANDOFF.md",
+    "bytes": 5625
+  },
+  {
+    "path": "docs/LEGENDS_PENDING_ITEMS.md",
+    "bytes": 3975
+  },
+  {
+    "path": "docs/MASTER_PLAN.md",
+    "bytes": 21689
+  },
+  {
+    "path": "docs/MATCHUPS_DISCORD_RULES.md",
+    "bytes": 4548
+  },
+  {
+    "path": "docs/MEDIA_SOCIAL_HIGHLIGHTS.md",
+    "bytes": 2599
+  },
+  {
+    "path": "docs/PLATFORM_DATA_EA.md",
+    "bytes": 2845
+  },
+  {
+    "path": "docs/PLAYER_XP_REWARDS.md",
+    "bytes": 14085
+  },
+  {
+    "path": "docs/UI_ROSTER_PLAYER_CARDS.md",
+    "bytes": 2978
+  }
+]
