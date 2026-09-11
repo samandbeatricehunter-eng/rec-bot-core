@@ -1,20 +1,31 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { getTeamByAbbreviation, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import { Card } from "../../components/ui/Card.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
-import { RankChange } from "./HubHome.js";
 import { TeamLogo } from "../../components/ui/TeamLogo.js";
 
 type HubResponse = Awaited<ReturnType<typeof recApi.getHub>>;
 type PowerRankingTeam = NonNullable<HubResponse["powerRankings"]>["teams"][number];
+type SosTeam = NonNullable<HubResponse["sos"]>["teams"][number];
+type StandingsView = "division" | "power" | "sos";
 
 const NFL_DIVISION_ORDER = ["East", "North", "South", "West"] as const;
+
+const STANDINGS_NAV: Array<{
+  id: StandingsView | "bracket";
+  top: string;
+  bottom: string;
+}> = [
+  { id: "division", top: "Division", bottom: "Standings" },
+  { id: "power", top: "Power", bottom: "Rankings" },
+  { id: "sos", top: "Strength of", bottom: "Schedule" },
+  { id: "bracket", top: "Playoff", bottom: "Bracket" },
+];
 
 function winPct(team: PowerRankingTeam) {
   const games = team.wins + team.losses + team.ties;
@@ -84,6 +95,10 @@ function sortStandings(a: PowerRankingTeam, b: PowerRankingTeam) {
   return winPct(b) - winPct(a) || b.wins - a.wins || a.teamName.localeCompare(b.teamName);
 }
 
+function sortPower(a: PowerRankingTeam, b: PowerRankingTeam) {
+  return a.rank - b.rank || a.teamName.localeCompare(b.teamName);
+}
+
 function useConferenceRanks(teams: PowerRankingTeam[]) {
   return useMemo(() => {
     const byConference = new Map<"NFC" | "AFC", PowerRankingTeam[]>();
@@ -102,8 +117,21 @@ function useConferenceRanks(teams: PowerRankingTeam[]) {
   }, [teams]);
 }
 
-function useDivisionBoard(teams: PowerRankingTeam[]) {
+function useDivisionBoard(
+  teams: PowerRankingTeam[],
+  view: StandingsView,
+  sosByTeam: Map<string, SosTeam>,
+) {
   return useMemo(() => {
+    const sorter = view === "power"
+      ? sortPower
+      : view === "sos"
+        ? (a: PowerRankingTeam, b: PowerRankingTeam) => {
+          const aSos = sosByTeam.get(a.teamId)?.sosRemaining ?? -1;
+          const bSos = sosByTeam.get(b.teamId)?.sosRemaining ?? -1;
+          return bSos - aSos || a.teamName.localeCompare(b.teamName);
+        }
+        : sortStandings;
     const buckets = new Map<string, PowerRankingTeam[]>();
     for (const team of teams) {
       const conference = normalizeConference(team.conference);
@@ -114,51 +142,64 @@ function useDivisionBoard(teams: PowerRankingTeam[]) {
       list.push(team);
       buckets.set(key, list);
     }
-    for (const list of buckets.values()) list.sort(sortStandings);
+    for (const list of buckets.values()) list.sort(sorter);
     return {
       NFC: NFL_DIVISION_ORDER.map((division) => ({
         division,
-        label: `NFC ${division.toUpperCase()}`,
+        label: division.toUpperCase(),
         teams: buckets.get(`NFC|${division}`) ?? [],
       })),
       AFC: NFL_DIVISION_ORDER.map((division) => ({
         division,
-        label: `AFC ${division.toUpperCase()}`,
+        label: division.toUpperCase(),
         teams: buckets.get(`AFC|${division}`) ?? [],
       })),
     };
-  }, [teams]);
+  }, [teams, view, sosByTeam]);
 }
 
 function StandingTeamBlock({
   team,
   conferenceRank,
+  view,
+  sos,
 }: {
   team: PowerRankingTeam;
   conferenceRank: number | null;
+  view: StandingsView;
+  sos: SosTeam | null;
 }) {
   const color = teamPrimaryColor(team);
   const ink = contrastingInk(color);
   const { city, nick } = teamIdentity(team);
+  const showPlayoff = view === "division";
+
+  let metric: ReactNode = formatRecord(team);
+  if (view === "power") {
+    metric = `#${team.rank}`;
+  } else if (view === "sos") {
+    metric = sos ? (
+      <span className="hub-div-standing-sos">
+        <span><small>Cur</small>{sos.sosRemaining.toFixed(2)}</span>
+        <span><small>SoS</small>{sos.sosFull.toFixed(2)}</span>
+      </span>
+    ) : "—";
+  }
+
   return (
     <article
-      className={`hub-div-standing-team${team.playoffMarker === "Y" || team.playoffMarker === "Z" ? " is-division-leader" : ""}`}
+      className={`hub-div-standing-team${showPlayoff && (team.playoffMarker === "Y" || team.playoffMarker === "Z") ? " is-division-leader" : ""}`}
       style={{ ["--team-color" as string]: color, ["--team-ink" as string]: ink }}
       title={team.teamName}
     >
-      <div className="hub-div-standing-logo-wrap" aria-hidden={!team.abbr}>
-        <TeamLogo abbreviation={team.abbr} alt="" className="hub-div-standing-logo" priority />
-      </div>
+      <TeamLogo abbreviation={team.abbr} alt="" className="hub-div-standing-logo" priority />
       <div className="hub-div-standing-identity">
         {city ? <small className="hub-div-standing-city">{city}</small> : null}
-        <strong className="hub-div-standing-nick">
-          {nick}
-          {team.rank ? <span className="hub-div-standing-power"> (#{team.rank})</span> : null}
-        </strong>
+        <strong className="hub-div-standing-nick">{nick}</strong>
       </div>
-      <strong className="hub-div-standing-record">{formatRecord(team)}</strong>
+      <strong className="hub-div-standing-record">{metric}</strong>
       {conferenceRank != null ? <span className="hub-div-standing-conf-rank">{conferenceRank}</span> : null}
-      {team.playoffMarker ? <span className="hub-div-standing-marker">{team.playoffMarker}</span> : null}
+      {showPlayoff && team.playoffMarker ? <span className="hub-div-standing-marker">{team.playoffMarker}</span> : null}
       {!team.isHuman ? <span className="hub-div-standing-open">Open</span> : null}
     </article>
   );
@@ -168,10 +209,14 @@ function DivisionColumn({
   label,
   teams,
   conferenceRanks,
+  view,
+  sosByTeam,
 }: {
   label: string;
   teams: PowerRankingTeam[];
   conferenceRanks: Map<string, number>;
+  view: StandingsView;
+  sosByTeam: Map<string, SosTeam>;
 }) {
   return (
     <section className="hub-div-standing-card">
@@ -186,6 +231,8 @@ function DivisionColumn({
             key={team.teamId}
             team={team}
             conferenceRank={conferenceRanks.get(team.teamId) ?? null}
+            view={view}
+            sos={sosByTeam.get(team.teamId) ?? null}
           />
         )) : <p className="hub-div-standing-empty">No teams</p>}
       </div>
@@ -193,21 +240,31 @@ function DivisionColumn({
   );
 }
 
-function DivisionStandingsBoard({ teams }: { teams: PowerRankingTeam[] }) {
-  const board = useDivisionBoard(teams);
+function DivisionStandingsBoard({
+  teams,
+  view,
+  sosByTeam,
+}: {
+  teams: PowerRankingTeam[];
+  view: StandingsView;
+  sosByTeam: Map<string, SosTeam>;
+}) {
+  const board = useDivisionBoard(teams, view, sosByTeam);
   const conferenceRanks = useConferenceRanks(teams);
   if (!teams.length) return <p className="form-hint">Standings will appear after the first completed slate.</p>;
   return (
-    <div className="hub-div-standings-board" aria-label="Division standings">
+    <div className="hub-div-standings-board" aria-label={view === "division" ? "Division standings" : view === "power" ? "Power rankings" : "Strength of schedule"}>
       <div className="hub-div-standings-side" data-conference="nfc">
         <p className="hub-div-standings-side-label">NFC</p>
         <div className="hub-div-standings-side-grid">
           {board.NFC.map((division) => (
             <DivisionColumn
-              key={division.label}
+              key={`nfc-${division.division}`}
               label={division.label}
               teams={division.teams}
               conferenceRanks={conferenceRanks}
+              view={view}
+              sosByTeam={sosByTeam}
             />
           ))}
         </div>
@@ -218,10 +275,12 @@ function DivisionStandingsBoard({ teams }: { teams: PowerRankingTeam[] }) {
         <div className="hub-div-standings-side-grid">
           {board.AFC.map((division) => (
             <DivisionColumn
-              key={division.label}
+              key={`afc-${division.division}`}
               label={division.label}
               teams={division.teams}
               conferenceRanks={conferenceRanks}
+              view={view}
+              sosByTeam={sosByTeam}
             />
           ))}
         </div>
@@ -236,52 +295,63 @@ function PlayoffMarkerKey({ className }: { className: string }) {
   );
 }
 
-function PowerRankingsCard({ teams }: { teams: PowerRankingTeam[] }) {
-  return (
-    <Card>
-      <h2 style={{ marginTop: 0 }}>Power Rankings</h2>
-      <div className="hub-stats-power-grid">
-        {teams.map((team) => (
-          <article key={team.teamId}>
-            <strong>#{team.rank}</strong>
-            <span className="hub-team-cell"><TeamLogo abbreviation={team.abbr} alt={team.teamName} /><span>{team.teamName}{team.playoffMarker ? ` - ${team.playoffMarker}` : ""}</span></span>
-            <small>{formatRecord(team)} · <RankChange change={team.change} /></small>
-          </article>
-        ))}
-      </div>
-      {!teams.length ? <p className="form-hint">Power rankings will appear after the first completed slate.</p> : null}
-      <PlayoffMarkerKey className="hub-stats-playoff-key" />
-    </Card>
-  );
-}
-
 export function LeagueStandingsHome() {
   const { guildId } = useReadyAuth();
   const navigate = useNavigate();
   const [hub, setHub] = useState<HubResponse | null>(null);
   const [hubError, setHubError] = useState<string | null>(null);
+  const [view, setView] = useState<StandingsView>("division");
+
   useEffect(() => {
     recApi.getHub(guildId).then(setHub).catch((cause) => setHubError(cause instanceof Error ? cause.message : "Could not load standings."));
   }, [guildId]);
 
   const teams = hub?.powerRankings?.teams ?? [];
   const bracketAvailable = Number(hub?.league.weekNumber ?? 0) >= 12;
+  const sosByTeam = useMemo(() => {
+    const map = new Map<string, SosTeam>();
+    for (const team of hub?.sos?.teams ?? []) map.set(team.teamId, team);
+    return map;
+  }, [hub?.sos?.teams]);
+
+  const boardTitle = view === "division" ? "Division Standings" : view === "power" ? "Power Rankings" : "Strength of Schedule";
 
   return (
     <div className="hub-section">
-      <PageHeader title="Standings" subtitle="Division standings and power rankings." />
+      <PageHeader title="Standings" subtitle="Division standings, power rankings, and strength of schedule." />
       {hubError ? <ErrorState message={hubError} /> : !hub ? <LoadingState label="Loading standings…" /> : (
         <>
-          <div className="hub-standings-actions">
-            <button type="button" onClick={() => navigate(`/l/${hub.league.id}/sos`)}><strong>S.O.S.</strong><span>Strength of Schedule</span></button>
-            <button type="button" disabled={!bracketAvailable} title={bracketAvailable ? "Open playoff bracket" : "Playoff bracket unlocks in Week 12"} onClick={() => navigate(`/l/${hub.league.id}/playoff-bracket`)}><strong>Playoff Bracket</strong><span>{bracketAvailable ? "View bracket" : "Unlocks Week 12"}</span></button>
-          </div>
-          <PlayoffMarkerKey className="hub-standings-key" />
+          <nav className="hub-standings-mini-nav" aria-label="Standings views">
+            {STANDINGS_NAV.map((item) => {
+              const isBracket = item.id === "bracket";
+              const selected = !isBracket && item.id === view;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={selected ? "is-selected" : undefined}
+                  disabled={isBracket && !bracketAvailable}
+                  title={isBracket ? (bracketAvailable ? "Open playoff bracket" : "Playoff bracket unlocks in Week 12") : undefined}
+                  aria-pressed={!isBracket ? selected : undefined}
+                  onClick={() => {
+                    if (isBracket) {
+                      navigate(`/l/${hub.league.id}/playoff-bracket`);
+                      return;
+                    }
+                    setView(item.id);
+                  }}
+                >
+                  <span>{item.top}</span>
+                  <strong>{item.bottom}</strong>
+                </button>
+              );
+            })}
+          </nav>
+          {view === "division" ? <PlayoffMarkerKey className="hub-standings-key" /> : null}
           <div className="hub-standings-board-wrap">
-            <h2>Division Standings</h2>
-            <DivisionStandingsBoard teams={teams} />
+            <h2>{boardTitle}</h2>
+            <DivisionStandingsBoard teams={teams} view={view} sosByTeam={sosByTeam} />
           </div>
-          <PowerRankingsCard teams={teams} />
         </>
       )}
     </div>
