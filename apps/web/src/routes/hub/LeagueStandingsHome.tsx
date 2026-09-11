@@ -161,20 +161,28 @@ function fitLabelToWidth(el: HTMLElement, maxPx: number, minPx: number) {
   // Wait until layout has a real width — shrinking against 0/tiny widths collapses names.
   if (el.clientWidth < 48) {
     el.style.fontSize = `${maxPx}px`;
+    el.style.transform = "";
     return maxPx;
   }
   let size = maxPx;
   el.style.fontSize = `${size}px`;
-  const gutter = 2;
+  el.style.transform = "";
+  const gutter = 1;
   while (el.scrollWidth > el.clientWidth - gutter && size > minPx) {
     size -= 0.5;
     el.style.fontSize = `${size}px`;
+  }
+  // If still overflowing at the floor, keep the readable size and compress horizontally.
+  if (el.scrollWidth > el.clientWidth - gutter && el.clientWidth > 0) {
+    const scale = Math.max(0.72, (el.clientWidth - gutter) / el.scrollWidth);
+    el.style.transform = `scaleX(${scale})`;
+    el.style.transformOrigin = "left center";
   }
   return size;
 }
 
 /** City is always capped below the nick size so long cities never visually outrank short nicks. */
-const CITY_TO_NICK_RATIO = 0.55;
+const CITY_TO_NICK_RATIO = 0.52;
 
 function StandingIdentity({ city, nick }: { city: string; nick: string }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -190,10 +198,10 @@ function StandingIdentity({ city, nick }: { city: string; nick: string }) {
 
     const fit = () => {
       if (cancelled) return;
-      const nickSize = fitLabelToWidth(nickEl, 22, 13);
+      const nickSize = fitLabelToWidth(nickEl, 26, 16);
       if (cityEl) {
-        const cityMax = Math.min(12, nickSize * CITY_TO_NICK_RATIO);
-        fitLabelToWidth(cityEl, cityMax, Math.min(cityMax, 7));
+        const cityMax = Math.min(14, nickSize * CITY_TO_NICK_RATIO);
+        fitLabelToWidth(cityEl, cityMax, Math.min(cityMax, 8));
       }
     };
 

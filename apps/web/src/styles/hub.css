@@ -4135,9 +4135,9 @@ button.poty:disabled {
   display:grid;
   grid-template-columns:minmax(0,1fr) auto;
   align-items:center;
-  gap:6px;
-  min-height:58px;
-  padding:6px 12px 6px 52px;
+  gap:4px;
+  min-height:62px;
+  padding:6px 10px 6px 46px;
   overflow:hidden;
   border:1px solid rgba(255,255,255,.28);
   background:
@@ -4187,7 +4187,7 @@ button.poty:disabled {
 }
 .hub-div-standing-city {
   font-weight: 400;
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: .04em;
   margin: 0 0 1px;
   opacity: 1;
@@ -4199,7 +4199,7 @@ button.poty:disabled {
 }
 .hub-div-standing-nick {
   font-weight: 700;
-  font-size: 20px;
+  font-size: 24px;
   letter-spacing: 0;
   text-shadow:
     0 1px 0 #000,
@@ -4215,7 +4215,7 @@ button.poty:disabled {
   justify-self:end;
   z-index:1;
   font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
-  font-size:clamp(20px, 2.2vw, 28px);
+  font-size:clamp(18px, 2vw, 24px);
   font-weight:700;
   letter-spacing:.02em;
   line-height:1;
