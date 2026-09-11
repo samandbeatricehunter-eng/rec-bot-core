@@ -329,7 +329,7 @@
     linear-gradient(145deg, rgba(25, 25, 25, 0.74), rgba(12, 12, 12, 0.88)),
     linear-gradient(120deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 42%);
   border-color: rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(10px);
+  backdrop-filter: none;
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .advance-card h2 {
@@ -707,7 +707,7 @@
   border: 1px solid var(--accent);
   border-radius: 1rem;
   background: color-mix(in srgb, var(--panel-bg, #10151d) 88%, transparent);
-  backdrop-filter: blur(18px) saturate(130%);
+  backdrop-filter: none;
   box-shadow: 0 1rem 3rem rgb(0 0 0 / 45%);
 }
 
@@ -940,7 +940,7 @@
   inset: 0;
   z-index: 500;
   background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
+  backdrop-filter: none;
   display: flex;
   justify-content: flex-end;
   animation: fadeIn 0.15s ease;

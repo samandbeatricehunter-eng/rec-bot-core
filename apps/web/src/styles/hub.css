@@ -36,7 +36,7 @@
 .hub-matchup-section > .fp-panel-inner { padding: 0 !important; }
 .hub-matchup-section > .fp-panel-inner > .section-frame-heading { padding-inline: clamp(4px, 1vw, 12px); }
 .hub-league-tab { display: flex; flex-direction: column; gap: var(--space-5); }
-.hub-subtabs { display: inline-flex; gap: 6px; padding: 5px; border: 1px solid rgba(255,255,255,.11); border-radius: 999px; background: rgba(8,10,8,.78); align-self: center; margin-inline: auto; box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 14px 34px rgba(0,0,0,.34); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.hub-subtabs { display: inline-flex; gap: 6px; padding: 5px; border: 1px solid rgba(255,255,255,.11); border-radius: 999px; background: rgba(8,10,8,.78); align-self: center; margin-inline: auto; box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 14px 34px rgba(0,0,0,.34); backdrop-filter: none; -webkit-backdrop-filter: none; }
 .hub-subtabs button { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); border: 0; border-radius: 999px; background: transparent; color: var(--text-secondary); font-weight: 800; font-size: var(--text-sm); cursor: pointer; }
 .hub-subtabs button.active { background: linear-gradient(180deg, var(--gold-light), var(--gold) 68%, var(--gold-dark)); color: var(--text-on-gold); box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 20%, transparent), inset 0 1px 0 rgba(255,255,255,.55); }
 .hub-story-mobile-swipe { display: flex; flex-direction: column; gap: var(--space-2); }
@@ -153,8 +153,8 @@
     flex: 0 0 auto;
     padding-block: 12px;
     background: color-mix(in srgb, var(--surface-raised) 94%, transparent);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }
 .hub-hero {
@@ -176,14 +176,11 @@
 .hub-hero,
 .hub-page .fp-panel,
 .hub-page .section-frame {
-  background-image:
-    linear-gradient(135deg, rgba(255,255,255,.055), transparent 38%, rgba(255,255,255,.018) 68%, transparent),
-    repeating-linear-gradient(118deg, rgba(255,255,255,.018) 0 1px, transparent 1px 5px),
-    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 46%);
-  border-color: rgba(255,255,255,.14);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), inset 0 -1px 0 rgba(255,255,255,.025), 0 18px 44px rgba(0,0,0,.3);
-  backdrop-filter: blur(18px) saturate(118%);
-  -webkit-backdrop-filter: blur(18px) saturate(118%);
+  background-image: none;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .hub-hero::before {
   background: linear-gradient(90deg, transparent, rgba(201,162,39,.35), transparent);
@@ -272,7 +269,7 @@ button.poty:disabled {
 .hub-body { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--space-5); align-items: start; }
 .hub-sidebar { position: sticky; top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
 .hub-sidebar-close { display: none; }
-.hub-sidebar-nav { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent); border-radius: var(--radius-lg); background: rgba(6,7,6,.82); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 18px 42px rgba(0,0,0,.38); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); overflow: hidden; }
+.hub-sidebar-nav { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 10px; border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent); border-radius: var(--radius-lg); background: rgba(6,7,6,.82); box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 18px 42px rgba(0,0,0,.38); backdrop-filter: none; -webkit-backdrop-filter: none; overflow: hidden; }
 .hub-sidebar-nav::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: var(--yardline-overlay); background-size: 180px 180px; opacity: .3; }
 .hub-sidebar-item-group { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 2px; }
 .hub-sidebar-nav > button { position: relative; z-index: 1; display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 50px; padding: 13px var(--space-4); border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-secondary); font-weight: 850; font-size: 15px; text-decoration: none; cursor: pointer; white-space: nowrap; text-align: left; touch-action: manipulation; }
@@ -290,7 +287,7 @@ button.poty:disabled {
   .hub-nav-toggle { position: fixed; z-index: 280; left: 0; top: 50%; transform: translateY(-50%); display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; width: 46px; min-height: 156px; padding: 12px 7px; border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); border-left: 0; border-radius: 0 18px 18px 0; background: linear-gradient(180deg, rgba(35,29,10,.97), rgba(7,8,7,.97)); color: var(--gold); box-shadow: 8px 0 28px rgba(0,0,0,.52), inset 0 1px rgba(255,255,255,.08); cursor: pointer; touch-action: manipulation; }
   .hub-nav-toggle span { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; font-weight: 950; letter-spacing: .06em; text-transform: uppercase; }
   .hub-body { display: block; }
-  .hub-sidebar-backdrop { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.62); backdrop-filter: blur(2px); }
+  .hub-sidebar-backdrop { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.62); backdrop-filter: none; }
   .hub-sidebar { position: fixed; z-index: 301; inset: 0 14% 0 0; top: 0; height: 100dvh; padding: calc(var(--space-5) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-5); border-right: 1px solid color-mix(in srgb, var(--accent) 38%, transparent); background: linear-gradient(160deg, #080907, #18170f 56%, #080907), var(--yardline-overlay); box-shadow: 24px 0 60px rgba(0,0,0,.62); transform: translateX(-100%); transition: transform var(--duration-standard) var(--ease-standard); overflow-y: auto; }
   .hub-sidebar.open { transform: translateX(0); }
   .hub-sidebar-close { display: flex; align-items: center; justify-content: center; align-self: flex-end; width: 36px; height: 36px; margin-bottom: var(--space-3); border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface-raised); color: var(--text-primary); cursor: pointer; }
@@ -317,7 +314,7 @@ button.poty:disabled {
 /* My Team shortcut cards + media modals + full-season schedule modal */
 .hub-gameday-card { margin-bottom: var(--space-4); }
 .hub-gameday-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-top: var(--space-2); }
-.hub-quick-actions-card { padding: 12px; border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border-subtle)); border-radius: var(--radius-lg); background: linear-gradient(135deg, rgba(255,255,255,.025), color-mix(in srgb, var(--accent) 5%, transparent)); box-shadow: inset 0 1px rgba(255,255,255,.035); }
+.hub-quick-actions-card { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .hub-quick-actions-card > .hub-eyebrow { margin: 0 0 8px; }
 .hub-quick-actions-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; margin: 0; }
 .hub-shortcut-card.hub-quick-action { min-width: 0; min-height: 58px; gap: 8px; padding: 8px 9px; border-radius: 8px; }
@@ -1038,7 +1035,7 @@ button.poty:disabled {
 .hub-video-frame iframe { width: 100%; height: 100%; object-fit: contain; border: 0; }
 .hub-video-frame a { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); color: var(--gold); text-decoration: none; }
 .hub-video-reaction-badges { position: absolute; left: var(--space-3); right: var(--space-3); top: var(--space-3); display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
-.hub-video-reaction-badges span { padding: 6px 9px; border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent); border-radius: 999px; background: rgba(5,6,5,.78); color: var(--gold); font-size: 11px; font-weight: 950; box-shadow: 0 8px 18px rgba(0,0,0,.38); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.hub-video-reaction-badges span { padding: 6px 9px; border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent); border-radius: 999px; background: rgba(5,6,5,.78); color: var(--gold); font-size: 11px; font-weight: 950; box-shadow: 0 8px 18px rgba(0,0,0,.38); backdrop-filter: none; -webkit-backdrop-filter: none; }
 .hub-highlight-meta { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: var(--space-3); }
 .hub-highlight-meta span { color: var(--text-muted); font-size: var(--text-xs); }
 .hub-highlight-meta-title { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
@@ -1260,7 +1257,7 @@ button.poty:disabled {
 .hub-nav-toggle span { display:none !important; }
 .hub-nav-toggle svg { width:30px; height:30px; filter:drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 32%, transparent)); }
 .hub-nav-toggle.open { color:var(--accent-bright) !important; }
-.hub-sidebar-backdrop { position:fixed; inset:0; z-index:399; background:rgba(0,0,0,.66); backdrop-filter:blur(1px); }
+.hub-sidebar-backdrop { position:fixed; inset:0; z-index:399; background:rgba(0,0,0,.66); backdrop-filter:none; }
 .hub-sidebar { position:fixed !important; z-index:404 !important; left:max(18px,env(safe-area-inset-left)) !important; right:auto !important; top:auto !important; bottom:104px !important; width:min(410px,calc(100vw - 36px)) !important; height:auto !important; max-height:calc(100dvh - 145px); padding:25px 18px 18px !important; border:2px solid var(--accent) !important; border-radius:28px !important; clip-path:polygon(40% 0,47% 0,51% 3%,100% 3%,100% 96%,97% 100%,10% 100%,8% 97%,0 97%,0 5%,3% 0,37% 0); background:repeating-linear-gradient(115deg,rgba(255,255,255,.02) 0 1px,transparent 1px 4px),radial-gradient(circle at 20% 15%,color-mix(in srgb, var(--accent) 10%, transparent),transparent 25%),linear-gradient(145deg,#252522,#090a09 68%) !important; box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--accent-bright) 26%, transparent),inset 0 0 35px #000,0 24px 55px rgba(0,0,0,.75),0 0 18px color-mix(in srgb, var(--accent) 20%, transparent) !important; transform:translateY(12px) scale(.97) !important; transform-origin:bottom left; opacity:0; visibility:hidden; transition:opacity .16s ease,transform .16s ease,visibility .16s !important; overflow:auto !important; }
 .hub-sidebar.open { transform:none !important; opacity:1; visibility:visible; }
 .hub-sidebar-nav { display:grid !important; gap:8px !important; padding:0 !important; border:0 !important; background:transparent !important; box-shadow:none !important; backdrop-filter:none !important; overflow:visible !important; }
@@ -2964,8 +2961,8 @@ button.poty:disabled {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .matchup-sticky-header__teams { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: .86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .matchup-sticky-header__logo { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; }
@@ -3640,6 +3637,8 @@ button.poty:disabled {
   background-attachment: fixed;
   background-repeat: no-repeat;
 }
+/* Free-standing blocks: strip wrapper container chrome and glass blur.
+   Content tiles keep a simple solid surface; outer frames stay invisible. */
 .hub-section,
 .hub-hero,
 .hub-story-card,
@@ -3647,41 +3646,60 @@ button.poty:disabled {
 .hub-profile-panel,
 .hub-store-card,
 .hub-matchup-card,
-.hub-shortcut-card,
+.hub-media-day-card,
+.hub-quick-actions-card,
 .hub-wager-board-feature,
+.hub-profile-sections details,
+.roundtable-panel,
+.matchup-preview__wager-card,
+.matchup-scheduling-card,
+.scoreboard-card,
+.fp-panel,
+.hub-ways-paid,
+.hub-store-form,
+.hub-state,
+.hub-eos-progress-card,
+.hub-roster-grade-card,
+.league-actions-card,
+.league-mgmt-poll-banner-card,
+.advance-card,
+.pending-item-card {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.hub-shortcut-card,
+.hub-wallet-card,
 .hub-wager-board-feature article,
 .hub-wager-carousel > article,
 .hub-announce-carousel article,
 .hub-stat-grid article,
-.hub-profile-sections details,
-.roundtable-panel,
-.matchup-preview__wager-card,
-.scoreboard-card,
-.fp-panel {
-  background:
-    linear-gradient(165deg, rgba(22, 26, 34, 0.18) 0%, rgba(10, 12, 16, 0.24) 100%) !important;
-  backdrop-filter: blur(22px) !important;
-  -webkit-backdrop-filter: blur(22px) !important;
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, rgba(255, 255, 255, 0.12)) !important;
-  box-shadow:
-    0 10px 32px rgba(0, 0, 0, 0.36),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    inset 1px 0 0 rgba(255, 255, 255, 0.14),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
-    inset -1px 0 0 rgba(0, 0, 0, 0.35) !important;
+.hub-profile-stat-list div,
+.hub-ledger-row,
+.hub-rti-challenges article,
+.hub-ways-paid-list p,
+.potw-card,
+.prospect-card,
+.protracker-card,
+.hub-rti-player-snapshot-card,
+.fantasy-draft-card,
+.rec-stat-player-card,
+.legend-tier-card,
+.legend-card {
+  background: rgba(12, 14, 18, 0.72) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
 }
 .fp-panel {
-  border-radius: 10px !important;
+  border-radius: 0 !important;
 }
-.fp-panel::before {
-  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 70%, #fff), transparent) !important;
-  opacity: 0.85 !important;
-}
+.fp-panel::before,
 .fp-panel::after {
-  background-image:
-    repeating-linear-gradient(-18deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px) !important;
-  background-size: auto !important;
-  opacity: 0.5 !important;
+  display: none !important;
 }
 .fp-panel-inner {
   padding: clamp(14px, 2vw, 22px) !important;
@@ -4254,11 +4272,11 @@ button.poty:disabled {
 .hub-league-chat .commissioner-chat-window,
 .hub-league-chat .commissioner-chat-feed,
 .hub-league-chat .commissioner-chat-composer {
-  background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(8,12,18,.18)) !important;
-  backdrop-filter: blur(18px) saturate(125%);
-  -webkit-backdrop-filter: blur(18px) saturate(125%);
-  border-color: color-mix(in srgb, var(--accent) 30%, rgba(255,255,255,.16));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 12px 36px rgba(0,0,0,.28);
+  background: rgba(12, 14, 18, 0.88) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: rgba(255,255,255,.14);
+  box-shadow: none;
 }
 .hub-league-chat-message {
   color: #fff;
@@ -4998,130 +5016,13 @@ button.poty:disabled {
   .rec-stats-category-pills { justify-content:center; }
   .rec-stats-category-pills button { flex:1 1 auto; padding:8px 10px; font-size:.7rem; }
 }
-.hub-ways-paid { margin-top:var(--space-4); border:1px solid var(--border); border-radius:16px; background:var(--surface); overflow:hidden; }
-.hub-ways-paid > summary { display:flex; justify-content:space-between; gap:var(--space-3); align-items:center; padding:16px 18px; cursor:pointer; list-style:none; font-family:var(--font-display); text-transform:uppercase; letter-spacing:.06em; }
+.hub-ways-paid { margin-top:var(--space-4); border:0; border-radius:0; background:transparent; overflow:visible; }
+.hub-ways-paid > summary { display:flex; justify-content:space-between; gap:var(--space-3); align-items:center; padding:8px 0; cursor:pointer; list-style:none; font-family:var(--font-display); text-transform:uppercase; letter-spacing:.06em; }
 .hub-ways-paid > summary::-webkit-details-marker { display:none; }
 .hub-ways-paid > summary small { color:var(--text-muted); font:600 .75rem var(--font-sans); text-transform:none; letter-spacing:0; }
-.hub-ways-paid-body { display:grid; gap:var(--space-4); padding:0 18px 18px; border-top:1px solid var(--border); }
+.hub-ways-paid-body { display:grid; gap:var(--space-4); padding:12px 0 0; border-top:1px solid rgba(255,255,255,.08); }
 .hub-ways-paid-body section { padding-top:var(--space-3); }
 .hub-ways-paid-body h3 { margin:0 0 var(--space-2); }
 .hub-ways-paid-list { display:grid; gap:8px; }
 .hub-ways-paid-list p { margin:0; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface-raised); }
 
-/* Universal Master Card/Button template overrides.
-   This is intentionally late so old feature-level surface styles cannot win the cascade. */
-:where(
-  .card,
-  .modal-panel,
-  .hub-section,
-  .hub-hero,
-  .hub-story-card,
-  .hub-highlight,
-  .hub-profile-panel,
-  .hub-store-card,
-  .hub-matchup-card,
-  .hub-shortcut-card,
-  .hub-wallet-card,
-  .hub-media-day-card,
-  .hub-quick-actions-card,
-  .hub-schedule-mini-card .rec-matchup-card,
-  .hub-roster-grade-card,
-  .hub-wager-board-feature,
-  .hub-wager-board-feature article,
-  .hub-wager-carousel > article,
-  .hub-announce-carousel article,
-  .hub-stat-grid article,
-  .hub-profile-sections details,
-  .hub-profile-stat-list div,
-  .hub-ledger-row,
-  .hub-rti-challenges article,
-  .hub-eos-progress-card,
-  .roundtable-panel,
-  .matchup-preview__wager-card,
-  .matchup-scheduling-card,
-  .scoreboard-card,
-  .fp-panel,
-  .potw-card,
-  .prospect-card,
-  .protracker-card,
-  .hub-rti-player-snapshot-card,
-  .fantasy-draft-card,
-  .rec-stat-player-card,
-  .hub-ways-paid,
-  .hub-ways-paid-list p,
-  .hub-store-form,
-  .hub-state,
-  .legend-tier-card,
-  .legend-card,
-  .league-actions-card,
-  .league-mgmt-poll-banner-card,
-  .advance-card,
-  .pending-item-card
-) {
-  border: var(--template-surface-border) !important;
-  background: var(--template-surface-bg) !important;
-  background-size: 100% 100% !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  box-shadow: var(--template-surface-shadow) !important;
-}
-
-:where(
-  .btn,
-  .hub-subtabs button,
-  .hub-sidebar-nav > button,
-  .hub-sidebar-subnav button,
-  .hub-wallet-transfer-toggle button,
-  .hub-rich-text-toolbar button,
-  .hub-relocate-choice,
-  .hub-roster-view-toggle button,
-  .hub-history-season-tabs button,
-  .hub-gotw-choice,
-  .hub-eos-vote-nominees button,
-  .hub-eos-ballot-review-row,
-  .roster-player-select-groups button,
-  .hub-stats-resource-grid button,
-  .hub-standings-actions button,
-  .hub-hero-action-pills button,
-  .hub-funds-switcher button,
-  .hub-wager-modal-tabs button,
-  .hub-buzz-toggle button,
-  .rec-stats-category-pills button
-) {
-  border: var(--template-surface-border) !important;
-  background: var(--template-surface-bg) !important;
-  background-size: 100% 100% !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  box-shadow: var(--template-surface-shadow) !important;
-  color: var(--text-primary) !important;
-}
-
-:where(
-  .btn-primary,
-  .btn:hover:not(:disabled),
-  .hub-subtabs button.active,
-  .hub-sidebar-nav button.active,
-  .hub-sidebar-subnav button.active,
-  .hub-wallet-transfer-toggle button.active,
-  .hub-relocate-choice:hover,
-  .hub-roster-view-toggle button.active,
-  .hub-history-season-tabs button.active,
-  .hub-gotw-choice:hover:not(:disabled),
-  .hub-gotw-choice.active,
-  .hub-eos-vote-nominees button:hover,
-  .hub-eos-ballot-review-row:hover,
-  .roster-player-select-groups button:hover,
-  .hub-stats-resource-grid button.active,
-  .hub-standings-actions button:hover:not(:disabled),
-  .hub-hero-action-pills button:hover,
-  .hub-funds-switcher button.active,
-  .hub-wager-modal-tabs button.active,
-  .hub-buzz-toggle button.active,
-  .rec-stats-category-pills button.active
-) {
-  border-color: rgba(255, 78, 78, 0.72) !important;
-  background: var(--template-surface-hover) !important;
-  background-size: 100% 100% !important;
-  color: var(--text-primary) !important;
-}

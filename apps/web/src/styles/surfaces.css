@@ -1,32 +1,12 @@
-/* Card — universal REC frame shared across League Management. */
-:root {
-  --template-surface-image: url("/assets/surfaces/master-card-button-template.png");
-  --template-surface-bg:
-    linear-gradient(180deg, rgba(6, 6, 8, 0.66) 0%, rgba(5, 5, 7, 0.9) 100%),
-    var(--template-surface-image);
-  --template-surface-hover:
-    linear-gradient(180deg, rgba(18, 4, 5, 0.72) 0%, rgba(7, 6, 8, 0.92) 100%),
-    var(--template-surface-image);
-  --template-surface-border: 1px solid rgba(255, 42, 42, 0.5);
-  --template-surface-shadow:
-    0 16px 42px rgba(0, 0, 0, 0.46),
-    inset 0 0 22px rgba(255, 16, 16, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-}
-
+﻿/* Card — free-standing content block (no framed container chrome). */
 .card {
   position: relative;
   min-width: 0;
-  background: var(--template-surface-bg);
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  background-position: center;
-  border: var(--template-surface-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--template-surface-shadow);
-  backdrop-filter: blur(18px) saturate(128%);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
   padding: var(--space-5);
-  overflow: hidden;
 }
 .card > * {
   position: relative;
@@ -86,11 +66,10 @@
   z-index: 2000;
 }
 .modal-panel {
-  background: var(--template-surface-bg);
-  background-size: 100% 100%;
-  border: var(--template-surface-border);
+  background: var(--surface-raised, #121418);
+  border: 1px solid var(--border-strong, rgba(255,255,255,.14));
   border-radius: var(--radius-lg);
-  box-shadow: var(--template-surface-shadow);
+  box-shadow: 0 20px 60px rgba(0,0,0,.78);
   padding: var(--space-5);
   max-width: 480px;
   width: 100%;

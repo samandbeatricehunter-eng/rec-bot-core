@@ -523,7 +523,7 @@
   border-radius: 999px;
   background: rgba(2, 5, 10, 0.82);
   color: #fff;
-  backdrop-filter: blur(8px);
+  backdrop-filter: none;
 }
 
 @media (max-height: 680px), (max-width: 480px) {

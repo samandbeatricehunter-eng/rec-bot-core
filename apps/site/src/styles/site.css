@@ -45,7 +45,7 @@
   --sidebar-text: #f2f2f2;
   --sidebar-text-muted: #9a9a9a;
   --sidebar-border: rgba(255, 255, 255, 0.08);
-  --glass-blur: blur(16px);
+  --glass-blur: none;
   /* Beveled glass edge: bright top/left catch-light, dark bottom/right recess. */
   --card-bevel:
     inset 0 1px 0 rgba(255, 255, 255, 0.3),
@@ -68,21 +68,10 @@
   --shadow-card: 0 10px 32px rgba(0, 0, 0, 0.34);
   --card-border: 1px solid rgba(255, 255, 255, 0.12);
   --card-border-strong: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  --template-surface-image: url("/assets/surfaces/master-card-button-template.png");
-  --template-surface-bg:
-    linear-gradient(180deg, rgba(6, 6, 8, 0.66) 0%, rgba(5, 5, 7, 0.9) 100%),
-    var(--template-surface-image);
-  --template-surface-hover:
-    linear-gradient(180deg, rgba(18, 4, 5, 0.72) 0%, rgba(7, 6, 8, 0.92) 100%),
-    var(--template-surface-image);
-  --template-surface-border: 1px solid rgba(255, 42, 42, 0.5);
-  --template-surface-shadow:
-    0 16px 42px rgba(0, 0, 0, 0.46),
-    inset 0 0 22px rgba(255, 16, 16, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  --glass-panel-bg: var(--template-surface-bg);
-  --glass-panel-blur: blur(22px);
+  --glass-panel-bg: transparent;
+  --glass-panel-blur: none;
   --glass-panel-grain: none;
+  --glass-blur: none;
 }
 
 /* Legacy game-theme attributes map to the universal Platinum app face. */
@@ -136,7 +125,7 @@ h1, h2, h3, .site-wordmark {
   text-transform: uppercase;
 }
 
-/* Universal card and block frame */
+/* Free-standing blocks — no framed container chrome */
 .site-card,
 .site-auth-card,
 .site-page-card,
@@ -150,16 +139,13 @@ h1, h2, h3, .site-wordmark {
 .site-home-announce-card,
 .site-spotlight-card {
   position: relative;
-  border-radius: var(--radius-lg);
-  border: var(--template-surface-border);
-  background: var(--glass-panel-bg);
-  background-size: 100% 100%;
-  background-position: center;
-  background-repeat: no-repeat;
-  backdrop-filter: var(--glass-panel-blur);
-  -webkit-backdrop-filter: var(--glass-panel-blur);
-  box-shadow: var(--template-surface-shadow);
-  overflow: hidden;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  overflow: visible;
 }
 .site-card::before,
 .site-auth-card::before,
@@ -168,13 +154,7 @@ h1, h2, h3, .site-wordmark {
 .site-home-hero::before,
 .site-league-search-card::before,
 .site-billing-panel::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: var(--glass-panel-grain);
-  opacity: 0.55;
-  z-index: 0;
+  content: none;
 }
 .site-card > *,
 .site-auth-card > *,
@@ -187,13 +167,10 @@ h1, h2, h3, .site-wordmark {
   z-index: 1;
 }
 .site-card--interactive {
-  transition: border-color 140ms ease, background 140ms ease;
+  transition: opacity 140ms ease;
 }
 .site-card--interactive:hover {
-  border-color: rgba(255, 78, 78, 0.72);
-  background: var(--template-surface-hover);
-  background-size: 100% 100%;
-  background-position: center;
+  opacity: 0.92;
 }
 
 .site-page { min-height: 100%; display: flex; flex-direction: column; }
@@ -707,7 +684,7 @@ h1, h2, h3, .site-wordmark {
   gap: var(--space-2);
   min-height: 42px;
   padding: 10px 18px;
-  border: var(--template-surface-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -715,34 +692,26 @@ h1, h2, h3, .site-wordmark {
   cursor: pointer;
   font-size: 14px;
   font-family: var(--font);
-  background: var(--template-surface-bg);
-  background-size: 100% 100%;
-  background-position: center;
-  box-shadow: var(--template-surface-shadow);
-  color: var(--text);
-  transition: border-color 140ms ease, background 140ms ease, filter 140ms ease, transform 140ms ease;
+  transition: border-color 140ms ease, background 140ms ease, filter 140ms ease;
 }
 .site-btn-primary {
-  border-color: rgba(255, 58, 58, 0.78);
-  background: var(--template-surface-hover);
-  background-size: 100% 100%;
-  color: var(--text);
+  background: var(--accent);
+  color: var(--btn-primary-text);
 }
 .site-btn-primary:hover {
-  filter: brightness(1.16);
-  transform: translateY(-1px);
+  background: var(--accent-bright);
 }
 .site-btn-ghost {
-  background: var(--template-surface-bg);
-  background-size: 100% 100%;
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.16);
   color: var(--text);
 }
 .site-btn-ghost:hover {
-  border-color: rgba(255, 78, 78, 0.72);
-  background: var(--template-surface-hover);
-  background-size: 100% 100%;
+  border-color: rgba(201, 162, 39, 0.45);
+  background: rgba(201, 162, 39, 0.08);
 }
 .site-btn-lg { min-height: 48px; padding: 14px 28px; font-size: 16px; }
 .site-btn:disabled { opacity: 0.6; cursor: not-allowed; filter: none; }
@@ -3404,7 +3373,7 @@ h1, h2, h3, .site-wordmark {
   border: 1px solid color-mix(in srgb, var(--site-accent) 34%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--site-panel) 42%, transparent);
-  backdrop-filter: blur(18px) saturate(125%);
+  backdrop-filter: none;
 }
 .site-comp-chat-log {
   min-height: 220px;
@@ -3432,7 +3401,7 @@ h1, h2, h3, .site-wordmark {
   border: 1px solid color-mix(in srgb, var(--site-accent) 34%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--site-panel) 38%, transparent);
-  backdrop-filter: blur(18px) saturate(125%);
+  backdrop-filter: none;
 }
 .site-comp-player-summary span { display: block; margin-top: 4px; color: var(--text-muted); }
 .site-comp-lobby-title { margin: 28px 0 4px; text-align: center; }
@@ -4069,7 +4038,7 @@ h1, h2, h3, .site-wordmark {
   display: flex;
   flex-direction: column;
   background: color-mix(in srgb, var(--bg) 90%, transparent);
-  backdrop-filter: blur(10px);
+  backdrop-filter: none;
   border-bottom: 1px solid var(--border);
 }
 .site-header-row1,
@@ -4263,7 +4232,7 @@ h1, h2, h3, .site-wordmark {
    surfaces), but this page's background art is busy enough that it bled straight through the
    cards and made body text hard to read -- these need a solid, high-contrast surface of their
    own instead of the shared token. */
-.rise-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: var(--card-border); border-radius: var(--radius-lg); background: rgba(8, 8, 10, 0.97); backdrop-filter: blur(6px); }
+.rise-card { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); border: 0; border-radius: 0; background: transparent; backdrop-filter: none; }
 .rise-side-tabs, .rise-actions, .rise-options { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
 /* "Build Your Legacy" (Pass 10) identity switcher -- 3 cards (Offense/Defense/Owner), the
@@ -4631,8 +4600,7 @@ h1, h2, h3, .site-wordmark {
   .rise-page { padding-left: 12px; padding-right: 12px; }
 }
 
-/* Universal Master Card/Button template overrides.
-   Kept late in the cascade so older page-local card/block backgrounds do not reappear. */
+/* Free-standing blocks: strip remaining framed containers and blur. */
 :where(
   .site-card,
   .site-auth-card,
@@ -4685,62 +4653,14 @@ h1, h2, h3, .site-wordmark {
   .rise-tree-card,
   .rise-legacy-column,
   .rise-split-card,
-  .rise-headshot-option,
-  .rise-trait-option
+  .site-comp-match-room,
+  .site-comp-candidates article,
+  .site-comp-chat-log
 ) {
-  border: var(--template-surface-border) !important;
-  background: var(--template-surface-bg) !important;
-  background-size: 100% 100% !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  box-shadow: var(--template-surface-shadow) !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
-:where(
-  .site-btn,
-  .site-btn-secondary,
-  .site-messages-link,
-  .site-notif-bell-trigger,
-  .site-league-pill-info,
-  .wizard-game-card,
-  .wizard-option-card,
-  .wizard-template-card,
-  .wizard-team-card,
-  .site-public-league-season-tabs button,
-  .demo-phase-tabs button,
-  .demo-draft-toolbar button,
-  .demo-draft-footer button,
-  .demo-draft-row-actions button,
-  .demo-personal-board li button,
-  .rise-stage-nav button
-) {
-  border: var(--template-surface-border) !important;
-  background: var(--template-surface-bg) !important;
-  background-size: 100% 100% !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
-  box-shadow: var(--template-surface-shadow) !important;
-  color: var(--text) !important;
-}
-
-:where(
-  .site-btn-primary,
-  .site-btn:hover:not(:disabled),
-  .site-btn-secondary:hover,
-  .site-messages-link:hover,
-  .site-notif-bell-trigger:hover,
-  .site-league-pill-info:hover,
-  .site-league-pill-info[aria-expanded="true"],
-  .wizard-game-card:hover,
-  .wizard-option-card:hover,
-  .wizard-template-card:hover,
-  .wizard-team-card:hover,
-  .rise-stage-nav button.is-active,
-  .rise-headshot-option.is-selected,
-  .rise-trait-option:hover,
-  .rise-trait-option-active
-) {
-  border-color: rgba(255, 78, 78, 0.72) !important;
-  background: var(--template-surface-hover) !important;
-  background-size: 100% 100% !important;
-}
