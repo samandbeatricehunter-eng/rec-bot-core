@@ -6,3 +6,6 @@ Reserved Font Name "Graduate". REC Victory Slab does not use that reserved name.
 The family is distributed under the SIL Open Font License, Version 1.1. See
 OFL.txt in this directory. REC-specific application artwork and branding remain
 separate from the font license.
+
+REC Steel uses Racing Sans One (Impallari Type / Google Fonts) under the SIL Open
+Font License, Version 1.1. See RACING-SANS-ONE-OFL.txt in this directory.

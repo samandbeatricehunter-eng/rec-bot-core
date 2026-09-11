@@ -1115,7 +1115,7 @@ h1, h2, h3, .site-wordmark {
   width: 100%;
   margin: 0;
   padding: 0;
-  padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--space-6) + 40px + env(safe-area-inset-bottom, 0px));
   /* flex:1 + flex-direction:column so .site-hub-embed (flex:1 below) fills the real
      remaining space under the header naturally, instead of a hardcoded
      `calc(100dvh - Npx)` guess at the header's height -- that guess was already wrong
@@ -1575,7 +1575,7 @@ h1, h2, h3, .site-wordmark {
 @media (min-width: 960px) {
   .site-shell.is-league-scope .site-shell-main:has(.site-hub-embed) {
     padding: 0;
-    padding-bottom: var(--space-5);
+    padding-bottom: calc(var(--space-5) + 40px + env(safe-area-inset-bottom, 0px));
     max-width: none;
     width: auto;
   }

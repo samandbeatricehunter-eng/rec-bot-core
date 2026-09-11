@@ -6,12 +6,15 @@
 @font-face { font-family: "REC Gridiron"; src: url("/fonts/rec-gridiron-regular.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
 @font-face { font-family: "REC Gridiron"; src: url("/fonts/rec-gridiron-bold.woff2") format("woff2"); font-style: normal; font-weight: 700; font-display: swap; }
 @font-face { font-family: "REC Gridiron"; src: url("/fonts/rec-gridiron-forward.woff2") format("woff2"); font-style: italic; font-weight: 700; font-display: swap; }
+/* Racing Sans One (Impallari / Google Fonts, OFL) — italic racing display closest open match to Artyway Steel Race letterforms. */
+@font-face { font-family: "REC Steel"; src: url("/fonts/racing-sans-one.ttf") format("truetype"); font-style: normal; font-weight: 400; font-display: swap; }
 
 .rec-display { font-family: "REC Victory Slab", Impact, sans-serif; font-weight: 700; text-transform: uppercase; }
 .rec-display--condensed { font-stretch: condensed; }
 .rec-display--wide { font-stretch: expanded; }
 .rec-gridiron { font-family: "REC Gridiron", "Arial Narrow", sans-serif; font-weight: 700; text-transform: uppercase; }
 .rec-gridiron--forward { font-style: italic; }
+.rec-steel { font-family: "REC Steel", "Arial Narrow", Impact, sans-serif; font-weight: 400; text-transform: uppercase; }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;

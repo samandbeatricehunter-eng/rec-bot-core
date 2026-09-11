@@ -200,7 +200,6 @@ function StandingTeamBlock({
       <strong className="hub-div-standing-record">{metric}</strong>
       {conferenceRank != null ? <span className="hub-div-standing-conf-rank">{conferenceRank}</span> : null}
       {showPlayoff && team.playoffMarker ? <span className="hub-div-standing-marker">{team.playoffMarker}</span> : null}
-      {!team.isHuman ? <span className="hub-div-standing-open">Open</span> : null}
     </article>
   );
 }
