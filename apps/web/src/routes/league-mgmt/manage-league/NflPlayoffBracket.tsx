@@ -316,15 +316,16 @@ export function NflPlayoffBracket() {
           ) : (
             <>
               <div className="nfl-bracket-meta">
-                <span className="is-live">● Postseason</span>
-                <span>Week {picture.league.currentWeek}</span>
+                <span className="is-live">● {picture.champion ? "Final" : "Postseason"}</span>
+                {!picture.champion ? <span>Week {picture.league.currentWeek}</span> : null}
               </div>
               <Card><DesktopBracket picture={picture} /></Card>
             </>
           )}
           <p className="nfl-bracket-legend">
-            Seven teams per conference — the No. 1 seed gets the first-round bye, and each
-            conference reseeds (lowest surviving seed vs. highest) after every round.
+            {picture.champion
+              ? "This season's postseason is complete. The next live playoff picture unlocks starting Week 12 of the new regular season."
+              : "Seven teams per conference — the No. 1 seed gets the first-round bye, and each conference reseeds (lowest surviving seed vs. highest) after every round."}
           </p>
         </>
       )}

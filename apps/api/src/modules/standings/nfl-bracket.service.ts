@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { NFL_PLAYOFF_PICTURE_START_WEEK } from "@rec/shared";
+import { nflPlayoffPictureLive } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { computeNflStandings } from "./nfl-standings.service.js";
@@ -335,8 +335,13 @@ export async function getNflPlayoffPicture(leagueId: string, seasonNumber: numbe
   const teamSummary = (teamId: string): TeamSummary =>
     teamSummaryById.get(teamId) ?? { teamId, name: "Team", abbreviation: null, logoUrl: null, primaryColor: null, conference: "", division: "" };
 
-  const showBracket = currentWeek >= NFL_PLAYOFF_PICTURE_START_WEEK;
-  const isLiveProjection = currentWeek < ROUND_WEEK.wild_card;
+  // Keep the just-finished season's bracket live through the entire offseason pipeline.
+  // Only drop back to a prior-season snapshot once the league enters preseason / training
+  // camp (or early regular-season weeks before the Week 12 projection window).
+  const showBracket = nflPlayoffPictureLive({ weekNumber: currentWeek, seasonStage, game });
+  const isLiveProjection = showBracket
+    && seasonStage === "regular_season"
+    && currentWeek < ROUND_WEEK.wild_card;
 
   const conferences = standings.conferences.map((c) => ({
     conference: c.conference,
@@ -514,15 +519,37 @@ export async function getNflPlayoffBracketRenderData(leagueId: string): Promise<
 }
 
 /** Most recent settled bracket for a league, if any -- the public/member-facing bracket page
- * falls back to this once the live picture's `showBracket` goes false again (new season's
- * week resets below the playoff-picture threshold), so a finished postseason stays visible
- * as a historical result instead of just disappearing. */
+ * falls back to this once the live picture's `showBracket` goes false again (league enters
+ * preseason / training camp, or a new season's week is still below the Week 12 projection
+ * window), so a finished postseason stays visible as a historical result instead of just
+ * disappearing during the offseason→new-season gap.
+ *
+ * Prefers the persisted snapshot row; if that is missing (snapshot failed, or the league
+ * skipped a clean Super Bowl → offseason boundary), reconstructs from stored bracket slots
+ * for the most recent season that already crowned a champion. */
 export async function getLatestNflPlayoffBracketSnapshot(leagueId: string): Promise<{ seasonNumber: number; picture: NflPlayoffPicture } | null> {
   const result = await getPgPool().query(
     `select season_number,bracket from rec_league_playoff_bracket_snapshots where league_id=$1 order by season_number desc limit 1`,
     [leagueId],
   );
   const row = result.rows[0] as { season_number: number; bracket: NflPlayoffPicture } | undefined;
-  if (!row) return null;
-  return { seasonNumber: Number(row.season_number), picture: row.bracket };
+  if (row) return { seasonNumber: Number(row.season_number), picture: row.bracket };
+
+  const leagueRow = await getPgPool().query(
+    `select season_number,season_stage from rec_leagues where id=$1`,
+    [leagueId],
+  );
+  const currentSeason = Number(leagueRow.rows[0]?.season_number ?? 1);
+  const seasonStage = String(leagueRow.rows[0]?.season_stage ?? "");
+  // During training camp the season number has not rolled yet, so the completed bracket is
+  // still on the current season. After preseason rollover (and early regular season) look at N-1.
+  const candidates = ["preseason_training_camp"].includes(seasonStage)
+    ? [currentSeason]
+    : [currentSeason - 1, currentSeason].filter((n) => n >= 1);
+
+  for (const seasonNumber of candidates) {
+    const picture = await getNflPlayoffPicture(leagueId, seasonNumber);
+    if (picture.champion) return { seasonNumber, picture };
+  }
+  return null;
 }

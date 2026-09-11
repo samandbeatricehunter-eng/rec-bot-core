@@ -93,6 +93,24 @@ export function postseasonPayoutStages(game: LeagueGame): Set<string> {
     : new Set(["wild_card", "divisional", "conference_championship", "super_bowl"]);
 }
 
+/** Madden-only: whether the hub/API should surface the *current* season's NFL playoff picture
+ *  (live projection or settled postseason bracket) instead of falling back to a prior-season
+ *  snapshot. True from Week 12 of the regular season through the full postseason and
+ *  offseason pipeline; false once the league enters preseason / training camp, and during
+ *  early regular-season weeks of the next year before Week 12. */
+export function nflPlayoffPictureLive(input: {
+  weekNumber: number;
+  seasonStage: string;
+  game?: LeagueGame;
+}): boolean {
+  const stage = String(input.seasonStage ?? "").trim().toLowerCase();
+  if (stage === "preseason" || stage === "preseason_training_camp") return false;
+  if (isOffseasonPipelineStage(stage)) return true;
+  if (postseasonPayoutStages(input.game ?? "madden_27").has(stage)) return true;
+  return stage === "regular_season"
+    && Number(input.weekNumber ?? 0) >= NFL_PLAYOFF_PICTURE_START_WEEK;
+}
+
 export function stageHasScheduledGames(seasonStage: string, game: LeagueGame): boolean {
   return gameplaySeasonStages(game).has(String(seasonStage ?? ""));
 }

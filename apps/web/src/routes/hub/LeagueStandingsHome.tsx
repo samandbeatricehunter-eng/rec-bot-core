@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { getTeamByAbbreviation, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
+import { getTeamByAbbreviation, nflPlayoffPictureLive, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -369,7 +369,18 @@ export function LeagueStandingsHome() {
   }, [guildId]);
 
   const teams = hub?.powerRankings?.teams ?? [];
-  const bracketAvailable = Number(hub?.league.weekNumber ?? 0) >= 12;
+  // Live from Week 12 through postseason/offseason; also keep the button available once a
+  // prior season exists (snapshot fallback) or the league is in preseason/TC so members can
+  // still open last season's settled bracket until the next Week 12 projection.
+  const bracketAvailable = hub
+    ? nflPlayoffPictureLive({
+      weekNumber: Number(hub.league.weekNumber ?? 0),
+      seasonStage: String(hub.league.seasonStage ?? ""),
+      game: hub.league.game,
+    })
+      || Number(hub.league.seasonNumber ?? 1) > 1
+      || ["preseason", "preseason_training_camp"].includes(String(hub.league.seasonStage ?? ""))
+    : false;
   const sosByTeam = useMemo(() => {
     const map = new Map<string, SosTeam>();
     for (const team of hub?.sos?.teams ?? []) map.set(team.teamId, team);

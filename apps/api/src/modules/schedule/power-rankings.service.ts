@@ -56,11 +56,14 @@ type Agg = {
 const emptyAgg = (): Agg => ({ wins: 0, losses: 0, ties: 0, pf: 0, pa: 0, scored: 0, total: 0, boxScoreGames: 0, h2hGames: 0, h2hWins: 0, h2hWinMargin: 0 });
 
 async function aggregateTeams(leagueId: string, seasonNumber: number): Promise<Map<string, Agg>> {
+  // Regular-season only — standings tiles and power-ranking scores should not include
+  // postseason results (the playoff bracket is the place to see those).
   const { data, error } = await supabase
     .from("rec_game_results")
     .select("home_team_id,away_team_id,home_score,away_score,winning_team_id,losing_team_id,is_tie,is_user_h2h,source")
     .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber);
+    .eq("season_number", seasonNumber)
+    .eq("is_playoff", false);
   if (error) throw new ApiError(500, "Failed to load results for power rankings.", error);
 
   const map = new Map<string, Agg>();
