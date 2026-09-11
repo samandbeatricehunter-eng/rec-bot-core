@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { getTeamByAbbreviation, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
@@ -158,6 +158,53 @@ function useDivisionBoard(
   }, [teams, view, sosByTeam]);
 }
 
+function fitLabelToWidth(el: HTMLElement, maxPx: number, minPx: number) {
+  let size = maxPx;
+  el.style.fontSize = `${size}px`;
+  while (el.scrollWidth > el.clientWidth + 0.5 && size > minPx) {
+    size -= 0.5;
+    el.style.fontSize = `${size}px`;
+  }
+  return size;
+}
+
+/** City is always capped below the nick size so long cities never visually outrank short nicks. */
+const CITY_TO_NICK_RATIO = 0.55;
+
+function StandingIdentity({ city, nick }: { city: string; nick: string }) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const cityRef = useRef<HTMLElement | null>(null);
+  const nickRef = useRef<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const cityEl = cityRef.current;
+    const nickEl = nickRef.current;
+    if (!wrap || !nickEl) return;
+
+    const fit = () => {
+      const nickSize = fitLabelToWidth(nickEl, 20, 11);
+      if (cityEl) {
+        // Always keep city below nick — never let a long city read larger than a short nick.
+        const cityMax = Math.min(11, nickSize * CITY_TO_NICK_RATIO);
+        fitLabelToWidth(cityEl, cityMax, Math.min(cityMax, 5.5));
+      }
+    };
+
+    fit();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
+    ro?.observe(wrap);
+    return () => ro?.disconnect();
+  }, [city, nick]);
+
+  return (
+    <div className="hub-div-standing-identity" ref={wrapRef}>
+      {city ? <small ref={(node) => { cityRef.current = node; }} className="hub-div-standing-city">{city}</small> : null}
+      <strong ref={(node) => { nickRef.current = node; }} className="hub-div-standing-nick">{nick}</strong>
+    </div>
+  );
+}
+
 function StandingTeamBlock({
   team,
   conferenceRank,
@@ -193,10 +240,7 @@ function StandingTeamBlock({
       title={team.teamName}
     >
       <TeamLogo abbreviation={team.abbr} alt="" className="hub-div-standing-logo" priority />
-      <div className="hub-div-standing-identity">
-        {city ? <small className="hub-div-standing-city">{city}</small> : null}
-        <strong className="hub-div-standing-nick">{nick}</strong>
-      </div>
+      <StandingIdentity city={city} nick={nick} />
       <strong className="hub-div-standing-record">{metric}</strong>
       {conferenceRank != null ? <span className="hub-div-standing-conf-rank">{conferenceRank}</span> : null}
       {showPlayoff && team.playoffMarker ? <span className="hub-div-standing-marker">{team.playoffMarker}</span> : null}

@@ -4128,44 +4128,37 @@ button.poty:disabled {
   line-height:1;
   padding:2px 2px 5px 0;
 }
-.hub-div-standing-identity::before {
-  content:"";
-  position:absolute;
-  inset:-4px -10px -6px -12px;
-  z-index:-1;
-  pointer-events:none;
-  border-radius:4px;
-  background:linear-gradient(90deg, rgba(0,0,0,.55) 0%, rgba(0,0,0,.28) 62%, transparent 100%);
-}
+.hub-div-standing-identity::before { display:none; }
 .hub-div-standing-city,
 .hub-div-standing-nick {
-  font-family: "REC Steel", "Arial Narrow", Impact, sans-serif;
+  display:block;
+  width:100%;
+  max-width:100%;
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
   font-style: normal;
-  font-weight: 400;
   color: #ffffff;
   -webkit-text-fill-color: #ffffff;
   background: none;
   text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   line-height: 1;
 }
 .hub-div-standing-city {
-  font-size: 10px;
-  letter-spacing: .08em;
-  margin: 0 0 -1px;
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: .06em;
+  margin: 0 0 1px;
   opacity: 1;
-  /* White fill + black 3D accents */
   text-shadow:
     0 1px 0 #000,
     1px 1px 0 #000,
     1px 2px 0 #000,
-    2px 3px 0 #000,
-    2px 4px 4px rgba(0,0,0,.55);
+    2px 3px 4px rgba(0,0,0,.5);
 }
 .hub-div-standing-nick {
-  font-size: clamp(15px, 1.85vw, 20px);
+  font-weight: 700;
+  font-size: 18px;
   letter-spacing: .02em;
   text-shadow:
     0 1px 0 #000,
@@ -4174,8 +4167,7 @@ button.poty:disabled {
     2px 3px 0 #000,
     2px 4px 0 #000,
     3px 5px 0 #000,
-    3px 6px 0 #000,
-    4px 8px 8px rgba(0,0,0,.55);
+    3px 6px 7px rgba(0,0,0,.55);
 }
 .hub-div-standing-power { display:none; }
 .hub-div-standing-record {

@@ -9,3 +9,6 @@ separate from the font license.
 
 REC Steel uses Racing Sans One (Impallari Type / Google Fonts) under the SIL Open
 Font License, Version 1.1. See RACING-SANS-ONE-OFL.txt in this directory.
+
+REC Quantico uses Quantico (Andrew Paglinawan / Google Fonts) under the SIL Open
+Font License, Version 1.1. See QUANTICO-OFL.txt in this directory.
