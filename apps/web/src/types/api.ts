@@ -142,56 +142,8 @@ export type OpenTeamsResponse = { openTeams: OpenTeam[]; totalTeams: number; lea
 export type LeagueIdentity = { userId: string; discordId: string | null; displayName: string };
 export type LeagueIdentitiesResponse = { identities: LeagueIdentity[] };
 
-export type PendingBoxScore = {
-  id: string;
-  team1_abbr: string | null;
-  team2_abbr: string | null;
-  home_score: number | null;
-  away_score: number | null;
-  week_number: number | null;
-  submitted_by_discord_id: string | null;
-  created_at: string;
-  image_storage_url: string | null;
-  image_urls: string[] | null;
-};
-
-export type BoxScoreSubmissionDetail = PendingBoxScore & {
-    league_id: string;
-    status: string;
-    team_stats: Record<string, { team1?: string | number | null; team2?: string | number | null }> | null;
-    quarter_scores: { team1?: number[]; team2?: number[] } | null;
-    team1_id: string | null;
-    team2_id: string | null;
-    home_team_id: string | null;
-    away_team_id: string | null;
-    parse_warnings: string[] | null;
-    flag_reasons: string[] | null;
-  };
-
 // Schedule builder: upload + OCR-submit flow (1c)
 export type UploadImageResponse = { url: string };
-
-export type BoxScoreJobResult = {
-  submissionId: string;
-  team1Abbr: string | null;
-  team2Abbr: string | null;
-  team1Score: number | null;
-  team2Score: number | null;
-  homeScore: number | null;
-  awayScore: number | null;
-  weekNumber: number;
-  gameMatched: boolean;
-  warnings: string[];
-  flagged: boolean;
-  flagReasons: string[];
-  imageUrl: string | null;
-};
-
-export type BoxScoreJobStatus =
-  | { status: "processing" }
-  | { status: "done"; result: BoxScoreJobResult }
-  | { status: "failed"; error: string; statusCode: number }
-  | { status: "not_found" };
 
 // Schedule builder: manual final-score entry (1c)
 export type ManualScoreRecordResult = {
@@ -214,23 +166,6 @@ export type PerformanceTag = {
   unit?: "offense" | "defense" | "special_teams" | null;
   statLines?: Array<{ statKey: string; label: string; value: number }>;
   performanceGrade: "standout" | "solid" | "neutral" | "poor";
-};
-
-// Recruiting tracker
-export type RecruitStatus = "undecided" | "visit_scheduled" | "verbal_commit" | "hard_commit" | "signed" | "recruiting_battle" | "committed_elsewhere";
-export type Recruit = {
-  id: string; playerName: string; position: string; homeCity: string | null; homeState: string | null;
-  starRating: number; status: RecruitStatus; committedTeamId: string | null; committedTeamExternal: string | null;
-  commitDate: string | null; storyId: string | null; heightInches: number | null; weightLbs: number | null;
-  submittedByUserId: string | null;
-};
-
-// Transfer portal tracker
-export type TransferStatus = "entered_portal" | "transferred" | "withdrawn";
-export type TransferEntry = {
-  id: string; playerName: string; position: string; classYear: ClassYear | null;
-  originTeamId: string; status: TransferStatus; destinationTeamId: string | null; destinationTeamExternal: string | null;
-  entryDate: string | null; storyId: string | null;
 };
 
 // Commissioner notification center (1d) — one unified shape covering ten heterogeneous
@@ -544,21 +479,6 @@ export type EosReadinessReport = {
   statsImport: ImportAuditReport | null;
   summary: string;
 };
-
-export type CfbRosterSeedStatus = {
-  league: { id: string; name: string | null; game: string | null };
-  isCfb: boolean;
-  dataset: { id: string; game_title: string; published_date: string } | null;
-  seeded: boolean;
-  teams: { total: number; stamped: number };
-  players: { total: number; defaultPlayers: number; active: number; withClassYear: number };
-};
-export type CfbRollForwardResult = { advanced: number; graduated: number; skipped: number; total: number };
-export type CfbBaselineApplyResponse = {
-  result: { teamsUpdated: number; playersCreated: number; skipped: { teams: number; players: number } };
-  status: CfbRosterSeedStatus;
-};
-export type CfbRollForwardResponse = { result: CfbRollForwardResult; status: CfbRosterSeedStatus };
 
 export type GotwPollStatus = { id: string; game_id: string; status: string; away_team_name: string; home_team_name: string };
 export type AdvanceDmPreview = {
@@ -962,12 +882,6 @@ export type TeamRosterResponse = {
   positionGroups: RosterPositionGroup[];
   draftPicks: TeamDraftPick[];
   canEditRosterStatus: boolean;
-};
-export type TurnoverKind = "interceptions_thrown" | "fumbles_lost" | "interceptions_made" | "forced_fumble";
-export type AssignableBoxScoreStats = {
-  teamId: string;
-  categories: Partial<Record<"passing" | "rushing", Array<{ statKey: string; label: string; value: number }>>>;
-  turnovers: Partial<Record<TurnoverKind, number>>;
 };
 export type RosterDepartureStatus = "drafted" | "transferred_out" | "retired" | "graduated";
 export type RosterLifecycleResult = { id: string; full_name: string; roster_status: string };

@@ -19,7 +19,6 @@ import {
   NotificationsHome,
   PlayerStatsReview,
   PublishingHome,
-  RecruitingHome,
   LeagueHistoryHome,
   LeagueRecordsHome,
   LeagueStandingsHome,
@@ -245,7 +244,6 @@ function HubMgmtRoutes() {
         }
       />
       <Route path="publishing" element={<MgmtSubPage><PublishingHome /></MgmtSubPage>} />
-      <Route path="recruiting" element={<MgmtSubPage><RecruitingHome /></MgmtSubPage>} />
       <Route path="*" element={<LeagueMgmtHome />} />
     </Routes>
   );

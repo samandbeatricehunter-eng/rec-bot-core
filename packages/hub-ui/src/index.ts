@@ -34,7 +34,6 @@ export { NotificationsHome } from "../../../apps/web/src/routes/league-mgmt/noti
 export { DeleteLeagueHome } from "../../../apps/web/src/routes/league-mgmt/delete-league/DeleteLeagueHome.js";
 export { SettingsHome } from "../../../apps/web/src/routes/league-mgmt/settings/SettingsHome.js";
 export { PublishingHome } from "../../../apps/web/src/routes/league-mgmt/publishing/PublishingHome.js";
-export { RecruitingHome } from "../../../apps/web/src/routes/league-mgmt/recruiting/RecruitingHome.js";
 export { ImportStatusDrawer } from "../../../apps/web/src/components/import/ImportStatusDrawer.js";
 export { ImportStatusProvider, useImportStatus } from "../../../apps/web/src/lib/import-status-context.js";
 export { HighlightUploadDrawer } from "../../../apps/web/src/components/hub/HighlightUploadDrawer.js";

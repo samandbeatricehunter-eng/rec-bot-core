@@ -644,63 +644,6 @@ export const recApi = {
   getLeagueConferences: (guildId: string) =>
     recFetch<any>("/v1/rosters/conferences", { method: "POST", body: JSON.stringify({ guildId }) }),
 
-  parseBoxScore: (input: {
-    guildId: string;
-    discordId: string;
-    imageUrls: string[];
-    seasonNumber?: number | null;
-    weekNumber?: number | null;
-    commissionerSubmission?: boolean | null;
-  }) =>
-    recFetch<any>("/v1/box-score/parse", { method: "POST", body: JSON.stringify(input) }),
-
-  submitBoxScore: (input: {
-    guildId: string;
-    discordId: string;
-    imageUrls: string[];
-    discordChannelId?: string | null;
-    discordMessageId?: string | null;
-    extraDiscordMessageIds?: string[] | null;
-    ledgerDiscordMessageId?: string | null;
-    seasonNumber?: number | null;
-    weekNumber?: number | null;
-    expectedGameId?: string | null;
-    commissionerSubmission?: boolean | null;
-  }): Promise<{ jobId: string; status: string }> =>
-    recFetch<{ jobId: string; status: string }>("/v1/box-score/submit", { method: "POST", body: JSON.stringify(input) }),
-
-  // Poll a background OCR job started by submitBoxScore. Returns { status } while
-  // processing, then { status: "done", result } or { status: "failed", error }.
-  getBoxScoreJob: (jobId: string) =>
-    recFetch<any>("/v1/box-score/job", { method: "POST", body: JSON.stringify({ jobId }) }),
-
-  reviewBoxScore: (input: {
-    submissionId: string;
-    action: "approve" | "deny";
-    reviewedByDiscordId: string;
-    deniedReason?: string | null;
-  }) =>
-    recFetch<any>("/v1/box-score/review", { method: "POST", body: JSON.stringify(input) }),
-
-  correctBoxScore: (input: {
-    submissionId: string;
-    reviewedByDiscordId: string;
-    field: string;
-    team1?: string | null;
-    team2?: string | null;
-    gameId?: string | null;
-  }) =>
-    recFetch<any>("/v1/box-score/correct", { method: "POST", body: JSON.stringify(input) }),
-
-  getBoxScore: (submissionId: string) =>
-    recFetch<any>("/v1/box-score/get", { method: "POST", body: JSON.stringify({ submissionId }) }),
-
-  listPendingBoxScores: (guildId: string) =>
-    recFetch<{ submissions: any[] }>("/v1/box-score/pending", { method: "POST", body: JSON.stringify({ guildId }) }),
-
-  listBoxScoreGames: (input: { guildId: string; weekNumber: number; seasonNumber?: number | null }) =>
-    recFetch<any>("/v1/box-score/games", { method: "POST", body: JSON.stringify(input) }),
-
   listCommissionerNotifications: (input: { guildId: string; sinceIso?: string | null }) =>
     recFetch<{ notifications: Array<{ id: string; type: string; title: string; subtitle: string; amount: number | null; submittedBy: string | null; submittedAt: string }> }>(
       "/v1/notifications/list",
@@ -715,29 +658,10 @@ export const recApi = {
   syncDiscordMemberRole: (input: { guildId: string; discordId: string; roleKey: "member" | "compCommittee" | "commissioner" }) =>
     recFetch<{ ok: true }>("/v1/roles/discord-sync", { method: "POST", body: JSON.stringify(input) }),
 
-  getBoxScoreUploadEligibility: (input: { guildId: string; discordId: string }) =>
-    recFetch<any>("/v1/box-score/upload-eligibility", { method: "POST", body: JSON.stringify(input) }),
-
-  appendBoxScoreImage: (input: { guildId: string; discordId: string; imageUrl: string }) =>
-    recFetch<{ submissionId: string; imageStorageUrl: string | null; imageCount: number }>("/v1/box-score/append-image", { method: "POST", body: JSON.stringify(input) }),
   submitPlayerStatLine: (input: { guildId: string; discordId: string; playerName: string; category: string; statLines: Array<{ statKey: string; label: string; value: number }> }) => recFetch<any>("/v1/watched-players/submit-stat-line", { method: "POST", body: JSON.stringify(input) }),
   listMyWatchedPlayers: (input: { guildId: string; discordId: string }) => recFetch<{ players: Array<{ id: string; playerName: string; position: string }> }>("/v1/watched-players/my-list", { method: "POST", body: JSON.stringify(input) }),
   removeMyPlayerStatLine:(input:{guildId:string;discordId:string;playerName:string;category:string})=>recFetch<any>("/v1/watched-players/remove-stat-line",{method:"POST",body:JSON.stringify(input)}),
-  getGuideMessageState: (guildId: string) => recFetch<{ messages: Array<{ section_index: number; discord_channel_id: string; discord_message_id: string }> }>("/v1/submission-state/guide/get", { method: "POST", body: JSON.stringify({ guildId }) }),
-  saveGuideMessageState: (input: { guildId: string; channelId: string; messageIds: string[] }) => recFetch<any>("/v1/submission-state/guide/save", { method: "POST", body: JSON.stringify(input) }),
   saveWeeklyPanelState: (input: { guildId: string; seasonNumber: number; seasonStage: string; weekNumber: number | null; channelId: string; messageId: string }) => recFetch<any>("/v1/submission-state/panel/save", { method: "POST", body: JSON.stringify(input) }),
-  submitRecruitCommit: (input: { guildId: string; discordId: string; playerName: string; position: string; starRating: number; homeCity: string; homeState: string }) => recFetch<any>("/v1/recruiting/submit-commit", { method: "POST", body: JSON.stringify(input) }),
-
-  updateBoxScoreLedgerMessage: (input: { submissionId: string; ledgerDiscordMessageId: string }) =>
-    recFetch<any>("/v1/box-score/ledger-message", { method: "POST", body: JSON.stringify(input) }),
-
-  listBoxScoresPendingDiscordCleanup: (guildId: string) =>
-    recFetch<{ submissions: Array<{ submissionId: string; discordChannelId: string; discordMessageId: string; extraDiscordMessageIds: string[]; ledgerDiscordMessageId: string | null }> }>(
-      "/v1/box-score/pending-cleanup",
-      { method: "POST", body: JSON.stringify({ guildId }) },
-    ),
-  markBoxScoreDiscordCleanupDone: (submissionId: string) =>
-    recFetch<any>("/v1/box-score/mark-cleanup-done", { method: "POST", body: JSON.stringify({ submissionId }) }),
 
   listScheduleTeams: (guildId: string) =>
     recFetch<any>("/v1/schedule/teams", { method: "POST", body: JSON.stringify({ guildId }) }),
@@ -747,9 +671,6 @@ export const recApi = {
 
   listScheduleSeason: (input: { guildId: string; seasonNumber?: number | null }) =>
     recFetch<any>("/v1/schedule/season", { method: "POST", body: JSON.stringify(input) }),
-
-  previewCfbTeamScheduleImport: (input: { guildId: string; teamId: string; imageUrls: string[]; seasonNumber?: number | null }) =>
-    recFetch<any>("/v1/schedule/cfb-team-import-preview", { method: "POST", body: JSON.stringify(input) }),
 
   commitCfbTeamScheduleImport: (input: {
     guildId: string;

@@ -6,7 +6,7 @@ import { HeadshotUploadOverlay } from "../../components/hub/HeadshotUploadOverla
 import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
 import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
-import { InterviewMicIcon, ManageTeamIcon, RecruitingCapIcon, ScheduleIcon } from "../../components/hub/QuickActionIcons.js";
+import { InterviewMicIcon, ManageTeamIcon, ScheduleIcon } from "../../components/hub/QuickActionIcons.js";
 import { ManageFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
 import { HeroMatchupActions } from "../../components/hub/HeroMatchupActions.js";
 import { HeroMatchupBreakdown } from "../../components/hub/HeroMatchupBreakdown.js";
@@ -37,7 +37,6 @@ import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.js";
 import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
-import { RecruitingBoardModal } from "../../components/hub/RecruitingBoardModal.js";
 import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestModal.js";
 import { RelocateTeamWizard } from "../../components/hub/RelocateTeamWizard.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
@@ -653,7 +652,6 @@ export function HubHome() {
   const [scheduleHighlightWeek, setScheduleHighlightWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
   const [lateSubmissionsFocus, setLateSubmissionsFocus] = useState<"highlight" | null>(null);
   const [lateSubmissionsWeek, setLateSubmissionsWeek] = useState<number | undefined>(undefined);
-  const [recruitingBoardOpen, setRecruitingBoardOpen] = useState(false);
   const [editRosterOpen, setEditRosterOpen] = useState(false);
   const [linkedTeams, setLinkedTeams] = useState<LinkedTeamRow[] | null>(null);
   const [teamScheduleTeamId, setTeamScheduleTeamId] = useState<string | null>(null);
@@ -1491,7 +1489,6 @@ export function HubHome() {
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>{isRise ? <>Interview</> : <>Media Day/<wbr />Article</>}</strong><span>Media desk</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => openSportsbook()}><IconWell size="sm" icon={<Coins size={16} />} /><div><strong>Place a Wager</strong><span>Sportsbook</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setRecruitingBoardOpen(true)}><IconWell size="sm" icon={<RecruitingCapIcon size={16} />} /><div><strong>Recruiting</strong><span>Board &amp; commits</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
         </div>
       </div>
@@ -1889,7 +1886,6 @@ export function HubHome() {
                 <button type="button" className="hub-my-team-btn" onClick={() => openSportsbook()}><strong>Place a Wager</strong><span>Sportsbook</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/store`)}><strong>Store</strong><span>Franchise marketplace</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>
-                {hub.league.game === "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => setRecruitingBoardOpen(true)}><strong>Recruiting</strong><span>Board &amp; commits</span></button>}
                 {hub.league.game !== "cfb_27" && <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>}
                 <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => setManageFundsOpen(true)}><strong>Manage Funds</strong><span>Transfer &amp; transactions</span></button>
@@ -2221,7 +2217,6 @@ export function HubHome() {
     {highlightUploadGame && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={highlightUploadGame.gameId} onClose={() => setHighlightUploadGame(null)} onSubmitted={() => { setHighlightUploadGame(null); setMatchupReloadKey((value) => value + 1); }} />}
     {requestHelpGame && auth.status === "ready" && <RequestHelpSheet matchup={requestHelpGame} guildId={auth.guildId} onClose={() => setRequestHelpGame(null)} onSubmitted={() => setRequestHelpGame(null)} />}
     {scheduleHighlightWeek && scheduleHighlightWeek.gameId && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={scheduleHighlightWeek.gameId} onClose={() => setScheduleHighlightWeek(null)} onSubmitted={() => { setScheduleHighlightWeek(null); setMySchedule(null); void viewMySchedule(); }} />}
-    {recruitingBoardOpen && auth.status === "ready" && <RecruitingBoardModal guildId={auth.guildId} viewerUserId={hub.userRatings?.viewerUserId ?? null} canManageLeague={hub.canManageLeague} onClose={() => setRecruitingBoardOpen(false)} />}
     {editRosterOpen && auth.status === "ready" && <EditRosterRequestModal guildId={auth.guildId} onClose={() => setEditRosterOpen(false)} onDone={() => setEditRosterOpen(false)} />}
     {playerStatsGame && <Modal title="Players to Watch" onClose={() => setPlayerStatsGame(null)}><div className="hub-submission-modal">
       {playerStatsNotice && <p className="hub-transfer-status">{playerStatsNotice}</p>}<p className="hub-muted">{playerStatsGame.awayTeamName} at {playerStatsGame.homeTeamName}</p>

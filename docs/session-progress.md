@@ -131,12 +131,43 @@ drop): `rec_cfb_rivalry_catalog` (referenced in `rivalries.service.ts` behind
 leagues exist, but removing the tables means also editing those two call sites, which is really
 part of the not-yet-started "final CFB dependency scan," not pure DB cleanup.
 
+### CFB dependency scan: found and fixed two more dead-endpoint bugs, same shape as CFP
+Following up on the `CfpStandingsDrawer` pattern (live UI calling a deleted API route), checked
+every remaining web/bot API-client function against `apps/api/src/routes.ts` for a real backing
+route. Found the "Remove CFB support" commit had deleted `box-score`, `recruiting` (the CFB one —
+distinct from the still-alive `recruiting-board` module), `transfer-portal`, and `cfb-baseline`
+routes/services entirely, but left ~30 caller functions across `apps/web/src/lib/rec-api-client.ts`
+and `apps/bot/src/lib/rec-api.ts` still defined and, in two cases, still wired into reachable UI:
+
+- **`RecruitingHome.tsx`** (mounted unconditionally at `/l/:id/mgmt/recruiting` — no nav link
+  anywhere, but directly reachable by URL for any league including the 4 live Madden ones) and
+  **`RecruitingBoardModal.tsx`** (opened from two buttons in `HubHome.tsx`, both gated behind
+  `hub.league.game === "cfb_27"` — unreachable in practice since zero CFB leagues exist, same
+  situation as `CfpStandingsDrawer` was) both called `/v1/recruiting/list` and friends, which
+  return 404 since `recruiting.routes.ts` doesn't exist anymore. Deleted both components, their
+  route/trigger wiring (`LeagueHub.tsx`, `HubHome.tsx`), and the `hub-ui` export.
+- Removed all ~30 now-fully-orphaned dead functions (confirmed zero callers each, individually,
+  before deleting): box-score review/upload/OCR/assign (13 in web, 13 in bot — the "see
+  TeamScheduleForm.tsx" comment on the web ones was stale, that file doesn't call them anymore),
+  recruiting create/list/board/commit (10 in web, 1 in bot), transfer-portal CRUD (4 in web),
+  CFB-baseline seed/apply/roll-forward (3 in web), and CFB team-schedule-import preview (1 in
+  bot). Also found and removed `getGuideMessageState`/`saveGuideMessageState` in
+  `apps/bot/src/lib/rec-api.ts` — leftover dead calls to the `/v1/submission-state/guide/*`
+  routes this session's earlier REC Guide removal already deleted; missed them at the time.
+  Removed the now-unused types those functions returned (`BoxScoreSubmissionDetail`,
+  `BoxScoreJobStatus`, `BoxScoreJobResult`, `PendingBoxScore`, `AssignableBoxScoreStats`,
+  `TurnoverKind`, `Recruit`, `RecruitStatus`, `TransferEntry`, `TransferStatus`,
+  `CfbRosterSeedStatus`, `CfbBaselineApplyResponse`, `CfbRollForwardResponse`,
+  `CfbRollForwardResult`) from `apps/web/src/types/api.ts` — checked each had zero other
+  consumers first.
+- All 4 packages typecheck clean; `@rec/bot` and `@rec/site` build clean.
+- **Left alone, explicitly out of scope for a pure dependency-scan pass**: the ~96-file broad
+  `cfb_27` grep still has plenty of legitimate, harmless conditional branches (rankings
+  difficulty labels, league-creation wizard game-type options, `isCfb`-gated UI sections that
+  just render nothing since no CFB leagues exist) that aren't calling anything broken — those are
+  dead-in-practice but not actively bugged, lower priority than the confirmed-404 bugs found here.
+
 ### Not yet started (rest of Phase 1)
-- Final CFB dependency scan beyond what's listed above: a broad grep for `cfb_27`/`cfb27` hit ~96
-  files across the repo, but most are legitimate `cfb_27` branches in still-live shared code
-  (rankings difficulty labels, league wizard game-type options, etc.) rather than dead
-  CFB-league-mode code — a full accurate pass needs its own dedicated turn, not a blind
-  grep-and-delete.
 - Verify route-channel source of truth (beyond the Discord command manifest already done),
   asset/dependency cleanup — not started.
 - `/league`, `/teams`, `/profile` don't have bot handlers built yet — that's Phase 4 scope
