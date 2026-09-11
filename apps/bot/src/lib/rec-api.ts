@@ -343,21 +343,6 @@ export const recApi = {
       body: JSON.stringify({ guildId }),
     }),
 
-  createWeeklyScoreReview: (input: { guildId: string; weekNumber?: number | null; imageUrls: string[]; createdByDiscordId: string }) =>
-    recFetch<any>("/v1/league-week/weekly-scores/review/create", { method: "POST", body: JSON.stringify(input) }),
-
-  getWeeklyScoreReview: (reviewId: string) =>
-    recFetch<any>("/v1/league-week/weekly-scores/review/get", { method: "POST", body: JSON.stringify({ reviewId }) }),
-
-  correctWeeklyScoreReview: (input: { reviewId: string; gameId: string; awayScore: number | null; homeScore: number | null }) =>
-    recFetch<any>("/v1/league-week/weekly-scores/review/correct", { method: "POST", body: JSON.stringify(input) }),
-
-  approveWeeklyScoreReview: (input: { reviewId: string; loggedByDiscordId: string }) =>
-    recFetch<any>("/v1/league-week/weekly-scores/review/approve", { method: "POST", body: JSON.stringify(input) }),
-
-  cancelWeeklyScoreReview: (reviewId: string) =>
-    recFetch<any>("/v1/league-week/weekly-scores/review/cancel", { method: "POST", body: JSON.stringify({ reviewId }) }),
-
   listManualScoreGames: (input: { guildId: string; weekNumber?: number | null }) =>
     recFetch<any>("/v1/league-week/manual-scores/games", { method: "POST", body: JSON.stringify(input) }),
 
@@ -739,9 +724,6 @@ export const recApi = {
     requestedByDiscordId?: string | null;
   }) =>
     recFetch<any>(REC_API_ROUTES.scheduleReplaceWeek, { method: "POST", body: JSON.stringify(input) }),
-
-  previewScheduleImport: (input: { guildId: string; weekNumber: number; imageUrls: string[] }) =>
-    recFetch<any>("/v1/schedule/import-preview", { method: "POST", body: JSON.stringify(input) }),
 
   listTrackedGameChannels: (guildId: string) =>
     recFetch<{ discordChannelIds: string[] }>(REC_API_ROUTES.gameChannelsTracked, {

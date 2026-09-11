@@ -15,8 +15,6 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { resolveSeasonContext, resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
 import { leagueWeekGamesQuery, leagueSeasonGamesQuery } from "../league-context/league-games.query.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
-import { persistStitchedUploadImage } from "../box-score/upload-images.js";
-import { parseScheduleImages } from "./schedule.parser.js";
 
 // ─── Team abbreviation resolution (shared by score + matchup screenshot imports) ─
 // In-game abbreviations that differ from our stored DB abbreviation — Madden
@@ -98,30 +96,6 @@ function phaseForWeek(weekNumber: number, game: LeagueGame) {
   // championship) is carried by week_number and rec_leagues.season_stage —
   // not by this column.
   return isRegularSeasonWeek(weekNumber, game) ? "regular_season" : "playoffs";
-}
-
-// Expected number of games in a given week. Playoff rounds have a fixed slate;
-// the regular season is a full slate (one game per team pair).
-function expectedGamesForWeek(weekNumber: number, game: LeagueGame, teamCount: number) {
-  if (isCfb(game)) {
-    switch (weekNumber) {
-      // Roughly one title game per conference large enough to hold one (~9 of the catalog's 11
-      // conferences); advisory only — this doesn't gate saving, just the "incomplete week" warning.
-      case 15: return 9; // Conference Championship
-      case 16: return 4; // CFP First Round (seeds 5-12; top 4 seeds bye)
-      case 17: return 4; // CFP Quarterfinals
-      case 18: return 2; // CFP Semifinals
-      case 19: return 1; // National Championship
-      default: return Math.floor(teamCount / 2);
-    }
-  }
-  switch (weekNumber) {
-    case 19: return 6; // Wild Card: 3 AFC + 3 NFC
-    case 20: return 4; // Divisional: 2 AFC + 2 NFC
-    case 21: return 2; // Conference Championship: 1 AFC + 1 NFC
-    case 22: return 1; // Super Bowl
-    default: return Math.floor(teamCount / 2);
-  }
 }
 
 function assertWeekSlot(input: { weekNumber: number; slotNumber?: number }, game: LeagueGame) {
@@ -630,104 +604,3 @@ export async function trySeedDefaultScheduleAfterTeamsReady(input: {
   return seedDefaultScheduleForGuild(input);
 }
 
-// ─── Matchup import from a League Schedule screenshot ───────────────────────────
-
-export type ScheduleImportGame = {
-  awayTeamId: string | null;
-  homeTeamId: string | null;
-  awayLabel: string;
-  homeLabel: string;
-  matched: boolean;
-};
-
-export type ScheduleImportPreview = {
-  seasonNumber: number;
-  weekNumber: number;
-  expectedGames: number;
-  games: ScheduleImportGame[];
-  matchedCount: number;
-  warnings: string[];
-  imageUrl: string | null;
-};
-
-function nickNorm(raw: string | null | undefined): string {
-  return (raw ?? "").toUpperCase().replace(/[^A-Z]/g, "");
-}
-
-// Nickname → team id, as a fallback when the RESULT abbr can't be read (the MATCHUP
-// column is often legible on rows whose result is not). Keys: display_nick, full
-// name, and the last word of the name (e.g. "Vikings" from "Minnesota Vikings").
-function buildNickMap(teams: Array<{ id: string; name: string | null; display_nick?: string | null }>): Map<string, string> {
-  const map = new Map<string, string>();
-  const put = (s: string | null | undefined, id: string) => {
-    const k = nickNorm(s);
-    if (k.length >= 3 && !map.has(k)) map.set(k, id);
-  };
-  for (const t of teams) {
-    put(t.display_nick, t.id);
-    put(t.name, t.id);
-    const words = String(t.name ?? "").trim().split(/\s+/);
-    if (words.length > 1) put(words[words.length - 1], t.id);
-  }
-  return map;
-}
-
-export async function previewScheduleImport(input: {
-  guildId: string;
-  weekNumber: number;
-  imageUrls: string[];
-}): Promise<ScheduleImportPreview> {
-  const context = await getCurrentLeagueContext(input.guildId);
-  assertWeekSlot({ weekNumber: input.weekNumber }, context.rec_leagues.game);
-  const leagueId = context.leagueId;
-  const seasonNumber = resolveSeasonNumber(context);
-
-  const teamsRes = await supabase
-    .from("rec_teams")
-    .select("id,name,abbreviation,display_abbr,display_city,display_nick,original_abbreviation")
-    .eq("league_id", leagueId);
-  if (teamsRes.error) throw new ApiError(500, "Failed to load league teams for schedule import.", teamsRes.error);
-  const teams = teamsRes.data ?? [];
-
-  const abbrMap = buildAbbrMap(teams);
-  const nickMap = buildNickMap(teams);
-  const labelById = new Map<string, string>(teams.map((t: any) => [String(t.id), String(formatTeamDisplayName(t) ?? t.name ?? t.display_abbr ?? t.abbreviation ?? "Team")]));
-  const resolve = (abbr: string | null, nick: string | null): string | null =>
-    resolveScheduleAbbr(abbrMap, abbr) ?? (nick ? nickMap.get(nickNorm(nick)) ?? null : null);
-
-  const parsed = await parseScheduleImages(input.imageUrls);
-
-  const seen = new Set<string>();
-  const games: ScheduleImportGame[] = [];
-  for (const p of parsed.games) {
-    const awayTeamId = resolve(p.awayAbbr, p.awayNick);
-    const homeTeamId = resolve(p.homeAbbr, p.homeNick);
-    const matched = !!(awayTeamId && homeTeamId && awayTeamId !== homeTeamId);
-    if (matched) {
-      const k = `${awayTeamId}:${homeTeamId}`;
-      if (seen.has(k)) continue;
-      seen.add(k);
-    }
-    games.push({
-      awayTeamId,
-      homeTeamId,
-      awayLabel: (awayTeamId ? labelById.get(awayTeamId) : null) ?? p.awayNick ?? p.awayAbbr ?? "?",
-      homeLabel: (homeTeamId ? labelById.get(homeTeamId) : null) ?? p.homeNick ?? p.homeAbbr ?? "?",
-      matched,
-    });
-  }
-
-  const imageUrl = input.imageUrls.length
-    ? await persistStitchedUploadImage(`schedimport-${leagueId}-${seasonNumber}-${input.weekNumber}`, input.imageUrls)
-    : null;
-
-  return {
-    seasonNumber,
-    weekNumber: input.weekNumber,
-    expectedGames: expectedGamesForWeek(input.weekNumber, context.rec_leagues.game, teams.length),
-    games,
-    matchedCount: games.filter((g) => g.matched).length,
-    warnings: parsed.warnings,
-    imageUrl: imageUrl ?? input.imageUrls[0] ?? null,
-  };
-}

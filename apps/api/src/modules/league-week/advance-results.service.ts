@@ -20,7 +20,6 @@ import { cancelAllWagersForGame, listConfirmableWagers, resolveWagersOnAdvance }
 import { sendPushToUsers } from "../push/push.service.js";
 import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { stageHasScheduledGames } from "./league-stage.util.js";
-import { clearWeeklyScoreReviewsForWeek } from "./weekly-scores.service.js";
 import { publishScheduledMediaForAdvance, publishTransitionStory } from "../hub/story-publishing.js";
 import { recordHubAnnouncement } from "../hub/hub.service.js";
 import { autoAssignGotwForWeek, createGotwPoll, settleGotwPollsForGame } from "../gotw/gotw.service.js";
@@ -1052,10 +1051,6 @@ export async function completeAdvanceWeek(input: {
       .then(({ error }) => {
         if (error) console.error("[ERROR] Failed to clear next_advance_at on advance (non-fatal):", error);
       }),
-    // The completed week's weekly-score review is now stale — clear it.
-    clearWeeklyScoreReviewsForWeek(context.leagueId, seasonNumber, currentWeek).catch((err) => {
-      console.error("[ERROR] clearWeeklyScoreReviewsForWeek failed after advance (non-fatal):", err);
-    }),
     // Rebuild display records after advancing — non-fatal so a stale/empty table doesn't block the week flip.
     rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {
       console.error("[ERROR] rebuildSeasonDisplayRecords failed after advance (non-fatal):", err);

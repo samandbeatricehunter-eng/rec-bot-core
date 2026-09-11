@@ -7,7 +7,6 @@ import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
 import { completeAdvanceWeek, getAdvanceWeekGames, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, notifyMissingBoxScore, setGamePostseasonFlags, setNextAdvanceTime } from "./advance-results.service.js";
 import { adjustEosPayoutItem, auditEosPayoutReadiness, getMyEosPayoutProgress, issueEosPayoutBatch, listEosPayoutBatch, listPendingEosLedgers, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser, wipeAndRerunEosLedger } from "./eos-payouts.service.js";
 import { advanceEosBallotSession, cancelOpenEosAwardPolls, castEosAwardVote, closeAndSettleEosAwardPollById, getEosAwardPoll, getEosAwardVotingBlock, getOrStartEosBallotSession, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, recordEosAwardPollVotesFromDiscord, settleEosAwardPoll, submitEosBallot } from "./eos-awards.service.js";
-import { createWeeklyScoreReview, getWeeklyScoreReview, correctWeeklyScoreReview, approveWeeklyScoreReview, cancelWeeklyScoreReview } from "./weekly-scores.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
 import { scoreWeekGotwCandidates } from "../gotw/gotw-nomination.service.js";
 import { computeWeeklyPlayerOfWeek } from "./player-of-week.service.js";
@@ -241,75 +240,6 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
     }
   });
 
-
-  // Parse a League Schedule screenshot into a persisted, correctable weekly-scores
-  // review (supersedes any prior pending review for the week).
-  app.post("/v1/league-week/weekly-scores/review/create", async (request, reply) => {
-    try {
-      requireInternalApiKey(request);
-      const body = z.object({
-        guildId: z.string().min(1),
-        weekNumber: z.number().int().min(0).max(22).optional().nullable(),
-        imageUrls: z.array(z.string().url()).min(1).max(2),
-        createdByDiscordId: z.string().min(1),
-      }).parse(request.body);
-      return reply.send(await createWeeklyScoreReview(body));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  app.post("/v1/league-week/weekly-scores/review/get", async (request, reply) => {
-    try {
-      requireInternalApiKey(request);
-      const { reviewId } = z.object({ reviewId: z.string().uuid() }).parse(request.body);
-      return reply.send(await getWeeklyScoreReview(reviewId));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  app.post("/v1/league-week/weekly-scores/review/correct", async (request, reply) => {
-    try {
-      requireInternalApiKey(request);
-      const body = z.object({
-        reviewId: z.string().uuid(),
-        gameId: z.string().uuid(),
-        awayScore: z.number().int().min(0).max(200).nullable(),
-        homeScore: z.number().int().min(0).max(200).nullable(),
-      }).parse(request.body);
-      return reply.send(await correctWeeklyScoreReview(body));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  app.post("/v1/league-week/weekly-scores/review/approve", async (request, reply) => {
-    try {
-      // guildId is optional because the bot's existing calls don't send it (bot-mode auth
-      // never checks it — see resolveGuildId below); the web dashboard always sends it.
-      const body = z.object({
-        guildId: z.string().min(1).optional(),
-        reviewId: z.string().uuid(),
-        loggedByDiscordId: z.string().min(1),
-      }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
-      if (auth.mode === "user") body.loggedByDiscordId = auth.discordId;
-      return reply.send(await approveWeeklyScoreReview(body));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  app.post("/v1/league-week/weekly-scores/review/cancel", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1).optional(), reviewId: z.string().uuid() }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId ?? "", permission: "co_commissioner" });
-      return reply.send(await cancelWeeklyScoreReview(body.reviewId));
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
 
   app.post("/v1/league-week/manual-scores/games", async (request, reply) => {
     try {

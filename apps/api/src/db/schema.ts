@@ -2489,20 +2489,6 @@ export const recGameReactions = pgTable("rec_game_reactions", {
 // Weekly score reviews / advance DM runs / trophies / championship credits
 // ============================================================================
 
-export const recWeeklyScoreReviews = pgTable("rec_weekly_score_reviews", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
-  seasonNumber: integer("season_number").notNull(),
-  weekNumber: integer("week_number").notNull(),
-  guildId: text("guild_id"),
-  imageUrl: text("image_url"),
-  games: jsonb("games").$type<Record<string, unknown> | null>(),
-  status: text("status").notNull().default("pending"),
-  createdByDiscordId: text("created_by_discord_id"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
 export const recAdvanceDmRuns = pgTable("rec_advance_dm_runs", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
@@ -2603,7 +2589,6 @@ export type RecHighlightPayoutReview = typeof recHighlightPayoutReviews.$inferSe
 export type RecPowerRankingSnapshot = typeof recPowerRankingSnapshots.$inferSelect;
 export type RecGameProfile = typeof recGameProfiles.$inferSelect;
 export type RecGameStory = typeof recGameStories.$inferSelect;
-export type RecWeeklyScoreReview = typeof recWeeklyScoreReviews.$inferSelect;
 export type RecAdvanceDmRun = typeof recAdvanceDmRuns.$inferSelect;
 export type RecManualChampionshipCredit = typeof recManualChampionshipCredits.$inferSelect;
 export type RecWager = typeof recWagers.$inferSelect;
@@ -3073,10 +3058,6 @@ export const recHighlightPayoutReviewsRelations = relations(recHighlightPayoutRe
 export const recPowerRankingSnapshotsRelations = relations(recPowerRankingSnapshots, ({ one }) => ({
   league: one(recLeagues, { fields: [recPowerRankingSnapshots.leagueId], references: [recLeagues.id] }),
   team: one(recTeams, { fields: [recPowerRankingSnapshots.teamId], references: [recTeams.id] })
-}));
-
-export const recWeeklyScoreReviewsRelations = relations(recWeeklyScoreReviews, ({ one }) => ({
-  league: one(recLeagues, { fields: [recWeeklyScoreReviews.leagueId], references: [recLeagues.id] })
 }));
 
 export const recAdvanceDmRunsRelations = relations(recAdvanceDmRuns, ({ one }) => ({

@@ -907,10 +907,6 @@ export const recApi = {
     recApiFetch<{ ok: true }>("/v1/league-memberships/role", { method: "POST", body: JSON.stringify(input) }),
   settleWager: (input: { guildId: string; leagueId?: string; wagerId: string }) =>
     recApiFetch<unknown>("/v1/wagers/settle", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
-  approveWeeklyScoreReview: (input: { guildId: string; reviewId: string }) =>
-    recApiFetch<unknown>("/v1/league-week/weekly-scores/review/approve", { method: "POST", body: JSON.stringify({ ...input, loggedByDiscordId: "web-dashboard" }) }),
-  cancelWeeklyScoreReview: (input: { guildId: string; reviewId: string }) =>
-    recApiFetch<unknown>("/v1/league-week/weekly-scores/review/cancel", { method: "POST", body: JSON.stringify(input) }),
   issueEosPayoutBatch: (input: { guildId: string; batchId: string }) =>
     recApiFetch<unknown>("/v1/league-week/eos-payouts/issue-batch", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   prepareEosPayouts: (input: { guildId: string }) =>

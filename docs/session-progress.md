@@ -222,30 +222,50 @@ properly:
   pass but not a regression from this one.
 - All 4 packages typecheck clean; `@rec/bot` builds clean.
 
-### Asset/dependency cleanup: scoped out, genuinely entangled, needs its own pass
-Checked whether `tesseract.js` (OCR) is removable from `apps/api/package.json` now that box-score
-OCR is gone. It's not: `apps/api/src/modules/box-score/` still has 7 parser files (deleted only
-`box-score.routes.ts`/`.service.ts`, the API endpoints — the parsing code stayed), and
-`upload-images.ts` (the generic Discord-CDN-image re-hosting utility, per its own comment "shared
-by... the Comp ladder's box-score parsing, schedule-screenshot flows, and weekly-scores") imports
-`fetchImageBuffer` from `box-score.parser.ts`. Confirmed `schedule.service.ts` and
-`weekly-scores.service.ts` — both live, core features — depend on the same
-`schedule-prefill-parser.ts`/`schedule.parser.ts` OCR machinery. So the box-score-specific parsing
-files may be partly dead now (nothing calls a "parse this into box-score stats" entry point
-anymore) while the underlying OCR/image infrastructure they share with schedule-prefill and
-weekly-scores is very much alive — untangling exactly which of the 7 files' *functions* (not whole
-files) are safe to remove needs careful per-function tracing, the same kind of investigation that
-found the interviews/voting-polls nuance above, not a package.json-level pass. Given that mistake
-already happened once this session, stopping here rather than guessing on money/feature-adjacent
-code again — this is a good candidate for the next dedicated session.
+### Schedule-prefill / weekly-scores OCR removed entirely (user confirmed: EA import replaces both)
+The user directly confirmed the ambiguity flagged above: "no schedule-prefill or weekly scores
+from box score or tesseract should be needed. we use data imports now." Went back in and removed
+both features completely rather than leaving them as scoped-out:
+
+- **Bot**: deleted `apps/bot/src/flows/schedule-import.ts` (314 lines — the "Schedule Wizard"/
+  "Upload One Week" screenshot-import flow) and `apps/bot/src/flows/schedule-scores.ts` (352
+  lines — the "Weekly Scores" screenshot-upload/correct/approve flow) entirely, plus every bit of
+  their wiring in `index-timeout.ts` (~15 routing lines, two menu buttons + their handler
+  functions, the `MENU_CUSTOM_IDS` entries) and a duplicate copy of the same two buttons in
+  `apps/bot/src/flows/schedule.ts`'s `scheduleManagementRows()`. Updated the "Upload Scores" panel
+  copy to point at the EA import instead of screenshots, with Manual Scores as the sole fallback
+  tool. `apps/bot/src/flows/manual-scores.ts` (non-OCR, stays) confirmed untouched.
+- **API**: deleted `apps/api/src/modules/league-week/weekly-scores.service.ts` (410 lines — full
+  create/get/correct/approve/cancel review lifecycle) and its 5 routes in `league-week.routes.ts`;
+  removed `previewScheduleImport` and its now-orphaned helpers (`expectedGamesForWeek`,
+  `buildNickMap`, `nickNorm`, the `ScheduleImportGame`/`ScheduleImportPreview` types) from
+  `schedule.service.ts` and its route in `schedule.routes.ts`. Deleted the now-fully-orphaned
+  `schedule.parser.ts` and `schedule-prefill-parser.ts` (confirmed zero remaining callers first).
+  Removed the stale `clearWeeklyScoreReviewsForWeek` call from `advance-results.service.ts`.
+- **Web**: removed the `weekly_score_review` case from `ResolveNotificationModal.tsx` (both the
+  approve/deny API-call switch and the modal-copy switch), its label from
+  `PendingItemsPanel.tsx`, its member from `CommissionerNotificationType`, and the
+  `approveWeeklyScoreReview`/`cancelWeeklyScoreReview` functions from `rec-api-client.ts`.
+- **DB**: dropped `rec_weekly_score_reviews` (confirmed 0 rows, and 0 referencing
+  `rec_commissioners_inbox` rows, before dropping) via
+  `supabase/migrations/20260911080000_drop_ocr_schedule_weekly_scores.sql` (applied).
+- **`tesseract.js` stays** — while tracing this, found the separate **Comp ladder** module
+  (`apps/api/src/modules/comp/comp.routes.ts`, a standalone matchmaking/ladder system unrelated to
+  league management) still actively calls `parseBoxScoreImages`/`parseCfbBoxScoreImages` for its
+  own box-score submissions. So `box-score.parser.ts` and its OCR helper files
+  (`box-score.parser.ocr.ts`/`.score.ts`/`.stats.ts`/`.types.ts`, `box-score-cfb.parser.ts`) all
+  stay — genuinely still live, just for a different feature than the one being removed. Updated
+  `upload-images.ts`'s comment (previously claimed schedule-screenshot flows and weekly-scores
+  still used it; now accurate — Comp ladder and tournament brackets are its remaining callers).
+- All 4 packages typecheck clean; `@rec/bot`, `@rec/api`, and `@rec/site` build clean.
 
 ### Phase 1 status: effectively complete for what's safely gettable in one pass
 Foundation cleanup (Heisman, dead CFP/recruiting-board endpoints, Rules-channel, Discord command
-manifest + /highlights fix, stale CFB/CFP DB tables, route-channel field audit) is done and live.
-Remaining: the ~96-file broad CFB grep (mostly harmless dead branches, not bugs), the Coin
-attribute-purchase path (deliberately untouched — live money logic, no ready replacement), and
-asset/dependency cleanup (entangled with live OCR features, needs careful tracing). All three are
-better suited to their own focused passes than being squeezed into this one.
+manifest + /highlights fix, stale CFB/CFP DB tables, route-channel field audit, OCR-based
+schedule-prefill/weekly-scores removal) is done and live. Remaining: the ~96-file broad CFB grep
+(mostly harmless dead branches, not bugs) and the Coin attribute-purchase path (deliberately
+untouched — live money logic, no ready replacement). Both are better suited to their own focused
+passes than being squeezed into this one.
 
 ### Not yet started (rest of Phase 1)
 - `/league`, `/teams`, `/profile` don't have bot handlers built yet — that's Phase 4 scope

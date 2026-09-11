@@ -322,8 +322,6 @@ function resolveModeFor(type: string): ResolveMode {
       return { kind: "approve_deny", reasonField: true, approveLabel: "Approve & Publish", denyLabel: "Deny" };
     case "team_request":
       return { kind: "approve_deny", reasonField: false, approveLabel: "Approve", denyLabel: "Reject" };
-    case "weekly_score_review":
-      return { kind: "approve_deny", reasonField: false, approveLabel: "Log Scores", denyLabel: "Cancel" };
     case "wager":
       return { kind: "approve_deny", reasonField: false, approveLabel: "Settle Wager", denyLabel: "Reject Wager" };
     case "trade":
@@ -393,10 +391,6 @@ async function resolveAction(
       return action === "approve"
         ? recApi.approveTeamRequest({ guildId, leagueId, requestId: sourceId })
         : recApi.rejectTeamRequest({ guildId, leagueId, requestId: sourceId });
-    case "weekly_score_review":
-      return action === "approve"
-        ? recApi.approveWeeklyScoreReview({ guildId, reviewId: sourceId })
-        : recApi.cancelWeeklyScoreReview({ guildId, reviewId: sourceId });
     case "wager":
       return action === "approve"
         ? recApi.settleWager({ guildId, leagueId, wagerId: sourceId })

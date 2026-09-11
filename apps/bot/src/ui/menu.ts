@@ -45,8 +45,6 @@ export const MENU_CUSTOM_IDS = {
   leagueMgmtTeams: "rec:league_mgmt:teams",
   leagueMgmtServerSetup: "rec:league_mgmt:server_setup",
   leagueMgmtSchedule: "rec:league_mgmt:schedule",
-  leagueMgmtScheduleWizard: "rec:league_mgmt:schedule:wizard",
-  leagueMgmtScheduleOneWeek: "rec:league_mgmt:schedule:one_week",
   leagueMgmtScheduleManual: "rec:league_mgmt:schedule:manual",
   leagueMgmtScheduleView: "rec:league_mgmt:schedule:view",
   leagueMgmtScheduleBack: "rec:league_mgmt:schedule:back",

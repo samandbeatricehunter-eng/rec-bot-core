@@ -178,7 +178,6 @@ export type CommissionerNotificationType =
   | "eos_payout"
   | "eos_award"
   | "active_check"
-  | "weekly_score_review"
   | "wager"
   | "team_request"
   | "media"

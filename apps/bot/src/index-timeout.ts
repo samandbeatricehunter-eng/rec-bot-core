@@ -229,16 +229,6 @@ import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, ha
 import { handleLiveStreamInteraction, isLiveStreamCustomId } from "./handlers/live-stream-prompt.js";
 import { syncManagedRoleFromDiscord } from "./handlers/managed-role-sync.js";
 import {
-  WEEKLY_SCORES_CUSTOM_IDS,
-  handleWeeklyScoresUploadOpen,
-  handleWeeklyScoresUploadMessage,
-  handleWeeklyScoresApprove,
-  handleWeeklyScoresCancel,
-  handleWeeklyScoresCorrectOpen,
-  handleWeeklyScoresCorrectGameSelect,
-  handleWeeklyScoresCorrectModal,
-} from "./flows/schedule-scores.js";
-import {
   MANUAL_SCORES_CUSTOM_IDS,
   handleManualScoresOpen,
   handleManualScoresWeekSelect,
@@ -247,15 +237,6 @@ import {
   handleManualScoresScoreModal,
   handleManualScoresAnother,
 } from "./flows/manual-scores.js";
-import {
-  SCHEDULE_IMPORT_CUSTOM_IDS,
-  startScheduleImportWizard,
-  startScheduleImportOneWeek,
-  handleScheduleImportWeekSelect,
-  handleScheduleImportUploadMessage,
-  handleScheduleImportSave,
-  handleScheduleImportCancel,
-} from "./flows/schedule-import.js";
 
 const client = new Client({
   intents: [
@@ -721,12 +702,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isButton() && interaction.customId.startsWith(EOS_PAYOUT_CUSTOM_IDS.approveUserPrefix)) return handleReviewEosUserPayouts(interaction, "approve");
     if (interaction.isButton() && interaction.customId.startsWith(EOS_PAYOUT_CUSTOM_IDS.denyUserPrefix)) return handleReviewEosUserPayouts(interaction, "deny");
 
-    if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.approvePrefix)) return handleWeeklyScoresApprove(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctOpenPrefix)) return handleWeeklyScoresCorrectOpen(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.cancelPrefix)) return handleWeeklyScoresCancel(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctGameSelectPrefix)) return handleWeeklyScoresCorrectGameSelect(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctModalPrefix)) return handleWeeklyScoresCorrectModal(interaction);
-
     // Box score payout reviews live on public pending-payouts messages with no menu
     // session, so route them before the session-touch guard (otherwise the guard
     // expires the window, deleting the embed without ever issuing the payout). The
@@ -812,8 +787,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
       if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.weekSelect) return handleManualScoresWeekSelect(interaction);
       if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.gameSelect) return handleManualScoresGameSelect(interaction);
-      if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctGameSelectPrefix)) return handleWeeklyScoresCorrectGameSelect(interaction);
-      if (interaction.customId === SCHEDULE_IMPORT_CUSTOM_IDS.weekSelect) return handleScheduleImportWeekSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.dateSelect) return handleAdvanceTimeDateSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.tzSelect) return handleAdvanceTimeTzSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.timeSelect) return handleAdvanceTimeTimeSelect(interaction);
@@ -890,8 +863,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtTeams) return handleLeagueMgmtTeams(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtServerSetup) return handleLeagueMgmtServerSetup(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSchedule) return handleLeagueMgmtSchedule(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleWizard) return handleLeagueMgmtScheduleWizard(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleOneWeek) return handleLeagueMgmtScheduleOneWeek(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleManual) return handleLeagueMgmtScheduleManual(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleView) return startScheduleViewer(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleBack) return renderAdminPanelFromComponent(interaction);
@@ -955,18 +926,12 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.stream) return handleStreamMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.streamBack) return renderMainMenuFromComponent(interaction);
-      if (interaction.customId === WEEKLY_SCORES_CUSTOM_IDS.uploadOpen) return handleWeeklyScoresUploadOpen(interaction);
-      if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.approvePrefix)) return handleWeeklyScoresApprove(interaction);
-      if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctOpenPrefix)) return handleWeeklyScoresCorrectOpen(interaction);
-      if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.cancelPrefix)) return handleWeeklyScoresCancel(interaction);
       if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.open) return handleManualScoresOpen(interaction);
       if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.cancel) return handleLeagueMgmtUploadScores(interaction);
       if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.homeWinPrefix)) return handleManualScoresOutcome(interaction, "home", interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.homeWinPrefix.length));
       if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.awayWinPrefix)) return handleManualScoresOutcome(interaction, "away", interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.awayWinPrefix.length));
       if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.tiePrefix)) return handleManualScoresOutcome(interaction, "tie", interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.tiePrefix.length));
       if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix)) return handleManualScoresAnother(interaction, Number(interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix.length)));
-      if (interaction.customId.startsWith(SCHEDULE_IMPORT_CUSTOM_IDS.savePrefix)) return handleScheduleImportSave(interaction);
-      if (interaction.customId === SCHEDULE_IMPORT_CUSTOM_IDS.cancel) return handleScheduleImportCancel(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.teamsPage}:`)) return handleTeamsPage(interaction);
@@ -1004,7 +969,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustomModal}:`)) return handleWalletCustomTransferModal(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
       if (interaction.customId.startsWith(`${STREAM_CUSTOM_IDS.linkModal}:`)) return handleStreamLinkModal(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:`) || interaction.customId === TEAM_LINK_CUSTOM_IDS.editTeamModal) return handleCustomTeamModal(interaction);
-      if (interaction.customId.startsWith(WEEKLY_SCORES_CUSTOM_IDS.correctModalPrefix)) return handleWeeklyScoresCorrectModal(interaction);
       if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.scoreModalPrefix)) {
         const [outcome, gameId] = interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.scoreModalPrefix.length).split(":");
         return handleManualScoresScoreModal(interaction, outcome as "home" | "away" | "tie", gameId);
@@ -1020,8 +984,6 @@ client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
   if (await handleStreamChannelMessage(message).catch(() => false)) return;
   if (await handleHighlightChannelMessage(message).catch(() => false)) return;
-  if (await handleWeeklyScoresUploadMessage(message).catch(() => false)) return;
-  if (await handleScheduleImportUploadMessage(message).catch(() => false)) return;
 });
 
 client.on("guildMemberUpdate", async (oldMember, newMember) => {
@@ -1255,8 +1217,6 @@ async function handleLeagueMgmtSchedule(interaction: ButtonInteraction) {
       .setDescription([
         "Build, review, or publish the league schedule.",
         "",
-        "**Schedule Wizard** - upload schedule screenshots in order, starting at Week 1.",
-        "**Upload One Week** - upload screenshots for one selected week.",
         "**Set Manually** - choose teams from league-loaded AFC/NFC dropdowns and save matchups.",
         "**View Schedule** - page through every week and optionally post a week publicly.",
       ].join("\n"))],
@@ -1271,28 +1231,10 @@ function buildScheduleMgmtRows() {
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleManual).setLabel("Set Manually").setStyle(ButtonStyle.Primary),
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleOneWeek).setLabel("Upload One Week").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleWizard).setLabel("Schedule Wizard").setStyle(ButtonStyle.Success),
-    ),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtScheduleBack).setLabel("Back to League Mgmt").setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger),
     ),
   ];
-}
-
-async function handleLeagueMgmtScheduleWizard(interaction: ButtonInteraction) {
-  if (!isFullLeagueAdminInteraction(interaction)) {
-    return replyFullAdminOnly(interaction, "manage league schedule imports");
-  }
-  return startScheduleImportWizard(interaction, buildScheduleMgmtRows);
-}
-
-async function handleLeagueMgmtScheduleOneWeek(interaction: ButtonInteraction) {
-  if (!isFullLeagueAdminInteraction(interaction)) {
-    return replyFullAdminOnly(interaction, "manage league schedule imports");
-  }
-  return startScheduleImportOneWeek(interaction, buildScheduleMgmtRows);
 }
 
 async function handleLeagueMgmtScheduleManual(interaction: ButtonInteraction) {
@@ -1349,16 +1291,11 @@ async function handleLeagueMgmtUploadScores(interaction: ButtonInteraction) {
     embeds: [new EmbedBuilder()
       .setTitle("Upload Scores")
       .setDescription([
-        "Use these tools after the in-game week has been advanced enough for the needed screenshots to exist.",
+        "Scores and stats come from the EA data import. Use this only as a manual fallback.",
         "",
-        "**Box Scores** - submit or review individual game box scores on behalf of users.",
-        "**Weekly Scores** - upload weekly scoreboard screenshots for the current week.",
-        "**Manual Scores** - type in a game's result by hand when a screenshot isn't available (full score, or just W/L/T)."
+        "**Manual Scores** - type in a game's result by hand when the import hasn't caught up yet (full score, or just W/L/T)."
       ].join("\n"))],
     components: [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(WEEKLY_SCORES_CUSTOM_IDS.uploadOpen).setLabel("Weekly Scores").setStyle(ButtonStyle.Primary),
-      ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(MANUAL_SCORES_CUSTOM_IDS.open).setLabel("Manual Scores").setStyle(ButtonStyle.Danger),
         new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Danger),

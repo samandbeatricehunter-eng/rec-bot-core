@@ -1,9 +1,10 @@
 // Generic screenshot re-hosting, shared by every feature that accepts a Discord CDN image URL
 // (which dies once the source message is deleted) or a raw browser upload and needs a stable
-// public URL — the Comp ladder's box-score parsing, schedule-screenshot flows, and weekly-scores
-// all reuse this. Lives alongside the OCR parser files (box-score.parser.ts etc.) since it was
-// originally part of the league box-score submission workflow before that was removed in favor
-// of EA import; this utility itself has nothing league-specific about it.
+// public URL — the Comp ladder's box-score parsing and tournament brackets reuse this. Lives
+// alongside the OCR parser files (box-score.parser.ts etc.) since it was originally part of the
+// league box-score submission workflow before that was removed in favor of EA import; this
+// utility itself has nothing league-specific about it. (League-side schedule-prefill and
+// weekly-scores OCR were removed too, for the same reason — EA import replaces them.)
 import sharp from "sharp";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
