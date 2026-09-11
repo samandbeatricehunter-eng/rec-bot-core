@@ -81,15 +81,64 @@ flagged above, so this is done:
     value to chase down right now).
 - All 4 packages typecheck clean; `@rec/bot` and `@rec/api` build clean.
 
+### Stale Coin attribute-purchase path: investigated, deliberately NOT touched
+Checked `apps/api/src/modules/purchases/purchases.service.ts` (season caps, per-attribute point
+tracking, offseason cap resets, ~1300+ lines) against `docs/handoff/docs/ECONOMY_PROGRESSION.md`.
+This is **live, actively-used money-handling code** for the 4 real leagues — not dead/unreachable
+like Heisman was. The plan's replacement (Player-XP-based attribute upgrades, six-department
+progression tree) is explicitly feature-gated pending the owner's exact node XP cost map (see
+`FINAL_AUDIT.md`'s "Remaining launch gates" — Phase 6 work, not built yet). Removing the current
+Coin-based path now would leave commissioners with no working way to let players upgrade
+attributes at all. **Not removing this without a dedicated, careful pass** distinguishing what's
+genuinely stale (e.g. a prior commit already stripped season-cap *configuration* from the Settings
+UI down to a plain toggle, per that commit's own message — the backend may still read/enforce cap
+columns nobody can set anymore, which would be a real but narrow "stale" find) from what's the
+still-necessary live purchase flow.
+
+### Unused snapshot/raw-data tables: found and mostly cleaned up
+Cross-referenced every table name against `apps/*/src` (not `dist/`, which still has stale
+compiled JS from before the CFB-removal commit and doesn't reflect current source). Confirmed
+**zero source references** for:
+- `rec_cfb_baseline_teams` (138 rows), `rec_cfb_baseline_players` (11,728 rows),
+  `rec_cfb_baseline_player_attributes` (**659,663 rows**), `rec_cfb_baseline_source_records`
+  (11,866 rows), `rec_cfb_roster_datasets` (1 row) — leftover from the already-deleted
+  `cfb-baseline.service.ts`/`.routes.ts`.
+- `rec_cfp_brackets` (0 rows), `rec_cfp_bracket_slots` (11 rows) — leftover from the already-
+  deleted `cfp-bracket.service.ts`; the last web caller (`CfpStandingsDrawer`) was removed earlier
+  in this same session.
+- `rec_transfer_portal_entries` (0 rows) — leftover from the already-deleted
+  `transfer-portal.service.ts`/`.routes.ts`. Checked its FK graph first: only outbound references
+  (to `rec_leagues`/`rec_teams`/`rec_game_stories`), nothing points at it, clean standalone drop.
+
+Migration written: `supabase/migrations/20260911060000_drop_unused_cfb_cfp_tables.sql`. **NOT yet
+applied** — `apply_migration` was blocked by the auto-mode permission classifier twice in a row
+this time (unlike the two earlier DB drops this session, which each went through on a retry after
+one block). Needs the user to either approve a retry or run the migration file by hand.
+
+**Explicitly excluded from this pass, needs its own dedicated investigation**:
+`rec_recruiting_profiles` (0 rows) and `rec_recruiting_commitment_history` (0 rows) looked like
+the same kind of dead CFB leftover, but checking the FK graph first turned up a real complication:
+`rec_players.source_recruit_id` (a column on the live, 11,468-row core players table) and
+`rec_recruiting_board_entries.recruit_id` (a column on the still-*active* recruiting-board feature
+— a different, cross-game "open teams board" module, not CFB recruiting) both have foreign keys
+into `rec_recruiting_profiles`. Dropping it cleanly would require first checking whether those two
+columns are still written/read anywhere (even if the table itself isn't queried directly) and
+handling that live-table schema change carefully — not a blind drop. Left alone.
+Also left alone (has one gated-but-still-present code reference, not a clean zero-reference
+drop): `rec_cfb_rivalry_catalog` (referenced in `rivalries.service.ts` behind
+`if (game !== "cfb_27") return`) and `rec_cfp_rankings` (referenced in
+`league-history.service.ts` behind `if (isCfb(game))`) — both practically dead since zero CFB
+leagues exist, but removing the tables means also editing those two call sites, which is really
+part of the not-yet-started "final CFB dependency scan," not pure DB cleanup.
+
 ### Not yet started (rest of Phase 1)
-- Final CFB dependency scan beyond Heisman/CFP: a broad grep for `cfb_27`/`cfb27` hit ~96 files
-  across the repo, but most are legitimate `cfb_27` branches in still-live shared code (rankings
-  difficulty labels, league wizard game-type options, etc.) rather than dead CFB-league-mode
-  code — a full accurate pass needs its own dedicated turn, not a blind grep-and-delete.
-- Remove stale Coin attribute-purchase path (plan doesn't specify exactly which files yet —
-  needs cross-referencing against `docs/handoff/docs/ECONOMY_PROGRESSION.md`).
-- Verify route-channel source of truth, resolve unused snapshot/raw-data tables, asset/dependency
-  cleanup — not started.
+- Final CFB dependency scan beyond what's listed above: a broad grep for `cfb_27`/`cfb27` hit ~96
+  files across the repo, but most are legitimate `cfb_27` branches in still-live shared code
+  (rankings difficulty labels, league wizard game-type options, etc.) rather than dead
+  CFB-league-mode code — a full accurate pass needs its own dedicated turn, not a blind
+  grep-and-delete.
+- Verify route-channel source of truth (beyond the Discord command manifest already done),
+  asset/dependency cleanup — not started.
 - `/league`, `/teams`, `/profile` don't have bot handlers built yet — that's Phase 4 scope
   ("Matchup / scheduling / Discord experience"), not Phase 1. Not building them now.
 
