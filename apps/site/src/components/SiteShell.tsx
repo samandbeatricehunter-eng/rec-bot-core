@@ -4,22 +4,22 @@ import { SiteFooter } from "./SiteFooter.js";
 import { SiteHeader } from "./SiteHeader.js";
 import { SiteTicker } from "./SiteTicker.js";
 import { GoingLiveModal } from "./GoingLiveModal.js";
+import { HomeFooterNav, LeagueFooterNav } from "./LeagueFooterNav.js";
 import { useHub } from "../lib/hub-context.js";
 
 export function SiteShell({ children }: { children: ReactNode }) {
   const hub = useHub();
-  // Must match SiteHeader's condition for rendering LeagueRow3 exactly (scope alone isn't
-  // enough -- scope can be stuck at "league" for a stale/no-longer-resolvable id, e.g. right
-  // after sign-out, in which case SiteHeader already falls back to HomeRow3 and this needs to
-  // agree, or the footer gets hidden and .is-league-scope gets applied on what's really the
-  // main-chrome home page).
+  // Must match when we show league footer chrome (scope alone isn't enough — scope can be stuck
+  // at "league" for a stale id after sign-out).
   const isLeague = hub.scope.kind === "league" && Boolean(hub.selectedLeague);
+  const league = hub.selectedLeague;
 
   return (
     <div
       className={[
         "site-shell",
         isLeague ? "is-league-scope" : "is-main-scope",
+        "has-site-footer-nav",
       ].join(" ")}
     >
       <ImpersonationBanner />
@@ -30,6 +30,19 @@ export function SiteShell({ children }: { children: ReactNode }) {
         {!isLeague ? <SiteFooter /> : null}
       </main>
 
+      <div className="site-chrome-stack" aria-hidden={false}>
+        {isLeague && league ? (
+          <LeagueFooterNav
+            leagueId={league.id}
+            isCommissioner={league.isCommissioner}
+            rosterType={league.rosterType}
+            riseHubUnlocked={league.riseHubUnlocked}
+            rtiOriginsComplete={league.rtiOriginsComplete}
+          />
+        ) : (
+          <HomeFooterNav />
+        )}
+      </div>
       <SiteTicker />
       <GoingLiveModal />
     </div>

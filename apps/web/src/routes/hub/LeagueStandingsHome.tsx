@@ -5,14 +5,14 @@ import { useReadyAuth } from "../../lib/auth-context.js";
 import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import { readStandingsBoardCache, writeStandingsBoardCache, type StandingsBoardResponse } from "../../lib/standings-board-cache.js";
-import { StandingsMiniNav, type StandingsNavId } from "../../components/hub/StandingsMiniNav.js";
+import { StatsMiniNav } from "../../components/hub/StatsMiniNav.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { TeamLogo } from "../../components/ui/TeamLogo.js";
 
 type PowerRankingTeam = NonNullable<StandingsBoardResponse["powerRankings"]>["teams"][number];
 type SosTeam = NonNullable<StandingsBoardResponse["sos"]>["teams"][number];
-type StandingsView = Exclude<StandingsNavId, "bracket">;
+type StandingsView = "division" | "power" | "sos";
 
 const NFL_DIVISION_ORDER = ["East", "North", "South", "West"] as const;
 
@@ -411,7 +411,11 @@ export function LeagueStandingsHome() {
     <div className="hub-section hub-standings-page">
       {hubError ? <ErrorState message={hubError} /> : loading && !board ? <LoadingState label="Loading standings…" /> : !board ? null : (
         <>
-          <StandingsMiniNav active={view} leagueId={board.league.id} bracketAvailable={bracketAvailable} />
+          <StatsMiniNav
+            active={view === "division" ? "standings" : view}
+            leagueId={board.league.id}
+            bracketAvailable={bracketAvailable}
+          />
           <div className="hub-standings-board-wrap">
             <h2>{boardTitle}</h2>
             {view === "division" ? <PlayoffMarkerKey className="hub-standings-key" /> : null}

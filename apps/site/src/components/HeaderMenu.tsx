@@ -2,23 +2,21 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 
-type MenuPosition = { top: number; left?: number; right?: number };
+type MenuPosition = { top?: number; bottom?: number; left?: number; right?: number };
 
-// Module-level so every header dropdown (row1 gear, row2 switcher, each row3 dropdown) shares
-// one "only one open at a time" slot. Without this, opening "Stats" then clicking the "My Team"
-// trigger left two independent portaled panels/backdrops stacked over each other, since each
-// useHeaderMenu() instance previously tracked its own open state in isolation.
+// Module-level so every chrome dropdown (header + footer) shares one "only one open at a time" slot.
 let activeMenuId: object | null = null;
 let activeMenuClose: (() => void) | null = null;
 
-/** Shared open/position state for every header dropdown (row1 gear, row2 league switcher,
- * row3 nav dropdowns). The panel portals straight into document.body and is positioned via
- * getBoundingClientRect of the trigger -- this is what NotificationsBell already does (fixed
- * position + full-screen backdrop) and is required here too: these triggers live inside
- * .site-header-row3, which has overflow-x:auto for the mobile button-scroll strip, and any
- * position:absolute panel nested inside it gets clipped/squashed into that scroll container
- * instead of floating over the page. Escaping via a portal sidesteps that entirely. */
-export function useHeaderMenu<T extends HTMLElement = HTMLButtonElement>() {
+export type HeaderMenuOptions = {
+  /** Open the panel above the trigger (footer More sheet) instead of below. */
+  anchor?: "below" | "above";
+};
+
+/** Shared open/position state for header + footer chrome menus. Panels portal into document.body
+ * and anchor to the trigger's live bounding rect so overflow parents cannot clip them. */
+export function useHeaderMenu<T extends HTMLElement = HTMLButtonElement>(options: HeaderMenuOptions = {}) {
+  const anchor = options.anchor ?? "below";
   const idRef = useRef({});
   const triggerRef = useRef<T>(null);
   const [open, setOpenState] = useState(false);
@@ -53,10 +51,6 @@ export function useHeaderMenu<T extends HTMLElement = HTMLButtonElement>() {
     };
   }, []);
 
-  // Close whenever the route changes. A menu item *inside* this panel already calls close()
-  // itself before navigating, but a click on a plain sibling NavLink (Overview/Matchups/the
-  // brand link) or browser back/forward otherwise leaves this panel open and floating over the
-  // newly-navigated-to page, since none of the header components unmount across in-app nav.
   const pathRef = useRef(location.pathname);
   useEffect(() => {
     if (location.pathname !== pathRef.current) {
@@ -73,6 +67,14 @@ export function useHeaderMenu<T extends HTMLElement = HTMLButtonElement>() {
       const box = el.getBoundingClientRect();
       const gap = 8;
       const anchorRight = box.left > window.innerWidth / 2;
+      if (anchor === "above") {
+        setPos(
+          anchorRight
+            ? { bottom: Math.max(12, window.innerHeight - box.top + gap), right: Math.max(12, window.innerWidth - box.right) }
+            : { bottom: Math.max(12, window.innerHeight - box.top + gap), left: Math.max(12, box.left) },
+        );
+        return;
+      }
       setPos(
         anchorRight
           ? { top: box.bottom + gap, right: Math.max(12, window.innerWidth - box.right) }
@@ -91,7 +93,7 @@ export function useHeaderMenu<T extends HTMLElement = HTMLButtonElement>() {
       window.removeEventListener("scroll", place, true);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, anchor]);
 
   function Panel({ children, className, role, ariaLabel }: { children: ReactNode; className?: string; role?: string; ariaLabel?: string }) {
     if (!open || !pos) return null;
@@ -102,7 +104,7 @@ export function useHeaderMenu<T extends HTMLElement = HTMLButtonElement>() {
           className={className}
           role={role}
           aria-label={ariaLabel}
-          style={{ position: "fixed", top: pos.top, left: pos.left, right: pos.right }}
+          style={{ position: "fixed", top: pos.top, bottom: pos.bottom, left: pos.left, right: pos.right }}
         >
           {children}
         </div>

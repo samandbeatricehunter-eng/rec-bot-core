@@ -10,8 +10,11 @@ export { LeagueHistoryHome, SeasonHistoryDetail } from "../../../apps/web/src/ro
 export { LeagueStatsHome } from "../../../apps/web/src/routes/hub/LeagueStatsHome.js";
 export { LeagueRecordsHome } from "../../../apps/web/src/routes/hub/LeagueRecordsHome.js";
 export { LeagueStandingsHome } from "../../../apps/web/src/routes/hub/LeagueStandingsHome.js";
-export { LeagueSosHome } from "../../../apps/web/src/routes/hub/LeagueSosHome.js";
 export { LeagueCareerStatsHome } from "../../../apps/web/src/routes/hub/LeagueCareerStatsHome.js";
+export { StatsMiniNav } from "../../../apps/web/src/components/hub/StatsMiniNav.js";
+export { TeamMiniNav } from "../../../apps/web/src/components/hub/TeamMiniNav.js";
+export { SectionMiniNav } from "../../../apps/web/src/components/hub/SectionMiniNav.js";
+export { StandingsMiniNav } from "../../../apps/web/src/components/hub/StandingsMiniNav.js";
 export { MatchupCard } from "../../../apps/web/src/components/matchups/MatchupCard.js";
 export { HeroMatchupBreakdown } from "../../../apps/web/src/components/hub/HeroMatchupBreakdown.js";
 export { TeamLogo } from "../../../apps/web/src/components/ui/TeamLogo.js";

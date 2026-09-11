@@ -3,6 +3,7 @@
 // (formerly its own /team/trust page -- see RiseTrustTree.tsx, now just a redirect here).
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, useParams, useSearchParams } from "react-router-dom";
+import { TeamMiniNav } from "@rec/hub-ui";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi, type ImmortalityProgressionState, type ImmortalityProgressionNode, type OwnerProgressionState } from "../lib/site-api.js";
 
@@ -100,6 +101,16 @@ export function RiseProgressionPage() {
 
   return (
     <div className="site-page rise-page">
+      {leagueId ? (
+        <TeamMiniNav
+          active="progression"
+          leagueId={leagueId}
+          isRise
+          tradesUnlocked={selected?.rtiTradesUnlocked !== false}
+          storeUnlocked={Boolean(selected?.riseHubUnlocked)}
+          progressionAvailable
+        />
+      ) : null}
       <header className="rise-hero">
         <p className="site-muted">My Team</p>
         <h1>Build Your Legacy</h1>

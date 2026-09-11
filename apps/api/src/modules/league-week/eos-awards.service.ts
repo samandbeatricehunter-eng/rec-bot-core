@@ -132,7 +132,7 @@ async function engagementScoreByUser(leagueId: string, seasonNumber: number, use
   }
   for (const [key, count] of highlightCounts) for (let i = 1; i <= count; i += 1) completed.get(key.split(":")[0])?.add(`${key.split(":")[1]}:highlight:${i}`);
   for (const row of gotwVotes.data ?? []) if (row.user_id) completed.get(row.user_id)?.add(`${row.week_number}:gotw_vote`);
-  const possible = Math.max(1, seasonWeeks * 6); // interview, article, stream, 2 highlights, GOTW vote
+  const possible = Math.max(1, seasonWeeks * 5); // Media Day, stream, 2 highlights, GOTW vote (manual interview/article retired)
   return new Map(userIds.map((id) => {
     const count = completed.get(id)?.size ?? 0;
     return [id, { count, percent: Math.min(100, count / possible * 100) }];

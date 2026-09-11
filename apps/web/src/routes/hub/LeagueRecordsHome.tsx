@@ -8,6 +8,7 @@ import { Card } from "../../components/ui/Card.js";
 import { Button } from "../../components/ui/Button.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
+import { StatsMiniNav } from "../../components/hub/StatsMiniNav.js";
 
 type Scope = "game" | "season" | "career";
 type RecordsResponse = Awaited<ReturnType<typeof recApi.getLeagueRecords>>;
@@ -35,6 +36,7 @@ export function LeagueRecordsHome({ embedded = false }: { embedded?: boolean } =
 
   return (
     <div className="hub-page">
+      {currentLeague?.id ? <StatsMiniNav active="records" leagueId={currentLeague.id} /> : null}
       {!embedded && <PageHeader title="League Records" subtitle="Statistical bests, by game, season, or career." actions={backAction} />}
 
       <div className="hub-history-season-tabs">

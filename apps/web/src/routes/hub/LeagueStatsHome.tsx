@@ -15,6 +15,8 @@ import { LoadingState } from "../../components/ui/LoadingState.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
+import { StatsMiniNav } from "../../components/hub/StatsMiniNav.js";
+import { useHubChrome } from "../../lib/hub-chrome-context.js";
 
 type StatsResponse = Awaited<ReturnType<typeof recApi.getLeagueStats>>;
 type StatsPlayer = StatsResponse["players"][number];
@@ -298,6 +300,7 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
 
 export function LeagueStatsHome() {
   const { guildId } = useReadyAuth();
+  const { currentLeague } = useHubChrome();
   const [scope, setScope] = useState<"season" | "career">("season");
 
   // League Resources button row, Power Rankings, and the Stats by Category/Team pill switcher
@@ -306,6 +309,7 @@ export function LeagueStatsHome() {
   // and real sortable columns) replaced Stats by Category outright rather than living alongside
   // it, since it did everything Category did plus per-column sorting Category never had.
   return <div className="hub-section">
+    {currentLeague?.id ? <StatsMiniNav active="stats" leagueId={currentLeague.id} /> : null}
     <PageHeader title="Stats" subtitle="League leaders and complete player production." />
     <LeagueLeadersView guildId={guildId} />
     <Card><div id="league-stats" className="rec-matchup-tabs" role="tablist" aria-label="Statistics scope"><button type="button" role="tab" aria-selected={scope === "season"} className={scope === "season" ? "active" : ""} onClick={() => setScope("season")}>This Season</button><button type="button" role="tab" aria-selected={scope === "career"} className={scope === "career" ? "active" : ""} onClick={() => setScope("career")}>Career</button></div></Card>

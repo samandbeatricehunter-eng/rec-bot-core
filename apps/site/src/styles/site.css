@@ -1110,6 +1110,10 @@ h1, h2, h3, .site-wordmark {
   max-width: var(--content-width);
   margin: 0 auto;
 }
+.site-shell.has-site-footer-nav .site-shell-main {
+  /* Footer nav (~58px) + ticker (30px) + breathing room */
+  padding-bottom: calc(var(--space-6) + 58px + 30px + env(safe-area-inset-bottom, 0px));
+}
 .site-shell-main:has(.site-hub-embed) {
   max-width: none;
   width: 100%;
@@ -1124,6 +1128,9 @@ h1, h2, h3, .site-wordmark {
      next time the header's height changes. */
   display: flex;
   flex-direction: column;
+}
+.site-shell.has-site-footer-nav .site-shell-main:has(.site-hub-embed) {
+  padding-bottom: calc(var(--space-6) + 58px + 30px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Messages inbox (next to notifications bell) */
@@ -1281,8 +1288,7 @@ h1, h2, h3, .site-wordmark {
   color: var(--text-muted);
 }
 
-/* League selector + bottom nav stack (fixed) — sits just above the site ticker, which
-   owns the true bottom edge of the viewport (see .site-ticker below). */
+/* Permanent sticky footer nav — sits just above the site ticker. */
 .site-chrome-stack {
   position: fixed;
   left: 0;
@@ -1291,11 +1297,89 @@ h1, h2, h3, .site-wordmark {
   z-index: 40;
   display: flex;
   flex-direction: column;
+  pointer-events: none;
+}
+.site-chrome-stack > * {
+  pointer-events: auto;
+}
+
+.site-footer-nav {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px 6px 6px;
+  border-top: 2px solid #d81e2c;
+  background:
+    repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.045) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.04) 0 2px, transparent 2px 5px),
+    linear-gradient(180deg, #161616 0%, #0a0a0a 100%);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.45);
+}
+.site-footer-nav-btn {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+.site-footer-nav-btn span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+.site-footer-nav-btn svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.site-footer-nav-btn:hover {
+  color: var(--text-primary);
+}
+.site-footer-nav-btn.is-active {
+  color: #ffffff;
+  background: color-mix(in srgb, #d81e2c 22%, transparent);
+}
+.site-footer-nav-more {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+}
+.site-footer-nav-more .site-footer-nav-btn {
+  width: 100%;
+}
+.site-footer-more-panel .site-account-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.site-footer-more-panel .site-account-menu-item svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+.site-footer-more-panel .site-account-menu-item.is-danger {
+  color: var(--error);
 }
 
 /* Sports-style running ticker — page-scoped (league matchups vs. site announcements,
    picked in SiteTicker.tsx via hub scope). Always the bottom-most strip of chrome, on
-   both mobile and desktop, independent of the bottom-nav variant above it. */
+   both mobile and desktop, independent of the footer nav above it. */
 .site-ticker {
   position: fixed;
   left: 0;
@@ -1575,7 +1659,7 @@ h1, h2, h3, .site-wordmark {
 @media (min-width: 960px) {
   .site-shell.is-league-scope .site-shell-main:has(.site-hub-embed) {
     padding: 0;
-    padding-bottom: calc(var(--space-5) + 40px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--space-5) + 58px + 30px + env(safe-area-inset-bottom, 0px));
     max-width: none;
     width: auto;
   }
@@ -4029,7 +4113,7 @@ h1, h2, h3, .site-wordmark {
   }
 }
 
-/* —— Broadcast header (SiteHeader.tsx): 3 stacked horizontal rows, desktop and mobile alike —— */
+/* —— Broadcast header (SiteHeader.tsx): brand + league selector; primary nav is footer —— */
 .site-header {
   position: sticky;
   top: 0;
@@ -4042,8 +4126,7 @@ h1, h2, h3, .site-wordmark {
   border-bottom: 1px solid var(--border);
 }
 .site-header-row1,
-.site-header-row2,
-.site-header-row3 {
+.site-header-row2 {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -4052,9 +4135,12 @@ h1, h2, h3, .site-wordmark {
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 .site-header-row1 { padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
-.site-header-row3 { border-bottom: none; overflow-x: auto; }
+.site-header-row2 { border-bottom: none; }
 
 .site-header-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--font-display);
   font-size: 16px;
   font-weight: 800;
@@ -4063,6 +4149,17 @@ h1, h2, h3, .site-wordmark {
   color: var(--text-primary);
   text-decoration: none;
   white-space: nowrap;
+  min-width: 0;
+}
+.site-header-brand-img {
+  height: 28px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+.site-header-brand-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .site-header-row1-end {
   margin-left: auto;
@@ -4087,7 +4184,6 @@ h1, h2, h3, .site-wordmark {
 
 /* Row 2 — My Leagues / active league switcher */
 .site-header-row2 { justify-content: center; }
-.site-header-row3 { justify-content: center; }
 .site-header-row2-trigger {
   display: flex;
   align-items: center;
@@ -4154,41 +4250,7 @@ h1, h2, h3, .site-wordmark {
 .site-header-league-row-meta { flex-basis: 100%; color: var(--text-muted); font-size: 11px; }
 .site-header-home-row { justify-content: center; margin-top: 4px; border-top: 1px solid var(--border); border-radius: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
 
-/* Row 3 — Home tabs / league tabs, both dynamic content in the same row */
-.site-header-row3-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-secondary);
-  text-decoration: none;
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.site-header-row3-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
-.site-header-row3-btn:hover { color: var(--text-primary); }
-.site-header-row3-btn.is-active {
-  color: #ffffff;
-  background: #d81e2c;
-  font-weight: 900;
-}
-.site-header-row3-btn.is-danger { color: var(--error); }
-.site-header-row3-btn.is-danger:hover { color: var(--error); opacity: 0.85; }
-.site-header-row3-dropdown { position: relative; flex-shrink: 0; }
-
-/* Panel position (top/left/right) is set inline by useHeaderMenu (HeaderMenu.tsx), which
-   portals the panel into document.body and anchors it to the trigger's live bounding rect --
-   required because these triggers live inside .site-header-row3 (overflow-x:auto for the
-   mobile button-scroll strip), where a position:absolute child gets clipped/squashed into the
-   scroll container instead of floating over the page, same failure mode NotificationsBell's
-   own fixed+portal-free-but-unclipped panel already avoids. */
+/* Panel position (top/left/right/bottom) is set inline by useHeaderMenu (HeaderMenu.tsx). */
 .site-header-panel-backdrop {
   position: fixed;
   inset: 0;
@@ -4216,13 +4278,9 @@ h1, h2, h3, .site-wordmark {
 }
 
 @media (max-width: 720px) {
-  /* Every row3 button keeps its icon+label on mobile too (the horizontal scroll strip
-     accommodates them) -- previously only the active button and dropdown triggers kept
-     their label while plain NavLinks (Matchups/Standings) lost theirs, which read as
-     "half the buttons are missing their titles." */
-  .site-header-row3 { gap: 4px; justify-content: flex-start; }
-  .site-header-row3-home { justify-content: center; }
   .site-header-brand { font-size: 14px; }
+  .site-header-brand-img { height: 24px; }
+  .site-header-brand-text { display: none; }
   .site-header-row2-detail:not(:last-child) { display: none; }
 }
 

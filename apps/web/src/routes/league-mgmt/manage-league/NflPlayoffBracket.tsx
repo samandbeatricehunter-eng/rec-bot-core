@@ -4,7 +4,7 @@ import { recApi } from "../../../lib/rec-api-client.js";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { useHubChrome } from "../../../lib/hub-chrome-context.js";
 import type { NflPlayoffMatchup, NflPlayoffPicture, NflTeamSummary } from "../../../types/api.js";
-import { StandingsMiniNav } from "../../../components/hub/StandingsMiniNav.js";
+import { StatsMiniNav } from "../../../components/hub/StatsMiniNav.js";
 import { Card } from "../../../components/ui/Card.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
@@ -420,7 +420,7 @@ export function NflPlayoffBracket() {
   return (
     <div className="nfl-bracket-page">
       {showStandingsNav && resolvedLeagueId ? (
-        <StandingsMiniNav active="bracket" leagueId={resolvedLeagueId} bracketAvailable />
+        <StatsMiniNav active="bracket" leagueId={resolvedLeagueId} bracketAvailable />
       ) : null}
       {error && <ErrorState message={error} />}
       {loading && !view && <LoadingState label="Loading the playoff picture…" />}

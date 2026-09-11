@@ -356,9 +356,9 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
           ? [
               "Store purchases: Off",
               "Attribute upgrades: Player XP",
-              "Coins: contracts, 2 highlights/week at 150, GOTW, interviews",
+              "Coins: contracts, 2 highlights/week at 100, GOTW, Media Day",
               "Wagers: Off",
-              "Member articles: Off",
+              "Member articles / manual interviews: Off",
               `Injuries: ${fmt(draft.injuryPolicy)}`,
               `Wear & Tear: ${yesNo(draft.wearAndTearEnabled)}`,
               `Salary cap: ${yesNo(draft.salaryCapEnabled)}`,

@@ -38,9 +38,7 @@ import {
   retireAsCommissioner,
   reviewMediaSubmission,
   STREAM_VIEWER_COOKIE,
-  submitInterview,
   submitNonRtiMediaDayAnswer,
-  submitUserMediaArticle,
   shareHubMatchupStream,
   toggleHubGameReaction,
   toggleHubHighlightReaction,
@@ -322,26 +320,14 @@ export async function hubRoutes(app: FastifyInstance) {
     } catch (error) { return sendError(reply, error); }
   });
 
-  app.post("/v1/hub/media/article/submit", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1), title: z.string().trim().min(1).max(180), body: z.string().trim().min(1).max(8000), imageUrl: ImageUrl }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      if (auth.mode === "bot") throw new ApiError(400, "Article submissions require a user session.");
-      return reply.send(await submitUserMediaArticle({ ...body, discordId: auth.discordId }));
-    } catch (error) { return sendError(reply, error); }
+  // Manual member article / pick-3 interview submits are retired (Media Day + commissioner
+  // Generate Media replace them). Keep the routes as hard 410s so old clients fail clearly.
+  app.post("/v1/hub/media/article/submit", async (_request, reply) => {
+    return sendError(reply, new ApiError(410, "Member article submissions have been removed. Use Media Day or wait for generated REC Network stories."));
   });
 
-  app.post("/v1/hub/media/interview/submit", async (request, reply) => {
-    try {
-      const body = z.object({
-        guildId: z.string().min(1),
-        tagOpponent: z.boolean().optional(),
-        answers: z.array(z.object({ questionId: z.string().min(1), question: z.string().min(1).max(280), answer: z.string().trim().min(1).max(1400) })).length(3),
-      }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      if (auth.mode === "bot") throw new ApiError(400, "Interview submissions require a user session.");
-      return reply.send(await submitInterview({ ...body, discordId: auth.discordId }));
-    } catch (error) { return sendError(reply, error); }
+  app.post("/v1/hub/media/interview/submit", async (_request, reply) => {
+    return sendError(reply, new ApiError(410, "Manual interview submissions have been removed. Use weekly Media Day instead."));
   });
 
   app.post("/v1/hub/media/media-day", async (request, reply) => {

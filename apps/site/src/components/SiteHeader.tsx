@@ -1,11 +1,10 @@
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { useHub } from "../lib/hub-context.js";
 import type { SiteLeagueSummary } from "../lib/site-api.js";
 import { NotificationsBell } from "./NotificationsBell.js";
 import { ProfileChip } from "./ProfileChip.js";
 import { TeamLogo } from "@rec/hub-ui";
-import { IconChevronDown, IconHome, IconLeagues, IconComp } from "./icons.js";
-import { LeagueRow3 } from "./LeagueRow3.js";
+import { IconChevronDown } from "./icons.js";
 import { useHeaderMenu } from "./HeaderMenu.js";
 
 function sortLeagues(leagues: SiteLeagueSummary[]) {
@@ -22,22 +21,23 @@ function sortLeagues(leagues: SiteLeagueSummary[]) {
   });
 }
 
-/** Row 1: brand, username/account menu, inbox bell. Global, identical on every page. The
- * account menu (My Account / Help / Sign Out) lives inside ProfileChip's own trigger button now
- * -- see ProfileChip.tsx -- rather than a separate gear icon out here. */
+/** Brand + account strip. Notifications sit immediately left of profile per nav plan. */
 function HeaderRow1() {
   return (
     <div className="site-header-row1">
-      <NavLink to="/home" className="site-header-brand">REC-Leagues.com</NavLink>
+      <NavLink to="/home" className="site-header-brand" aria-label="REC Leagues home">
+        <img src="/assets/rec-leagues-branding.png" alt="" className="site-header-brand-img" />
+        <span className="site-header-brand-text">REC-Leagues.com</span>
+      </NavLink>
       <div className="site-header-row1-end">
-        <ProfileChip />
         <NotificationsBell />
+        <ProfileChip />
       </div>
     </div>
   );
 }
 
-/** Row 2: "My Leagues" switcher. Reads/writes hub scope -- no local duplicate state. */
+/** Active league selector — universal switcher + exit to REC Home. Not duplicated in the footer. */
 function HeaderRow2() {
   const hub = useHub();
   const navigate = useNavigate();
@@ -100,40 +100,12 @@ function HeaderRow2() {
   );
 }
 
-const HOME_ROW3_ITEMS = [
-  { key: "home", label: "Home", to: "/home", icon: <IconHome /> },
-  { key: "leagues", label: "Leagues", to: "/leagues", icon: <IconLeagues /> },
-  { key: "tournaments", label: "Tournaments", to: "/tournaments", icon: <IconComp /> },
-];
-
-function isActivePath(pathname: string, to: string) {
-  if (to === "/home") return pathname === "/home" || pathname === "/";
-  if (to === "/tournaments") return pathname === "/tournaments" || pathname.startsWith("/tournaments/");
-  return pathname === to || pathname.startsWith(`${to}/`);
-}
-
-function HomeRow3() {
-  const location = useLocation();
-  return (
-    <nav className="site-header-row3 site-header-row3-home" aria-label="Site">
-      {HOME_ROW3_ITEMS.map((item) => (
-        <NavLink key={item.key} to={item.to} className={["site-header-row3-btn", isActivePath(location.pathname, item.to) ? "is-active" : ""].filter(Boolean).join(" ")}>
-          {item.icon}<span>{item.label}</span>
-        </NavLink>
-      ))}
-    </nav>
-  );
-}
-
-/** Single global chrome header: 3 rows, one component, CSS breakpoints handle desktop vs mobile. */
+/** Global chrome header: brand, league selector, notifications, profile. Primary destinations live in the sticky footer. */
 export function SiteHeader() {
-  const hub = useHub();
-  const isLeague = hub.scope.kind === "league";
   return (
     <header className="site-header">
       <HeaderRow1 />
       <HeaderRow2 />
-      {isLeague && hub.selectedLeague ? <LeagueRow3 leagueId={hub.selectedLeague.id} isCommissioner={hub.selectedLeague.isCommissioner} rosterType={hub.selectedLeague.rosterType} riseHubUnlocked={hub.selectedLeague.riseHubUnlocked} rtiOriginsComplete={hub.selectedLeague.rtiOriginsComplete} rtiRostersUnlocked={hub.selectedLeague.rtiRostersUnlocked} rtiTradesUnlocked={hub.selectedLeague.rtiTradesUnlocked} /> : <HomeRow3 />}
     </header>
   );
 }

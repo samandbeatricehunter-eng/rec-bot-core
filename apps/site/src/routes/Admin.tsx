@@ -713,7 +713,7 @@ const ECONOMY_LABELS: Record<string, string> = {
   customPlayerTier1: "Custom player — Tier 1", customPlayerTier2: "Custom player — Tier 2", customPlayerTier3: "Custom player — Tier 3", customPlayerTier4: "Custom player — Tier 4", customPlayerTier5: "Custom player — Tier 5",
   boxScoreLoss: "Box score — loss", highlight: "Highlight", highlightWeeklyPaidLimit: "Paid highlights per week",
   highlightSeasonAward: "Season highlight award", gameOfYear: "Game of the Year",
-  highlightWeeklyUploadLimit: "Highlight uploads per week", stream: "Stream", article: "Article", interview: "Interview",
+  highlightWeeklyUploadLimit: "Highlight uploads per week", stream: "Stream", article: "Article (retired)", interview: "Interview (retired)",
   gotwCorrectVote: "Correct GOTW vote", gotwSeasonTopGuesserBonus: "Season top GOTW predictor bonus", houseWeeklyMaximum: "House wager weekly maximum",
   peerWeeklyMaximum: "User wager weekly maximum", bestPassing: "Best Passing Game", bestRushing: "Best Rushing Game",
   bestDefense: "Best Defense", mvp: "MVP / Heisman", mostSkilled: "Best User Skills", mostHeart: "Most Heart",

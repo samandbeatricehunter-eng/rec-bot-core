@@ -23,7 +23,7 @@ import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { getH2hHistory } from "../official-records/official-records.service.js";
 import { createStreamPayoutReview, deriveStreamMatchupContext, postStreamToDiscordChannel, postStreamToGameChannel } from "../streams/streams.service.js";
-import { isRiseToImmortalityLeagueType, RISE_TO_IMMORTALITY_ARTICLE_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT, RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT, RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
+import { isRiseToImmortalityLeagueType, RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT, RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
@@ -777,7 +777,6 @@ async function loadHub(guildId: string, discordId: string) {
     supabase.from("rec_league_configuration").select("coin_economy_enabled,age_resets_enabled,dev_upgrades_enabled,contract_adjustment_purchases_enabled,attribute_purchases_enabled,legends_enabled,custom_players_enabled,roster_type").eq("league_id", context.leagueId).maybeSingle(),
     getGlobalEconomyConfig(),
     userId ? Promise.all([
-      supabase.from("rec_media_submissions").select("submission_type,status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("submitter_user_id", userId).neq("status", "denied"),
       supabase.from("rec_highlight_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).eq("payout_kind", "weekly_highlight").neq("status", "denied"),
       supabase.from("rec_stream_payout_reviews").select("status,amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId).neq("status", "denied"),
       supabase.from("rec_game_of_week_votes").select("is_correct,payout_amount").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", currentWeek).eq("user_id", userId),
@@ -785,7 +784,7 @@ async function loadHub(guildId: string, discordId: string) {
       teamId
         ? supabase.from("rec_media_day_answers").select("slot,question_id,question_text,question_category,answer").eq("team_id", teamId).eq("season_number", seasonNumber).eq("season_stage", String(seasonStage)).eq("week_number", currentWeek)
         : Promise.resolve(emptyWeekly),
-    ]) : Promise.resolve([emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly] as const),
+    ]) : Promise.resolve([emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly, emptyWeekly] as const),
     supabase
       .from("rec_stream_compliance_logs")
       .select("id,user_id,team_id,game_id,message_url,posted_at,user:rec_users(display_name,username),team:rec_teams(name,abbreviation),game:rec_games(home_team_id,away_team_id,home_user_id,away_user_id)")
@@ -815,7 +814,7 @@ async function loadHub(guildId: string, discordId: string) {
     : ["co_commissioner", "co"].includes(membershipRole) && !isOwner
       ? "co_commissioner"
       : "commissioner";
-  const [weeklyMedia, weeklyHighlights, weeklyStreams, weeklyGotwVotes, weeklyLedgers, weeklyMediaDayAnswers] = weeklyBundle;
+  const [weeklyHighlights, weeklyStreams, weeklyGotwVotes, weeklyLedgers, weeklyMediaDayAnswers] = weeklyBundle;
   const weeklyGame = userId
     ? (matchups.games ?? []).find((game: any) => game.homeUserId === userId || game.awayUserId === userId) ?? null
     : null;
@@ -871,9 +870,6 @@ async function loadHub(guildId: string, discordId: string) {
   );
   const weeklyGameBasePaid = Number(weeklyGameLedger?.amount ?? 0);
   const paid = (rows: any[]) => rows.filter((row) => row.status === "issued" || row.status === "approved").reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
-  const mediaRows = weeklyMedia.data ?? [];
-  const interviewRows = mediaRows.filter((row: any) => row.submission_type === "interview");
-  const articleRows = mediaRows.filter((row: any) => row.submission_type === "user_article");
   const cfg = storeConfig.data ?? {};
   const isRise = isRiseToImmortalityLeagueType(String((cfg as { roster_type?: string | null }).roster_type ?? ""));
   // Media Day pays a flat RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT per prospect that completes its
@@ -889,8 +885,6 @@ async function loadHub(guildId: string, discordId: string) {
   const nonRtiMediaDayEarned = (weeklyLedgers.data ?? []).filter((row: any) => row.transaction_type === "media_day_payout"
     && Number(row.source_reference?.week ?? -1) === currentWeek).reduce((sum: number, row: any) => sum + Number(row.amount ?? 0), 0);
   let weeklyItems = [
-    ...(isRise ? [{ key: "interview", label: "Submit an Interview", amount: RISE_TO_IMMORTALITY_INTERVIEW_PAYOUT, current: interviewRows.length, limit: 1, earned: paid(interviewRows) }] : []),
-    { key: "article", label: "Submit a custom article", amount: isRise ? RISE_TO_IMMORTALITY_ARTICLE_PAYOUT : economy.submissions.article, current: articleRows.length, limit: 1, earned: paid(articleRows) },
     { key: "stream", label: "Share your stream when you play", amount: economy.submissions.stream, current: Math.min(1, (weeklyStreams.data ?? []).length), limit: 1, earned: paid(weeklyStreams.data ?? []) },
     { key: "highlights", label: "Post up to 2 game highlights", amount: isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT : economy.submissions.highlight, current: Math.min(isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT : economy.submissions.highlightWeeklyUploadLimit, (weeklyHighlights.data ?? []).length), limit: isRise ? RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT : economy.submissions.highlightWeeklyUploadLimit, earned: paid(weeklyHighlights.data ?? []) },
     { key: "gotw", label: "Correctly predict Game of the Week", amount: economy.submissions.gotwCorrectVote, current: (weeklyGotwVotes.data ?? []).length ? 1 : 0, limit: 1, earned: (weeklyGotwVotes.data ?? []).reduce((sum: number, row: any) => sum + Number(row.payout_amount ?? 0), 0) },
@@ -902,7 +896,7 @@ async function loadHub(guildId: string, discordId: string) {
     ] : []),
   ];
   if (isRise) {
-    weeklyItems = weeklyItems.filter((item) => item.key === "interview" || item.key === "highlights" || item.key === "gotw" || item.key === "media_day");
+    weeklyItems = weeklyItems.filter((item) => item.key === "highlights" || item.key === "gotw" || item.key === "media_day");
   }
   const weeklyPotential = weeklyItems.reduce((sum, item) => sum + item.amount * item.limit, 0);
   const weeklyEarned = weeklyItems.reduce((sum, item) => sum + item.earned, 0);

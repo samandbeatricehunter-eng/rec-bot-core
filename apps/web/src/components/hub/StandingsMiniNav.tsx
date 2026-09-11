@@ -1,14 +1,16 @@
-import { useNavigate } from "react-router-dom";
+import { StatsMiniNav, type StatsNavId } from "./StatsMiniNav.js";
 
+/** Legacy ids used by standings/bracket pages before StatsMiniNav. */
 export type StandingsNavId = "division" | "power" | "sos" | "bracket";
 
-const STANDINGS_NAV: Array<{ id: StandingsNavId; top: string; bottom: string }> = [
-  { id: "division", top: "Division", bottom: "Standings" },
-  { id: "power", top: "Power", bottom: "Rankings" },
-  { id: "sos", top: "Strength of", bottom: "Schedule" },
-  { id: "bracket", top: "Playoff", bottom: "Bracket" },
-];
+const TO_STATS: Record<StandingsNavId, StatsNavId> = {
+  division: "standings",
+  power: "power",
+  sos: "sos",
+  bracket: "bracket",
+};
 
+/** @deprecated Prefer StatsMiniNav — thin alias for existing standings/bracket call sites. */
 export function StandingsMiniNav({
   active,
   leagueId,
@@ -18,37 +20,5 @@ export function StandingsMiniNav({
   leagueId: string;
   bracketAvailable?: boolean;
 }) {
-  const navigate = useNavigate();
-
-  return (
-    <nav className="hub-standings-mini-nav" aria-label="Standings views">
-      {STANDINGS_NAV.map((item) => {
-        const isBracket = item.id === "bracket";
-        const selected = item.id === active;
-        const disabled = isBracket && !bracketAvailable && !selected;
-        return (
-          <button
-            key={item.id}
-            type="button"
-            className={selected ? "is-selected" : undefined}
-            disabled={disabled}
-            title={isBracket && disabled ? "Playoff bracket unlocks in Week 12" : undefined}
-            aria-pressed={selected}
-            onClick={() => {
-              if (selected) return;
-              if (isBracket) {
-                navigate(`/l/${leagueId}/playoff-bracket`);
-                return;
-              }
-              const query = item.id === "division" ? "" : `?view=${item.id}`;
-              navigate(`/l/${leagueId}/standings${query}`);
-            }}
-          >
-            <span>{item.top}</span>
-            <strong>{item.bottom}</strong>
-          </button>
-        );
-      })}
-    </nav>
-  );
+  return <StatsMiniNav active={TO_STATS[active]} leagueId={leagueId} bracketAvailable={bracketAvailable} />;
 }

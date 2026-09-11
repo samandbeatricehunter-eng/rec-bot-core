@@ -1,11 +1,9 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
+import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, regularSeasonWeeks, stageHasScheduledGames, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { HeadshotUploadOverlay } from "../../components/hub/HeadshotUploadOverlay.js";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
-import { AttributePurchaseBuilder } from "../../components/hub/AttributePurchaseBuilder.js";
-import { CustomPlayerWizard } from "../../components/hub/CustomPlayerWizard.js";
 import { InterviewMicIcon, ManageTeamIcon, ScheduleIcon } from "../../components/hub/QuickActionIcons.js";
 import { ManageFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
 import { HeroMatchupActions } from "../../components/hub/HeroMatchupActions.js";
@@ -15,12 +13,11 @@ import { HeroSchedulingStatus } from "../../components/hub/HeroSchedulingStatus.
 import { ShareStreamModal } from "../../components/hub/ShareStreamModal.js";
 import { RequestHelpSheet } from "../../components/matchups/RequestHelpSheet.js";
 import { randomDefenseName } from "../../lib/defense-names.js";
-import { LegendPurchasePanel } from "./LegendPurchasePanel.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { GotwGuessingRecordsResponse, HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MatchupPreview as MatchupPreviewData, MediaPortalResponse, MyEosPayoutProgress, MyWagersResponse, NonRtiMediaDayResponse, OpenTeam, PeerWagerBoardResponse, RosterPlayer, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
+import type { GotwGuessingRecordsResponse, HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MatchupPreview as MatchupPreviewData, MyEosPayoutProgress, MyWagersResponse, NonRtiMediaDayResponse, OpenTeam, PeerWagerBoardResponse, RosterPlayer, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 import { Button } from "../../components/ui/Button.js";
@@ -38,14 +35,30 @@ import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.js";
 import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
 import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestModal.js";
-import { RelocateTeamWizard } from "../../components/hub/RelocateTeamWizard.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { ExpandableMatchupCard } from "../../components/matchups/ExpandableMatchupCard.js";
-import { RosterHome } from "../roster/RosterHome.js";
-import { TradeCenterHome } from "./TradeCenterHome.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
-import { FantasyDraftCard } from "./FantasyDraftCard.js";
-import { RiseOverviewMediaDayCard } from "./RiseOverviewMediaDay.js";
+import { TeamMiniNav } from "../../components/hub/TeamMiniNav.js";
+
+// Code-split: these destination surfaces/heavy modals are each only rendered behind a specific
+// section/purchaseType/wizard-open condition, but were previously statically imported into this
+// file's own bundle -- meaning every hub visitor downloaded and parsed all of TradeCenterHome
+// (1300+ lines), RosterHome, the store purchase forms, etc. up front regardless of whether they
+// ever open Roster, Trades, or the Store, directly inflating the hub's initial load time (see
+// docs/handoff/docs/MASTER_PLAN.md's "League Hub: lazy-load destination surfaces" item). Each is
+// wrapped in <Suspense> at its render site below.
+const RosterHome = lazy(() => import("../roster/RosterHome.js").then((m) => ({ default: m.RosterHome })));
+const TradeCenterHome = lazy(() => import("./TradeCenterHome.js").then((m) => ({ default: m.TradeCenterHome })));
+const LegendPurchasePanel = lazy(() => import("./LegendPurchasePanel.js").then((m) => ({ default: m.LegendPurchasePanel })));
+const FantasyDraftCard = lazy(() => import("./FantasyDraftCard.js").then((m) => ({ default: m.FantasyDraftCard })));
+const RiseOverviewMediaDayCard = lazy(() => import("./RiseOverviewMediaDay.js").then((m) => ({ default: m.RiseOverviewMediaDayCard })));
+const AttributePurchaseBuilder = lazy(() => import("../../components/hub/AttributePurchaseBuilder.js").then((m) => ({ default: m.AttributePurchaseBuilder })));
+const CustomPlayerWizard = lazy(() => import("../../components/hub/CustomPlayerWizard.js").then((m) => ({ default: m.CustomPlayerWizard })));
+const RelocateTeamWizard = lazy(() => import("../../components/hub/RelocateTeamWizard.js").then((m) => ({ default: m.RelocateTeamWizard })));
+
+function HubSurfaceFallback() {
+  return <div className="hub-empty" role="status">Loading...</div>;
+}
 
 // Highlight reactions are exactly three: Like, POTY, and Dislike. POTY opens the category
 // modal (AWARD_REACTIONS) where the user picks one Play-of-the-Year category and submits.
@@ -256,7 +269,7 @@ function RankingListSearch<T>({
 // nav for Madden (see LeagueTopNav.tsx) — this grid is now the only path to them.
 function MaddenMyTeamGrid({
   coachName, my, profile, heroRank, heroUserScore, selectSection, viewMySchedule,
-  setMediaModal, mediaPortal, setPowerRankingsModalOpen, setBankModalOpen,
+  openMediaDay, setPowerRankingsModalOpen, setBankModalOpen,
   setFinancialModalOpen, setCareerStatsModalOpen, onOpenWagers, leagueId, isRise, riseHubUnlocked,
 }: {
   coachName: string;
@@ -266,8 +279,7 @@ function MaddenMyTeamGrid({
   heroUserScore: string;
   selectSection: (next: HubSection) => void;
   viewMySchedule: () => void | Promise<void>;
-  setMediaModal: (value: "interview" | "article" | null) => void;
-  mediaPortal: MediaPortalResponse | null;
+  openMediaDay: () => void;
   setPowerRankingsModalOpen: (value: boolean) => void;
   setBankModalOpen: (value: boolean) => void;
   setFinancialModalOpen: (value: boolean) => void;
@@ -291,7 +303,7 @@ function MaddenMyTeamGrid({
         <p className="hub-eyebrow">Matchup Center</p>
         <div className="hub-my-team-card-buttons">
           <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
-          {!isRise ? <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Media Day/<wbr />Article</strong><span>Media desk</span></button> : null}
+          {!isRise ? <button type="button" className="hub-my-team-btn" onClick={() => openMediaDay()}><strong>Media Day</strong><span>Weekly interview</span></button> : null}
         </div>
       </div>
       <div className="hub-my-team-card">
@@ -622,15 +634,12 @@ export function HubHome() {
   const [manageFundsOpen, setManageFundsOpen] = useState(false);
   const [announcementItemIndex, setAnnouncementItemIndex] = useState(0);
   const [conferenceIndex, setConferenceIndex] = useState(0);
-  const [mediaPortal, setMediaPortal] = useState<MediaPortalResponse | null>(null);
   const [mediaDay, setMediaDay] = useState<NonRtiMediaDayResponse | null>(null);
   const [mediaDayDrafts, setMediaDayDrafts] = useState<Record<number, string>>({});
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const [mediaModal, setMediaModal] = useState<"article" | "interview" | null>(null);
+  const [mediaDayOpen, setMediaDayOpen] = useState(false);
   const [mediaNotice, setMediaNotice] = useState<string | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
-  const [mediaArticle, setMediaArticle] = useState({ title: "", body: "", imageUrl: "" });
-  const mediaArticleBodyRef = useRef<HTMLTextAreaElement>(null);
   const [playerStatsGame, setPlayerStatsGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [shareStreamGame, setShareStreamGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [highlightUploadGame, setHighlightUploadGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
@@ -643,12 +652,6 @@ export function HubHome() {
   const [retireModalOpen, setRetireModalOpen] = useState(false);
   const [retireBusy, setRetireBusy] = useState(false);
   const [retireError, setRetireError] = useState<string | null>(null);
-  const [interviewAnswers, setInterviewAnswers] = useState([
-    { questionId: "", answer: "" },
-    { questionId: "", answer: "" },
-    { questionId: "", answer: "" },
-  ]);
-  const [tagOpponent, setTagOpponent] = useState(false);
   const [showMySchedule, setShowMySchedule] = useState(false);
   const [mySchedule, setMySchedule] = useState<TeamScheduleManualState | null>(null);
   const [myScheduleError, setMyScheduleError] = useState<string | null>(null);
@@ -673,15 +676,14 @@ export function HubHome() {
   const [financialModalOpen, setFinancialModalOpen] = useState(false);
   const [financialsTab, setFinancialsTab] = useState<"ledger" | "transfer">("ledger");
 
-  // Bridge for SiteHeader's league-row-3 dropdown items (apps/site/src/components/LeagueRow3.tsx)
-  // -- SiteHeader renders outside HubHome's component tree (a sibling in SiteShell, not a
-  // descendant), so a header dropdown item can't call one of HubHome's local modal setters
-  // directly. It navigates to the current page with ?openModal=<key> instead; this effect reads
-  // that once, opens the matching modal, and strips the param so a refresh/back doesn't reopen it.
+  // Bridge for sticky footer More items (and any remaining ?openModal= deep links).
+  // Site chrome renders outside HubHome's component tree (sibling in SiteShell), so it can't
+  // call HubHome's local modal setters directly. It navigates with ?openModal=<key>; this effect
+  // opens the matching modal once and strips the param so refresh/back doesn't reopen it.
   useEffect(() => {
     const requested = searchParams.get("openModal");
     if (!requested) return;
-    if (requested === "interview" || (requested === "article" && hub?.league.rosterType !== "rise_to_immortality")) setMediaModal(requested);
+    if ((requested === "interview" || requested === "media-day" || requested === "article") && hub?.league.rosterType !== "rise_to_immortality") setMediaDayOpen(true);
     else if (requested === "schedule" && (hub?.league.rosterType !== "rise_to_immortality" || hub?.league.riseHubUnlocked === true)) void viewMySchedule();
     else if (requested === "financials") setFinancialModalOpen(true);
     else if (requested === "wager" && hub?.league.rosterType !== "rise_to_immortality") openSportsbook();
@@ -981,15 +983,10 @@ export function HubHome() {
   }, [auth.status, auth.status === "ready" ? auth.guildId : null, section, subTab]);
 
   useEffect(() => {
-    if (auth.status !== "ready" || !(section === "team" || section === "league") || mediaPortal) return;
-    recApi.getHubMediaPortal(auth.guildId).then(setMediaPortal).catch(() => setMediaPortal(null));
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, section, mediaPortal]);
-
-  useEffect(() => {
     const rise = hub?.league.rosterType === "rise_to_immortality";
-    if (auth.status !== "ready" || rise || mediaModal !== "interview" || mediaDay) return;
+    if (auth.status !== "ready" || rise || !mediaDayOpen || mediaDay) return;
     recApi.getNonRtiMediaDay(auth.guildId).then(setMediaDay).catch(() => setMediaDay(null));
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, hub?.league.rosterType, mediaModal, mediaDay]);
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, hub?.league.rosterType, mediaDayOpen, mediaDay]);
 
   // Comments load once per story open — keyed on the index, not on `hub`, so an optimistic
   // reaction/comment update elsewhere doesn't re-trigger a comment refetch.
@@ -1217,43 +1214,6 @@ export function HubHome() {
     finally { setPurchaseBusy(false); }
   }
 
-  async function uploadMediaImage(file: File | null) {
-    if (auth.status !== "ready" || !file) return;
-    setMediaBusy(true); setMediaNotice(null);
-    try {
-      const result = await recApi.uploadHubMediaImage(auth.guildId, file);
-      setMediaArticle((current) => ({ ...current, imageUrl: result.url }));
-      setMediaNotice("Image uploaded.");
-    } catch (cause) { setMediaNotice(cause instanceof Error ? cause.message : "Image upload failed."); }
-    finally { setMediaBusy(false); }
-  }
-
-  async function submitMediaArticle() {
-    if (auth.status !== "ready") return;
-    setMediaBusy(true); setMediaNotice(null);
-    try {
-      await recApi.submitHubMediaArticle({ guildId: auth.guildId, ...mediaArticle });
-      setMediaArticle({ title: "", body: "", imageUrl: "" });
-      setMediaPortal(null);
-      setMediaNotice("Article submitted for commissioner review.");
-    } catch (cause) { setMediaNotice(cause instanceof Error ? cause.message : "Article submission failed."); }
-    finally { setMediaBusy(false); }
-  }
-
-  async function submitInterviewForm() {
-    if (auth.status !== "ready" || !mediaPortal) return;
-    const questionMap = new Map(mediaPortal.questions.map((question) => [question.id, question]));
-    const answers = interviewAnswers.map((answer) => ({ questionId: answer.questionId, question: questionMap.get(answer.questionId)?.question ?? "", answer: answer.answer.trim() }));
-    setMediaBusy(true); setMediaNotice(null);
-    try {
-      await recApi.submitHubInterview({ guildId: auth.guildId, tagOpponent, answers });
-      setInterviewAnswers([{ questionId: "", answer: "" }, { questionId: "", answer: "" }, { questionId: "", answer: "" }]);
-      setTagOpponent(false);
-      setMediaPortal(null);
-      setMediaNotice("Interview submitted for commissioner review.");
-    } catch (cause) { setMediaNotice(cause instanceof Error ? cause.message : "Interview submission failed."); }
-    finally { setMediaBusy(false); }
-  }
 
   async function submitMediaDaySlot(slot: number) {
     if (auth.status !== "ready") return;
@@ -1467,31 +1427,18 @@ export function HubHome() {
   }, {});
   const apiBaseUrl = import.meta.env.VITE_REC_CORE_API_URL;
 
-  function toggleArticleStyle(marker: "**" | "*" | "__") {
-    const textarea = mediaArticleBodyRef.current;
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = mediaArticle.body.slice(start, end);
-    const nextBody = `${mediaArticle.body.slice(0, start)}${marker}${selected}${marker}${mediaArticle.body.slice(end)}`;
-    setMediaArticle((current) => ({ ...current, body: nextBody }));
-    requestAnimationFrame(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + marker.length, end + marker.length);
-    });
-  }
 
   return <div className="hub-page" data-bg={isRise ? "rise" : isCfbLeague ? "cfb" : "madden"}>
     <div className="hub-body">
       <main className="hub-content">
-    {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{coachName}</p></div></div>
+    {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><TeamMiniNav active="team" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{coachName}</p></div></div>
       {isCfbLeague && <DefenseNicknamePrompt />}
       {isCfbLeague ? <>
       <div className="hub-gameday-card hub-quick-actions-card hub-my-team-quick-actions">
         <p className="hub-eyebrow">Quick actions</p>
         <div className="hub-gameday-actions hub-quick-actions-row hub-quick-actions-row-compact">
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaModal("interview")}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>{isRise ? <>Interview</> : <>Media Day/<wbr />Article</>}</strong><span>Media desk</span></div></button>
+          {!isRise ? <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaDayOpen(true)}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Media Day</strong><span>Weekly interview</span></div></button> : null}
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => openSportsbook()}><IconWell size="sm" icon={<Coins size={16} />} /><div><strong>Place a Wager</strong><span>Sportsbook</span></div></button>
           <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
         </div>
@@ -1514,8 +1461,7 @@ export function HubHome() {
         heroUserScore={heroUserScore}
         selectSection={selectSection}
         viewMySchedule={viewMySchedule}
-        setMediaModal={setMediaModal}
-        mediaPortal={mediaPortal}
+        openMediaDay={() => setMediaDayOpen(true)}
         setPowerRankingsModalOpen={setPowerRankingsModalOpen}
         setBankModalOpen={setBankModalOpen}
         setFinancialModalOpen={setFinancialModalOpen}
@@ -1564,7 +1510,7 @@ export function HubHome() {
           <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
         )}
       </Modal>}
-      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" && isRise ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> XP marketplace</p><h2>Rise Store</h2></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>{!rtiGates?.storeUnlocked ? <p className="hub-empty">The XP store unlocks in Week 1 of the regular season. Player XP upgrades are available now from My Team.</p> : <p className="hub-empty">{rtiGates.teammateDevUnlocked ? "Teammate development-trait purchases are unlocked from the Progression Tree. Legends, age resets, and custom players stay off in Rise to Immortality." : "Spend Player XP on Upgrades and the Progression Tree. Teammate and self development purchases unlock from tree perks. Legends, age resets, and custom players are not in this mode."}</p>}</section> : section === "store" ? <section className="hub-section hub-store"><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>
+      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" && isRise ? <section className="hub-section hub-store"><TeamMiniNav active="store" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> XP marketplace</p><h2>Rise Store</h2></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>{!rtiGates?.storeUnlocked ? <p className="hub-empty">The XP store unlocks in Week 1 of the regular season. Player XP upgrades are available now from My Team.</p> : <p className="hub-empty">{rtiGates.teammateDevUnlocked ? "Teammate development-trait purchases are unlocked from the Progression Tree. Legends, age resets, and custom players stay off in Rise to Immortality." : "Spend Player XP on Upgrades and the Progression Tree. Teammate and self development purchases unlock from tree perks. Legends, age resets, and custom players are not in this mode."}</p>}</section> : section === "store" ? <section className="hub-section hub-store"><TeamMiniNav active="store" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>
       {!hub.store.enabled ? <p className="hub-empty">The coin economy is not enabled for this league.</p> : <>
         {hub.store.cfbSeasonOneLocked && <div className="hub-store-lock"><strong>CFB Season 1 roster lock</strong><span>Custom recruits, Campus Legends, development upgrades, attributes, and traits unlock automatically when Season 2 starts.</span></div>}
         <div className="hub-store-products">{hub.store.products.map((product) => {
@@ -1593,11 +1539,13 @@ export function HubHome() {
 
         {purchaseType && !hub.store.products.find((product) => product.type === purchaseType)?.locked && <div className="hub-store-form"><h3>{hub.store.products.find((product) => product.type === purchaseType)?.label}</h3>
 
-          {purchaseType === "attribute" && <AttributePurchaseBuilder guildId={auth.status === "ready" ? auth.guildId : ""} storeContext={storeContext} wallet={Number(my.wallet ?? 0)} busy={purchaseBusy} excludeDefault={isCfbLeague} corePointPrice={economyValues.store.coreAttributePoint} nonCorePointPrice={economyValues.store.nonCoreAttributePoint} onSubmit={(allocations, playerName, playerId) => submitPurchase({ playerId, playerName, allocations })} />}
+          <Suspense fallback={<HubSurfaceFallback />}>
+            {purchaseType === "attribute" && <AttributePurchaseBuilder guildId={auth.status === "ready" ? auth.guildId : ""} storeContext={storeContext} wallet={Number(my.wallet ?? 0)} busy={purchaseBusy} excludeDefault={isCfbLeague} corePointPrice={economyValues.store.coreAttributePoint} nonCorePointPrice={economyValues.store.nonCoreAttributePoint} onSubmit={(allocations, playerName, playerId) => submitPurchase({ playerId, playerName, allocations })} />}
 
-          {purchaseType === "legend" && <LegendPurchasePanel legendPrice={economyValues.store.legend} immortalPrice={economyValues.store.immortal} bustPrice={economyValues.store.bust} hometownHeroPrice={economyValues.store.hometownHero} celebsCouldveBeensPrice={economyValues.store.celebsCouldveBeens} onPurchased={() => { setStoreContext(null); void load(); void loadStoreContext(true); }} />}
+            {purchaseType === "legend" && <LegendPurchasePanel legendPrice={economyValues.store.legend} immortalPrice={economyValues.store.immortal} bustPrice={economyValues.store.bust} hometownHeroPrice={economyValues.store.hometownHero} celebsCouldveBeensPrice={economyValues.store.celebsCouldveBeens} onPurchased={() => { setStoreContext(null); void load(); void loadStoreContext(true); }} />}
 
-          {purchaseType === "custom_player" && <CustomPlayerWizard guildId={auth.status === "ready" ? auth.guildId : ""} onPurchased={() => { setStoreContext(null); void load(); void loadStoreContext(true); }} />}
+            {purchaseType === "custom_player" && <CustomPlayerWizard guildId={auth.status === "ready" ? auth.guildId : ""} onPurchased={() => { setStoreContext(null); void load(); void loadStoreContext(true); }} />}
+          </Suspense>
 
           {purchaseType === "dev_upgrade" && (() => {
             const game = hub.league.game;
@@ -1738,7 +1686,7 @@ export function HubHome() {
       {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
       <div className="hub-wager-carousel">{wagersBoard === null ? <p className="hub-empty">Loading peer wagers...</p> : wagersBoard.length ? <><button className="hub-highlight-arrow prev" aria-label="Previous wager" onClick={() => setWagerBoardIndex((wagerBoardIndex - 1 + wagersBoard.length) % wagersBoard.length)}><ChevronLeft /></button>{(() => { const wager = wagersBoard[wagerBoardIndex % wagersBoard.length]; const isActive = wager.boardState === "active" || wager.status === "pending"; return <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{displayLabel(wager.market)} · {wager.pickLabel} · <CoinAmount amount={wager.stake} /></span><span className="hub-wager-parties">Placed by {wager.isMine ? "you" : wager.placedByName}{isActive && wager.acceptedByName ? ` · Accepted by ${wager.acceptedByName}` : ""}</span></div><div className="hub-wager-card-actions">{wager.canAccept && <Button variant="primary" size="compact" disabled={wagersBoardBusy} onClick={() => void acceptFromWagersBoard(wager.id)}>Accept</Button>}{wager.canEdit && <><button className="hub-icon-action" title="Edit wager terms" aria-label="Edit wager terms" onClick={() => { const game = matchupSchedule?.games.find((item) => item.gameId === wager.gameId); if (game) void openWager(game); }}><Pencil size={17} /></button><button className="hub-icon-action danger" title="Delete wager" aria-label="Delete wager" disabled={wagersBoardBusy} onClick={() => void removeWager(wager.id)}><Trash2 size={17} /></button></>}</div></article>; })()}<button className="hub-highlight-arrow next" aria-label="Next wager" onClick={() => setWagerBoardIndex((wagerBoardIndex + 1) % wagersBoard.length)}><ChevronRight /></button><p>{wagerBoardIndex % wagersBoard.length + 1} / {wagersBoard.length}</p></> : <p className="hub-empty">No open user wagers yet.</p>}</div>
 
-    </section> : section === "roster" ? <>{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<RosterHome /></> : section === "trades" ? <>{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<TradeCenterHome /></> : <div className="hub-league-tab">
+    </section> : section === "roster" ? <><TeamMiniNav active="roster" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} />{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<Suspense fallback={<HubSurfaceFallback />}><RosterHome /></Suspense></> : section === "trades" ? <><TeamMiniNav active="trades" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} />{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<Suspense fallback={<HubSurfaceFallback />}><TradeCenterHome /></Suspense></> : <div className="hub-league-tab">
       {(subTab === "buzz" || subTab === "news") && <>
         {subTab === "buzz" && <>
         <div className="hub-buzz-top">
@@ -1868,7 +1816,9 @@ export function HubHome() {
             </section>
 
             {isRise && auth.status === "ready" ? (
-              <RiseOverviewMediaDayCard guildId={auth.guildId} seasonStage={hub.league.seasonStage} game={hub.league.game as LeagueGame} />
+              <Suspense fallback={<HubSurfaceFallback />}>
+                <RiseOverviewMediaDayCard guildId={auth.guildId} seasonStage={hub.league.seasonStage} game={hub.league.game as LeagueGame} />
+              </Suspense>
             ) : null}
 
             <div className="hub-gameday-card hub-quick-actions-card hub-hero-quick-actions">
@@ -1886,7 +1836,7 @@ export function HubHome() {
                 ) : (
                   <>
                 <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
-                <button type="button" className="hub-my-team-btn" onClick={() => setMediaModal("interview")}><strong>Media Day/<wbr />Article</strong><span>Media desk</span></button>
+                <button type="button" className="hub-my-team-btn" onClick={() => setMediaDayOpen(true)}><strong>Media Day</strong><span>Weekly interview</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => openSportsbook()}><strong>Place a Wager</strong><span>Sportsbook</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/store`)}><strong>Store</strong><span>Franchise marketplace</span></button>
                 <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>
@@ -1910,7 +1860,9 @@ export function HubHome() {
         {manageFundsOpen && auth.status === "ready" && <ManageFundsModal guildId={auth.guildId} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} onClose={() => setManageFundsOpen(false)} />}
 
         {(hub.league.game === "madden_26" || hub.league.game === "madden_27") && (!isRise || riseHubUnlocked) && hub.league.fantasyDraftStatus && hub.league.fantasyDraftStatus !== "not_applicable" && hub.league.fantasyDraftStatus !== "concluded" && readyGuildId && (
-          <FantasyDraftCard guildId={readyGuildId} leagueId={hub.league.id} compact />
+          <Suspense fallback={<HubSurfaceFallback />}>
+            <FantasyDraftCard guildId={readyGuildId} leagueId={hub.league.id} compact />
+          </Suspense>
         )}
 
         {auth.status === "ready" && riseHubUnlocked && gotwGames.length ? <GotwVotingCarousel
@@ -2276,42 +2228,7 @@ export function HubHome() {
         </> : <div className="hub-peer-board hub-peer-board-tab"><h3>Open Wager Board</h3>{wagerPanel.board.length ? wagerPanel.board.map((wager) => <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{displayLabel(wager.market)} · <CoinAmount amount={wager.stake} /> · {displayLabel(wager.challengeType)}</span></div>{wager.canAccept ? <Button variant="secondary" size="compact" disabled={wagerPanel.busy} onClick={() => void acceptPeer(wager.id)}>Accept</Button> : <StatusChip status={wager.isMine ? "pending" : "locked"} label={wager.isMine ? "Your offer" : "Unavailable"} />}</article>) : <p className="hub-empty">No open user wagers yet.</p>}</div>}
       </>}
     </div></Modal>}
-    {mediaModal && <Modal title={isRise ? "Interview" : "Media Day/Article"} onClose={() => setMediaModal(null)}><div className="hub-media-modal">
-      <div className="rec-matchup-tabs" role="tablist" aria-label="Media submission type">
-        <button type="button" role="tab" aria-selected={mediaModal === "interview"} className={mediaModal === "interview" ? "active" : ""} onClick={() => { setMediaNotice(null); setMediaModal("interview"); }}>{isRise ? "Interview" : "Media Day"}</button>
-        {isRise ? null : <button type="button" role="tab" aria-selected={mediaModal === "article"} className={mediaModal === "article" ? "active" : ""} onClick={() => { setMediaNotice(null); setMediaModal("article"); }}>Article</button>}
-      </div>
-      {mediaModal === "article" && <>
-      {mediaNotice && <p className="hub-transfer-status">{mediaNotice}</p>}
-      {!mediaPortal ? <p className="hub-empty">Loading media desk...</p> : <>
-        <p className="hub-muted">{mediaPortal.limits.articleSubmitted ? `Already submitted this week (${mediaPortal.limits.articleStatus}).` : `Submit one custom article per week for commissioner review. Pays ${coinsNumber(100)} on approval.`}</p>
-        <div className="form-field"><label className="form-label">Title</label><input className="form-input" value={mediaArticle.title} disabled={mediaPortal.limits.articleSubmitted} onChange={(event) => setMediaArticle({ ...mediaArticle, title: event.target.value })} /></div>
-        <div className="form-field"><label className="form-label">Article body</label><div className="hub-rich-text-toolbar" aria-label="Article text formatting"><button type="button" onClick={() => toggleArticleStyle("**")} disabled={mediaPortal.limits.articleSubmitted} aria-label="Bold"><strong>B</strong></button><button type="button" onClick={() => toggleArticleStyle("*")} disabled={mediaPortal.limits.articleSubmitted} aria-label="Italic"><em>I</em></button><button type="button" onClick={() => toggleArticleStyle("__")} disabled={mediaPortal.limits.articleSubmitted} aria-label="Underline"><u>U</u></button></div><textarea ref={mediaArticleBodyRef} className="form-input" rows={7} value={mediaArticle.body} disabled={mediaPortal.limits.articleSubmitted} onChange={(event) => setMediaArticle({ ...mediaArticle, body: event.target.value })} /></div>
-        <div className="form-field"><label className="form-label">Image</label><input className="form-input" type="file" accept="image/png,image/jpeg,image/webp" disabled={mediaPortal.limits.articleSubmitted} onChange={(event) => void uploadMediaImage(event.target.files?.[0] ?? null)} />{mediaArticle.imageUrl && <img className="media-image-preview" src={mediaArticle.imageUrl} alt="" />}</div>
-        <Button variant="primary" disabled={mediaBusy || mediaPortal.limits.articleSubmitted || !mediaArticle.title.trim() || !mediaArticle.body.trim()} onClick={() => void submitMediaArticle()}>{mediaBusy ? "Submitting..." : "Submit Article"}</Button>
-      </>}
-      </>}
-
-      {mediaModal === "interview" && (isRise ? <>
-      {mediaNotice && <p className="hub-transfer-status">{mediaNotice}</p>}
-      {!mediaPortal ? <p className="hub-empty">Loading media desk...</p> : <>
-        <p className="hub-muted">{mediaPortal.limits.interviewSubmitted ? `Already submitted this week (${mediaPortal.limits.interviewStatus}).` : `Pick 3 questions and answer them for commissioner review. Pays ${coinsNumber(50)} on approval.`}</p>
-        {interviewAnswers.map((answer, index) => {
-          const selectedTopic = answer.questionId ? mediaPortal.questions.find((question) => question.id === answer.questionId)?.topic ?? "" : "";
-          const topics = [...new Set(mediaPortal.questions.map((question) => question.topic))];
-          const questions = mediaPortal.questions.filter((question) => !selectedTopic || question.topic === selectedTopic);
-          const selectedQuestionText = answer.questionId ? mediaPortal.questions.find((question) => question.id === answer.questionId)?.question ?? "" : "";
-          return <div className="hub-interview-question" key={index}><strong>Question {index + 1}</strong>
-            <select className="form-input" value={selectedTopic} disabled={mediaPortal.limits.interviewSubmitted} onChange={(event) => setInterviewAnswers((current) => current.map((item, i) => i === index ? { ...item, questionId: mediaPortal.questions.find((q) => q.topic === event.target.value)?.id ?? "" } : item))}><option value="">Topic</option>{topics.map((topic) => <option key={topic}>{topic}</option>)}</select>
-            <select className="form-input" value={answer.questionId} disabled={mediaPortal.limits.interviewSubmitted} onChange={(event) => setInterviewAnswers((current) => current.map((item, i) => i === index ? { ...item, questionId: event.target.value } : item))}><option value="">Question</option>{questions.map((question) => <option key={question.id} value={question.id}>{question.question}</option>)}</select>
-            {selectedQuestionText && <p className="hub-interview-question-preview">{selectedQuestionText}</p>}
-            <textarea className="form-input" rows={3} placeholder="Answer" value={answer.answer} disabled={mediaPortal.limits.interviewSubmitted} onChange={(event) => setInterviewAnswers((current) => current.map((item, i) => i === index ? { ...item, answer: event.target.value } : item))} />
-          </div>;
-        })}
-        <label className="media-toggle"><input type="checkbox" checked={tagOpponent} disabled={!mediaPortal.opponent || mediaPortal.limits.interviewSubmitted} onChange={(event) => setTagOpponent(event.target.checked)} /> Tag weekly H2H opponent{mediaPortal.opponent ? ` (${mediaPortal.opponent.teamName})` : " (no H2H this week)"}</label>
-        <Button variant="primary" disabled={mediaBusy || mediaPortal.limits.interviewSubmitted || interviewAnswers.some((answer) => !answer.questionId || !answer.answer.trim())} onClick={() => void submitInterviewForm()}>{mediaBusy ? "Submitting..." : "Submit Interview"}</Button>
-      </>}
-      </> : <>
+    {mediaDayOpen && !isRise ? <Modal title="Media Day" onClose={() => setMediaDayOpen(false)}><div className="hub-media-modal">
       {mediaNotice && <p className="hub-transfer-status">{mediaNotice}</p>}
       {!mediaDay ? <p className="hub-empty">Loading this week's Media Day...</p> : <>
         <p className="hub-muted">Answer all 3 questions below as your team's coach. Pays {coinsNumber(economyValues.submissions.mediaDay)} once every slot is answered — no commissioner review needed.</p>
@@ -2327,9 +2244,7 @@ export function HubHome() {
         </div>)}
         {mediaDay.complete && <p className="hub-muted">This week's Media Day is complete.</p>}
       </>}
-      </>)}
-    </div></Modal>}
-
+    </div></Modal> : null}
     {showMySchedule && <Modal title="Full Season Schedule" onClose={() => setShowMySchedule(false)} panelClassName="hub-schedule-modal"><div className="hub-my-schedule">
       {!isCfbLeague && hub.myTeam && (
         <div className="hub-schedule-relocate-row">
@@ -2378,14 +2293,16 @@ export function HubHome() {
     </div></Modal>}
     {relocateWizardOpen && auth.status === "ready" && (
       <Modal title="Relocate / Custom Team" onClose={() => setRelocateWizardOpen(false)}>
-        <RelocateTeamWizard
-          guildId={auth.guildId}
-          onApplied={(message) => {
-            setRelocateNotice(message);
-            setRelocateWizardOpen(false);
-            void load();
-          }}
-        />
+        <Suspense fallback={<HubSurfaceFallback />}>
+          <RelocateTeamWizard
+            guildId={auth.guildId}
+            onApplied={(message) => {
+              setRelocateNotice(message);
+              setRelocateWizardOpen(false);
+              void load();
+            }}
+          />
+        </Suspense>
       </Modal>
     )}
     {retireModalOpen && <Modal title="Retire from League?" onClose={() => !retireBusy && setRetireModalOpen(false)}><div className="hub-retire-confirm">

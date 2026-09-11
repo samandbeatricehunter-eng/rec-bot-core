@@ -111,7 +111,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
 
   // useLayoutEffect (not useEffect) so scope is corrected before paint -- otherwise a
   // navigation off /l/:id via a plain link (not exitToMain()) could paint one frame of
-  // LeagueRow3 for the old league on top of the newly-navigated-to page before this runs.
+  // Clear stale league chrome after exit (footer + header switcher) before this runs.
   useLayoutEffect(() => {
     // Game theme is only for /l/:id hub surfaces. Site chrome (leagues list, home,
     // account, etc.) always stays on the app carbon theme — otherwise selecting a

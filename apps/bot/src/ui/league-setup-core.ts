@@ -94,9 +94,9 @@ export function buildRiseLockedEconomyWindow(draft: LeagueSetupDraft) {
     `League: **${draft.name}**`,
     "",
     "Store purchases are **off** in this mode. Player XP upgrades ratings; Team XP unlocks later.",
-    "Coins pay **annual contracts**, **2 highlights/week at 150**, **GOTW**, and **interviews**. No wagers, member articles, or store purchases.",
+    "Coins pay **annual contracts**, **2 highlights/week at 100**, **GOTW**, and **Media Day**. No wagers, member articles, or store purchases.",
     "Users register into a **pool**. The virtual rookie draft links them to franchises on the site and Discord. Unused teams stay CPU.",
-    "Discord is for announcements, renders, and status updates. Origins, IQ, interviews, and builds stay on the website.",
+    "Discord is for announcements, renders, and status updates. Origins, IQ, Media Day, and builds stay on the website.",
     "",
     "Use Next to continue server setup.",
   ].join("\n"));
