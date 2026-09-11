@@ -1686,7 +1686,13 @@ export async function postRivalryH2hIfDue(input: { leagueId: string; guildId: st
   if (!claimed.data) return; // already posted (unique constraint), or the insert itself failed -- either way, don't retry from a hot read path
 
   const routes = await findServerRoutesForLeague(input.leagueId);
-  const channelId = (routes?.routes as any)?.interviews_channel_id as string | null | undefined;
+  // interviews_channel_id was retired (no commissioner UI can set it anymore -- see
+  // story-publishing.ts's postGeneratedHeadlineToDiscord for the same Headlines -> Announcements
+  // fallback pattern used when that field was removed); fall back the same way so leagues with no
+  // legacy value here aren't permanently silenced.
+  const headlinesChannelId = (routes?.routes as any)?.headlines_channel_id as string | null | undefined;
+  const announcementsChannelId = (routes?.routes as any)?.announcements_channel_id as string | null | undefined;
+  const channelId = headlinesChannelId ?? announcementsChannelId;
   if (!channelId) return;
 
   const { renderRivalryH2hPng } = await import("../../lib/rivalry-h2h-render.js");
