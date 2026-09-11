@@ -1,2 +1,3 @@
-/* Madden uses the same Platinum face as CFB / site chrome — see themes/cfb27.css. */
-@import "./cfb27.css";
+/* Madden theme overrides. Previously shared a "Platinum face" base with the removed CFB theme;
+   that base was dead code (data-game-theme is never actually set — see hub-chrome-context.tsx),
+   so it was dropped rather than reinlined. */

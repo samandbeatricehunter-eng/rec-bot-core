@@ -7,7 +7,6 @@ import { siteApi } from "../../lib/site-api.js";
 // (apps/api/src/lib/nfl-playoff-bracket-render.ts) -- no SiteShell/nav, no auth, just the bracket.
 // Same pattern as RenderPlayerOfWeek.tsx.
 import "../../../../web/src/styles/tokens.css";
-import "../../../../web/src/styles/themes/cfb27.css";
 import "../../../../web/src/styles/themes/madden27.css";
 import "../../../../web/src/styles/typography.css";
 import "../../../../web/src/styles/surfaces.css";

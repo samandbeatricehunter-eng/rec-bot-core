@@ -8,7 +8,6 @@ import { siteApi } from "../../lib/site-api.js";
 // Playwright caller only screenshots the [data-matchup-render] element itself, so this
 // wrapper's own background/padding never appear in the final PNG.
 import "../../../../web/src/styles/tokens.css";
-import "../../../../web/src/styles/themes/cfb27.css";
 import "../../../../web/src/styles/themes/madden27.css";
 import "../../../../web/src/styles/typography.css";
 import "../../../../web/src/styles/surfaces.css";

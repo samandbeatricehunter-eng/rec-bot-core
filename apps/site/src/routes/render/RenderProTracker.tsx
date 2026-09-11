@@ -7,7 +7,6 @@ import { siteApi, type ProTrackerRenderData } from "../../lib/site-api.js";
 // post's image (apps/api/src/lib/pro-tracker-render.ts) -- no SiteShell/nav, no auth, just the
 // card. Same pattern as RenderPlayerOfWeek.tsx.
 import "../../../../web/src/styles/tokens.css";
-import "../../../../web/src/styles/themes/cfb27.css";
 import "../../../../web/src/styles/themes/madden27.css";
 import "../../../../web/src/styles/typography.css";
 import "../../../../web/src/styles/surfaces.css";

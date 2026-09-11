@@ -9,7 +9,6 @@ import { RivalryProspectComparison } from "../../components/RivalryProspectCompa
 // card/breakdown stacked with a new prospect-vs-prospect comparison. Same pattern as
 // RenderMatchup.tsx/RenderProspectCard.tsx.
 import "../../../../web/src/styles/tokens.css";
-import "../../../../web/src/styles/themes/cfb27.css";
 import "../../../../web/src/styles/themes/madden27.css";
 import "../../../../web/src/styles/typography.css";
 import "../../../../web/src/styles/surfaces.css";

@@ -7,7 +7,6 @@ import { siteApi, type PlayerOfWeekRenderData } from "../../lib/site-api.js";
 // (apps/api/src/lib/player-of-week-render.ts) -- no SiteShell/nav, no auth, just the card.
 // Same pattern as RenderMatchup.tsx.
 import "../../../../web/src/styles/tokens.css";
-import "../../../../web/src/styles/themes/cfb27.css";
 import "../../../../web/src/styles/themes/madden27.css";
 import "../../../../web/src/styles/typography.css";
 import "../../../../web/src/styles/surfaces.css";

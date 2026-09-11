@@ -7,7 +7,6 @@ import { siteApi, type WeeklyMatchupBoardRenderData } from "../../lib/site-api.j
 // slate" hold screen (apps/api/src/lib/weekly-matchup-board-render.ts) -- no SiteShell/nav, no
 // auth, just the matchup cards over black. Same pattern as RenderMatchup.tsx.
 import "../../../../web/src/styles/tokens.css";
-import "../../../../web/src/styles/themes/cfb27.css";
 import "../../../../web/src/styles/themes/madden27.css";
 import "../../../../web/src/styles/typography.css";
 import "../../../../web/src/styles/surfaces.css";
