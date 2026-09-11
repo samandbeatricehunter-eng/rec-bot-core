@@ -10,6 +10,7 @@ import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
+import { issueAndGradeWeeklyTeamChallengesForGame } from "../weekly-challenges/weekly-challenge-issuance.service.js";
 import { settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { randomUUID } from "node:crypto";
@@ -316,6 +317,9 @@ export async function recordManualGameResult(input: {
     if (submission.data?.id) {
       await processGameIntelligence({ id: submission.data.id, league_id: context.leagueId, season_number: seasonNumber, week_number: weekNumber, game_id: input.gameId });
     }
+    await issueAndGradeWeeklyTeamChallengesForGame({
+      leagueId: context.leagueId, seasonNumber, weekNumber, gameId: input.gameId,
+    }).catch((err) => console.error(`[ERROR] Weekly team challenge grading failed for game ${input.gameId} (non-fatal):`, err));
   }
 
   await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {

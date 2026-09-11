@@ -36,6 +36,7 @@ import { userRoutes } from "./modules/users/user.routes.js";
 import { wagerRoutes } from "./modules/wagers/wagers.routes.js";
 import { teamRosterRoutes } from "./modules/roster/roster.routes.js";
 import { hubRoutes } from "./modules/hub/hub.routes.js";
+import { weeklyChallengesRoutes } from "./modules/weekly-challenges/weekly-challenges.routes.js";
 import { renderRoutes } from "./modules/render/render.routes.js";
 import { debugStreamDownloadRoutes } from "./modules/streaming/debug-stream-download.routes.js";
 import { watchedPlayersRoutes } from "./modules/watched-players/watched-players.routes.js";
@@ -123,6 +124,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await draftPicksRoutes(app);
   await tradesRoutes(app);
   await immortalityRoutes(app);
+  await weeklyChallengesRoutes(app);
   await fantasyDraftRoutes(app);
   await annualDraftRoutes(app);
   await publicLeagueRoutes(app);

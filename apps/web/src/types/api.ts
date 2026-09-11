@@ -949,6 +949,20 @@ export type StorePurchaseContext = {
   seasonActive: Record<string, number>;
 };
 
+export type WeeklyTeamChallenge = {
+  side: "offense" | "defense" | "special_teams";
+  id: string;
+  name: string;
+  tiers: Array<{ tier: "bronze" | "silver" | "gold"; complete: boolean }>;
+};
+
+export type MyWeeklyChallengesResponse = {
+  teamId: string | null;
+  seasonNumber: number;
+  weekNumber: number;
+  challenges: WeeklyTeamChallenge[];
+};
+
 export type NflTeamSummary = {
   teamId: string;
   name: string;

@@ -751,6 +751,8 @@ export const recApi = {
     recApiFetch<any>("/v1/purchases/create", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   getStorePurchaseContext: (guildId: string) =>
     recApiFetch<import("../types/api.js").StorePurchaseContext>("/v1/purchases/store-context", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getMyWeeklyChallenges: (guildId: string) =>
+    recApiFetch<import("../types/api.js").MyWeeklyChallengesResponse>("/v1/weekly-challenges/mine", { method: "POST", body: JSON.stringify({ guildId }) }),
   listHubLegends: (guildId: string) =>
     recApiFetch<{ legends: import("../types/api.js").LegendCatalogEntry[] }>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
   listHubLegendAvailability: (guildId: string) =>

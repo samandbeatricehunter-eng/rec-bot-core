@@ -1174,6 +1174,23 @@ button.poty:disabled {
 .hub-badge-shelf .badge-tier-serious-problem { background-image:url("/assets/hub/badge-serious-problem-v2.webp"); }
 .hub-badge-shelf .badge-tier-shit-show { background-image:url("/assets/hub/badge-shit-v2.webp"); }
 
+/* Non-RTI weekly team challenges (Phase 3) -- one row per side, tiers shown as small pips that
+   light up once complete. Bronze/silver/gold use fixed medal-associated colors (not themeable
+   accent tokens) since those associations are the whole point of the label. */
+.hub-weekly-challenges { display:flex; flex-direction:column; gap:var(--space-3); }
+.hub-weekly-challenge-row { display:flex; flex-direction:column; gap:6px; padding:10px 12px; border:var(--card-border); border-radius:var(--radius-md); background:rgba(255,255,255,0.03); }
+.hub-weekly-challenge-header { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.hub-weekly-challenge-side { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); }
+.hub-weekly-challenge-name { font-weight:600; }
+.hub-weekly-challenge-tiers { display:flex; gap:6px; flex-wrap:wrap; }
+.hub-weekly-tier-pip {
+  font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:0.03em;
+  background:rgba(255,255,255,0.06); color:var(--text-muted); border:1px solid rgba(255,255,255,0.12);
+}
+.hub-weekly-tier-pip.is-complete.hub-weekly-tier-bronze { background:#8a5a35; color:#fff2e2; border-color:#8a5a35; }
+.hub-weekly-tier-pip.is-complete.hub-weekly-tier-silver { background:#9aa4ad; color:#12161a; border-color:#9aa4ad; }
+.hub-weekly-tier-pip.is-complete.hub-weekly-tier-gold { background:var(--gold); color:var(--text-on-gold); border-color:var(--gold); }
+
 .hub-badge-shelf .badge-key-perfect-regular-season {
   background-color:transparent;
   background-image:url("/assets/badges/perfect-regular-season.webp");

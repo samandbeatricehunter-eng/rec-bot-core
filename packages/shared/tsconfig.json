@@ -1,1 +1,1 @@
-{"extends":"../../tsconfig.base.json","compilerOptions":{"outDir":"dist","rootDir":"src","declaration":true},"include":["src/**/*.ts","src/immortality/config/*.json","src/media-social/config/*.json"],"exclude":["src/**/*.test.ts"]}
+{"extends":"../../tsconfig.base.json","compilerOptions":{"outDir":"dist","rootDir":"src","declaration":true},"include":["src/**/*.ts","src/immortality/config/*.json","src/media-social/config/*.json","src/weekly-challenges/config/*.json"],"exclude":["src/**/*.test.ts"]}

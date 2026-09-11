@@ -17,6 +17,7 @@ import { ApiError } from "../../lib/errors.js";
 import type { CompanionConnection } from "../madden-companion/madden-companion.service.js";
 import { ingestCompanionPayload, recUserIdFromDiscordId, syncCompanionScheduleResultsIntoGameResults } from "../madden-companion/madden-companion.service.js";
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
+import { issueAndGradeWeeklyTeamChallengesForGame } from "../weekly-challenges/weekly-challenge-issuance.service.js";
 import { reconcileApprovedMaddenPurchases } from "../purchases/purchases.service.js";
 import { levenshtein, normalizePlayerName } from "./player-name-matching.js";
 import {
@@ -1086,6 +1087,9 @@ export async function importEaDatasetsWithProgress(
         game_id: game.id,
       }, { postToDiscord: false }).catch((error) =>
         console.error(`[WARN] Badge processing failed for game ${game.id} (non-fatal):`, error));
+      await issueAndGradeWeeklyTeamChallengesForGame({
+        leagueId, seasonNumber, weekNumber: game.weekNumber, gameId: game.id,
+      }).catch((error) => console.error(`[WARN] Weekly team challenge grading failed for game ${game.id} (non-fatal):`, error));
     });
   }
   // Cross-reference DB rosters with this import: drop players EA no longer lists.

@@ -1,0 +1,4334 @@
+[
+  {
+    "id": "offense_001",
+    "side": "offense",
+    "name": "Light Up the Board",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 350
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_002",
+    "side": "offense",
+    "name": "Thirty-Five Special",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 35
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 400
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 10
+      }
+    ]
+  },
+  {
+    "id": "offense_003",
+    "side": "offense",
+    "name": "Statement Offense",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 40
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 425
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 14
+      }
+    ]
+  },
+  {
+    "id": "offense_004",
+    "side": "offense",
+    "name": "Scoreboard Breaker",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 45
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 475
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 17
+      }
+    ]
+  },
+  {
+    "id": "offense_005",
+    "side": "offense",
+    "name": "Fifty Burger",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 50
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 500
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 21
+      }
+    ]
+  },
+  {
+    "id": "offense_006",
+    "side": "offense",
+    "name": "Efficient Attack",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 28
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_007",
+    "side": "offense",
+    "name": "Complete Performance",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 400
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 35
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "id": "offense_008",
+    "side": "offense",
+    "name": "Total Domination",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 450
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 40
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 14
+      }
+    ]
+  },
+  {
+    "id": "offense_009",
+    "side": "offense",
+    "name": "Move the Chains",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 18
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 350
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ]
+  },
+  {
+    "id": "offense_010",
+    "side": "offense",
+    "name": "Drive Sustainer",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 20
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 400
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "id": "offense_011",
+    "side": "offense",
+    "name": "No Wasted Drives",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 28
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "red_zone_off_percentage",
+        "op": "gte",
+        "value": 60
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "offense_012",
+    "side": "offense",
+    "name": "Finish Drives",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "red_zone_off_percentage",
+        "op": "gte",
+        "value": 70
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_013",
+    "side": "offense",
+    "name": "Red Zone Machine",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 35
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "red_zone_off_percentage",
+        "op": "gte",
+        "value": 75
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 10
+      }
+    ]
+  },
+  {
+    "id": "offense_014",
+    "side": "offense",
+    "name": "Protect the Football",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_015",
+    "side": "offense",
+    "name": "Winning Formula",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 350
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 7
+      }
+    ]
+  },
+  {
+    "id": "offense_016",
+    "side": "offense",
+    "name": "Four-Quarter Offense",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 400
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 20
+      }
+    ]
+  },
+  {
+    "id": "offense_017",
+    "side": "offense",
+    "name": "Pressure Proof",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 28
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 7
+      }
+    ]
+  },
+  {
+    "id": "offense_018",
+    "side": "offense",
+    "name": "No Excuses",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 35
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 400
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_019",
+    "side": "offense",
+    "name": "Offensive Showcase",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 40
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 450
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "offense_020",
+    "side": "offense",
+    "name": "Establish It",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 125
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_021",
+    "side": "offense",
+    "name": "Run First",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 150
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "offense_022",
+    "side": "offense",
+    "name": "Ground Control",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 175
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 7
+      }
+    ]
+  },
+  {
+    "id": "offense_023",
+    "side": "offense",
+    "name": "Ground and Pound",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 200
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 14
+      }
+    ]
+  },
+  {
+    "id": "offense_024",
+    "side": "offense",
+    "name": "Steamroller",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 225
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_025",
+    "side": "offense",
+    "name": "Feature Back",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "OFFENSE_ANY",
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 80,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "ANY",
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 100,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "ANY",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2,
+        "mode": "max"
+      }
+    ]
+  },
+  {
+    "id": "offense_026",
+    "side": "offense",
+    "name": "Bell Cow",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "HB",
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 100,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "HB",
+        "stat": "total_tds_player",
+        "op": "gte",
+        "value": 2,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "HB",
+        "stat": "broken_tackles",
+        "op": "gte",
+        "value": 3,
+        "mode": "max"
+      }
+    ]
+  },
+  {
+    "id": "offense_027",
+    "side": "offense",
+    "name": "Home Run Runner",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "OFFENSE_ANY",
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 90,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "ANY",
+        "stat": "rush_20_plus",
+        "op": "gte",
+        "value": 1,
+        "mode": "any"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "ANY",
+        "stat": "broken_tackles",
+        "op": "gte",
+        "value": 2,
+        "mode": "max"
+      }
+    ]
+  },
+  {
+    "id": "offense_028",
+    "side": "offense",
+    "name": "Punish the Front",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 125
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "broken_tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_20_plus",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "offense_031",
+    "side": "offense",
+    "name": "Explosive Ground Game",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 150
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_20_plus",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "id": "offense_032",
+    "side": "offense",
+    "name": "Backfield Committee",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RUSHER",
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 50,
+        "mode": "count",
+        "minCount": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 150
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "offense_033",
+    "side": "offense",
+    "name": "Wear Them Down",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 125
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 20
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_034",
+    "side": "offense",
+    "name": "Stay on Schedule",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 350
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "offense_035",
+    "side": "offense",
+    "name": "Power Football",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 150
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "broken_tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "offense_036",
+    "side": "offense",
+    "name": "Long Day for the Defense",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 175
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_20_plus",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 10
+      }
+    ]
+  },
+  {
+    "id": "offense_039",
+    "side": "offense",
+    "name": "Quarterback Rhythm",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 250
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "id": "offense_040",
+    "side": "offense",
+    "name": "Air It Out",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_041",
+    "side": "offense",
+    "name": "Controlled Aggression",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 325
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "id": "offense_042",
+    "side": "offense",
+    "name": "Bombs Away",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 350
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_043",
+    "side": "offense",
+    "name": "Perfect Air Raid",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 400
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "offense_044",
+    "side": "offense",
+    "name": "Surgical",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 250
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "completion_pct_team",
+        "op": "gte",
+        "value": 60
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "id": "offense_045",
+    "side": "offense",
+    "name": "Point Guard",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "completion_pct_team",
+        "op": "gte",
+        "value": 65
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "id": "offense_046",
+    "side": "offense",
+    "name": "Take Their Soul",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 350
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 10
+      }
+    ]
+  },
+  {
+    "id": "offense_047",
+    "side": "offense",
+    "name": "No Gifts",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 275
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ]
+  },
+  {
+    "id": "offense_048",
+    "side": "offense",
+    "name": "QB Masterclass",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "completion_pct_team",
+        "op": "gte",
+        "value": 65
+      }
+    ]
+  },
+  {
+    "id": "offense_049",
+    "side": "offense",
+    "name": "Four Through the Air",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 275
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_050",
+    "side": "offense",
+    "name": "Precision Strike",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 250
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "completion_pct_team",
+        "op": "gte",
+        "value": 65
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "offense_051",
+    "side": "offense",
+    "name": "Explosive Passing",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 325
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 35
+      }
+    ]
+  },
+  {
+    "id": "offense_052",
+    "side": "offense",
+    "name": "Franchise QB Day",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "QB",
+        "stat": "total_tds_player",
+        "mode": "max",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 7
+      }
+    ]
+  },
+  {
+    "id": "offense_053",
+    "side": "offense",
+    "name": "Dual-Threat Command",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "QB",
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 250,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "QB",
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 40,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "QB",
+        "stat": "total_tds_player",
+        "op": "gte",
+        "value": 3,
+        "mode": "max"
+      }
+    ]
+  },
+  {
+    "id": "offense_054",
+    "side": "offense",
+    "name": "QB Takeover",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "QB",
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 300,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "QB",
+        "stat": "total_tds_player",
+        "op": "gte",
+        "value": 4,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_055",
+    "side": "offense",
+    "name": "Third-Level Attack",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 75,
+        "mode": "count",
+        "minCount": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "id": "offense_056",
+    "side": "offense",
+    "name": "No Fear",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 350
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 35
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_057",
+    "side": "offense",
+    "name": "Elite Quarterbacking",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 375
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "QB",
+        "stat": "total_tds_player",
+        "mode": "max",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "id": "offense_058",
+    "side": "offense",
+    "name": "Go-To Target",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 75,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "receptions",
+        "op": "gte",
+        "value": 5,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "total_tds_player",
+        "op": "gte",
+        "value": 1,
+        "mode": "any"
+      }
+    ]
+  },
+  {
+    "id": "offense_059",
+    "side": "offense",
+    "name": "Century Club",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 100,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "receptions",
+        "op": "gte",
+        "value": 6,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "total_tds_player",
+        "op": "gte",
+        "value": 1,
+        "mode": "any"
+      }
+    ]
+  },
+  {
+    "id": "offense_061",
+    "side": "offense",
+    "name": "Pick Your Poison",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 60,
+        "mode": "count",
+        "minCount": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "receptions",
+        "op": "gte",
+        "value": 10
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "offense_062",
+    "side": "offense",
+    "name": "Tight End Day",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "TE",
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 50,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "TE",
+        "stat": "receptions",
+        "op": "gte",
+        "value": 5,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "TE",
+        "stat": "total_tds_player",
+        "op": "gte",
+        "value": 1,
+        "mode": "any"
+      }
+    ]
+  },
+  {
+    "id": "offense_067",
+    "side": "offense",
+    "name": "Three-Headed Monster",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 50,
+        "mode": "count",
+        "minCount": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "OFFENSE_ANY",
+        "stat": "scrimmage_yards",
+        "mode": "max",
+        "op": "gte",
+        "value": 100
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "id": "offense_070",
+    "side": "offense",
+    "name": "Feed the Star",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 100,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "total_tds_player",
+        "op": "gte",
+        "value": 1,
+        "mode": "any"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "receptions",
+        "op": "gte",
+        "value": 6,
+        "mode": "max"
+      }
+    ]
+  },
+  {
+    "id": "offense_072",
+    "side": "offense",
+    "name": "WR1 Statement",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 100,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "total_tds_player",
+        "op": "gte",
+        "value": 2,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_073",
+    "side": "offense",
+    "name": "Chain Movers",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "receptions",
+        "op": "gte",
+        "value": 5,
+        "mode": "count",
+        "minCount": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 250
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_075",
+    "side": "offense",
+    "name": "Spread the Wealth",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "receptions",
+        "op": "gte",
+        "value": 3,
+        "mode": "count",
+        "minCount": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_077",
+    "side": "offense",
+    "name": "Handle Business",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 14
+      }
+    ]
+  },
+  {
+    "id": "offense_081",
+    "side": "offense",
+    "name": "Division Statement",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 28
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 10
+      }
+    ]
+  },
+  {
+    "id": "offense_082",
+    "side": "offense",
+    "name": "Win-and-In",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 28
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_083",
+    "side": "offense",
+    "name": "Playoff Push",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 400
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_084",
+    "side": "offense",
+    "name": "Road Test",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 28
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 350
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_090",
+    "side": "offense",
+    "name": "Expose the Secondary",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 75,
+        "mode": "count",
+        "minCount": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_091",
+    "side": "offense",
+    "name": "Break Their Front",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 150
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "broken_tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "offense_093",
+    "side": "offense",
+    "name": "Control the Game",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 20
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_001",
+    "side": "defense",
+    "name": "Bend, Don't Break",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 28
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 350
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_002",
+    "side": "defense",
+    "name": "Clamp Down",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 325
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "defense_003",
+    "side": "defense",
+    "name": "Twenty-One Club",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 300
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_004",
+    "side": "defense",
+    "name": "Suffocation",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 17
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 300
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "defense_005",
+    "side": "defense",
+    "name": "No Easy Points",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 14
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 275
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_006",
+    "side": "defense",
+    "name": "Near Shutout",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 10
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 250
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "defense_007",
+    "side": "defense",
+    "name": "Total Defense",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 350
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_008",
+    "side": "defense",
+    "name": "No Room",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 325
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "defense_009",
+    "side": "defense",
+    "name": "Locked Down",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 300
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_010",
+    "side": "defense",
+    "name": "Stone Wall",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 275
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 17
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_011",
+    "side": "defense",
+    "name": "Elite Unit",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 250
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 14
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "defense_012",
+    "side": "defense",
+    "name": "Win With Defense",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_013",
+    "side": "defense",
+    "name": "Make Them Earn It",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "first_downs_allowed",
+        "op": "lte",
+        "value": 20
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 300
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_014",
+    "side": "defense",
+    "name": "Get Off the Field",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "first_downs_allowed",
+        "op": "lte",
+        "value": 15
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 300
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_015",
+    "side": "defense",
+    "name": "No Drives Allowed",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "first_downs_allowed",
+        "op": "lte",
+        "value": 12
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_016",
+    "side": "defense",
+    "name": "Red Zone Stand",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "red_zone_def_percentage",
+        "op": "lte",
+        "value": 50
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_017",
+    "side": "defense",
+    "name": "Door Slammed",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "red_zone_def_percentage",
+        "op": "lte",
+        "value": 40
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_018",
+    "side": "defense",
+    "name": "Championship Defense",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 300
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "defense_019",
+    "side": "defense",
+    "name": "Complete Domination",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 17
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 250
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 10
+      }
+    ]
+  },
+  {
+    "id": "defense_020",
+    "side": "defense",
+    "name": "Control the Ground",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 350
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_021",
+    "side": "defense",
+    "name": "Erase the Run",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 90
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 300
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_022",
+    "side": "defense",
+    "name": "Backfield Closed",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 80
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_023",
+    "side": "defense",
+    "name": "Run Game Deleted",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 60
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_024",
+    "side": "defense",
+    "name": "Nothing Inside",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg_opponent",
+        "stat": "rush_tds",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_025",
+    "side": "defense",
+    "name": "No Explosives",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "HB",
+        "stat": "rush_20_plus",
+        "op": "lte",
+        "value": 0,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_026",
+    "side": "defense",
+    "name": "Stuff the Star",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "HB",
+        "stat": "rush_yards",
+        "op": "lt",
+        "value": 80,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "HB",
+        "stat": "rush_yards",
+        "op": "lt",
+        "value": 60,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "HB",
+        "stat": "rush_tds",
+        "op": "lte",
+        "value": 0,
+        "mode": "max"
+      }
+    ]
+  },
+  {
+    "id": "defense_029",
+    "side": "defense",
+    "name": "No Hundred-Yard Man",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "RUSHER",
+        "stat": "rush_yards",
+        "mode": "max",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 125
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_030",
+    "side": "defense",
+    "name": "No Ground TDs",
+    "bronze": [
+      {
+        "kind": "agg_opponent",
+        "stat": "rush_tds",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_031",
+    "side": "defense",
+    "name": "Stuffed",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 75
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 17
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "defense_032",
+    "side": "defense",
+    "name": "Front Seven Day",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "defense_033",
+    "side": "defense",
+    "name": "Win the Trenches",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 90
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_034",
+    "side": "defense",
+    "name": "Physical Defense",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_035",
+    "side": "defense",
+    "name": "No Balance",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 300
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "defense_038",
+    "side": "defense",
+    "name": "Erase the Backfield",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "HB",
+        "stat": "rush_yards",
+        "op": "lt",
+        "value": 75,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_opponent",
+        "stat": "rush_tds",
+        "op": "lte",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "defense_039",
+    "side": "defense",
+    "name": "No Fly Zone",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 250
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_040",
+    "side": "defense",
+    "name": "Air Traffic Control",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 225
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_041",
+    "side": "defense",
+    "name": "Secondary Lockdown",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 200
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_042",
+    "side": "defense",
+    "name": "Blanket Coverage",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 225
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ]
+  },
+  {
+    "id": "defense_043",
+    "side": "defense",
+    "name": "Pressure and Coverage",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 250
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "id": "defense_047",
+    "side": "defense",
+    "name": "Bad Decisions",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_048",
+    "side": "defense",
+    "name": "One TD Maximum",
+    "bronze": [
+      {
+        "kind": "agg_opponent",
+        "stat": "pass_tds",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 250
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_049",
+    "side": "defense",
+    "name": "Take Away WR1",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "RECEIVER",
+        "stat": "receiving_yards",
+        "op": "lt",
+        "value": 75,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "RECEIVER",
+        "stat": "receiving_yards",
+        "op": "lt",
+        "value": 60,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "RECEIVER",
+        "stat": "receiving_tds",
+        "op": "lte",
+        "value": 0,
+        "mode": "max"
+      }
+    ]
+  },
+  {
+    "id": "defense_051",
+    "side": "defense",
+    "name": "No Century Club",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "RECEIVER",
+        "stat": "receiving_yards",
+        "mode": "max",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 250
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_053",
+    "side": "defense",
+    "name": "Tight End Eraser",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "TE",
+        "stat": "receiving_yards",
+        "op": "lt",
+        "value": 50,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "TE",
+        "stat": "receptions",
+        "op": "lte",
+        "value": 4,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "TE",
+        "stat": "total_tds_player",
+        "op": "lte",
+        "value": 0,
+        "mode": "max"
+      }
+    ]
+  },
+  {
+    "id": "defense_054",
+    "side": "defense",
+    "name": "Secondary Statement",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_056",
+    "side": "defense",
+    "name": "Coverage Wins",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_058",
+    "side": "defense",
+    "name": "Take It Away",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_059",
+    "side": "defense",
+    "name": "Turnover Machine",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_060",
+    "side": "defense",
+    "name": "Four Takeaways",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "defensive_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "id": "defense_061",
+    "side": "defense",
+    "name": "Ball Hawks",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_062",
+    "side": "defense",
+    "name": "Strip and Pick",
+    "bronze": [
+      {
+        "kind": "all",
+        "parts": [
+          {
+            "kind": "agg",
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "kind": "agg",
+            "stat": "forced_fumbles",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_063",
+    "side": "defense",
+    "name": "Turn Defense Into Offense",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "defensive_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_064",
+    "side": "defense",
+    "name": "Short Fields",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_065",
+    "side": "defense",
+    "name": "Thieves",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 300
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_066",
+    "side": "defense",
+    "name": "Possession War",
+    "bronze": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_067",
+    "side": "defense",
+    "name": "Game Changers",
+    "bronze": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "defensive_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "id": "defense_068",
+    "side": "defense",
+    "name": "Heat Check",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_069",
+    "side": "defense",
+    "name": "Pocket Collapse",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ]
+  },
+  {
+    "id": "defense_070",
+    "side": "defense",
+    "name": "Relentless Rush",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_071",
+    "side": "defense",
+    "name": "Sack Party",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "DEFENDER",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1,
+        "mode": "count",
+        "minCount": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_072",
+    "side": "defense",
+    "name": "One-Man Wrecking Crew",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "DEFENDER",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "DEFENDER",
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4,
+        "mode": "max"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "DEFENDER",
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1,
+        "mode": "any"
+      }
+    ]
+  },
+  {
+    "id": "defense_073",
+    "side": "defense",
+    "name": "Everywhere at Once",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "DEFENDER",
+        "stat": "sacks_and_tackles",
+        "op": "gte",
+        "value": 5,
+        "mode": "any"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "DEFENDER",
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1,
+        "mode": "any"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_074",
+    "side": "defense",
+    "name": "Strip Specialist",
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "DEFENDER",
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1,
+        "mode": "any"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "DEFENDER",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1,
+        "mode": "any"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "DEFENDER",
+        "stat": "fumble_recoveries",
+        "op": "gte",
+        "value": 1,
+        "mode": "any"
+      }
+    ]
+  },
+  {
+    "id": "defense_075",
+    "side": "defense",
+    "name": "House Call",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "defensive_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_082",
+    "side": "defense",
+    "name": "Win-and-In Defense",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_083",
+    "side": "defense",
+    "name": "Playoff Push",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_093",
+    "side": "defense",
+    "name": "Protect Home Field",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ]
+  },
+  {
+    "id": "defense_094",
+    "side": "defense",
+    "name": "Road Warriors",
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "win_away"
+      }
+    ]
+  },
+  {
+    "id": "special_01",
+    "side": "special_teams",
+    "name": "Automatic",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "fg_made",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "fg_made",
+        "statB": "fg_attempts"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "fg_50_made",
+        "op": "gte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "id": "special_02",
+    "side": "special_teams",
+    "name": "Three for Three",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "fg_made",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "fg_made",
+        "statB": "fg_attempts"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "xp_made",
+        "statB": "xp_attempts"
+      }
+    ]
+  },
+  {
+    "id": "special_03",
+    "side": "special_teams",
+    "name": "Big Leg",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "fg_50_made",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "fg_made",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "xp_made",
+        "statB": "xp_attempts"
+      }
+    ]
+  },
+  {
+    "id": "special_04",
+    "side": "special_teams",
+    "name": "From Downtown",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "fg_50_made",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "fg_made",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "xp_made",
+        "statB": "xp_attempts"
+      }
+    ]
+  },
+  {
+    "id": "special_05",
+    "side": "special_teams",
+    "name": "PAT Machine",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "xp_made",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "xp_made",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "xp_made",
+        "statB": "xp_attempts"
+      }
+    ]
+  },
+  {
+    "id": "special_06",
+    "side": "special_teams",
+    "name": "Complete Kicking Day",
+    "bronze": [
+      {
+        "kind": "all",
+        "parts": [
+          {
+            "kind": "agg",
+            "stat": "fg_made",
+            "op": "gte",
+            "value": 2
+          },
+          {
+            "kind": "agg",
+            "stat": "xp_made",
+            "op": "gte",
+            "value": 4
+          }
+        ]
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "fg_50_made",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "fg_made",
+        "statB": "fg_attempts"
+      }
+    ]
+  },
+  {
+    "id": "special_07",
+    "side": "special_teams",
+    "name": "Pin Them Deep",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "punts_in_20",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "punt_long",
+        "op": "gte",
+        "value": 60
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "touchbacks",
+        "op": "lte",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "special_08",
+    "side": "special_teams",
+    "name": "Field Position Weapon",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "punts_in_20",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "punt_long",
+        "op": "gte",
+        "value": 65
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "touchbacks",
+        "op": "lte",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "id": "special_09",
+    "side": "special_teams",
+    "name": "Boom and Pin",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "punt_long",
+        "op": "gte",
+        "value": 65
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "punts_in_20",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "touchbacks",
+        "op": "lte",
+        "value": 0
+      }
+    ]
+  },
+  {
+    "id": "special_10",
+    "side": "special_teams",
+    "name": "Special Teams Clinic",
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "fg_made",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "fg_50_made",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "punts_in_20",
+        "op": "gte",
+        "value": 2
+      }
+    ]
+  }
+]
