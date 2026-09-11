@@ -10,6 +10,9 @@ import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { computeLeagueSos } from "../schedule/sos.service.js";
 import { OFFICIAL_RESULT_SOURCES } from "../official-records/official-records.service.js";
 import { rebuildOfficialGlobalRecords } from "../official-records/official-records.service.js";
+// Imported (not redefined) so the /wallet-style projected-interest preview can never drift from
+// the actual advance-time rate/cap.
+import { SAVINGS_INTEREST_RATE, SAVINGS_INTEREST_MAX_PER_ADVANCE } from "../league-week/advance-interest.service.js";
 import {
   formatTeamDisplayName,
   loadCareerBoxScoreStats,
@@ -1080,8 +1083,6 @@ function streakFromGames(games: any[], userId: string): string {
   return type && streak > 0 ? `${type}${streak}` : "â€”";
 }
 
-// Projected savings interest on the next advance (matches advance-time SAVINGS_INTEREST_RATE of 3.5%, floored).
-const SAVINGS_INTEREST_RATE = 0.035;
 
 export async function getUserMenuProfileByDiscordId(discordId: string, guildId: string, prefetch?: UserProfilePrefetch) {
   const [baseline, context] = await Promise.all([
@@ -1268,9 +1269,9 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     gotwVotingRecord = { correct, total, accuracy };
   }
 
-  // Projected next-advance savings interest (3.5% of savings, floored).
+  // Projected next-advance savings interest (3.5% of savings, floored, capped same as the real credit).
   const savingsBalance = baseline.wallet?.savings_balance ?? 0;
-  const projectedInterest = Math.floor(savingsBalance * SAVINGS_INTEREST_RATE);
+  const projectedInterest = Math.min(SAVINGS_INTEREST_MAX_PER_ADVANCE, Math.floor(savingsBalance * SAVINGS_INTEREST_RATE));
 
   // User/opponent current streaks and opponent season record.
   let userStreakText = "â€”";

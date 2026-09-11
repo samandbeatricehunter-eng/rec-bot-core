@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 
 export const SAVINGS_INTEREST_RATE = 0.035;
+export const SAVINGS_INTEREST_MAX_PER_ADVANCE = 2500;
 const MAX_ADVANCES_PER_24H = 21;
 const INTEREST_DISABLE_MS = 24 * 60 * 60 * 1000;
 
@@ -100,7 +101,7 @@ export async function applyAdvanceSavingsInterest(input: LeagueAdvanceContext) {
 
   for (const wallet of wallets.data ?? []) {
     const savings = Number(wallet.savings_balance ?? 0);
-    const interest = Math.floor(savings * SAVINGS_INTEREST_RATE);
+    const interest = Math.min(SAVINGS_INTEREST_MAX_PER_ADVANCE, Math.floor(savings * SAVINGS_INTEREST_RATE));
     if (interest <= 0) continue;
 
     const idempotencyKey = `${idempotencyPrefix}:${wallet.user_id}`;
