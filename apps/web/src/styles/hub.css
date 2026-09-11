@@ -3926,6 +3926,9 @@ button.poty:disabled {
 .hub-standings-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
 .hub-standings-page {
   font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  width: 100%;
+  box-sizing: border-box;
+  padding: clamp(20px, 3.2vw, 40px) clamp(16px, 3vw, 40px);
 }
 .hub-standings-mini-nav {
   display:flex;
@@ -4035,7 +4038,7 @@ button.poty:disabled {
   align-items:stretch;
   width:min(1120px, 100%);
   margin:0 auto;
-  padding:0 clamp(16px, 4vw, 48px);
+  padding:0;
   box-sizing:border-box;
 }
 .hub-div-standings-side {
@@ -4051,10 +4054,13 @@ button.poty:disabled {
   font-weight:700;
   letter-spacing:.16em;
   text-transform:uppercase;
-  color:#fff;
   paint-order:stroke fill;
-  -webkit-text-stroke:1.2px rgba(255,255,255,.95);
-  text-shadow:none;
+  -webkit-text-stroke:1.15px rgba(255,255,255,.95);
+  text-shadow:
+    -1px 0 0 rgba(255,255,255,.9),
+     1px 0 0 rgba(255,255,255,.9),
+     0 -1px 0 rgba(255,255,255,.9),
+     0 1px 0 rgba(255,255,255,.9);
 }
 .hub-div-standings-side[data-conference="nfc"] .hub-div-standings-side-label {
   color:#4f8fff;
@@ -4181,8 +4187,8 @@ button.poty:disabled {
 }
 .hub-div-standing-city {
   font-weight: 400;
-  font-size: 11px;
-  letter-spacing: .06em;
+  font-size: 12px;
+  letter-spacing: .04em;
   margin: 0 0 1px;
   opacity: 1;
   text-shadow:
@@ -4193,7 +4199,7 @@ button.poty:disabled {
 }
 .hub-div-standing-nick {
   font-weight: 700;
-  font-size: 18px;
+  font-size: 20px;
   letter-spacing: 0;
   text-shadow:
     0 1px 0 #000,

@@ -158,10 +158,14 @@ function useDivisionBoard(
 }
 
 function fitLabelToWidth(el: HTMLElement, maxPx: number, minPx: number) {
+  // Wait until layout has a real width — shrinking against 0/tiny widths collapses names.
+  if (el.clientWidth < 48) {
+    el.style.fontSize = `${maxPx}px`;
+    return maxPx;
+  }
   let size = maxPx;
   el.style.fontSize = `${size}px`;
-  // Leave a small gutter so 3D black accents / last glyph aren't clipped by overflow.
-  const gutter = 6;
+  const gutter = 2;
   while (el.scrollWidth > el.clientWidth - gutter && size > minPx) {
     size -= 0.5;
     el.style.fontSize = `${size}px`;
@@ -186,15 +190,15 @@ function StandingIdentity({ city, nick }: { city: string; nick: string }) {
 
     const fit = () => {
       if (cancelled) return;
-      // Long nicks (Commanders / Buccaneers) need to go smaller than the previous floor.
-      const nickSize = fitLabelToWidth(nickEl, 20, 8);
+      const nickSize = fitLabelToWidth(nickEl, 22, 13);
       if (cityEl) {
-        const cityMax = Math.min(11, nickSize * CITY_TO_NICK_RATIO);
-        fitLabelToWidth(cityEl, cityMax, Math.min(cityMax, 5.5));
+        const cityMax = Math.min(12, nickSize * CITY_TO_NICK_RATIO);
+        fitLabelToWidth(cityEl, cityMax, Math.min(cityMax, 7));
       }
     };
 
     fit();
+    requestAnimationFrame(fit);
     void document.fonts?.ready?.then(() => { if (!cancelled) fit(); });
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
     ro?.observe(wrap);
