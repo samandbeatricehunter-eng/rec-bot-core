@@ -12,7 +12,7 @@ import {
 } from "discord.js";
 import { isFullLeagueAdminInteraction, replyFullAdminOnly } from "../lib/admin.js";
 import { recApi } from "../lib/rec-api.js";
-import { getRouteChannels, getVotingPollsChannel } from "../lib/route-channels.js";
+import { getRouteChannels, getAnnouncementsChannel } from "../lib/route-channels.js";
 
 export const ACTIVE_CHECK_CUSTOM_IDS = {
   bootPrefix: "rec:active_check:boot:",
@@ -27,9 +27,9 @@ export async function handleActiveCheck(interaction: ButtonInteraction, buildAdv
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Posting Active Check...").setDescription("Finding the voting channel and preparing the active-check poll.")], components: [] });
   const routes = await getRouteChannels(interaction.guildId);
-  const channel = await getVotingPollsChannel(interaction.guild, routes);
+  const channel = await getAnnouncementsChannel(interaction.guild, routes);
   if (!channel) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Active Check").setDescription("No voting polls channel is configured.")], components: buildAdvanceRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Active Check").setDescription("No announcements channel is configured.")], components: buildAdvanceRows() });
   }
   const pollMessage = await channel.send({
     content: "@everyone Active check: you have 24 hours to respond to this poll or risk being removed from the league.",

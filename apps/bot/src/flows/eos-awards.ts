@@ -3,7 +3,7 @@ import { isEosPayoutEligibleStage } from "@rec/shared";
 import { isFullLeagueAdminInteraction } from "../lib/admin.js";
 import { COLORS } from "../lib/colors.js";
 import { recApi } from "../lib/rec-api.js";
-import { getAnnouncementsChannel, getVotingPollsChannel } from "../lib/route-channels.js";
+import { getAnnouncementsChannel } from "../lib/route-channels.js";
 
 type EosAwardFlowContext = {
   buildRows: () => Array<ActionRowBuilder<ButtonBuilder>>;
@@ -53,9 +53,9 @@ export async function handleEosAwards(interaction: ButtonInteraction, context: E
   await interaction.deferUpdate();
   await interaction.editReply({ embeds: [new EmbedBuilder().setTitle("Posting EOS Award Polls...").setDescription("Building award nominees from season stats, results, and linked user teams.")], components: [] });
   const routes = await context.loadRouteChannels(interaction.guildId);
-  const channel = await getVotingPollsChannel(interaction.guild, routes);
+  const channel = await getAnnouncementsChannel(interaction.guild, routes);
   if (!channel) {
-    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Awards").setDescription("No voting polls channel is configured.")], components: context.buildRows() });
+    return interaction.editReply({ embeds: [new EmbedBuilder().setTitle("EOS Awards").setDescription("No announcements channel is configured.")], components: context.buildRows() });
   }
 
   const cancelled = await recApi.cancelOpenEosAwardPolls({ guildId: interaction.guildId }).then((r) => r.cancelled ?? []).catch(() => []);

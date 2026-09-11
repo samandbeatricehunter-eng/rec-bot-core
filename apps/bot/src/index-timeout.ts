@@ -5,7 +5,7 @@ import { isCoCommissionerInteraction, isDiscordAdminInteraction, isFullLeagueAdm
 import { COLORS } from "./lib/colors.js";
 import { userFacingError } from "./lib/errors.js";
 import { isMissingDiscordAccountError, recApi } from "./lib/rec-api.js";
-import { getAnnouncementsChannel, getRouteChannels, getVotingPollsChannel } from "./lib/route-channels.js";
+import { getAnnouncementsChannel, getRouteChannels } from "./lib/route-channels.js";
 import { ACTIVE_CHECK_CUSTOM_IDS, handleActiveCheck, handleActiveCheckEditSelect, handleActiveCheckReviewButton, recoverOpenActiveChecks } from "./flows/active-check.js";
 import {
   EOS_PAYOUT_CUSTOM_IDS,

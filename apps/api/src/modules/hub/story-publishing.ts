@@ -33,18 +33,12 @@ function splitBodyIntoChunks(body: string, maxLen = EMBED_DESC_LIMIT): string[] 
   return chunks;
 }
 
-export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string; image_url?: string; channelKey?: "headlines" | "interviews"; mentionDiscordId?: string; embeds?: any[] }): Promise<void> {
+export async function postGeneratedHeadlineToDiscord(input: { leagueId: string; storyId: string; headline: string; body: string; image_url?: string; mentionDiscordId?: string; embeds?: any[] }): Promise<void> {
   try {
     const linked = await findServerRoutesForLeague(input.leagueId);
     const headlinesChannelId = linked?.routes?.headlines_channel_id as string | null | undefined;
-    const interviewsChannelId = linked?.routes?.interviews_channel_id as string | null | undefined;
     const announcementsChannelId = linked?.routes?.announcements_channel_id as string | null | undefined;
-    // Interviews get their own dedicated channel when a league has one configured (RTI
-    // leagues especially); everything else, and any league that hasn't set that channel up,
-    // still goes to headlines.
-    const channelId: string | null | undefined = input.channelKey === "interviews"
-      ? (interviewsChannelId ?? headlinesChannelId ?? announcementsChannelId)
-      : (headlinesChannelId ?? announcementsChannelId);
+    const channelId: string | null | undefined = headlinesChannelId ?? announcementsChannelId;
     if (!channelId) return;
     const chunks = splitBodyIntoChunks(input.body);
     const embeds = input.embeds ?? chunks.slice(0, EMBED_MAX_PER_MESSAGE).map((chunk, i) => {
@@ -240,7 +234,6 @@ async function publishMediaSubmissionStory(submission: any, discordId: string | 
   await postGeneratedHeadlineToDiscord({
     leagueId: submission.league_id, storyId: result.data.id, headline: submission.title, body,
     image_url: submission.image_url ?? undefined,
-    channelKey: submission.submission_type === "interview" ? "interviews" : "headlines",
   });
   return result.data.id as string;
 }

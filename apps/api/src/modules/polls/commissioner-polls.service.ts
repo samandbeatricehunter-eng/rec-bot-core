@@ -1,10 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveSeasonNumber } from "../league-context/season.service.js";
-import { postDiscordChannelMessage, deleteDiscordMessage } from "../../lib/discord-guild.js";
 
 const MIN_OPTIONS = 2;
 const MAX_OPTIONS = 10;
@@ -68,24 +66,6 @@ export async function createCommissionerPoll(input: { guildId: string; discordId
   }).select("*").single();
   if (inserted.error) throw new ApiError(500, "Failed to create poll.", inserted.error);
 
-  // Discord is an optional mirror, not the vote surface — post an informational (non-
-  // interactive) embed if a channel is configured; skip silently if not, since the poll is
-  // already fully usable from the site with no Discord link required.
-  const channelId = String((context.routes as any)?.voting_polls_channel_id ?? "");
-  if (channelId) {
-    void postDiscordChannelMessage(channelId, {
-      content: "@everyone",
-      embeds: [{
-        title: "New Commissioner Poll",
-        color: 0xd9a521,
-        description: `**${question}**\n\n${options.map((o) => `• ${o}`).join("\n")}\n\nVote on the site — open the Media page.`,
-      }],
-      allowed_mentions: { parse: ["everyone"] },
-    }).then((sent) => {
-      if (sent?.id) void supabase.from("rec_commissioner_polls").update({ discord_channel_id: channelId, discord_message_id: sent.id }).eq("id", id);
-    }).catch((err) => console.error("[ERROR] Failed to post poll to Discord (non-fatal):", err));
-  }
-
   return { ...inserted.data, tally: optionRows.map((o) => ({ ...o, votes: 0 })), totalVotes: 0, myVoteOptionId: null };
 }
 
@@ -141,18 +121,6 @@ export async function closeCommissionerPoll(input: { guildId: string; pollId: st
   const now = new Date().toISOString();
   const updated = await supabase.from("rec_commissioner_polls").update({ status: "closed", closed_at: now, updated_at: now }).eq("id", poll.id).select("*").single();
   if (updated.error) throw new ApiError(500, "Failed to close poll.", updated.error);
-
-  if (poll.discord_channel_id && poll.discord_message_id) {
-    const options = Array.isArray(poll.options) ? (poll.options as PollOption[]) : [];
-    const { tally, totalVotes } = await tallyFor(poll.id, options);
-    void postDiscordChannelMessage(poll.discord_channel_id, {
-      embeds: [{
-        title: "Poll Closed",
-        color: 0x2fb86a,
-        description: `**${poll.question}**\n\n${tally.map((t) => `${t.text}: ${t.votes}`).join("\n")}\n\n${totalVotes} total vote${totalVotes === 1 ? "" : "s"}.`,
-      }],
-    }).catch((err) => console.error("[ERROR] Failed to post poll results to Discord (non-fatal):", err));
-  }
   return updated.data;
 }
 
@@ -161,9 +129,6 @@ export async function cancelCommissionerPoll(input: { guildId: string; pollId: s
   const poll = await loadOwnedPoll(context.leagueId, input.pollId);
   if (poll.status === "cancelled") return poll;
 
-  if (poll.discord_channel_id && poll.discord_message_id) {
-    await bestEffort("discord.delete_poll_message", () => deleteDiscordMessage(poll.discord_channel_id, poll.discord_message_id), { leagueId: context.leagueId, guildId: input.guildId, entityId: input.pollId });
-  }
   const now = new Date().toISOString();
   const updated = await supabase
     .from("rec_commissioner_polls")

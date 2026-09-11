@@ -16,10 +16,8 @@ type SetServerConfigInput = {
   commissionerRoleId?: string | null;
   compCommitteeRoleId?: string | null;
   tradeBlockChannelId?: string | null;
-  votingPollsChannelId?: string | null;
   schedulingChannelId?: string | null;
   matchupsChannelId?: string | null;
-  interviewsChannelId?: string | null;
   tweetsChannelId?: string | null;
   playerOfTheWeekChannelId?: string | null;
   rosterMovementChannelId?: string | null;

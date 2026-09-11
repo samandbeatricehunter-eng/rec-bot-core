@@ -167,9 +167,63 @@ and `apps/bot/src/lib/rec-api.ts` still defined and, in two cases, still wired i
   just render nothing since no CFB leagues exist) that aren't calling anything broken — those are
   dead-in-practice but not actively bugged, lower priority than the confirmed-404 bugs found here.
 
+### Route-channel source of truth: verified, found and fixed one more real gap
+Compared every `rec_server_routes` DB column (`apps/api/src/db/schema.ts`) against
+`REC_ROUTE_CHANNELS` (`packages/shared/src/route-channels.ts`, whose own top-of-file comment
+already claims to be "the single source of truth both the API and the web settings UI import
+from" for the 4-block settings tab) — the same kind of drift-hunt as the Discord command
+manifest, applied to channel routing instead of commands.
+
+**Initial read was backwards, corrected mid-pass on the user's explicit call-out.** First pass
+found `interviewsChannelId`/`votingPollsChannelId` had live backend readers but no UI to
+configure them, and I *added* both to `REC_ROUTE_CHANNELS` to complete the wiring. The user
+pointed out the plan actually calls for *removing* stale route-channel fields (matching
+`docs/handoff/docs/PLATFORM_DATA_EA.md`'s "stale route-channel fields such as REC Rules channel"
+and the Rules-channel precedent already done this session) — reverted the addition and did it
+properly:
+
+- **`interviewsChannelId`**: removed entirely. `story-publishing.ts` now always uses
+  Headlines → Announcements (previously: Interviews → Headlines → Announcements when the
+  unconfigurable Interviews channel was set, which in practice it never was via any UI).
+- **`votingPollsChannelId`**: more nuanced — it turned out to be a **hard, no-fallback dependency**
+  for two real live features, `apps/bot/src/flows/eos-awards.ts` (EOS Award polls — real
+  production data: 6 award polls, 26 votes recorded) and `apps/bot/src/flows/active-check.ts`
+  (member-activity check, ties into league removal). Neither degrades gracefully without it —
+  they show "No voting polls channel is configured" and do nothing. Removing the field outright
+  would have permanently broken both features' ability to ever post. Fixed by switching both to
+  fall back to the Announcements channel instead (same pattern as Interviews → Headlines), then
+  removed the dedicated field/function (`getVotingPollsChannel` in
+  `apps/bot/src/lib/route-channels.ts`) entirely. Also removed the redundant *optional* Discord
+  mirror of commissioner polls in `apps/api/src/modules/polls/commissioner-polls.service.ts` (a
+  second, separate, genuinely-optional use of the same field — explicitly documented in its own
+  comment as "Site is canonical... skip silently if not configured," so removing it costs
+  nothing; the poll stays fully usable from the site).
+- **Left the DB columns in place, did NOT drop them**: a prod check before writing any migration
+  found `voting_polls_channel_id` set for 2 guilds and `interviews_channel_id` set for 1 — meaning
+  this is a real behavior change for real leagues (their EOS Awards/Active Check posts now go to
+  Announcements instead of their configured channel), not pure dead-code cleanup like the CFB/CFP
+  table drops earlier. Destroying that historical configuration via a column drop is irreversible
+  and low-value now that the code doesn't read it; left the columns as inert historical data
+  instead. **Flagging this prominently**: if those 2-3 guilds' commissioners notice EOS
+  Awards/Active Check/commissioner polls posting to a different channel than before, that's this
+  change.
+- Also found and fixed two genuinely dead DB columns (zero references anywhere in `apps/*/src`
+  besides their own `schema.ts` declaration, confirmed null for every row in prod before
+  dropping): `economy_channel_id` (superseded by `pending_economy_channel_id`) and
+  `game_of_week_channel_id` (GOTW content posts to the game's own game-channel,
+  `rec_game_channels.discord_channel_id`, not a dedicated league-wide channel). Dropped via
+  `supabase/migrations/20260911070000_drop_orphaned_route_columns.sql` (applied) — these had zero
+  rows configured anywhere, unlike voting-polls/interviews, so dropping was safe.
+- One already-dead branch left untouched: `apps/api/src/modules/immortality/immortality.service.ts`
+  still reads `interviews_channel_id` via a raw `(routes as any)?.interviews_channel_id` cast (not
+  the Drizzle field, so no type error) for an RTI rivalry-H2H post feature — this was already
+  100%-unreachable before my changes (the field was never configurable), so removing the DB field
+  reference changes nothing functionally; still always returns early. Worth a look in a future
+  pass but not a regression from this one.
+- All 4 packages typecheck clean; `@rec/bot` builds clean.
+
 ### Not yet started (rest of Phase 1)
-- Verify route-channel source of truth (beyond the Discord command manifest already done),
-  asset/dependency cleanup — not started.
+- Asset/dependency cleanup — not started.
 - `/league`, `/teams`, `/profile` don't have bot handlers built yet — that's Phase 4 scope
   ("Matchup / scheduling / Discord experience"), not Phase 1. Not building them now.
 
