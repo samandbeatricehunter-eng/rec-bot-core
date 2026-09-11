@@ -1,15 +1,8 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  IconComp,
-  IconHome,
-  IconLeagues,
-  IconMatchups,
   IconMgmt,
-  IconMore,
   IconRetire,
   IconRules,
-  IconStats,
-  IconTeam,
   IconWager,
 } from "./icons.js";
 import { useHeaderMenu } from "./HeaderMenu.js";
@@ -21,6 +14,25 @@ function isActive(pathname: string, to: string) {
 /** Opens a HubHome modal via query bridge (footer lives outside HubHome). */
 function openModalHref(leagueId: string, modal: string) {
   return `/l/${leagueId}/buzz?openModal=${modal}`;
+}
+
+function FooterChip({
+  to,
+  top,
+  bottom,
+  active,
+}: {
+  to: string;
+  top: string;
+  bottom: string;
+  active: boolean;
+}) {
+  return (
+    <NavLink to={to} className={["site-footer-nav-btn", active ? "is-active" : ""].filter(Boolean).join(" ")}>
+      <span>{top}</span>
+      <strong>{bottom}</strong>
+    </NavLink>
+  );
 }
 
 export function LeagueFooterNav({
@@ -72,15 +84,9 @@ export function LeagueFooterNav({
   if (risePreLaunch) {
     return (
       <nav className="site-footer-nav" aria-label="League">
-        <NavLink to={`${base}/rise`} className={["site-footer-nav-btn", isActive(path, `${base}/rise`) ? "is-active" : ""].filter(Boolean).join(" ")}>
-          <IconTeam />
-          <span>Origins</span>
-        </NavLink>
+        <FooterChip to={`${base}/rise`} top="Rise" bottom="Origins" active={isActive(path, `${base}/rise`)} />
         {isCommissioner ? (
-          <NavLink to={`${base}/mgmt`} className={["site-footer-nav-btn", isActive(path, `${base}/mgmt`) ? "is-active" : ""].filter(Boolean).join(" ")}>
-            <IconMgmt />
-            <span>Mgmt</span>
-          </NavLink>
+          <FooterChip to={`${base}/mgmt`} top="League" bottom="Mgmt" active={isActive(path, `${base}/mgmt`)} />
         ) : null}
       </nav>
     );
@@ -88,29 +94,10 @@ export function LeagueFooterNav({
 
   return (
     <nav className="site-footer-nav" aria-label="League">
-      <NavLink to={homeTo} className={["site-footer-nav-btn", homeActive ? "is-active" : ""].filter(Boolean).join(" ")}>
-        <IconHome />
-        <span>Home</span>
-      </NavLink>
-
-      {hubUnlocked ? (
-        <NavLink to={gameDayTo} className={["site-footer-nav-btn", gameDayActive ? "is-active" : ""].filter(Boolean).join(" ")}>
-          <IconMatchups />
-          <span>Game Day</span>
-        </NavLink>
-      ) : null}
-
-      {hubUnlocked ? (
-        <NavLink to={statsTo} className={["site-footer-nav-btn", statsActive ? "is-active" : ""].filter(Boolean).join(" ")}>
-          <IconStats />
-          <span>Stats</span>
-        </NavLink>
-      ) : null}
-
-      <NavLink to={teamTo} className={["site-footer-nav-btn", teamActive ? "is-active" : ""].filter(Boolean).join(" ")}>
-        <IconTeam />
-        <span>Team</span>
-      </NavLink>
+      <FooterChip to={homeTo} top="League" bottom="Home" active={homeActive} />
+      {hubUnlocked ? <FooterChip to={gameDayTo} top="Game" bottom="Day" active={gameDayActive} /> : null}
+      {hubUnlocked ? <FooterChip to={statsTo} top="League" bottom="Stats" active={statsActive} /> : null}
+      <FooterChip to={teamTo} top="My" bottom="Team" active={teamActive} />
 
       <div className="site-footer-nav-more">
         <button
@@ -121,8 +108,8 @@ export function LeagueFooterNav({
           aria-haspopup="menu"
           onClick={() => setOpen((v) => !v)}
         >
-          <IconMore />
-          <span>More</span>
+          <span>Menu</span>
+          <strong>More</strong>
         </button>
         <Panel className="site-header-dropdown-panel site-footer-more-panel" role="menu" ariaLabel="More">
           {isRise ? null : (
@@ -182,9 +169,9 @@ export function LeagueFooterNav({
 export function HomeFooterNav() {
   const location = useLocation();
   const items = [
-    { key: "home", label: "Home", to: "/home", icon: <IconHome /> },
-    { key: "leagues", label: "Leagues", to: "/leagues", icon: <IconLeagues /> },
-    { key: "tournaments", label: "Tournaments", to: "/tournaments", icon: <IconComp /> },
+    { key: "home", top: "REC", bottom: "Home", to: "/home" },
+    { key: "leagues", top: "My", bottom: "Leagues", to: "/leagues" },
+    { key: "tournaments", top: "REC", bottom: "Tournaments", to: "/tournaments" },
   ] as const;
 
   function active(to: string) {
@@ -196,10 +183,7 @@ export function HomeFooterNav() {
   return (
     <nav className="site-footer-nav" aria-label="Site">
       {items.map((item) => (
-        <NavLink key={item.key} to={item.to} className={["site-footer-nav-btn", active(item.to) ? "is-active" : ""].filter(Boolean).join(" ")}>
-          {item.icon}
-          <span>{item.label}</span>
-        </NavLink>
+        <FooterChip key={item.key} to={item.to} top={item.top} bottom={item.bottom} active={active(item.to)} />
       ))}
     </nav>
   );

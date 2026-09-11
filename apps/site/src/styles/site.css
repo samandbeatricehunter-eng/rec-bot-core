@@ -1288,7 +1288,7 @@ h1, h2, h3, .site-wordmark {
   color: var(--text-muted);
 }
 
-/* Permanent sticky footer nav — sits just above the site ticker. */
+/* Permanent sticky footer nav — chip strip matching hub section mini-nav. */
 .site-chrome-stack {
   position: fixed;
   left: 0;
@@ -1297,6 +1297,8 @@ h1, h2, h3, .site-wordmark {
   z-index: 40;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  padding: 0 10px 8px;
   pointer-events: none;
 }
 .site-chrome-stack > * {
@@ -1305,15 +1307,19 @@ h1, h2, h3, .site-wordmark {
 
 .site-footer-nav {
   display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
   align-items: stretch;
-  gap: 2px;
-  padding: 4px 6px 6px;
-  border-top: 2px solid #d81e2c;
-  background:
-    repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.045) 0 1px, transparent 1px 3px),
-    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.04) 0 2px, transparent 2px 5px),
-    linear-gradient(180deg, #161616 0%, #0a0a0a 100%);
-  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.45);
+  gap: 8px;
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: 7px;
+  border: 1px solid rgba(255, 70, 70, 0.28);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(28, 12, 12, 0.96) 0%, rgba(10, 8, 8, 0.98) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 120, 90, 0.12),
+    0 10px 28px rgba(0, 0, 0, 0.45);
 }
 .site-footer-nav-btn {
   display: flex;
@@ -1321,39 +1327,57 @@ h1, h2, h3, .site-wordmark {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 0;
   min-width: 0;
-  min-height: 52px;
-  padding: 6px 4px;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--text-secondary);
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
   text-decoration: none;
   font-family: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  line-height: 1;
   cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
 }
 .site-footer-nav-btn span {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.1;
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-weight: 400;
+  font-size: 0.58rem;
+  line-height: 0.92;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  margin: 0;
 }
-.site-footer-nav-btn svg {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
+.site-footer-nav-btn strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 0.92;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+  margin: -1px 0 0;
 }
 .site-footer-nav-btn:hover {
-  color: var(--text-primary);
+  border-color: rgba(255, 90, 90, 0.55);
+  background: rgba(40, 12, 12, 0.75);
+  transform: translateY(-1px);
 }
 .site-footer-nav-btn.is-active {
-  color: #ffffff;
-  background: color-mix(in srgb, #d81e2c 22%, transparent);
+  border-color: rgba(255, 70, 70, 0.75);
+  background: linear-gradient(180deg, rgba(90, 18, 18, 0.95), rgba(40, 10, 10, 0.98));
+  box-shadow: inset 0 0 0 1px rgba(255, 120, 90, 0.25), 0 0 14px rgba(255, 40, 40, 0.22);
 }
 .site-footer-nav-more {
   display: flex;
@@ -1375,6 +1399,14 @@ h1, h2, h3, .site-wordmark {
 }
 .site-footer-more-panel .site-account-menu-item.is-danger {
   color: var(--error);
+}
+
+@media (max-width: 520px) {
+  .site-chrome-stack { padding: 0 6px 6px; }
+  .site-footer-nav { gap: 5px; padding: 5px; }
+  .site-footer-nav-btn { min-height: 40px; padding: 6px 4px; }
+  .site-footer-nav-btn span { font-size: 0.5rem; }
+  .site-footer-nav-btn strong { font-size: 0.72rem; }
 }
 
 /* Sports-style running ticker — page-scoped (league matchups vs. site announcements,

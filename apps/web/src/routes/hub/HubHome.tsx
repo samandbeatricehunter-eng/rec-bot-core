@@ -9,6 +9,8 @@ import { ManageFundsModal, WalletSavingsCard } from "../../components/hub/Wallet
 import { HeroMatchupActions } from "../../components/hub/HeroMatchupActions.js";
 import { HeroMatchupBreakdown } from "../../components/hub/HeroMatchupBreakdown.js";
 import { GotwVotingCarousel } from "../../components/hub/GotwVotingCarousel.js";
+import { GameDayMiniNav, type GameDayNavId } from "../../components/hub/GameDayMiniNav.js";
+import { MediaMiniNav } from "../../components/hub/MediaMiniNav.js";
 import { HeroSchedulingStatus } from "../../components/hub/HeroSchedulingStatus.js";
 import { ShareStreamModal } from "../../components/hub/ShareStreamModal.js";
 import { RequestHelpSheet } from "../../components/matchups/RequestHelpSheet.js";
@@ -598,6 +600,16 @@ export function HubHome() {
   );
   const [rankByConference, setRankByConference] = useState(false);
   const gotwGames = useMemo(() => (matchupSchedule?.games ?? []).filter((game) => Boolean(game.gotw)), [matchupSchedule]);
+  const gameDayView: GameDayNavId = (() => {
+    const raw = searchParams.get("view");
+    if (raw === "gotw" || raw === "schedule") return raw;
+    return "mine";
+  })();
+  const homeMediaView = (() => {
+    const raw = searchParams.get("view");
+    if (raw === "social" || raw === "highlights" || raw === "press") return raw;
+    return null;
+  })();
   // CFB support has been removed; this is permanently false now, left as a variable (rather
   // than hand-editing every conditional below) so every existing isCfbLeague branch still
   // resolves correctly to its non-CFB path with zero behavior change. Every direct
@@ -652,6 +664,8 @@ export function HubHome() {
   const [retireModalOpen, setRetireModalOpen] = useState(false);
   const [retireBusy, setRetireBusy] = useState(false);
   const [retireError, setRetireError] = useState<string | null>(null);
+  const [retireNickname, setRetireNickname] = useState("");
+  const [retireStep, setRetireStep] = useState<1 | 2>(1);
   const [showMySchedule, setShowMySchedule] = useState(false);
   const [mySchedule, setMySchedule] = useState<TeamScheduleManualState | null>(null);
   const [myScheduleError, setMyScheduleError] = useState<string | null>(null);
@@ -687,7 +701,7 @@ export function HubHome() {
     else if (requested === "schedule" && (hub?.league.rosterType !== "rise_to_immortality" || hub?.league.riseHubUnlocked === true)) void viewMySchedule();
     else if (requested === "financials") setFinancialModalOpen(true);
     else if (requested === "wager" && hub?.league.rosterType !== "rise_to_immortality") openSportsbook();
-    else if (requested === "retire") { setRetireError(null); setRetireModalOpen(true); }
+    else if (requested === "retire") { setRetireError(null); setRetireNickname(""); setRetireStep(1); setRetireModalOpen(true); }
     const next = new URLSearchParams(searchParams);
     next.delete("openModal");
     setSearchParams(next, { replace: true });
@@ -1510,7 +1524,7 @@ export function HubHome() {
           <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
         )}
       </Modal>}
-      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" && isRise ? <section className="hub-section hub-store"><TeamMiniNav active="store" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> XP marketplace</p><h2>Rise Store</h2></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>{!rtiGates?.storeUnlocked ? <p className="hub-empty">The XP store unlocks in Week 1 of the regular season. Player XP upgrades are available now from My Team.</p> : <p className="hub-empty">{rtiGates.teammateDevUnlocked ? "Teammate development-trait purchases are unlocked from the Progression Tree. Legends, age resets, and custom players stay off in Rise to Immortality." : "Spend Player XP on Upgrades and the Progression Tree. Teammate and self development purchases unlock from tree perks. Legends, age resets, and custom players are not in this mode."}</p>}</section> : section === "store" ? <section className="hub-section hub-store"><TeamMiniNav active="store" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>
+      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireNickname(""); setRetireStep(1); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" && isRise ? <section className="hub-section hub-store"><TeamMiniNav active="store" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> XP marketplace</p><h2>Rise Store</h2></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>{!rtiGates?.storeUnlocked ? <p className="hub-empty">The XP store unlocks in Week 1 of the regular season. Player XP upgrades are available now from My Team.</p> : <p className="hub-empty">{rtiGates.teammateDevUnlocked ? "Teammate development-trait purchases are unlocked from the Progression Tree. Legends, age resets, and custom players stay off in Rise to Immortality." : "Spend Player XP on Upgrades and the Progression Tree. Teammate and self development purchases unlock from tree perks. Legends, age resets, and custom players are not in this mode."}</p>}</section> : section === "store" ? <section className="hub-section hub-store"><TeamMiniNav active="store" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /><div className="hub-section-heading"><div><p className="hub-eyebrow"><ShoppingBag size={14} /> Franchise marketplace</p><h2>REC Store</h2><p>Wallet balance: <strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></p></div><Button variant="secondary" onClick={() => navigate(-1)}>Back</Button></div>
       {!hub.store.enabled ? <p className="hub-empty">The coin economy is not enabled for this league.</p> : <>
         {hub.store.cfbSeasonOneLocked && <div className="hub-store-lock"><strong>CFB Season 1 roster lock</strong><span>Custom recruits, Campus Legends, development upgrades, attributes, and traits unlock automatically when Season 2 starts.</span></div>}
         <div className="hub-store-products">{hub.store.products.map((product) => {
@@ -1689,6 +1703,7 @@ export function HubHome() {
     </section> : section === "roster" ? <><TeamMiniNav active="roster" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} />{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<Suspense fallback={<HubSurfaceFallback />}><RosterHome /></Suspense></> : section === "trades" ? <><TeamMiniNav active="trades" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} />{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<Suspense fallback={<HubSurfaceFallback />}><TradeCenterHome /></Suspense></> : <div className="hub-league-tab">
       {(subTab === "buzz" || subTab === "news") && <>
         {subTab === "buzz" && <>
+        {homeMediaView ? <MediaMiniNav active={homeMediaView} leagueId={hub.league.id} /> : null}
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-rebuilt">
             <header className="hub-hero-centered-header">
@@ -1879,6 +1894,7 @@ export function HubHome() {
         <CommissionerPollsVotingBlock />
         </>}
         {subTab === "news" && <>
+        <MediaMiniNav active="headlines" leagueId={hub.league.id} />
         <SectionFrame eyebrow="Around the league" title={hub.league.game?.startsWith("madden") ? "League News" : "Campus Buzz"}>
           {(() => {
             const items = activeHeadlineGroup?.items ?? [];
@@ -2019,7 +2035,67 @@ export function HubHome() {
 
       {subTab === "matchups" && (
         <>
+          <GameDayMiniNav active={gameDayView} leagueId={hub.league.id} />
 
+          {gameDayView === "mine" ? (
+            <SectionFrame eyebrow="This week" title="My Matchup" className="hub-matchup-section">
+              {isRise && !riseHubUnlocked ? (
+                <div className="hub-hero-no-matchup">
+                  <strong>Registration pool</strong>
+                  <span>Complete Origins before Game Day unlocks your weekly matchup.</span>
+                </div>
+              ) : heroMatchup ? (
+                <div className="hub-hero-matchup-stack">
+                  {auth.status === "ready" && heroMatchup.matchupType === "h2h" && <HeroSchedulingStatus guildId={auth.guildId} gameId={heroMatchup.gameId} reloadKey={matchupReloadKey} />}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={heroBreakdownExpanded}
+                    className="hub-expandable-matchup-trigger"
+                    onClick={() => setHeroBreakdownExpanded((value) => !value)}
+                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setHeroBreakdownExpanded((value) => !value); } }}
+                  >
+                    <MatchupCard game={heroMatchup} showReactions reactionsBelow />
+                  </div>
+                  {heroBreakdownExpanded ? (
+                    <div className="hub-expandable-matchup-drawer">
+                      {heroPreview?.gameId === heroMatchup.gameId ? <HeroMatchupBreakdown preview={heroPreview} /> : <p className="hub-empty">Loading matchup breakdown…</p>}
+                    </div>
+                  ) : null}
+                  {auth.status === "ready" && <HeroMatchupActions
+                    guildId={auth.guildId}
+                    matchup={heroMatchup}
+                    boxScoreMode={boxScoreMode}
+                    onChanged={() => setMatchupReloadKey((value) => value + 1)}
+                    onOpenPlayerStats={() => void openPlayerStats(heroMatchup)}
+                    onOpenShareStream={() => setShareStreamGame(heroMatchup)}
+                    onUploadHighlight={() => setHighlightUploadGame(heroMatchup)}
+                    onOpenRequestHelp={heroMatchup.matchupType === "h2h" ? () => setRequestHelpGame(heroMatchup) : undefined}
+                  />}
+                </div>
+              ) : (
+                <p className="hub-empty">No matchup this week — bye week or offseason.</p>
+              )}
+            </SectionFrame>
+          ) : null}
+
+          {gameDayView === "gotw" ? (
+            <SectionFrame eyebrow="Vote & predict" title="Game of the Week" className="hub-matchup-section">
+              {auth.status === "ready" && gotwGames.length ? (
+                <GotwVotingCarousel
+                  guildId={auth.guildId}
+                  games={gotwGames}
+                  guessingRecord={gotwGuessing?.mine}
+                  onVote={voteGotw}
+                  onOpenWager={isRise ? undefined : (game) => void openWager(game)}
+                />
+              ) : (
+                <p className="hub-empty">No Game of the Week poll is live for this slate yet.</p>
+              )}
+            </SectionFrame>
+          ) : null}
+
+          {gameDayView === "schedule" ? <>
           <div className="rec-matchup-tabs" role="tablist" aria-label="Matchups and rankings">
             <button type="button" role="tab" aria-selected={matchupView === "h2h"} className={matchupView === "h2h" ? "active" : ""} onClick={() => setMatchupView("h2h")}>H2H Matchups</button>
             <button type="button" role="tab" aria-selected={matchupView === "cpu"} className={matchupView === "cpu" ? "active" : ""} onClick={() => setMatchupView("cpu")}>Human vs CPU</button>
@@ -2142,6 +2218,8 @@ export function HubHome() {
               })()}
             </SectionFrame>
           )}
+          </> : null}
+
         </>
       )}
 
@@ -2305,10 +2383,43 @@ export function HubHome() {
         </Suspense>
       </Modal>
     )}
-    {retireModalOpen && <Modal title="Retire from League?" onClose={() => !retireBusy && setRetireModalOpen(false)}><div className="hub-retire-confirm">
-      <p>Are you sure you want to retire from this league? Your team will become open, this league will be removed from your available leagues, and you will lose access to it.</p>
-      {retireError && <p className="hub-transfer-status">{retireError}</p>}
-      <div className="advance-modal-actions"><Button variant="ghost" disabled={retireBusy} onClick={() => setRetireModalOpen(false)}>Cancel</Button><Button variant="danger" disabled={retireBusy} onClick={async () => { setRetireBusy(true); setRetireError(null); try { await hubChrome.retireFromCurrentLeague(); setRetireModalOpen(false); } catch (error) { setRetireError(error instanceof Error ? error.message : "Failed to retire from this league."); } finally { setRetireBusy(false); } }}>{retireBusy ? "Retiring..." : "Confirm Retirement"}</Button></div>
+    {retireModalOpen && <Modal title={retireStep === 1 ? "Retire from League" : "Confirm retirement"} onClose={() => !retireBusy && setRetireModalOpen(false)}><div className="hub-retire-confirm">
+      {retireStep === 1 ? <>
+        <p>Type your team's currently displayed nickname exactly to continue. Your team will become open and you will lose access to this league.</p>
+        <p className="hub-muted">Required nickname: <strong>{heroTeam}</strong></p>
+        <label className="form-field"><span className="form-label">Team nickname</span><input className="form-input" value={retireNickname} autoComplete="off" disabled={retireBusy} onChange={(event) => setRetireNickname(event.target.value)} /></label>
+        {retireError && <p className="hub-transfer-status">{retireError}</p>}
+        <div className="advance-modal-actions">
+          <Button variant="ghost" disabled={retireBusy} onClick={() => setRetireModalOpen(false)}>Cancel</Button>
+          <Button variant="danger" disabled={retireBusy} onClick={() => {
+            if (retireNickname.trim() !== String(heroTeam).trim()) {
+              setRetireError("Nickname must match exactly.");
+              return;
+            }
+            setRetireError(null);
+            setRetireStep(2);
+          }}>Continue</Button>
+        </div>
+      </> : <>
+        <p>This cannot be undone. Retire <strong>{heroTeam}</strong> from <strong>{hub.league.name}</strong>?</p>
+        {retireError && <p className="hub-transfer-status">{retireError}</p>}
+        <div className="advance-modal-actions">
+          <Button variant="ghost" disabled={retireBusy} onClick={() => setRetireStep(1)}>Back</Button>
+          <Button variant="danger" disabled={retireBusy} onClick={async () => {
+            setRetireBusy(true); setRetireError(null);
+            try {
+              await hubChrome.retireFromCurrentLeague();
+              setRetireModalOpen(false);
+              setRetireStep(1);
+              setRetireNickname("");
+            } catch (error) {
+              setRetireError(error instanceof Error ? error.message : "Failed to retire from this league.");
+            } finally {
+              setRetireBusy(false);
+            }
+          }}>{retireBusy ? "Retiring..." : "Confirm Retirement"}</Button>
+        </div>
+      </>}
     </div></Modal>}
     {lateSubmissionsOpen && auth.status === "ready" && <LateSubmissionsModal guildId={auth.guildId} currentWeek={hub.league.weekNumber} initialWeek={lateSubmissionsWeek} onClose={() => { setLateSubmissionsOpen(false); setLateSubmissionsFocus(null); setLateSubmissionsWeek(undefined); }} />}
   </div>;

@@ -193,6 +193,9 @@ function HubHomeBridge({ view, leagueId }: { view: Exclude<HubView, "mgmt">; lea
     const next = new URLSearchParams();
     next.set("section", desired.section);
     if (desired.subTab) next.set("subTab", desired.subTab);
+    // Preserve Game Day / Home media view chips when syncing path → query.
+    const keepView = searchParams.get("view");
+    if (keepView) next.set("view", keepView);
     setSearchParams(next, { replace: true });
   }, [desired, searchParams, setSearchParams, navigate, leagueId, view]);
 
