@@ -1,6 +1,6 @@
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, StringSelectMenuBuilder,
-  type ButtonInteraction, type ChatInputCommandInteraction, type StringSelectMenuInteraction,
+  ActionRowBuilder, EmbedBuilder, MessageFlags, StringSelectMenuBuilder,
+  type ChatInputCommandInteraction, type StringSelectMenuInteraction,
 } from "discord.js";
 import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
@@ -9,7 +9,6 @@ import { recApi } from "../lib/rec-api.js";
 
 export const RULES_SLASH_CUSTOM_IDS = {
   categorySelect: "rec:rules:select",
-  postPrefix: "rec:rules:post:",
 };
 
 function buildEmbed(category: RuleCategory, index: number, total: number) {
@@ -32,12 +31,7 @@ function buildRows(categories: RuleCategory[], index: number) {
         default: i === index,
       })),
     );
-  return [
-    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${RULES_SLASH_CUSTOM_IDS.postPrefix}${index}`).setLabel("Post Publicly").setStyle(ButtonStyle.Primary),
-    ),
-  ];
+  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)];
 }
 
 async function loadCategories(guildId: string): Promise<RuleCategory[]> {
@@ -68,19 +62,5 @@ export async function handleRulesCategorySelect(interaction: StringSelectMenuInt
     await interaction.editReply({ embeds: [buildEmbed(categories[safeIndex]!, safeIndex, categories.length)], components: buildRows(categories, safeIndex) });
   } catch (error) {
     await interaction.followUp({ content: userFacingError(error), flags: MessageFlags.Ephemeral }).catch(() => undefined);
-  }
-}
-
-export async function handleRulesPost(interaction: ButtonInteraction) {
-  if (!interaction.inCachedGuild()) return;
-  const index = Number(interaction.customId.slice(RULES_SLASH_CUSTOM_IDS.postPrefix.length));
-  try {
-    await interaction.deferReply();
-    const categories = await loadCategories(interaction.guildId);
-    if (!categories.length) return interaction.editReply({ content: "No rules are configured for this league yet." });
-    const safeIndex = ((index % categories.length) + categories.length) % categories.length;
-    await interaction.editReply({ content: `Posted by ${interaction.user}:`, embeds: [buildEmbed(categories[safeIndex]!, safeIndex, categories.length)] });
-  } catch (error) {
-    await interaction.editReply({ content: userFacingError(error) }).catch(() => undefined);
   }
 }

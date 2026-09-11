@@ -361,7 +361,6 @@ export const recServerRoutes = pgTable("rec_server_routes", {
   mainChatChannelId: text("main_chat_channel_id"),
   schedulingChannelId: text("scheduling_channel_id"),
   mediaChannelId: text("media_channel_id"),
-  rulesChannelId: text("rules_channel_id"),
   announcementsChannelId: text("announcements_channel_id"),
   economyChannelId: text("economy_channel_id"),
   schedulingChannelIsRefreshable: boolean("scheduling_channel_is_refreshable").notNull().default(true),

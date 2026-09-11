@@ -23,7 +23,6 @@ import {
   LeagueHistoryHome,
   LeagueRecordsHome,
   LeagueStandingsHome,
-  CfpStandingsDrawer,
   LeagueSosHome,
   LeagueCareerStatsHome,
   LeagueStatsHome,
@@ -448,7 +447,7 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
                   ) : view === "mgmt" ? (
                     <HubMgmtRoutes />
                   ) : view === "playoff-bracket" ? (
-                    gameTheme?.startsWith("madden") ? <NflPlayoffBracket /> : <CfpStandingsDrawer guildId={context.guildId} />
+                    <NflPlayoffBracket />
                   ) : view === "sos" ? (
                     <LeagueSosHome />
                   ) : view === "rules" ? (

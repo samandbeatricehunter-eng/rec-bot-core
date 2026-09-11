@@ -1231,7 +1231,6 @@ export async function updateServerRoutes(input: UpdateServerRoutesInput) {
     general_chat_channel_id: preserveWhenOmitted(input.generalChatChannelId, existing.general_chat_channel_id),
     scheduling_channel_id: preserveWhenOmitted(input.schedulingChannelId, existing.scheduling_channel_id),
     media_channel_id: preserveWhenOmitted(input.mediaChannelId, existing.media_channel_id),
-    rules_channel_id: preserveWhenOmitted(input.rulesChannelId, existing.rules_channel_id),
     ...buildRoutePayload(input, existing)
   };
 

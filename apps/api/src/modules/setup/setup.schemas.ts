@@ -270,7 +270,6 @@ export const UpdateServerRoutesSchema = z.object({
   generalChatChannelId: z.string().optional().nullable(),
   schedulingChannelId: z.string().optional().nullable(),
   mediaChannelId: z.string().optional().nullable(),
-  rulesChannelId: z.string().optional().nullable(),
   announcementsChannelId: z.string().optional().nullable(),
   mainChatChannelId: z.string().optional().nullable(),
   powerRankingsChannelId: z.string().optional().nullable(),

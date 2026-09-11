@@ -1043,40 +1043,6 @@ export type StorePurchaseContext = {
   seasonActive: Record<string, number>;
 };
 
-export type HeismanCandidate = {
-  id: string;
-  player_name: string;
-  team_id: string | null;
-  team_name: string | null;
-  team_abbreviation: string | null;
-  created_at: string;
-};
-
-export type HeismanRaceState = {
-  seasonNumber: number;
-  candidates: HeismanCandidate[];
-  closed: boolean;
-  winnerCandidateId: string | null;
-  winnerName: string | null;
-  awardedAt: string | null;
-};
-
-export type CfpPostseasonState = {
-  seasonNumber: number;
-  currentWeek: number;
-  top25Locked: boolean;
-  rankings: Array<{ rank: number; team_id: string; conference_champion: boolean; name: string; abbreviation: string; conference: string | null }>;
-  bracket: Array<{
-    id: string; status: string; slot_id: string | null;
-    round: "first_round" | "quarterfinal" | "semifinal" | "championship" | null;
-    slot_number: number | null; home_seed: number | null; away_seed: number | null;
-    home_team_id: string | null; away_team_id: string | null;
-    home_team_name: string | null; away_team_name: string | null;
-    game_id: string | null; game_status: string | null;
-    home_score: number | null; away_score: number | null; bowl_name: string | null;
-  }>;
-};
-
 export type NflTeamSummary = {
   teamId: string;
   name: string;

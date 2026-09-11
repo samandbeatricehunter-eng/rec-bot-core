@@ -1,5 +1,69 @@
 # Session Progress Log (2026-08-03 marathon session)
 
+## Master Handoff Plan implementation (2026-09-11) — Phase 1 foundation cleanup in progress
+
+Full plan lives at `docs/handoff/` (uploaded verbatim from `REC_Master_Handoff_Plan.zip`; read
+`docs/handoff/README.md` first, then `docs/handoff/docs/MASTER_PLAN.md`,
+`FINAL_AUDIT.md`, `IMPLEMENTATION_HANDOFF.md`). It's an 11-phase plan; work started at Phase 1
+("Foundation cleanup") per the plan's own phase ordering. Baseline reviewed by the plan's
+authors: commit `bc8ac6e9` (after the REC Guide removal earlier this session).
+
+### Phase 1 progress so far
+- **Heisman feature removed** (fully CFB-gated, dead for Madden-only leagues per plan's
+  "Active league-management functionality is Madden-only"): deleted
+  `apps/api/src/modules/heisman/` (routes+service), its wiring in `apps/api/src/routes.ts`,
+  the 4 `rec-api-client.ts` functions, and `HeismanCandidate`/`HeismanRaceState` types.
+  `HeismanRaceCard.tsx` (web) was already fully orphaned (unimported anywhere) — deleted.
+- **CFP (College Football Playoff) standings drawer removed**: `CfpStandingsDrawer` in
+  `apps/web/src/routes/hub/LeagueStandingsHome.tsx` was calling `/v1/schedule/cfp/state`,
+  `/v1/schedule/cfp/top-25`, `/v1/schedule/cfp/generate` — all three routes no longer exist
+  (deleted in the earlier "Remove CFB support" commit, which missed this call site). Confirmed
+  via prod DB query that zero leagues currently have `game='cfb_27'`, so this was a live but
+  unreachable 404 bug, not something any real league was hitting. Removed the drawer, its
+  `CfpPostseasonState` type, the 3 dead `rec-api-client.ts` functions, and its export from
+  `packages/hub-ui/src/index.ts` + import/branch in `apps/site/src/routes/LeagueHub.tsx`
+  (playoff-bracket view now always renders `NflPlayoffBracket`, matching "Madden-only").
+- **REC Rules-channel public-post path removed**, per plan: "`/rules` is ephemeral only...
+  no dedicated REC Rules channel and no `Post Publicly` action." Removed `handleRulesPost` +
+  the `postPrefix` custom ID + "Post Publicly" button from `apps/bot/src/flows/rules-slash.ts`,
+  its routing in `apps/bot/src/index-timeout.ts`, and `rulesChannelId`/`rules_channel_id` from
+  `apps/api/src/db/schema.ts`, `setup.schemas.ts` (`UpdateServerRoutesSchema`), and
+  `setup.service.ts`. **Left untouched on purpose:** Discord's own native
+  `guild.rulesChannelId` (`index-timeout.ts:359`) — unrelated Community-server field, plan
+  explicitly says don't remove it.
+- All 4 packages (`@rec/api`, `@rec/bot`, `@rec/web`, `@rec/site`) typecheck clean; `@rec/site`
+  builds clean.
+- DB migration `supabase/migrations/20260911050000_phase1_foundation_cleanup.sql` written
+  (drops `rec_heisman_candidates`, `rec_heisman_race_state`, `rec_server_routes.rules_channel_id`
+  — confirmed 0 rows/0 non-null values in prod before writing it) but **NOT yet applied** — the
+  Supabase MCP `apply_migration` call was blocked by the auto-mode permission classifier
+  mid-session (along with an unrelated read-only Railway `whoami` call right after), unlike the
+  identical-shape REC Guide drop earlier this session which went through fine. Needs either the
+  user's explicit go-ahead to retry, or for them to apply
+  `supabase/migrations/20260911050000_phase1_foundation_cleanup.sql` by hand.
+
+### Not yet started (rest of Phase 1)
+- Final CFB dependency scan beyond Heisman/CFP: a broad grep for `cfb_27`/`cfb27` hit ~96 files
+  across the repo, but most are legitimate `cfb_27` branches in still-live shared code (rankings
+  difficulty labels, league wizard game-type options, etc.) rather than dead CFB-league-mode
+  code — a full accurate pass needs its own dedicated turn, not a blind grep-and-delete.
+- Single shared Discord command manifest (bot+API currently register commands separately).
+- Remove deprecated command registrations/handlers — plan explicitly says stop registering
+  `/twitter`, `/availability`, `/draft`, `/openteams`, `/viewleague`. **Flagging this one**:
+  `/openteams` and `/viewleague` are currently live, actively-used commands referenced all over
+  the codebase/docs — deregistering them is a real behavior change for every live league, not
+  just cleanup. Worth confirming with the user before executing, even though the plan calls for
+  it.
+- Remove stale Coin attribute-purchase path (plan doesn't specify exactly which files yet —
+  needs cross-referencing against `docs/handoff/docs/ECONOMY_PROGRESSION.md`).
+- Verify route-channel source of truth, resolve unused snapshot/raw-data tables, asset/dependency
+  cleanup — not started.
+
+Phases 2-11 (EA scheduler, ledgers, matchups/scheduling, Pending Items, progression/roster UI,
+compliance/rivalries, media/highlights, Legend catalog, surface/perf polish, final sweep) are
+untouched. Two release gates remain owner-blocked per the plan: the non-RTI progression node XP
+cost map, and the Legend catalog's per-player evidence pass.
+
 ## Combined plan handoff (2026-08-25) — nav rebuild + audit done, Phase 2a started, 2b-5 not started
 
 Full context for this section: the plan being worked from is a 5-phase combined plan (Nav

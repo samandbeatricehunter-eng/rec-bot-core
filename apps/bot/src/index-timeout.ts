@@ -142,7 +142,7 @@ import {
   handleAvailabilityWizardTimezoneOtherModal,
   handleAvailabilityWizardTimezoneSelect,
 } from "./flows/availability-wizard.js";
-import { handleRulesSlash, handleRulesCategorySelect, handleRulesPost, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
+import { handleRulesSlash, handleRulesCategorySelect, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
 import { handleTweetsSlash } from "./flows/tweets-slash.js";
 import { handleTwitterSlash, handleTwitterPersonaAutocomplete } from "./flows/twitter-slash.js";
 import {
@@ -668,7 +668,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     if (interaction.isUserSelectMenu() && interaction.customId === COMMISH_TOOLS_CUSTOM_IDS.grantBonusUserSelect) return handleCommishGrantBonusUserSelect(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === RULES_SLASH_CUSTOM_IDS.categorySelect) return handleRulesCategorySelect(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(TRADE_RELEASE_COINS_PREFIX)) return handleTradeReleaseCoinsButton(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(RULES_SLASH_CUSTOM_IDS.postPrefix)) return handleRulesPost(interaction);
 
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelAvailability)) return handleAdjustAvailability(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelPropose)) return handleProposePanel(interaction);

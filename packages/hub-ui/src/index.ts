@@ -9,7 +9,7 @@ export { RulesHome } from "../../../apps/web/src/routes/hub/RulesHome.js";
 export { LeagueHistoryHome, SeasonHistoryDetail } from "../../../apps/web/src/routes/hub/LeagueHistoryHome.js";
 export { LeagueStatsHome } from "../../../apps/web/src/routes/hub/LeagueStatsHome.js";
 export { LeagueRecordsHome } from "../../../apps/web/src/routes/hub/LeagueRecordsHome.js";
-export { LeagueStandingsHome, CfpStandingsDrawer } from "../../../apps/web/src/routes/hub/LeagueStandingsHome.js";
+export { LeagueStandingsHome } from "../../../apps/web/src/routes/hub/LeagueStandingsHome.js";
 export { LeagueSosHome } from "../../../apps/web/src/routes/hub/LeagueSosHome.js";
 export { LeagueCareerStatsHome } from "../../../apps/web/src/routes/hub/LeagueCareerStatsHome.js";
 export { MatchupCard } from "../../../apps/web/src/components/matchups/MatchupCard.js";
