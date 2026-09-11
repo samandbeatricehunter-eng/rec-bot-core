@@ -14,15 +14,20 @@ export function SectionMiniNav({
   items,
   active,
   ariaLabel,
+  className,
 }: {
   items: SectionMiniNavItem[];
   active: string;
   ariaLabel: string;
+  className?: string;
 }) {
   const navigate = useNavigate();
 
   return (
-    <nav className="hub-standings-mini-nav hub-section-mini-nav" aria-label={ariaLabel}>
+    <nav
+      className={["hub-standings-mini-nav", "hub-section-mini-nav", className].filter(Boolean).join(" ")}
+      aria-label={ariaLabel}
+    >
       {items.map((item) => {
         const selected = item.id === active;
         const disabled = Boolean(item.disabled) && !selected;
