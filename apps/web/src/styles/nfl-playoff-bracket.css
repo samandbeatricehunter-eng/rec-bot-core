@@ -2,7 +2,14 @@
    team colors" rule in docs/theme-palettes.md. Team crests and per-team color washes are core
    to this component's Madden-broadcast visual language; do not "fix" this back to neutral. */
 
-.nfl-bracket-page { display: flex; flex-direction: column; gap: var(--space-4); }
+.nfl-bracket-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  box-sizing: border-box;
+  padding: clamp(20px, 3.2vw, 40px) clamp(16px, 3vw, 40px);
+}
 .nfl-bracket-page > .card { overflow-x: auto; }
 
 .nfl-bracket-empty { text-align: center; padding: var(--space-6) var(--space-4); color: var(--text-secondary); }
@@ -28,17 +35,6 @@
   font-family: var(--bracket-font);
 }
 
-.nfl-bracket-accent-text {
-  color: var(--bracket-accent);
-  paint-order: stroke fill;
-  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.95);
-  text-shadow:
-    -1px 0 0 rgba(255, 255, 255, 0.9),
-     1px 0 0 rgba(255, 255, 255, 0.9),
-     0 -1px 0 rgba(255, 255, 255, 0.9),
-     0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
 .nfl-bracket-board-header {
   text-align: center;
   padding: 4px 12px 18px;
@@ -60,13 +56,6 @@
 .nfl-bracket-board-header em {
   font-style: normal;
   color: var(--bracket-accent);
-  paint-order: stroke fill;
-  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.95);
-  text-shadow:
-    -1px 0 0 rgba(255, 255, 255, 0.9),
-     1px 0 0 rgba(255, 255, 255, 0.9),
-     0 -1px 0 rgba(255, 255, 255, 0.9),
-     0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .nfl-bracket-board-sep {
   opacity: 0.55;
@@ -136,13 +125,6 @@
   line-height: 1;
   color: var(--bracket-accent);
   text-align: center;
-  paint-order: stroke fill;
-  -webkit-text-stroke: 0.85px rgba(255, 255, 255, 0.95);
-  text-shadow:
-    -1px 0 0 rgba(255, 255, 255, 0.85),
-     1px 0 0 rgba(255, 255, 255, 0.85),
-     0 -1px 0 rgba(255, 255, 255, 0.85),
-     0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .nfl-bracket-logo-box {
@@ -150,7 +132,7 @@
   width: 112px;
   height: 48px;
   border-radius: 10px;
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border: 1.5px solid rgba(255, 255, 255, 0.95);
   background: rgba(0, 0, 0, 0.72);
   overflow: hidden;
   box-shadow: none;
@@ -186,15 +168,7 @@
   color: rgba(255, 255, 255, 0.82);
 }
 .nfl-bracket-result.is-bye {
-  color: var(--bracket-accent);
   letter-spacing: 0.12em;
-  paint-order: stroke fill;
-  -webkit-text-stroke: 0.7px rgba(255, 255, 255, 0.95);
-  text-shadow:
-    -1px 0 0 rgba(255, 255, 255, 0.85),
-     1px 0 0 rgba(255, 255, 255, 0.85),
-     0 -1px 0 rgba(255, 255, 255, 0.85),
-     0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
 .nfl-bracket-tbd {
@@ -232,13 +206,6 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--bracket-accent);
-  paint-order: stroke fill;
-  -webkit-text-stroke: 1.05px rgba(255, 255, 255, 0.95);
-  text-shadow:
-    -1px 0 0 rgba(255, 255, 255, 0.9),
-     1px 0 0 rgba(255, 255, 255, 0.9),
-     0 -1px 0 rgba(255, 255, 255, 0.9),
-     0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .nfl-bracket-sb-matchup {
   width: 100%;
@@ -277,13 +244,6 @@
   font-size: 16px;
   letter-spacing: 0.06em;
   color: var(--bracket-accent);
-  paint-order: stroke fill;
-  -webkit-text-stroke: 0.9px rgba(255, 255, 255, 0.95);
-  text-shadow:
-    -1px 0 0 rgba(255, 255, 255, 0.9),
-     1px 0 0 rgba(255, 255, 255, 0.9),
-     0 -1px 0 rgba(255, 255, 255, 0.9),
-     0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .nfl-bracket-prior {
@@ -301,13 +261,6 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--bracket-accent);
-  paint-order: stroke fill;
-  -webkit-text-stroke: 0.85px rgba(255, 255, 255, 0.95);
-  text-shadow:
-    -1px 0 0 rgba(255, 255, 255, 0.9),
-     1px 0 0 rgba(255, 255, 255, 0.9),
-     0 -1px 0 rgba(255, 255, 255, 0.9),
-     0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .nfl-bracket-prior-row {
   display: grid;
@@ -351,16 +304,6 @@
   cursor: pointer;
 }
 .nfl-bracket-mgmt-link:hover { color: var(--text-primary); border-color: var(--border-strong, var(--border)); }
-
-.nfl-bracket-legend {
-  max-width: 1240px;
-  margin: var(--space-4) auto 0;
-  font-size: 11px;
-  color: var(--text-secondary);
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-  text-align: center;
-}
 
 /* —— Broadcast playoff picture board (AFC red / NFC blue) —— */
 .nfl-picture-board {

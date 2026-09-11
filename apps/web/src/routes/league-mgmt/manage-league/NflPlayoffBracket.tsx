@@ -418,16 +418,7 @@ export function NflPlayoffBracket() {
 
       {view?.mode === "picture" && <PlayoffPictureBoard picture={view.picture} />}
 
-      {view?.mode === "desktop" && (
-        <>
-          <DesktopBracket picture={view.picture} />
-          <p className="nfl-bracket-legend">
-            {view.picture.champion
-              ? "This season's postseason is complete. The next live playoff picture unlocks starting Week 12 of the new regular season."
-              : "Seven teams per conference — the No. 1 seed gets the first-round bye, and each conference reseeds (lowest surviving seed vs. highest) after every round."}
-          </p>
-        </>
-      )}
+      {view?.mode === "desktop" && <DesktopBracket picture={view.picture} />}
     </div>
   );
 }
