@@ -1,6 +1,6 @@
 import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, regularSeasonWeeks, stageHasScheduledGames, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
+import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, regularSeasonWeeks, stageForWeek, stageHasScheduledGames, stageLabel, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { HeadshotUploadOverlay } from "../../components/hub/HeadshotUploadOverlay.js";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
@@ -11,6 +11,9 @@ import { HeroMatchupBreakdown } from "../../components/hub/HeroMatchupBreakdown.
 import { GotwVotingCarousel } from "../../components/hub/GotwVotingCarousel.js";
 import { GameDayMiniNav, type GameDayNavId } from "../../components/hub/GameDayMiniNav.js";
 import { MediaMiniNav } from "../../components/hub/MediaMiniNav.js";
+import { GameDayEmpty, byeWeekEmptyCopy, noGotwEmptyCopy, noScheduleEmptyCopy, offseasonEmptyCopy } from "../../components/hub/GameDayEmpty.js";
+import { MatchupGameMedia } from "../../components/hub/MatchupGameMedia.js";
+import { MatchupTeamLeaders } from "../../components/hub/MatchupTeamLeaders.js";
 import { HeroSchedulingStatus } from "../../components/hub/HeroSchedulingStatus.js";
 import { ShareStreamModal } from "../../components/hub/ShareStreamModal.js";
 import { RequestHelpSheet } from "../../components/matchups/RequestHelpSheet.js";
@@ -589,6 +592,7 @@ export function HubHome() {
   const [section, setSection] = useState<HubSection>(() => parseHubSection(searchParams.get("section")) ?? "league");
   const [subTab, setSubTab] = useState<LeagueSubTab>(() => parseLeagueSubTab(searchParams.get("subTab")) ?? "buzz");
   const [matchupWeek, setMatchupWeek] = useState<number | null>(null);
+  const [matchupSeason, setMatchupSeason] = useState<number | null>(null);
   const [matchupSchedule, setMatchupSchedule] = useState<HubMatchupSchedule | null>(null);
   const [matchupScheduleLoading, setMatchupScheduleLoading] = useState(false);
   const [matchupScheduleError, setMatchupScheduleError] = useState<string | null>(null);
@@ -961,17 +965,19 @@ export function HubHome() {
     if (auth.status !== "ready" || section !== "league") return;
     setMatchupScheduleLoading(true);
     setMatchupScheduleError(null);
-    recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupWeek })
+    recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupWeek, seasonNumber: matchupSeason })
       .then((schedule) => {
         setMatchupSchedule(schedule);
         setMatchupScheduleError(null);
+        if (matchupSeason == null) setMatchupSeason(schedule.seasonNumber);
+        if (matchupWeek == null) setMatchupWeek(schedule.selectedWeek);
       })
       .catch((cause) => {
         setMatchupSchedule(null);
         setMatchupScheduleError(cause instanceof Error ? cause.message : "Failed to load matchups.");
       })
       .finally(() => setMatchupScheduleLoading(false));
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, subTab, section, matchupWeek, matchupReloadKey]);
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, subTab, section, matchupWeek, matchupSeason, matchupReloadKey]);
 
   useEffect(() => {
     if (auth.status !== "ready") return;
@@ -1118,9 +1124,14 @@ export function HubHome() {
   }
   function renderMatchupLoadState(label: string) {
     if (matchupScheduleError) {
-      return <div className="hub-empty"><p>{matchupScheduleError}</p><Button variant="secondary" size="compact" onClick={retryMatchups}>Try again</Button></div>;
+      return (
+        <div className="hub-gameday-empty">
+          <strong>{matchupScheduleError}</strong>
+          <Button variant="secondary" size="compact" onClick={retryMatchups}>Try again</Button>
+        </div>
+      );
     }
-    if (matchupScheduleLoading || !matchupSchedule) return <p className="hub-empty">{label}</p>;
+    if (matchupScheduleLoading || !matchupSchedule) return <GameDayEmpty title={label} />;
     return null;
   }
   async function submitComment() {
@@ -2059,7 +2070,7 @@ export function HubHome() {
                   </div>
                   {heroBreakdownExpanded ? (
                     <div className="hub-expandable-matchup-drawer">
-                      {heroPreview?.gameId === heroMatchup.gameId ? <HeroMatchupBreakdown preview={heroPreview} /> : <p className="hub-empty">Loading matchup breakdown…</p>}
+                      {heroPreview?.gameId === heroMatchup.gameId ? <HeroMatchupBreakdown preview={heroPreview} /> : <GameDayEmpty title="Loading matchup breakdown…" />}
                     </div>
                   ) : null}
                   {auth.status === "ready" && <HeroMatchupActions
@@ -2072,10 +2083,43 @@ export function HubHome() {
                     onUploadHighlight={() => setHighlightUploadGame(heroMatchup)}
                     onOpenRequestHelp={heroMatchup.matchupType === "h2h" ? () => setRequestHelpGame(heroMatchup) : undefined}
                   />}
+                  <MatchupGameMedia game={heroMatchup} />
+                  {auth.status === "ready" ? (
+                    <MatchupTeamLeaders
+                      guildId={auth.guildId}
+                      awayTeamId={heroMatchup.awayTeamId}
+                      homeTeamId={heroMatchup.homeTeamId}
+                      awayTeamName={heroMatchup.awayTeamName}
+                      homeTeamName={heroMatchup.homeTeamName}
+                    />
+                  ) : null}
+                  {isRise && rtiGates?.weeklyChallenges?.length ? (
+                    <div className="hub-rti-challenges">
+                      <header className="hub-matchup-challenges-head">
+                        <span>Weekly challenges</span>
+                        <small>Visible only to you</small>
+                      </header>
+                      {rtiGates.weeklyChallenges.map((player) => (
+                        <article key={player.prospectId}>
+                          <strong>{player.name || player.position} · {player.position}</strong>
+                          <ul>
+                            {player.challenges.map((challenge) => (
+                              <li key={challenge.id} className={challenge.complete ? "is-complete" : undefined}>
+                                <span>{challenge.tier}</span> {challenge.label}
+                              </li>
+                            ))}
+                          </ul>
+                        </article>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-              ) : (
-                <p className="hub-empty">No matchup this week — bye week or offseason.</p>
-              )}
+              ) : (() => {
+                const empty = matchupSchedule?.isOffseason
+                  ? offseasonEmptyCopy(matchupSchedule.offseasonStageLabel)
+                  : byeWeekEmptyCopy();
+                return <GameDayEmpty title={empty.title} detail={empty.detail} />;
+              })()}
             </SectionFrame>
           ) : null}
 
@@ -2089,137 +2133,100 @@ export function HubHome() {
                   onVote={voteGotw}
                   onOpenWager={isRise ? undefined : (game) => void openWager(game)}
                 />
-              ) : (
-                <p className="hub-empty">No Game of the Week poll is live for this slate yet.</p>
-              )}
+              ) : (() => {
+                const empty = matchupSchedule?.isOffseason
+                  ? offseasonEmptyCopy(matchupSchedule.offseasonStageLabel)
+                  : noGotwEmptyCopy();
+                return <GameDayEmpty title={empty.title} detail={empty.detail} />;
+              })()}
             </SectionFrame>
           ) : null}
 
-          {gameDayView === "schedule" ? <>
-          <div className="rec-matchup-tabs" role="tablist" aria-label="Matchups and rankings">
-            <button type="button" role="tab" aria-selected={matchupView === "h2h"} className={matchupView === "h2h" ? "active" : ""} onClick={() => setMatchupView("h2h")}>H2H Matchups</button>
-            <button type="button" role="tab" aria-selected={matchupView === "cpu"} className={matchupView === "cpu" ? "active" : ""} onClick={() => setMatchupView("cpu")}>Human vs CPU</button>
-            {/* Madden has this same Power Rankings/User Ratings/SOS content available from My
-                Team's League card now (modals), so the Rankings pill only makes sense for CFB,
-                which has no My Team grid to relocate it to. */}
-            {isCfbLeague && <button type="button" role="tab" aria-selected={matchupView === "rankings"} className={matchupView === "rankings" ? "active" : ""} onClick={() => setMatchupView("rankings")}>Rankings</button>}
-          </div>
-
-          {matchupView === "rankings" && isCfbLeague ? (
-            <>
-              <SectionFrame
-                eyebrow="Updated on advance"
-                title="Power Rankings"
-                action={isCfbLeague && hub.powerRankings?.teams?.length ? (
-                  <button type="button" className="btn btn-ghost" onClick={() => setRankByConference((v) => !v)}>
-                    {rankByConference ? "Show overall" : "Group by conference"}
-                  </button>
-                ) : undefined}
-              >
-                {hub.powerRankings?.teams?.length ? (
-                  rankByConference && isCfbLeague ? (
-                    <div className="hub-power-rankings-by-conference">
-                      {powerRankingsByConference.map(([conference, teams]) => (
-                        <div key={conference} className="hub-power-rankings-conference-group">
-                          <h4>{conference}</h4>
-                          <div className="hub-power-rankings">{teams.map((team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
-                            <strong>#{team.rank}</strong><div><span>{team.teamName}{team.ownerLabel ? ` — ${team.ownerLabel}` : ""}</span><small><RankChange change={team.change} /> · Score {Number(team.score).toFixed(3)}</small></div>
-                          </article>)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <RankingListSearch
-                      items={hub.powerRankings.teams}
-                      getSearchText={(team) => `${team.teamName} ${team.ownerLabel ?? ""}`}
-                      emptyLabel="Power rankings will appear after the first completed slate."
-                      renderItem={(team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
-                        <strong>#{team.rank}</strong><div><span>{team.teamName}{team.ownerLabel ? ` — ${team.ownerLabel}` : ""}</span><small><RankChange change={team.change} /> · Score {Number(team.score).toFixed(3)}</small></div>
-                      </article>}
-                    />
-                  )
-                ) : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
-              </SectionFrame>
-
-              <SectionFrame eyebrow="Win/performance signals, production, consistency" title="User Ratings">
-                {hub.userRatings?.users?.length ? (
-                  <div className="hub-coach-ratings">
-                    <RankingListSearch
-                      items={hub.userRatings.users}
-                      getSearchText={(user) => user.displayName}
-                      emptyLabel="User ratings will appear after the first completed slate."
-                      renderItem={(user) => <article key={user.userId} className={user.userId === hub.userRatings?.viewerUserId ? "human" : ""}>
-                        <strong>#{user.rank}</strong>
-                        <div><span>{user.displayName}</span><small>{user.teamName ?? "Free agent"} · Win {user.winScore.toFixed(1)} · Stat {user.statScore.toFixed(1)} · Consistency {user.consistencyScore.toFixed(1)}</small></div>
-                        <em className="hub-rating-badge">{hub.userRatings?.displayAsGrade ? user.grade : user.rating.toFixed(1)}</em>
-                      </article>}
-                    />
-                  </div>
-                ) : <p className="hub-empty">User ratings will appear after the first completed slate.</p>}
-              </SectionFrame>
-
-            </>
-          ) : (
-            <SectionFrame eyebrow="Current slate" title="Weekly Matchups" className="hub-matchup-section">
-              {wagersBoardNotice && <p className="hub-transfer-status">{wagersBoardNotice}</p>}
+          {gameDayView === "schedule" ? (
+            <SectionFrame eyebrow="Archive & slate" title="League Schedule" className="hub-matchup-section">
               {(() => {
                 const state = renderMatchupLoadState("Loading matchups...");
                 if (state) return state;
                 const schedule = matchupSchedule;
                 if (!schedule) return null;
-                if (schedule.isOffseason) return <p className="hub-empty">No games this week — the league is in the offseason ({schedule.offseasonStageLabel ?? "Offseason"}).</p>;
+                const leagueGame = hub.league.game as LeagueGame;
+                const weekLabelFor = (week: number) => stageLabel(stageForWeek(week, leagueGame), week, leagueGame);
+                const selectedWeekLabel = weekLabelFor(schedule.selectedWeek);
+                if (schedule.isOffseason && !(schedule.seasonNumbers?.length > 1)) {
+                  const empty = offseasonEmptyCopy(schedule.offseasonStageLabel);
+                  return <GameDayEmpty title={empty.title} detail={empty.detail} />;
+                }
+                const h2hGames = schedule.games.filter((game) => game.matchupType === "h2h");
+                const cpuGames = schedule.games.filter((game) => game.matchupType === "human_cpu" || game.matchupType === "cpu");
                 return <>
-                <div className="hub-week-picker">
-                  <label className="hub-week-select"><span>Week</span><select className="form-input" value={schedule.selectedWeek} onChange={(event) => setMatchupWeek(Number(event.target.value))}>{schedule.weekNumbers.map((week) => <option key={week} value={week}>Week {week}{week === schedule.currentWeek ? " (Current)" : ""}</option>)}</select></label>
-                </div>
-                {(() => {
-                  const visible = schedule.games.filter((game) => matchupView === "h2h" ? game.matchupType === "h2h" : game.matchupType === "human_cpu");
-                  return visible.length ? <div className="rec-matchup-list">{visible.map((game, index) => <ExpandableMatchupCard key={game.gameId} game={game} featured={game.isGameOfWeek || game.involvesMe || index === 0} />)}</div> : <p className="hub-empty">No {matchupView === "h2h" ? "H2H" : "human vs CPU"} games are scheduled for Week {schedule.selectedWeek}.</p>;
-                })()}
-                {schedule.games.length ? <div className="hub-matchups hub-matchup-schedule">{schedule.games.map((game) => (<div className={`hub-matchup-stack${game.gotw ? " gotw" : ""}`} key={game.gameId}>
-                  <article className={(game.matchupType === "h2h" ? "hub-matchup-card h2h" : "hub-matchup-card cpu") + (game.gotw ? " gotw" : "")}>
-                    <div className="hub-matchup-card-head"><span aria-hidden="true" /><strong>Week {game.weekNumber}</strong><small>{game.gotw ? "Game of the Week" : [game.awayConference, game.homeConference].filter(Boolean).join(" vs ")}</small></div>
-                    <div className="hub-matchup-board">
-                      <div className="hub-team-side"><span>{game.awayTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.awayTeamMascot) } as CSSProperties}>{game.awayTeamMascot}</div><small>{game.awayConference ?? "Visiting team"}</small></div>
-                      <div className="hub-score-center"><span aria-hidden="true" />{game.isFinal && game.awayScore != null && game.homeScore != null ? <strong>{`${game.awayScore}–${game.homeScore}`}</strong> : null}</div>
-                      <div className="hub-team-side"><span>{game.homeTeamName}</span><div className="hub-team-wordmark" style={{ "--matchup-name-size": matchupWordmarkSize(game.homeTeamMascot) } as CSSProperties}>{game.homeTeamMascot}</div><small>{game.homeConference ?? "Home team"}</small></div>
-                    </div>
-                    <div className="hub-matchup-rails">
-                      <div className="hub-team-control-rail away" />
-                      <div className="hub-center-control-rail">{game.matchupType === "human_cpu" ? game.streams[0] ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : <StatusChip status="info" label="Stream" /> : !game.isFinal && game.matchupType === "h2h" ? <Button variant="primary" size="compact" onClick={() => void openWager(game)}>Wager</Button> : game.streams.length ? <a className="btn btn-primary" href={`${apiBaseUrl}${game.streams[0].watchPath}`} target="_blank" rel="noreferrer">Stream</a> : game.isFinal ? <StatusChip status="info" label="Final" /> : null}</div>
-                      <div className="hub-team-control-rail home" />
-                    </div>
-                    {game.matchupType === "human_cpu" ? null : <>
-                      {(() => {
-                        const awayStream = game.streams.find((stream) => stream.side === "away");
-                        const homeStream = game.streams.find((stream) => stream.side === "home");
-                        const streamPanel = (stream: typeof game.streams[number]) => (
-                          <div className={`hub-team-stream ${stream.side} live`} key={stream.streamLogId}>
-                            <div className="hub-team-stream-head"><span>{stream.side} stream · live</span><a href={`${apiBaseUrl}${stream.watchPath}`} target="_blank" rel="noreferrer">Watch {stream.teamName}</a><small>{stream.viewCount} viewer{stream.viewCount === 1 ? "" : "s"}</small></div>
+                  <div className="hub-schedule-pickers">
+                    <label className="hub-week-select">
+                      <span>Season</span>
+                      <select
+                        className="form-input"
+                        value={schedule.seasonNumber}
+                        onChange={(event) => {
+                          setMatchupSeason(Number(event.target.value));
+                          setMatchupWeek(null);
+                        }}
+                      >
+                        {(schedule.seasonNumbers?.length ? schedule.seasonNumbers : [schedule.seasonNumber]).map((season) => (
+                          <option key={season} value={season}>
+                            Season {season}{season === schedule.currentSeasonNumber ? " (Current)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="hub-week-select">
+                      <span>Week</span>
+                      <select
+                        className="form-input"
+                        value={schedule.selectedWeek}
+                        onChange={(event) => setMatchupWeek(Number(event.target.value))}
+                        disabled={!schedule.weekNumbers.length}
+                      >
+                        {schedule.weekNumbers.map((week) => (
+                          <option key={week} value={week}>
+                            {weekLabelFor(week)}{week === schedule.currentWeek && schedule.seasonNumber === schedule.currentSeasonNumber ? " (Current)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  {!schedule.games.length ? (
+                    <GameDayEmpty {...noScheduleEmptyCopy(selectedWeekLabel)} />
+                  ) : (
+                    <div className="hub-schedule-stack">
+                      <section className="hub-schedule-group">
+                        <h3>H2H Matchups</h3>
+                        {h2hGames.length ? (
+                          <div className="rec-matchup-list">
+                            {h2hGames.map((game, index) => (
+                              <ExpandableMatchupCard key={game.gameId} game={game} featured={game.isGameOfWeek || game.involvesMe || index === 0} />
+                            ))}
                           </div>
-                        );
-                        return <div className="hub-stream-sides">
-                          {awayStream ? streamPanel(awayStream) : <div className="hub-team-stream away empty" aria-hidden="true" />}
-                          {homeStream ? streamPanel(homeStream) : <div className="hub-team-stream home empty" aria-hidden="true" />}
-                        </div>;
-                      })()}
-                      <div className="hub-game-reaction-bar" aria-label={`Reactions for ${game.awayTeamName} at ${game.homeTeamName}`}>
-                        <button aria-label="Love" className={(game.myReactions ?? []).includes("love") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "love")}>{game.reactionCounts.love > 0 && <span>{game.reactionCounts.love}</span>}</button>
-                        <button aria-label="Like" className={(game.myReactions ?? []).includes("like") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "like")}>{game.reactionCounts.like > 0 && <span>{game.reactionCounts.like}</span>}</button>
-                        <button aria-label="Nominate for Game of the Year" className={`goty${(game.myReactions ?? []).includes("goty") ? " active" : ""}`} onClick={() => void matchupGameReact(game.gameId, "goty")}>{game.reactionCounts.goty > 0 && <span>{game.reactionCounts.goty}</span>}</button>
-                        <button aria-label="Dislike" className={(game.myReactions ?? []).includes("dislike") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "dislike")}>{game.reactionCounts.dislike > 0 && <span>{game.reactionCounts.dislike}</span>}</button>
-                        <button aria-label="Hate" className={(game.myReactions ?? []).includes("poop") ? "active" : ""} onClick={() => void matchupGameReact(game.gameId, "poop")}>{game.reactionCounts.poop > 0 && <span>{game.reactionCounts.poop}</span>}</button>
-                      </div>
-                    </>}
-                  </article>
-                </div>))}</div> : <p className="hub-empty">No linked-user games are scheduled for Week {schedule.selectedWeek}.</p>}
-                {schedule.usersByConference.length > 0 && (() => { const group = schedule.usersByConference[conferenceIndex % schedule.usersByConference.length]; return <div className="hub-conference-carousel"><button className="hub-highlight-arrow" aria-label="Previous conference" onClick={() => setConferenceIndex((conferenceIndex - 1 + schedule.usersByConference.length) % schedule.usersByConference.length)}><ChevronLeft /></button><article><h3>{group.conference}</h3><div>{group.users.map((user) => <span key={user.userId}><strong>{user.teamName}</strong><small>{user.displayName}</small></span>)}</div><p>{conferenceIndex % schedule.usersByConference.length + 1} / {schedule.usersByConference.length}</p></article><button className="hub-highlight-arrow" aria-label="Next conference" onClick={() => setConferenceIndex((conferenceIndex + 1) % schedule.usersByConference.length)}><ChevronRight /></button></div>; })()}
-              </>;
+                        ) : (
+                          <GameDayEmpty title="No H2H matchups for this week." detail="Human vs CPU games are listed below when available." />
+                        )}
+                      </section>
+                      <section className="hub-schedule-group">
+                        <h3>Human vs CPU</h3>
+                        {cpuGames.length ? (
+                          <div className="rec-matchup-list">
+                            {cpuGames.map((game, index) => (
+                              <ExpandableMatchupCard key={game.gameId} game={game} featured={index === 0} />
+                            ))}
+                          </div>
+                        ) : (
+                          <GameDayEmpty title="No CPU matchups for this week." />
+                        )}
+                      </section>
+                    </div>
+                  )}
+                </>;
               })()}
             </SectionFrame>
-          )}
-          </> : null}
-
+          ) : null}
         </>
       )}
 

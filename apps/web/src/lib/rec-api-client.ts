@@ -454,7 +454,7 @@ export const recApi = {
     recApiFetch<{ pendingApproval: true; header: string }>("/v1/hub/relocation/custom", { method: "POST", body: JSON.stringify(input) }),
   reviewCustomTeamIdentity: (input: { guildId: string; inboxId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<{ reviewed: true; decision: "approve" | "deny" }>("/v1/hub/relocation/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
-  getHubMatchupSchedule: (input: { guildId: string; weekNumber?: number | null }) =>
+  getHubMatchupSchedule: (input: { guildId: string; weekNumber?: number | null; seasonNumber?: number | null }) =>
     recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 45_000 }),
   getHubMatchupDetail: (input: { guildId: string; gameId: string }) =>
     recApiFetch<import("../types/api.js").HubMatchupDetail>("/v1/hub/matchups/detail", { method: "POST", body: JSON.stringify(input) }),

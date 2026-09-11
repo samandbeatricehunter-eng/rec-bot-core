@@ -1,15 +1,20 @@
 import { SectionMiniNav } from "./SectionMiniNav.js";
 
 export type StatsNavId =
-  | "stats"
+  | "leaders"
+  | "season"
+  | "career"
+  | "team"
   | "standings"
   | "power"
   | "sos"
   | "bracket"
   | "records"
-  | "history";
+  | "history"
+  /** @deprecated Prefer "season" — kept for older call sites during transition. */
+  | "stats";
 
-/** Plan order: Stats → Standings → Power → SOS → Bracket → Records → History. */
+/** Plan order: Leaders → Season → Career → Team → Standings → Power → SOS → Bracket → Records → History. */
 export function StatsMiniNav({
   active,
   leagueId,
@@ -20,12 +25,16 @@ export function StatsMiniNav({
   bracketAvailable?: boolean;
 }) {
   const base = `/l/${leagueId}`;
+  const resolved: Exclude<StatsNavId, "stats"> = active === "stats" ? "season" : active;
   return (
     <SectionMiniNav
       ariaLabel="Stats views"
-      active={active}
+      active={resolved}
       items={[
-        { id: "stats", top: "Season", bottom: "Stats", to: `${base}/stats` },
+        { id: "leaders", top: "League", bottom: "Leaders", to: `${base}/stats` },
+        { id: "season", top: "Season", bottom: "Stats", to: `${base}/stats?view=season` },
+        { id: "career", top: "Career", bottom: "Stats", to: `${base}/career-stats` },
+        { id: "team", top: "Team", bottom: "Stats", to: `${base}/stats?view=team` },
         { id: "standings", top: "Division", bottom: "Standings", to: `${base}/standings` },
         { id: "power", top: "Power", bottom: "Rankings", to: `${base}/standings?view=power` },
         { id: "sos", top: "Strength of", bottom: "Schedule", to: `${base}/standings?view=sos` },

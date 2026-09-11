@@ -11,6 +11,9 @@ import { SectionFrame } from "../design-system/SectionFrame.js";
 import { Button } from "../ui/Button.js";
 import { MatchupCard } from "../matchups/MatchupCard.js";
 import { MatchupPreview } from "../matchups/MatchupPreview.js";
+import { GameDayEmpty } from "./GameDayEmpty.js";
+import { MatchupGameMedia } from "./MatchupGameMedia.js";
+import { MatchupTeamLeaders } from "./MatchupTeamLeaders.js";
 
 type GotwVotingCarouselProps = {
   guildId: string;
@@ -28,7 +31,7 @@ export function GotwVotingCarousel({
   onOpenWager,
 }: GotwVotingCarouselProps) {
   const [index, setIndex] = useState(0);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(true);
   const [previewByGame, setPreviewByGame] = useState<Record<string, MatchupPreviewData>>({});
   const [wagersByGame, setWagersByGame] = useState<Record<string, WagerOptionsResponse>>({});
   const [detailsError, setDetailsError] = useState<string | null>(null);
@@ -40,12 +43,12 @@ export function GotwVotingCarousel({
 
   useEffect(() => {
     setIndex(0);
-    setDrawerOpen(false);
+    setDrawerOpen(true);
     setDetailsError(null);
   }, [gameIds]);
 
   useEffect(() => {
-    if (!drawerOpen || !game || previewByGame[game.gameId]) return;
+    if (!game || previewByGame[game.gameId]) return;
     let cancelled = false;
     setDetailsError(null);
     Promise.all([
@@ -65,7 +68,7 @@ export function GotwVotingCarousel({
     return () => {
       cancelled = true;
     };
-  }, [drawerOpen, game?.gameId, game?.matchupType, guildId, previewByGame]);
+  }, [game?.gameId, game?.matchupType, guildId, previewByGame]);
 
   if (!game || !poll) return null;
 
@@ -76,7 +79,7 @@ export function GotwVotingCarousel({
 
   function move(direction: -1 | 1) {
     setIndex((current) => (current + direction + games.length) % games.length);
-    setDrawerOpen(false);
+    setDrawerOpen(true);
     setDetailsError(null);
   }
 
@@ -136,9 +139,18 @@ export function GotwVotingCarousel({
 
           {drawerOpen ? (
             <div className="hub-gotw-drawer" id={`gotw-details-${game.gameId}`}>
-              {preview ? <MatchupPreview preview={preview} wagerOptions={wagersByGame[game.gameId] ?? null} /> : detailsError ? <p className="hub-empty">{detailsError}</p> : <p className="hub-empty">Loading matchup and wager details…</p>}
+              {preview ? <MatchupPreview preview={preview} wagerOptions={wagersByGame[game.gameId] ?? null} /> : detailsError ? <GameDayEmpty title={detailsError} /> : <GameDayEmpty title="Loading matchup and wager details…" />}
             </div>
           ) : null}
+
+          <MatchupGameMedia game={game} />
+          <MatchupTeamLeaders
+            guildId={guildId}
+            awayTeamId={game.awayTeamId}
+            homeTeamId={game.homeTeamId}
+            awayTeamName={game.awayTeamName}
+            homeTeamName={game.homeTeamName}
+          />
         </div>
         {games.length > 1 ? <button type="button" className="hub-highlight-arrow next" aria-label="Next Game of the Week" onClick={() => move(1)}><ChevronRight /></button> : null}
       </div>

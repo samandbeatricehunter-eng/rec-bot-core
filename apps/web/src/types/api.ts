@@ -613,6 +613,9 @@ export type MediaPortalResponse = {
 export type NonRtiMediaDaySlot = { slot: number; question: { id: string; text: string; category: string } | null; answer: string | null };
 export type NonRtiMediaDayResponse = { weekNumber: number; complete: boolean; slots: NonRtiMediaDaySlot[] };
 export type HubMatchupSchedule = {
+  seasonNumber: number;
+  currentSeasonNumber: number;
+  seasonNumbers: number[];
   currentWeek: number;
   selectedWeek: number;
   weekNumbers: number[];

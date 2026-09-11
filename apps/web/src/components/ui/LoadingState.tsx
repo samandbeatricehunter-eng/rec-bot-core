@@ -1,3 +1,7 @@
 export function LoadingState({ label = "Loading…" }: { label?: string }) {
-  return <p style={{ color: "var(--text-secondary)" }}>{label}</p>;
+  return (
+    <p className="hub-gameday-empty hub-gameday-empty--inline" role="status">
+      <strong>{label}</strong>
+    </p>
+  );
 }

@@ -7,6 +7,7 @@ import {
   statKeysForCategories,
   type StatPageCategoryKey,
 } from "@rec/shared";
+import { useSearchParams } from "react-router-dom";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import { Card } from "../../components/ui/Card.js";
@@ -15,7 +16,7 @@ import { LoadingState } from "../../components/ui/LoadingState.js";
 import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
-import { StatsMiniNav } from "../../components/hub/StatsMiniNav.js";
+import { StatsMiniNav, type StatsNavId } from "../../components/hub/StatsMiniNav.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 
 type StatsResponse = Awaited<ReturnType<typeof recApi.getLeagueStats>>;
@@ -301,18 +302,31 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
 export function LeagueStatsHome() {
   const { guildId } = useReadyAuth();
   const { currentLeague } = useHubChrome();
-  const [scope, setScope] = useState<"season" | "career">("season");
+  const [searchParams] = useSearchParams();
+  const rawView = searchParams.get("view");
+  const view: "leaders" | "season" | "team" =
+    rawView === "season" || rawView === "team" ? rawView : "leaders";
+  const activeNav: StatsNavId = view;
 
-  // League Resources button row, Power Rankings, and the Stats by Category/Team pill switcher
-  // used to all live here. Power Rankings has its own home on Standings; League Records/History/
-  // Strength of Schedule have their own nav entries; and Stats by Team (with an All Teams option
-  // and real sortable columns) replaced Stats by Category outright rather than living alongside
-  // it, since it did everything Category did plus per-column sorting Category never had.
   return <div className="hub-section">
-    {currentLeague?.id ? <StatsMiniNav active="stats" leagueId={currentLeague.id} /> : null}
-    <PageHeader title="Stats" subtitle="League leaders and complete player production." />
-    <LeagueLeadersView guildId={guildId} />
-    <Card><div id="league-stats" className="rec-matchup-tabs" role="tablist" aria-label="Statistics scope"><button type="button" role="tab" aria-selected={scope === "season"} className={scope === "season" ? "active" : ""} onClick={() => setScope("season")}>This Season</button><button type="button" role="tab" aria-selected={scope === "career"} className={scope === "career" ? "active" : ""} onClick={() => setScope("career")}>Career</button></div></Card>
-    <TeamStatsView guildId={guildId} scope={scope} />
+    {currentLeague?.id ? <StatsMiniNav active={activeNav} leagueId={currentLeague.id} /> : null}
+    {view === "leaders" ? (
+      <>
+        <PageHeader title="League Leaders" subtitle="Category leaders across the current season." />
+        <LeagueLeadersView guildId={guildId} />
+      </>
+    ) : null}
+    {view === "season" ? (
+      <>
+        <PageHeader title="Season Stats" subtitle="Complete player production for the current season." />
+        <TeamStatsView guildId={guildId} scope="season" />
+      </>
+    ) : null}
+    {view === "team" ? (
+      <>
+        <PageHeader title="Team Stats" subtitle="Filter the league by team and position." />
+        <TeamStatsView guildId={guildId} scope="season" />
+      </>
+    ) : null}
   </div>;
 }

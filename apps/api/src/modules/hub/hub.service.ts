@@ -1790,7 +1790,7 @@ export async function publishScheduledMediaForAdvance(guildId: string) {
   return { publishedCount: published.length, storyIds: published };
 }
 
-export async function getHubMatchupSchedule(input: { guildId: string; discordId: string; weekNumber?: number | null }) {
+export async function getHubMatchupSchedule(input: { guildId: string; discordId: string; weekNumber?: number | null; seasonNumber?: number | null }) {
   const contextP = getCurrentLeagueContext(input.guildId);
   const userIdP = userIdForDiscord(input.discordId);
   const [context, userId] = await Promise.all([contextP, userIdP]);
@@ -1799,16 +1799,31 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     resolveTeamSchool(team) ?? formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
   const mascotName = (team: any, fallback: string) =>
     resolveTeamNick(team) ?? fallback;
-  const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const currentSeasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const seasonNumber = Number(input.seasonNumber ?? currentSeasonNumber);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
-  const selectedWeek = input.weekNumber ?? currentWeek;
+  const selectedWeek = input.weekNumber ?? (seasonNumber === currentSeasonNumber ? currentWeek : 1);
   const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
+  const seasonsRows = await supabase
+    .from("rec_seasons")
+    .select("display_season_number")
+    .eq("league_id", context.leagueId)
+    .order("display_season_number", { ascending: false });
+  if (seasonsRows.error) throw new ApiError(500, "We couldn't load league seasons. Please try again.", seasonsRows.error);
+  const seasonNumbers = [...new Set<number>([
+    currentSeasonNumber,
+    ...(seasonsRows.data ?? []).map((row: any) => Number(row.display_season_number)).filter((n: number) => Number.isFinite(n) && n > 0),
+  ])].sort((a, b) => b - a);
   // Once the league has finished its championship game it moves into the dynasty offseason
   // pipeline (End of Season Recap, Transfer Portal, etc.) — no rec_games rows are scheduled
   // for that stage, so skip the games query entirely and tell the client there's no slate to
   // show instead of falling through to whatever week-1 CPU games are still sitting in the DB.
-  if (!input.weekNumber && !stageHasScheduledGames(seasonStage, context.rec_leagues.game)) {
+  // Past seasons always browse archived weeks even if the live league is in offseason.
+  if (!input.weekNumber && seasonNumber === currentSeasonNumber && !stageHasScheduledGames(seasonStage, context.rec_leagues.game)) {
     return {
+      seasonNumber,
+      currentSeasonNumber,
+      seasonNumbers,
       currentWeek,
       selectedWeek: currentWeek,
       weekNumbers: [],
@@ -2064,6 +2079,9 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     }).sort((a: any, b: any) => Number(b.isGameOfWeek) - Number(a.isGameOfWeek) || Number(b.involvesMe) - Number(a.involvesMe) || Number(b.matchupType === "h2h") - Number(a.matchupType === "h2h") || a.awayTeamName.localeCompare(b.awayTeamName));
   const gotwGames = mappedGames.filter((game: any) => game.gotw);
   return {
+    seasonNumber,
+    currentSeasonNumber,
+    seasonNumbers,
     currentWeek,
     selectedWeek,
     weekNumbers,

@@ -368,7 +368,11 @@ export async function hubRoutes(app: FastifyInstance) {
 
   app.post("/v1/hub/matchups/schedule", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int().min(0).max(30).optional().nullable() }).parse(request.body);
+      const body = z.object({
+        guildId: z.string().min(1),
+        weekNumber: z.number().int().min(0).max(30).optional().nullable(),
+        seasonNumber: z.number().int().min(1).max(100).optional().nullable(),
+      }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode === "bot") throw new ApiError(400, "Matchup schedule requires a user session.");
       return reply.send(await getHubMatchupSchedule({ ...body, discordId: auth.discordId }));

@@ -3632,6 +3632,11 @@ button.poty:disabled {
   background-repeat: no-repeat;
   padding-bottom: clamp(48px, 6vw, 88px);
 }
+@media (max-width: 900px) {
+  .hub-page {
+    background-attachment: scroll;
+  }
+}
 /* Free-standing blocks: strip wrapper container chrome and glass blur.
    Content tiles keep a simple solid surface; outer frames stay invisible. */
 .hub-section,
@@ -5390,3 +5395,179 @@ button.poty:disabled {
 .hub-ways-paid-list { display:grid; gap:8px; }
 .hub-ways-paid-list p { margin:0; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface-raised); }
 
+
+/* —— Game Day empty / schedule / matchup extras —— */
+.hub-gameday-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin: 12px auto 0;
+  padding: 28px 18px;
+  text-align: center;
+  color: #fff;
+}
+.hub-gameday-empty--inline { padding: 18px 12px; }
+.hub-gameday-empty strong {
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: clamp(0.95rem, 2.4vw, 1.15rem);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.hub-gameday-empty span {
+  max-width: 36rem;
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.78);
+}
+.hub-schedule-pickers {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 18px;
+  margin: 0 auto 18px;
+}
+.hub-schedule-pickers .hub-week-select {
+  display: grid !important;
+  grid-template-columns: auto minmax(160px, 220px);
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+.hub-schedule-stack { display: grid; gap: 22px; }
+.hub-schedule-group h3 {
+  margin: 0 0 10px;
+  text-align: center;
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
+}
+.hub-matchup-media,
+.hub-matchup-team-leaders {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid rgba(255, 70, 70, 0.22);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(28, 12, 12, 0.72), rgba(10, 8, 8, 0.88));
+}
+.hub-matchup-media > header,
+.hub-matchup-team-leaders-head,
+.hub-matchup-challenges-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+.hub-matchup-media > header > span,
+.hub-matchup-team-leaders-head > span,
+.hub-matchup-challenges-head > span {
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+.hub-matchup-media > header > small,
+.hub-matchup-team-leaders-head > small,
+.hub-matchup-challenges-head > small {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.7rem;
+}
+.hub-matchup-media-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.hub-matchup-media-item {
+  display: grid;
+  gap: 2px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  text-decoration: none;
+}
+.hub-matchup-media-item:hover { border-color: rgba(255, 90, 90, 0.55); }
+.hub-matchup-media-empty,
+.hub-matchup-team-leaders-empty {
+  margin: 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.72);
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.hub-matchup-team-leaders-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.hub-matchup-team-leaders-col header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.hub-matchup-team-leaders-col header span {
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+}
+.hub-matchup-team-leaders-col header strong {
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.hub-matchup-team-leaders-col ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.hub-matchup-team-leaders-col li {
+  display: grid;
+  grid-template-columns: auto 40px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.hub-matchup-team-leaders-col li em {
+  font-style: normal;
+  color: rgba(255, 120, 90, 0.95);
+  font-weight: 800;
+}
+.hub-matchup-team-leaders-photo,
+.hub-matchup-team-leaders-fallback {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.hub-matchup-team-leaders-fallback {
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+.hub-matchup-team-leaders-col li strong { display: block; font-size: 0.85rem; }
+.hub-matchup-team-leaders-col li span { display: block; color: rgba(255, 255, 255, 0.65); font-size: 0.72rem; }
+@media (max-width: 700px) {
+  .hub-matchup-team-leaders-grid { grid-template-columns: 1fr; }
+  .hub-schedule-pickers .hub-week-select { grid-template-columns: 1fr; width: min(100%, 280px); }
+}
