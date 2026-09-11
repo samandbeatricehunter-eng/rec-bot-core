@@ -222,8 +222,32 @@ properly:
   pass but not a regression from this one.
 - All 4 packages typecheck clean; `@rec/bot` builds clean.
 
+### Asset/dependency cleanup: scoped out, genuinely entangled, needs its own pass
+Checked whether `tesseract.js` (OCR) is removable from `apps/api/package.json` now that box-score
+OCR is gone. It's not: `apps/api/src/modules/box-score/` still has 7 parser files (deleted only
+`box-score.routes.ts`/`.service.ts`, the API endpoints — the parsing code stayed), and
+`upload-images.ts` (the generic Discord-CDN-image re-hosting utility, per its own comment "shared
+by... the Comp ladder's box-score parsing, schedule-screenshot flows, and weekly-scores") imports
+`fetchImageBuffer` from `box-score.parser.ts`. Confirmed `schedule.service.ts` and
+`weekly-scores.service.ts` — both live, core features — depend on the same
+`schedule-prefill-parser.ts`/`schedule.parser.ts` OCR machinery. So the box-score-specific parsing
+files may be partly dead now (nothing calls a "parse this into box-score stats" entry point
+anymore) while the underlying OCR/image infrastructure they share with schedule-prefill and
+weekly-scores is very much alive — untangling exactly which of the 7 files' *functions* (not whole
+files) are safe to remove needs careful per-function tracing, the same kind of investigation that
+found the interviews/voting-polls nuance above, not a package.json-level pass. Given that mistake
+already happened once this session, stopping here rather than guessing on money/feature-adjacent
+code again — this is a good candidate for the next dedicated session.
+
+### Phase 1 status: effectively complete for what's safely gettable in one pass
+Foundation cleanup (Heisman, dead CFP/recruiting-board endpoints, Rules-channel, Discord command
+manifest + /highlights fix, stale CFB/CFP DB tables, route-channel field audit) is done and live.
+Remaining: the ~96-file broad CFB grep (mostly harmless dead branches, not bugs), the Coin
+attribute-purchase path (deliberately untouched — live money logic, no ready replacement), and
+asset/dependency cleanup (entangled with live OCR features, needs careful tracing). All three are
+better suited to their own focused passes than being squeezed into this one.
+
 ### Not yet started (rest of Phase 1)
-- Asset/dependency cleanup — not started.
 - `/league`, `/teams`, `/profile` don't have bot handlers built yet — that's Phase 4 scope
   ("Matchup / scheduling / Discord experience"), not Phase 1. Not building them now.
 
