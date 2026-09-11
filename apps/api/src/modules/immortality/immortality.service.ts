@@ -442,7 +442,7 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     .eq("user_id", userId);
   if (prospects.error) throw new ApiError(500, "Could not load prospects.", prospects.error);
   const prospectIds = (prospects.data ?? []).map((row) => String(row.id));
-  const [builds, ledgers, traits, draftClass, hallNominees, classProspects, playstyles, branchingPlaystyles, equippedAbilities, abilityGrants, personaDnaRows, playerTraitRows, contractRows] = await Promise.all([
+  const [builds, ledgers, traits, draftClass, hallNominees, classProspects, playstyles, branchingPlaystyles, equippedAbilities, abilityGrants, personaDnaRows, playerTraitRows, contractRows, mindsetFocusRows] = await Promise.all([
     prospectIds.length
       ? supabase.from("rec_immortality_creation_builds").select("*").in("prospect_id", prospectIds)
       : Promise.resolve({ data: [], error: null }),
@@ -477,6 +477,9 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
       : Promise.resolve({ data: [], error: null }),
     prospectIds.length
       ? supabase.from("rec_immortality_contracts").select("id,prospect_id,contract_number,start_season,end_season,coins_per_season,player_xp_payout,coins_payout,band,offer_status,signed_at").in("prospect_id", prospectIds)
+      : Promise.resolve({ data: [], error: null }),
+    prospectIds.length
+      ? supabase.from("rec_immortality_prospect_mindset_focus").select("prospect_id,focus_key").in("prospect_id", prospectIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
   const xpByProspect = new Map<string, { playerXp: number; teamXp: number }>();
@@ -692,6 +695,7 @@ export async function getImmortalityHub(guildId: string, discordId: string) {
     traits: traits.data ?? [],
     personaDna: personaDnaRows.data ?? [],
     playerTraits: playerTraitRows.data ?? [],
+    mindsetFocus: mindsetFocusRows.data ?? [],
     contracts: contractViews,
     hallNominees: hallNominees.data ?? [],
     draftStatus: draftClass.data?.status ?? null,
@@ -1219,6 +1223,31 @@ export async function submitPersonaDna(input: {
   await bumpOriginsStep(String(prospect.id), prospect.origins_step, "persona_dna");
   await refreshImmortalityDraftBoard(league.id, context.leagueId);
   return result;
+}
+
+/** Not one of ORIGINS_STEPS (deliberately -- see the site's Mindset Focus tab, which sits
+ * alongside "throwing_motion" as a stage the site tracks itself rather than through the server's
+ * linear origins_step gate). That keeps this pick available any time -- including to a prospect
+ * who finished Origins before this feature existed -- without needing to backfill or renumber
+ * anyone's progress. A single row per prospect (rec_immortality_prospect_mindset_focus's primary
+ * key is prospect_id), so re-submitting changes the pick rather than erroring. */
+export async function submitMindsetFocus(input: {
+  guildId: string;
+  discordId: string;
+  side: "offense" | "defense";
+  focusKey: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = await requireImmortalityLeague(context.leagueId);
+  const userId = await recUserIdFromDiscordId(input.discordId);
+  const prospect = await loadProspectForUser(league.id, userId, input.side);
+  if (!prospect) throw new ApiError(400, "Save identity first.");
+  const option = mindsetFocusCatalog().find((item) => item.key === input.focusKey);
+  if (!option) throw new ApiError(400, "Unknown Mindset Focus.");
+  const saved = await supabase.from("rec_immortality_prospect_mindset_focus")
+    .upsert({ prospect_id: prospect.id, focus_key: option.key }, { onConflict: "prospect_id" });
+  if (saved.error) throw new ApiError(500, "Could not save Mindset Focus.", saved.error);
+  return { focusKey: option.key, name: option.name, definition: option.definition };
 }
 
 /** QB and MIKE only -- the only two positions with a transcribed Player Traits catalog. */

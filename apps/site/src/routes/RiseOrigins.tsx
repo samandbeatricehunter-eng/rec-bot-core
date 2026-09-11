@@ -35,7 +35,7 @@ function DiceButton({ onClick, label }: { onClick: () => void; label: string }) 
 }
 
 type Side = "offense" | "defense";
-type Stage = "identity" | "throwing_motion" | "iq" | "persona" | "playstyle" | "persona_dna" | "player_traits" | "characteristics" | "creation";
+type Stage = "identity" | "throwing_motion" | "iq" | "persona" | "playstyle" | "persona_dna" | "mindset_focus" | "player_traits" | "characteristics" | "creation";
 type TransitionPhase = "idle" | "out" | "in";
 
 // Owner and Franchise aren't per-side stages -- there's one owner and one franchise pick for
@@ -48,6 +48,7 @@ const STAGES: { id: Stage; label: string }[] = [
   { id: "persona", label: "Persona" },
   { id: "playstyle", label: "Playstyle" },
   { id: "persona_dna", label: "Persona DNA" },
+  { id: "mindset_focus", label: "Mindset Focus" },
   { id: "player_traits", label: "Player Traits" },
   { id: "characteristics", label: "Traits" },
   { id: "creation", label: "Creation Points" },
@@ -280,6 +281,12 @@ export function RiseOriginsPage() {
                 await reload();
                 return `Equipped: ${result.equippedTraitKeys.join(", ") || "none"}`;
               }} setError={setError} />
+          ) : null}
+          {stage === "mindset_focus" ? (
+            <MindsetFocusPanel key={`${effectiveSide}-mindset-focus`} guildId={guildId} side={effectiveSide}
+              catalog={hub.catalogs.personaDna.mindsetFocus}
+              current={(hub.mindsetFocus ?? []).find((row) => row.prospect_id === prospectFor(hub, effectiveSide)?.id)?.focus_key ?? null}
+              onSaved={reload} setError={setError} />
           ) : null}
           {stage === "player_traits" ? (
             hub.catalogs.playerTraits[effectiveSide] ? (
@@ -684,6 +691,54 @@ function InterviewPanel({
           } finally { setBusy(false); }
         }}>Save interview</button>
       {result ? <p>{result}</p> : null}
+    </section>
+  );
+}
+
+/** A stable motivation pick, not an interview -- one of 4 fixed options, changeable any time
+ * (rec_immortality_prospect_mindset_focus keys on prospect_id alone, so re-submitting just
+ * updates the pick). Not gated behind Origins progress -- a prospect who finished Origins before
+ * this existed can set it from here too. */
+function MindsetFocusPanel({
+  guildId, side, catalog, current, onSaved, setError,
+}: {
+  guildId: string;
+  side: Side;
+  catalog: { key: string; name: string; definition: string }[];
+  current: string | null;
+  onSaved: () => Promise<void>;
+  setError: (value: string | null) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+
+  return (
+    <section className="rise-card">
+      <h2>Mindset Focus</h2>
+      <p className="site-muted">What does this prospect care about most? Pick the one that fits — you can change it later.</p>
+      <div className="rise-trait-list">
+        {catalog.map((option) => (
+          <button key={option.key} type="button"
+            className={`rise-trait-option ${current === option.key ? "rise-trait-option-active" : ""}`}
+            disabled={busy} style={{ width: "100%", textAlign: "left" }}
+            onClick={async () => {
+              setBusy(true); setError(null); setSaved(null);
+              try {
+                const result = await siteApi.immortalitySubmitMindsetFocus({ guildId, side, focusKey: option.key });
+                await onSaved();
+                setSaved(result.name);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Could not save Mindset Focus.");
+              } finally { setBusy(false); }
+            }}>
+            <span className="rise-trait-option-body">
+              <strong>{option.name}</strong>
+              <span className="site-muted">{option.definition}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      {saved ? <p>Saved: {saved}</p> : null}
     </section>
   );
 }

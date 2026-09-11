@@ -594,6 +594,7 @@ export type ImmortalityHubResponse = {
   contracts?: ImmortalityContractView[];
   personaDna?: Array<{ prospect_id: string; trait_key: string }>;
   playerTraits?: Array<{ prospect_id: string; trait_key: string }>;
+  mindsetFocus?: Array<{ prospect_id: string; focus_key: string }>;
   catalogs: {
     characteristics: { offense: ImmortalityCharacteristic[]; defense: ImmortalityCharacteristic[] };
     persona: { offense: ImmortalityInterviewQuestion[]; defense: ImmortalityInterviewQuestion[]; owner: ImmortalityInterviewQuestion[] };
@@ -1308,6 +1309,9 @@ export const siteApi = {
   },
   immortalitySubmitPlayerTraits(input: { guildId: string; side: "offense" | "defense"; answers: Array<{ questionNumber: number; optionIndex: number }> }) {
     return request<{ equippedTraitKeys: string[] }>("/v1/immortality/interview/player-traits", input);
+  },
+  immortalitySubmitMindsetFocus(input: { guildId: string; side: "offense" | "defense"; focusKey: string }) {
+    return request<{ focusKey: string; name: string; definition: string }>("/v1/immortality/mindset-focus", input);
   },
   immortalitySelectCharacteristics(input: { guildId: string; side: "offense" | "defense"; keys: string[] }) {
     return request<{ slotCost: number; selected: Array<{ key: string; displayName: string; slotCost: number }> }>("/v1/immortality/characteristics", input);

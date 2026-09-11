@@ -32,6 +32,7 @@ import {
   submitPersona,
   submitPersonaDna,
   submitPlayerTraits,
+  submitMindsetFocus,
   submitPlaystyle,
   submitImmortalityUpgrades,
   resolveImmortalityUpgradeBatch,
@@ -207,6 +208,15 @@ export async function immortalityRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       if (auth.mode !== "user") throw new ApiError(400, "Interviews are website-only.");
       return reply.send(await submitPlayerTraits({ ...body, discordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/mindset-focus", async (request, reply) => {
+    try {
+      const body = SideBody.extend({ focusKey: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new ApiError(400, "Interviews are website-only.");
+      return reply.send(await submitMindsetFocus({ ...body, discordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 
