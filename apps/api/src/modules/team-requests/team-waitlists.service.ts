@@ -142,7 +142,7 @@ async function openTeamsForLeague(leagueId: string) {
 
 async function notifyWaitlist(row: any, openTeams: any[], league: any, guildId: string) {
   const invite = await inviteForLeague(row.league_id);
-  const instruction = "Run `/openteams`, open the team's conference, then choose **Request Team** to send your request to the commissioners.";
+  const instruction = "Open the REC site (rec-leagues.com), find the team, then choose **Request Team** to send your request to the commissioners.";
   if (row.scope === "specific_team") {
     const team = openTeams.find((candidate) => candidate.id === row.team_id);
     if (!team) return false;

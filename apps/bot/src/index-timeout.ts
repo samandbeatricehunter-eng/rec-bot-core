@@ -106,20 +106,6 @@ import {
   startTeamRequestFlow,
 } from "./flows/team-request.js";
 import {
-  OPEN_TEAMS_SLASH_CUSTOM_IDS,
-  handleOpenTeamsCfbPage,
-  handleOpenTeamsCfbConference,
-  handleOpenTeamsConfToggle,
-  handleOpenTeamsRequestConference,
-  handleOpenTeamsRequestSelect,
-  handleOpenTeamsRequestTeam,
-  handleOpenTeamsRosterTeamSelect,
-  handleOpenTeamsSlash,
-  handleOpenTeamsViewRosters,
-  handleOpenTeamsWaitlist,
-  handleOpenTeamsWaitlistSelect,
-} from "./flows/open-teams-slash.js";
-import {
   RECRUITING_BOARD_CUSTOM_IDS,
   handleRecruitingBoardSettings,
   handleRecruitingBoardRequestPage,
@@ -127,7 +113,6 @@ import {
 } from "./flows/recruiting-board.js";
 import { handleMatchupSlash } from "./flows/matchup-slash.js";
 import { handleScheduleSlash } from "./flows/schedule-slash.js";
-import { handleViewLeagueSlash } from "./flows/viewleague-slash.js";
 import { handleHighlightsSlash } from "./flows/highlights-slash.js";
 import { handleLinkLeagueSlash } from "./flows/linkleague-slash.js";
 import { handleStandingsSlash } from "./flows/standings-slash.js";
@@ -144,7 +129,6 @@ import {
 } from "./flows/availability-wizard.js";
 import { handleRulesSlash, handleRulesCategorySelect, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
 import { handleTweetsSlash } from "./flows/tweets-slash.js";
-import { handleTwitterSlash, handleTwitterPersonaAutocomplete } from "./flows/twitter-slash.js";
 import {
   GAME_SCHEDULING_CUSTOM_IDS,
   handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelGameStarted,
@@ -531,7 +515,7 @@ client.on("guildMemberAdd", async (member) => {
   const routes = await getRouteChannels(member.guild.id).catch(() => ({}));
   const announcementsChannel = await getAnnouncementsChannel(member.guild, routes).catch(() => null);
   await announcementsChannel?.send(
-    `Welcome to the REC, <@${member.id}>! Use the /openteams command to view open teams and their rosters and request one when you're ready! If you're not registered on the rec-leagues.com site, reach out to the commissioner and we can get you set up.`,
+    `Welcome to the REC, <@${member.id}>! Open ${env.SITE_PUBLIC_URL.replace(/\/$/, "")} to view open teams and request one when you're ready! If you're not registered on the rec-leagues.com site, reach out to the commissioner and we can get you set up.`,
   ).catch((error) => console.error(`Failed to post welcome message for ${member.id} joining guild ${member.guild.id} (non-fatal)`, error));
 });
 
@@ -578,16 +562,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    if (interaction.isAutocomplete() && interaction.commandName === "twitter") {
-      await handleTwitterPersonaAutocomplete(interaction);
-      return;
-    }
-
-    if (interaction.isChatInputCommand() && interaction.commandName === "openteams") {
-      await handleOpenTeamsSlash(interaction);
-      return;
-    }
-
     if (interaction.isChatInputCommand() && interaction.commandName === "matchup") {
       await handleMatchupSlash(interaction);
       return;
@@ -595,11 +569,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isChatInputCommand() && interaction.commandName === "schedule") {
       await handleScheduleSlash(interaction);
-      return;
-    }
-
-    if (interaction.isChatInputCommand() && interaction.commandName === "viewleague") {
-      await handleViewLeagueSlash(interaction);
       return;
     }
 
@@ -658,10 +627,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
     }
     if (interaction.isChatInputCommand() && interaction.commandName === "tweets") {
       await handleTweetsSlash(interaction);
-      return;
-    }
-    if (interaction.isChatInputCommand() && interaction.commandName === "twitter") {
-      await handleTwitterSlash(interaction);
       return;
     }
     if (interaction.isStringSelectMenu() && interaction.customId === COMMISH_TOOLS_CUSTOM_IDS.matchupSelect) return handleCommishToolsMatchupSelect(interaction);
@@ -726,16 +691,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.confPrefix}:`)) return handleOpenTeamsConfToggle(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.cfbPagePrefix}:`)) return handleOpenTeamsCfbPage(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.cfbConferenceSelect) return handleOpenTeamsCfbConference(interaction);
-    if (interaction.isButton() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.requestTeam) return handleOpenTeamsRequestTeam(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.conferenceSelect) return handleOpenTeamsRequestConference(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.teamSelectPrefix}:`)) return handleOpenTeamsRequestSelect(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.viewRosters}:`)) return handleOpenTeamsViewRosters(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId === OPEN_TEAMS_SLASH_CUSTOM_IDS.rosterTeamSelectPrefix) return handleOpenTeamsRosterTeamSelect(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.waitlistPrefix}:`)) return handleOpenTeamsWaitlist(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${OPEN_TEAMS_SLASH_CUSTOM_IDS.waitlistSelectPrefix}:`)) return handleOpenTeamsWaitlistSelect(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.settingsPagePrefix}:`)) return handleRecruitingBoardSettings(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.requestPagePrefix}:`)) return handleRecruitingBoardRequestPage(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${RECRUITING_BOARD_CUSTOM_IDS.requestPickPrefix}:`)) return handleRecruitingBoardRequestPick(interaction);

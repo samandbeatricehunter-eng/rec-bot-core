@@ -14,7 +14,7 @@ export async function handleMatchupSlash(interaction: ChatInputCommandInteractio
 
     if (!schedule?.isLinked) {
       return interaction.reply({
-        embeds: [embed.setDescription("You are not linked to a team in this league. Run **/openteams** and use **Request Team**.")],
+        embeds: [embed.setDescription("You are not linked to a team in this league. Open the REC site (rec-leagues.com) to view open teams and request one.")],
         flags: MessageFlags.Ephemeral,
       });
     }

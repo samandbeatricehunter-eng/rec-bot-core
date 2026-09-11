@@ -62,7 +62,7 @@ export async function handleScheduleSlash(interaction: ChatInputCommandInteracti
           new EmbedBuilder()
             .setTitle("Schedule")
             .setColor(COLORS.gold)
-            .setDescription("You are not linked to a team in this league. Run **/openteams** and use **Request Team**."),
+            .setDescription("You are not linked to a team in this league. Open the REC site (rec-leagues.com) to view open teams and request one."),
         ],
         flags: MessageFlags.Ephemeral,
       });

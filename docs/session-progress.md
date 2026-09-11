@@ -40,22 +40,58 @@ authors: commit `bc8ac6e9` (after the REC Guide removal earlier this session).
   (along with an unrelated read-only Railway `whoami` call right after) — retried once and it
   went through cleanly.
 
+### Command manifest consolidated + deprecated commands removed (2026-09-11, continued)
+User explicitly said to continue without stopping for the `/openteams`/`/viewleague` sign-off
+flagged above, so this is done:
+
+- **New single source of truth**: `packages/shared/src/discord-commands.ts` (`DISCORD_COMMANDS`,
+  plain Discord Application-Command-Object JSON, no discord.js dependency since `@rec/shared` has
+  none). `apps/bot/src/commands.ts` now just re-exports `DISCORD_COMMANDS` instead of building its
+  own `SlashCommandBuilder` array.
+- **Found and fixed a real live bug in the process**: `/highlights` has a complete, working
+  handler (`apps/bot/src/flows/highlights-slash.ts`, hands off to the site's Cloudflare-direct
+  upload flow) and a live `interaction.commandName === "highlights"` route in
+  `index-timeout.ts:606`, but it was missing from the actually-registered command list
+  (`apps/bot/src/commands.ts`'s old `commands` array) — so no user could ever invoke it. It's in
+  `DISCORD_COMMANDS` now. Also deleted `apps/api/src/lib/discord-guild.ts`'s
+  `BASE_GUILD_COMMANDS_JSON`/`syncGuildCommands`/`getApplicationId` — confirmed zero callers
+  anywhere (fully dead), and already drifted from the bot's real list in the opposite direction
+  (had `highlights`, was missing `commishtools` and `tweets` entirely).
+- **Removed `/openteams`, `/viewleague`, `/twitter`** from the registered set per the plan's
+  "Do not register" list, and deleted their now-fully-unreachable handler files:
+  `apps/bot/src/flows/open-teams-slash.ts` (556 lines), `viewleague-slash.ts`, `twitter-slash.ts`
+  — confirmed each was only ever imported by `index-timeout.ts`, nowhere else. Also removed the
+  `OPEN_TEAMS_SLASH_CUSTOM_IDS`-routed button/select handlers (only reachable from `/openteams`'s
+  own output) and the `twitter` autocomplete handler.
+  - **Verified `/openteams` removal doesn't remove team-browsing functionality**: the bot's
+    menu-driven "Teams" flow (`MENU_CUSTOM_IDS.openTeams` → `renderTeamsMenu` in
+    `apps/bot/src/flows/rosters.ts`) is a completely separate, parallel implementation with zero
+    code sharing with `open-teams-slash.ts` — confirmed via grep before deleting. That flow is
+    untouched and still works.
+  - `/draft` and `/availability` were already not registered anywhere (the "conditionally
+    register /draft near tip-off" comment in the old `commands.ts` referenced a
+    `DRAFT_COMMAND_JSON` that no longer exists in the codebase — already-stale documentation, not
+    live behavior). Nothing to remove there.
+  - **Updated now-broken user-facing text** that told people to run the removed commands: the
+    new-member welcome message (`index-timeout.ts`), `/matchup` and `/schedule`'s "not linked to
+    a team" messages, 5 spots in `apps/bot/src/flows/schedule.ts`, and the team-waitlist
+    notification (`apps/api/src/modules/team-requests/team-waitlists.service.ts`) — all now point
+    to the website (rec-leagues.com) instead of the dead commands. Left internal code *comments*
+    mentioning `/openteams`/`/viewleague` as historical context alone (not user-facing, low
+    value to chase down right now).
+- All 4 packages typecheck clean; `@rec/bot` and `@rec/api` build clean.
+
 ### Not yet started (rest of Phase 1)
 - Final CFB dependency scan beyond Heisman/CFP: a broad grep for `cfb_27`/`cfb27` hit ~96 files
   across the repo, but most are legitimate `cfb_27` branches in still-live shared code (rankings
   difficulty labels, league wizard game-type options, etc.) rather than dead CFB-league-mode
   code — a full accurate pass needs its own dedicated turn, not a blind grep-and-delete.
-- Single shared Discord command manifest (bot+API currently register commands separately).
-- Remove deprecated command registrations/handlers — plan explicitly says stop registering
-  `/twitter`, `/availability`, `/draft`, `/openteams`, `/viewleague`. **Flagging this one**:
-  `/openteams` and `/viewleague` are currently live, actively-used commands referenced all over
-  the codebase/docs — deregistering them is a real behavior change for every live league, not
-  just cleanup. Worth confirming with the user before executing, even though the plan calls for
-  it.
 - Remove stale Coin attribute-purchase path (plan doesn't specify exactly which files yet —
   needs cross-referencing against `docs/handoff/docs/ECONOMY_PROGRESSION.md`).
 - Verify route-channel source of truth, resolve unused snapshot/raw-data tables, asset/dependency
   cleanup — not started.
+- `/league`, `/teams`, `/profile` don't have bot handlers built yet — that's Phase 4 scope
+  ("Matchup / scheduling / Discord experience"), not Phase 1. Not building them now.
 
 Phases 2-11 (EA scheduler, ledgers, matchups/scheduling, Pending Items, progression/roster UI,
 compliance/rivalries, media/highlights, Legend catalog, surface/perf polish, final sweep) are

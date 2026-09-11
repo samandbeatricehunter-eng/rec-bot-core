@@ -11,6 +11,7 @@ export * from "./discord-roles.js";
 export * from "./discord-identity.js";
 export * from "./nfl-schedules.js";
 export * from "./route-channels.js";
+export * from "./discord-commands.js";
 export * from "./roundtable-personalities.js";
 export * from "./real-analyst-blocklist.js";
 export * from "./stats/index.js";
