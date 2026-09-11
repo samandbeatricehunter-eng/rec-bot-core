@@ -6,7 +6,6 @@ import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
-import { PageHeader } from "../../components/ui/PageHeader.js";
 import { TeamLogo } from "../../components/ui/TeamLogo.js";
 
 type HubResponse = Awaited<ReturnType<typeof recApi.getHub>>;
@@ -161,7 +160,9 @@ function useDivisionBoard(
 function fitLabelToWidth(el: HTMLElement, maxPx: number, minPx: number) {
   let size = maxPx;
   el.style.fontSize = `${size}px`;
-  while (el.scrollWidth > el.clientWidth + 0.5 && size > minPx) {
+  // Leave a small gutter so 3D black accents / last glyph aren't clipped by overflow.
+  const gutter = 6;
+  while (el.scrollWidth > el.clientWidth - gutter && size > minPx) {
     size -= 0.5;
     el.style.fontSize = `${size}px`;
   }
@@ -181,20 +182,26 @@ function StandingIdentity({ city, nick }: { city: string; nick: string }) {
     const cityEl = cityRef.current;
     const nickEl = nickRef.current;
     if (!wrap || !nickEl) return;
+    let cancelled = false;
 
     const fit = () => {
-      const nickSize = fitLabelToWidth(nickEl, 20, 11);
+      if (cancelled) return;
+      // Long nicks (Commanders / Buccaneers) need to go smaller than the previous floor.
+      const nickSize = fitLabelToWidth(nickEl, 20, 8);
       if (cityEl) {
-        // Always keep city below nick — never let a long city read larger than a short nick.
         const cityMax = Math.min(11, nickSize * CITY_TO_NICK_RATIO);
         fitLabelToWidth(cityEl, cityMax, Math.min(cityMax, 5.5));
       }
     };
 
     fit();
+    void document.fonts?.ready?.then(() => { if (!cancelled) fit(); });
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
     ro?.observe(wrap);
-    return () => ro?.disconnect();
+    return () => {
+      cancelled = true;
+      ro?.disconnect();
+    };
   }, [city, nick]);
 
   return (
@@ -360,8 +367,7 @@ export function LeagueStandingsHome() {
   const boardTitle = view === "division" ? "Division Standings" : view === "power" ? "Power Rankings" : "Strength of Schedule";
 
   return (
-    <div className="hub-section">
-      <PageHeader title="Standings" subtitle="Division standings, power rankings, and strength of schedule." />
+    <div className="hub-section hub-standings-page">
       {hubError ? <ErrorState message={hubError} /> : !hub ? <LoadingState label="Loading standings…" /> : (
         <>
           <nav className="hub-standings-mini-nav" aria-label="Standings views">
@@ -390,9 +396,9 @@ export function LeagueStandingsHome() {
               );
             })}
           </nav>
-          {view === "division" ? <PlayoffMarkerKey className="hub-standings-key" /> : null}
           <div className="hub-standings-board-wrap">
             <h2>{boardTitle}</h2>
+            {view === "division" ? <PlayoffMarkerKey className="hub-standings-key" /> : null}
             <DivisionStandingsBoard teams={teams} view={view} sosByTeam={sosByTeam} />
           </div>
         </>
