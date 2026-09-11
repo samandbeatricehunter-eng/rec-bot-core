@@ -274,7 +274,7 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
   }
 
   const [teamsRes, assignmentsRes, latestWeek, playoffSeedsRes] = await Promise.all([
-    supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated,conference,ea_username").eq("league_id", leagueId),
+    supabase.from("rec_teams").select("id,name,abbreviation,display_abbr,display_city,display_nick,is_relocated,conference,division,primary_color,ea_username").eq("league_id", leagueId),
     supabase.from("rec_team_assignments").select("team_id,user_id").eq("league_id", leagueId).eq("assignment_status", "active").is("ended_at", null),
     loadLatestSnapshotWeek(leagueId, currentSeason, completedWeekNumber),
     supabase.from("rec_season_team_seeds")
@@ -350,6 +350,8 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
       teamName: teamDisplayName(t),
       abbr: t?.display_abbr ?? t?.abbreviation ?? null,
       conference: t?.conference ?? null,
+      division: t?.division ?? null,
+      primaryColor: typeof t?.primary_color === "string" && t.primary_color.trim() ? t.primary_color.trim() : null,
       isHuman: humanTeamIds.has(r.teamId),
       ownerName,
       eaUsername,
