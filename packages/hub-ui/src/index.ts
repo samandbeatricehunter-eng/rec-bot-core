@@ -22,7 +22,7 @@ export { ProTrackerCard, type ProTrackerPlayerLine } from "../../../apps/web/src
 export type { HubMatchupGame } from "../../../apps/web/src/types/api.js";
 export { LeagueMgmtHome } from "../../../apps/web/src/routes/league-mgmt/LeagueMgmtHome.js";
 export { ManageLeagueHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/ManageLeagueHome.js";
-export { NflPlayoffBracket, DesktopBracket as NflPlayoffBracketDesktop } from "../../../apps/web/src/routes/league-mgmt/manage-league/NflPlayoffBracket.js";
+export { NflPlayoffBracket, DesktopBracket as NflPlayoffBracketDesktop, PlayoffPictureBoard } from "../../../apps/web/src/routes/league-mgmt/manage-league/NflPlayoffBracket.js";
 export { TeamScheduleForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamScheduleForm.js";
 export { TeamRosterForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamRosterForm.js";
 export { RosterPoolEditor } from "../../../apps/web/src/routes/league-mgmt/manage-league/RosterPoolEditor.js";

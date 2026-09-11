@@ -349,6 +349,8 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
       teamId: r.teamId,
       teamName: teamDisplayName(t),
       abbr: t?.display_abbr ?? t?.abbreviation ?? null,
+      city: typeof t?.display_city === "string" && t.display_city.trim() ? t.display_city.trim() : null,
+      nick: typeof t?.display_nick === "string" && t.display_nick.trim() ? t.display_nick.trim() : null,
       conference: t?.conference ?? null,
       division: t?.division ?? null,
       primaryColor: typeof t?.primary_color === "string" && t.primary_color.trim() ? t.primary_color.trim() : null,

@@ -137,6 +137,176 @@
 
 .nfl-bracket-legend { max-width: 1240px; margin: var(--space-4) auto 0; font-size: 11px; color: var(--text-secondary); border-top: 1px solid var(--border); padding-top: 12px; text-align: center; }
 
+/* —— Broadcast playoff picture board (AFC red / NFC blue) —— */
+.nfl-picture-board {
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.12);
+  background: #0a0c10;
+  color: #fff;
+}
+.nfl-picture-header {
+  display: grid;
+  gap: 4px;
+  padding: 20px 20px 14px;
+  text-align: center;
+  background:
+    linear-gradient(90deg, #7a121c 0%, #5a0e16 46%, #10284f 54%, #0c1c3a 100%);
+}
+.nfl-picture-header h1 {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--font-display);
+  font-size: clamp(30px, 5.2vw, 48px);
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 10px rgba(0,0,0,.45);
+}
+.nfl-picture-header p {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(13px, 1.9vw, 18px);
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  opacity: .95;
+}
+.nfl-picture-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.nfl-picture-conf {
+  display: grid;
+  gap: 20px;
+  padding: 18px 20px 24px;
+  align-content: start;
+}
+.nfl-picture-conf[data-conf="afc"] {
+  background: linear-gradient(180deg, #6f1018 0%, #4a0b11 100%);
+}
+.nfl-picture-conf[data-conf="nfc"] {
+  background: linear-gradient(180deg, #12305a 0%, #0b1c38 100%);
+}
+.nfl-picture-conf > h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.nfl-picture-section {
+  display: grid;
+  gap: 10px;
+}
+.nfl-picture-section > h3 {
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.6vw, 30px);
+  letter-spacing: .1em;
+  text-shadow: 0 2px 10px rgba(0,0,0,.55);
+}
+.nfl-picture-wc-list {
+  display: grid;
+  gap: 14px;
+}
+.nfl-picture-matchup {
+  display: grid;
+  gap: 5px;
+}
+.nfl-picture-matchup-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.nfl-picture-at {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(120,128,140,.85);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+.nfl-picture-seed-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  padding: 0 2px;
+  font: 800 12px/1 var(--font-sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 4px rgba(0,0,0,.45);
+}
+.nfl-picture-seed-labels span:first-child { text-align: left; }
+.nfl-picture-seed-labels span:last-child { text-align: right; }
+.nfl-picture-seed-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 84px;
+  overflow: hidden;
+  border: 1.5px solid rgba(235,240,245,.9);
+  background: var(--team, #222);
+  box-shadow: 0 8px 18px rgba(0,0,0,.4);
+}
+.nfl-picture-seed-tile.is-wide {
+  min-height: 102px;
+  justify-items: end;
+  padding: 0 22px 0 0;
+}
+.nfl-picture-seed-tile.is-wide strong {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-size: clamp(30px, 4.2vw, 46px);
+  letter-spacing: .04em;
+  text-shadow: 0 2px 10px rgba(0,0,0,.5);
+}
+.nfl-picture-seed-tile:not(.is-wide) strong { display: none; }
+.nfl-picture-seed-tile.is-empty {
+  color: rgba(255,255,255,.7);
+  font: 800 12px var(--font-sans);
+  letter-spacing: .1em;
+  background: rgba(0,0,0,.25);
+}
+.nfl-picture-seed-logo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 145% !important;
+  height: 160% !important;
+  max-width: none !important;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,.45));
+  opacity: .98;
+}
+.nfl-picture-seed-tile.is-wide .nfl-picture-seed-logo {
+  left: -6%;
+  width: 78% !important;
+  height: 170% !important;
+  transform: translateY(-50%);
+}
+@media (max-width: 760px) {
+  .nfl-picture-split { grid-template-columns: 1fr; }
+  .nfl-picture-header {
+    background: linear-gradient(180deg, #7a121c 0%, #10284f 100%);
+  }
+}
+
 @media (max-width: 900px) {
   /* Inline gridColumn/gridRow styles are simply inert once the parent stops being a grid, so
      this just stacks every column (in DOM order: AFC WC -> AFC DIV -> AFC CONF -> center -> NFC

@@ -166,6 +166,100 @@ export function DesktopBracket({ picture }: { picture: NflPlayoffPicture }) {
   );
 }
 
+function SeedTile({ team, seed, wide = false }: { team: NflTeamSummary; seed: number; wide?: boolean }) {
+  return (
+    <div
+      className={`nfl-picture-seed-tile${wide ? " is-wide" : ""}`}
+      style={team.primaryColor ? ({ "--team": team.primaryColor } as CSSProperties) : undefined}
+    >
+      <TeamLogo abbreviation={team.abbreviation} logoUrl={team.logoUrl} alt={team.name} className="nfl-picture-seed-logo" priority />
+      <strong>{seed} SEED</strong>
+    </div>
+  );
+}
+
+function PictureMatchup({ home, away }: {
+  home: { team: NflTeamSummary; seed: number } | null;
+  away: { team: NflTeamSummary; seed: number } | null;
+}) {
+  return (
+    <div className="nfl-picture-matchup">
+      <div className="nfl-picture-matchup-row">
+        {away ? <SeedTile team={away.team} seed={away.seed} /> : <div className="nfl-picture-seed-tile is-empty">TBD</div>}
+        <span className="nfl-picture-at">@</span>
+        {home ? <SeedTile team={home.team} seed={home.seed} /> : <div className="nfl-picture-seed-tile is-empty">TBD</div>}
+      </div>
+      <div className="nfl-picture-seed-labels">
+        <span>{away ? `${away.seed} SEED` : "—"}</span>
+        <span>{home ? `${home.seed} SEED` : "—"}</span>
+      </div>
+    </div>
+  );
+}
+
+function conferenceSeeds(picture: NflPlayoffPicture, conference: "AFC" | "NFC") {
+  return [...(picture.conferences.find((c) => c.conference === conference)?.seeds ?? [])]
+    .sort((a, b) => a.seed - b.seed);
+}
+
+/** Broadcast-style playoff picture board (AFC red / NFC blue) used for live projections
+ *  and Discord screenshots. Pairings follow NFL wild-card seeding: 2@7, 3@6, 4@5, with #1 bye. */
+export function PlayoffPictureBoard({ picture }: { picture: NflPlayoffPicture }) {
+  const week = picture.league.currentWeek;
+  const afc = conferenceSeeds(picture, "AFC");
+  const nfc = conferenceSeeds(picture, "NFC");
+  const bySeed = (list: typeof afc, seed: number) => list.find((s) => s.seed === seed) ?? null;
+  const pair = (list: typeof afc, homeSeed: number, awaySeed: number) => ({
+    home: bySeed(list, homeSeed),
+    away: bySeed(list, awaySeed),
+  });
+
+  return (
+    <div className="nfl-picture-board" data-bracket-render-root="">
+      <header className="nfl-picture-header">
+        <h1><span>PLAYOFF</span><span>PICTURE</span></h1>
+        <p>THROUGH WEEK {week}</p>
+      </header>
+      <div className="nfl-picture-split">
+        <section className="nfl-picture-conf" data-conf="afc">
+          <h2>AFC</h2>
+          <div className="nfl-picture-section">
+            <h3>DIVISIONAL ROUND</h3>
+            {bySeed(afc, 1)
+              ? <SeedTile team={bySeed(afc, 1)!.team} seed={1} wide />
+              : <div className="nfl-picture-seed-tile is-wide is-empty">1 SEED TBD</div>}
+          </div>
+          <div className="nfl-picture-section">
+            <h3>WILD CARD ROUND</h3>
+            <div className="nfl-picture-wc-list">
+              <PictureMatchup {...pair(afc, 2, 7)} />
+              <PictureMatchup {...pair(afc, 3, 6)} />
+              <PictureMatchup {...pair(afc, 4, 5)} />
+            </div>
+          </div>
+        </section>
+        <section className="nfl-picture-conf" data-conf="nfc">
+          <h2>NFC</h2>
+          <div className="nfl-picture-section">
+            <h3>DIVISIONAL ROUND</h3>
+            {bySeed(nfc, 1)
+              ? <SeedTile team={bySeed(nfc, 1)!.team} seed={1} wide />
+              : <div className="nfl-picture-seed-tile is-wide is-empty">1 SEED TBD</div>}
+          </div>
+          <div className="nfl-picture-section">
+            <h3>WILD CARD ROUND</h3>
+            <div className="nfl-picture-wc-list">
+              <PictureMatchup {...pair(nfc, 2, 7)} />
+              <PictureMatchup {...pair(nfc, 3, 6)} />
+              <PictureMatchup {...pair(nfc, 4, 5)} />
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 export function NflPlayoffBracket() {
   const { guildId } = useReadyAuth();
   const navigate = useNavigate();
@@ -182,9 +276,6 @@ export function NflPlayoffBracket() {
       .catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load the playoff picture."));
   }, [guildId]);
 
-  // Once the live picture comes back not-yet-unlocked (new season's week has reset below the
-  // projection threshold), check for a settled bracket from the most recently completed season
-  // instead of just showing "not unlocked yet" over a postseason that already happened.
   useEffect(() => {
     if (!picture || picture.showBracket) return;
     recApi.getNflPlayoffBracketSnapshot(guildId)
@@ -195,7 +286,7 @@ export function NflPlayoffBracket() {
   return (
     <div className="nfl-bracket-page">
       {showStandingsBack && <button type="button" className="hub-page-back" onClick={() => navigate("../standings")}>← Back to Standings</button>}
-      <PageHeader title="Playoff Bracket" subtitle="Real NFL seeding computed automatically from your league's standings — reseeds live as every round plays out." />
+      <PageHeader title="Playoff Picture" subtitle="Real NFL seeding computed automatically from your league's standings — reseeds live as every round plays out." />
       {error && <ErrorState message={error} />}
       {!picture && !error && <LoadingState label="Loading the playoff picture…" />}
 
@@ -220,13 +311,17 @@ export function NflPlayoffBracket() {
 
       {picture && picture.showBracket && (
         <>
-          <div className="nfl-bracket-meta">
-            {picture.isLiveProjection ? <span className="is-live">● Live Projection</span> : <span className="is-live">● Postseason</span>}
-            <span>Week {picture.league.currentWeek}</span>
-          </div>
-
-          <Card><DesktopBracket picture={picture} /></Card>
-
+          {picture.isLiveProjection ? (
+            <PlayoffPictureBoard picture={picture} />
+          ) : (
+            <>
+              <div className="nfl-bracket-meta">
+                <span className="is-live">● Postseason</span>
+                <span>Week {picture.league.currentWeek}</span>
+              </div>
+              <Card><DesktopBracket picture={picture} /></Card>
+            </>
+          )}
           <p className="nfl-bracket-legend">
             Seven teams per conference — the No. 1 seed gets the first-round bye, and each
             conference reseeds (lowest surviving seed vs. highest) after every round.

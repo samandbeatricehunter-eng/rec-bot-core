@@ -158,37 +158,42 @@ export function MatchupCard({
       onClick={passive ? stopCardNav : undefined}
       onPointerDown={passive ? stopCardNav : undefined}
     >
-      <span className="rec-matchup-card__sheen" aria-hidden="true" />
       {game.streams.length > 0 && !game.isFinal && <span className="rec-matchup-card__live">Live</span>}
-      <div className="rec-matchup-card__team rec-matchup-card__team--away" style={{ "--team-color": game.awayTeamColor, "--team-text": readableText(game.awayTeamColor) } as CSSProperties}>
-        <TeamLogo abbreviation={game.awayTeamAbbr} logoUrl={game.awayTeamLogoUrl} alt={game.awayTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />
-        <span className="rec-matchup-card__team-text">
-          {schoolLine(game.awayTeamName, game.awayTeamMascot) && <small>{schoolLine(game.awayTeamName, game.awayTeamMascot)}</small>}
-          <strong>{game.awayTeamMascot}</strong>
-          {game.forceWinSide === "away" && <em className="rec-matchup-card__force-win-tag">Force Win</em>}
-          {teamMetaLine(game.awayTeamRank, game.awayTeamRecord) && <em className="rec-matchup-card__team-meta">{teamMetaLine(game.awayTeamRank, game.awayTeamRecord)}</em>}
-        </span>
-      </div>
-      <div className="rec-matchup-card__center">
-        {topTag}
-        <div className="rec-matchup-card__result">
-          {game.isFinal && game.awayScore != null && game.homeScore != null
-            ? <><b>{game.awayScore}</b><span>Final</span><b>{game.homeScore}</b></>
-            : <span className="rec-matchup-card__at">@</span>}
+      <div className="rec-matchup-card__board">
+        <div className="rec-matchup-card__team rec-matchup-card__team--away" style={{ "--team-color": game.awayTeamColor, "--team-text": readableText(game.awayTeamColor) } as CSSProperties}>
+          <TeamLogo abbreviation={game.awayTeamAbbr} logoUrl={game.awayTeamLogoUrl} alt={game.awayTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />
+          <span className="rec-matchup-card__team-text">
+            {schoolLine(game.awayTeamName, game.awayTeamMascot) && <small>{schoolLine(game.awayTeamName, game.awayTeamMascot)}</small>}
+            <strong>{game.awayTeamMascot}</strong>
+            {game.forceWinSide === "away" && <em className="rec-matchup-card__force-win-tag">Force Win</em>}
+            {teamMetaLine(game.awayTeamRank, game.awayTeamRecord) && <em className="rec-matchup-card__team-meta">{teamMetaLine(game.awayTeamRank, game.awayTeamRecord)}</em>}
+          </span>
         </div>
-        {!game.isFinal && game.scheduledFor && <span className="rec-matchup-card__scheduled-time">{formatScheduledTime(game.scheduledFor)}</span>}
-        {game.matchupType !== "h2h" && <small>CPU</small>}
-        {bottomTags.length > 0 && <div className="rec-matchup-card__ctag rec-matchup-card__ctag--bottom">{bottomTags}</div>}
+        <div className="rec-matchup-card__center">
+          {topTag}
+          <div className="rec-matchup-card__result">
+            {game.isFinal && game.awayScore != null && game.homeScore != null
+              ? <><b>{game.awayScore}</b><span>Final</span><b>{game.homeScore}</b></>
+              : <span className="rec-matchup-card__at">VS</span>}
+          </div>
+          {game.matchupType !== "h2h" && <small>CPU</small>}
+          {bottomTags.length > 0 && <div className="rec-matchup-card__ctag rec-matchup-card__ctag--bottom">{bottomTags}</div>}
+        </div>
+        <div className="rec-matchup-card__team rec-matchup-card__team--home" style={{ "--team-color": game.homeTeamColor, "--team-text": readableText(game.homeTeamColor) } as CSSProperties}>
+          <span className="rec-matchup-card__team-text">
+            {schoolLine(game.homeTeamName, game.homeTeamMascot) && <small>{schoolLine(game.homeTeamName, game.homeTeamMascot)}</small>}
+            <strong>{game.homeTeamMascot}</strong>
+            {game.forceWinSide === "home" && <em className="rec-matchup-card__force-win-tag">Force Win</em>}
+            {teamMetaLine(game.homeTeamRank, game.homeTeamRecord) && <em className="rec-matchup-card__team-meta">{teamMetaLine(game.homeTeamRank, game.homeTeamRecord)}</em>}
+          </span>
+          <TeamLogo abbreviation={game.homeTeamAbbr} logoUrl={game.homeTeamLogoUrl} alt={game.homeTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />
+        </div>
       </div>
-      <div className="rec-matchup-card__team rec-matchup-card__team--home" style={{ "--team-color": game.homeTeamColor, "--team-text": readableText(game.homeTeamColor) } as CSSProperties}>
-        <span className="rec-matchup-card__team-text">
-          {schoolLine(game.homeTeamName, game.homeTeamMascot) && <small>{schoolLine(game.homeTeamName, game.homeTeamMascot)}</small>}
-          <strong>{game.homeTeamMascot}</strong>
-          {game.forceWinSide === "home" && <em className="rec-matchup-card__force-win-tag">Force Win</em>}
-          {teamMetaLine(game.homeTeamRank, game.homeTeamRecord) && <em className="rec-matchup-card__team-meta">{teamMetaLine(game.homeTeamRank, game.homeTeamRecord)}</em>}
-        </span>
-        <TeamLogo abbreviation={game.homeTeamAbbr} logoUrl={game.homeTeamLogoUrl} alt={game.homeTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />
-      </div>
+      {!game.isFinal && game.scheduledFor ? (
+        <div className="rec-matchup-card__meta-bar">{formatScheduledTime(game.scheduledFor)}</div>
+      ) : game.isFinal ? (
+        <div className="rec-matchup-card__meta-bar">FINAL</div>
+      ) : null}
       {reactionsEnabled && !reactionsBelow ? (
         <div className="rec-matchup-card__reactions" onClick={stopCardNav} onPointerDown={stopCardNav}>
           <MatchupReactionBar

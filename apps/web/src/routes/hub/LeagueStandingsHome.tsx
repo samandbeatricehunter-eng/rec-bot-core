@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
+import { getTeamByAbbreviation, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -62,11 +62,28 @@ function contrastingInk(hex: string) {
   return luma > 0.62 ? "#111111" : "#ffffff";
 }
 
+function teamIdentity(team: PowerRankingTeam): { city: string; nick: string } {
+  const abbr = resolveTeamLogoAbbr(team.abbr);
+  const catalog = abbr ? getTeamByAbbreviation(abbr) : undefined;
+  let nick = team.nick?.trim() || "";
+  let city = team.city?.trim() || "";
+  if ((!nick || !city) && catalog?.name) {
+    const parts = catalog.name.trim().split(/\s+/);
+    if (!nick) nick = parts[parts.length - 1] ?? "";
+    if (!city) city = parts.slice(0, -1).join(" ");
+  }
+  if ((!nick || !city) && team.teamName) {
+    const parts = team.teamName.trim().split(/\s+/);
+    if (!nick) nick = parts[parts.length - 1] ?? team.teamName;
+    if (!city && parts.length > 1) city = parts.slice(0, -1).join(" ");
+  }
+  return { city: city || team.abbr || "", nick: nick || team.teamName };
+}
+
 function sortStandings(a: PowerRankingTeam, b: PowerRankingTeam) {
   return winPct(b) - winPct(a) || b.wins - a.wins || a.teamName.localeCompare(b.teamName);
 }
 
-/** Conference rank map (1 = best win pct in that conference). */
 function useConferenceRanks(teams: PowerRankingTeam[]) {
   return useMemo(() => {
     const byConference = new Map<"NFC" | "AFC", PowerRankingTeam[]>();
@@ -122,13 +139,23 @@ function StandingTeamBlock({
 }) {
   const color = teamPrimaryColor(team);
   const ink = contrastingInk(color);
+  const { city, nick } = teamIdentity(team);
   return (
     <article
       className={`hub-div-standing-team${team.playoffMarker === "Y" || team.playoffMarker === "Z" ? " is-division-leader" : ""}`}
       style={{ ["--team-color" as string]: color, ["--team-ink" as string]: ink }}
       title={team.teamName}
     >
-      <TeamLogo abbreviation={team.abbr} alt={team.teamName} className="hub-div-standing-logo" priority />
+      <div className="hub-div-standing-logo-wrap" aria-hidden={!team.abbr}>
+        <TeamLogo abbreviation={team.abbr} alt="" className="hub-div-standing-logo" priority />
+      </div>
+      <div className="hub-div-standing-identity">
+        {city ? <small className="hub-div-standing-city">{city}</small> : null}
+        <strong className="hub-div-standing-nick">
+          {nick}
+          {team.rank ? <span className="hub-div-standing-power"> (#{team.rank})</span> : null}
+        </strong>
+      </div>
       <strong className="hub-div-standing-record">{formatRecord(team)}</strong>
       {conferenceRank != null ? <span className="hub-div-standing-conf-rank">{conferenceRank}</span> : null}
       {team.playoffMarker ? <span className="hub-div-standing-marker">{team.playoffMarker}</span> : null}
