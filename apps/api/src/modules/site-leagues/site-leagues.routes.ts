@@ -4,6 +4,7 @@ import { sendError } from "../../lib/errors.js";
 import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
   getSiteLeagueTicker,
+  getSiteMediaDayChallengeReveal,
   getSiteMediaDayGateStatus,
   getSiteMediaDayInterview,
   getSiteRewardsRecap,
@@ -146,6 +147,19 @@ export async function siteLeaguesRoutes(app: FastifyInstance) {
       }).parse(request.body ?? {});
       return reply.send(
         await submitSiteMediaDayAnswer({ recUserId: user.recUserId, ...body }),
+      );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-leagues/media-day-challenge-reveal", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({ leagueId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(
+        await getSiteMediaDayChallengeReveal({ recUserId: user.recUserId, leagueId: body.leagueId }),
       );
     } catch (error) {
       return sendError(reply, error);

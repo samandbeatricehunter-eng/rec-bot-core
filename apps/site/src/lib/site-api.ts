@@ -1163,6 +1163,13 @@ export const siteApi = {
   submitMediaDayAnswer(input: { leagueId: string; side: "offense" | "defense"; questionId: string; answerKey: string }) {
     return request<{ complete: boolean }>("/v1/site-leagues/media-day-answer", input);
   },
+  getMediaDayChallengeReveal(leagueId: string) {
+    return request<Array<{
+      side: "offense" | "defense";
+      challengeName: string;
+      tiers: Array<{ tier: "bronze" | "silver" | "gold"; lines: string[] }>;
+    }>>("/v1/site-leagues/media-day-challenge-reveal", { leagueId });
+  },
   listNotifications() {
     return request<{
       regular: SiteNotificationItem[];

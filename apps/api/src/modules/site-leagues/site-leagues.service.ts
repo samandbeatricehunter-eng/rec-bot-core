@@ -941,6 +941,12 @@ export async function submitSiteMediaDayAnswer(input: { recUserId: string; leagu
   return submitMyMediaDayAnswer({ guildId: context.guildId, discordId: context.discordId, side: input.side, questionId: input.questionId, answerKey: input.answerKey });
 }
 
+export async function getSiteMediaDayChallengeReveal(input: { recUserId: string; leagueId: string }) {
+  const context = await openSiteLeagueHubContext(input);
+  const { getMyMediaDayChallengeReveal } = await import("../media-day/media-day-interview.service.js");
+  return getMyMediaDayChallengeReveal({ guildId: context.guildId, discordId: context.discordId });
+}
+
 export type SiteLeagueSearchFilters = {
   q?: string;
   game?: string;

@@ -6,7 +6,7 @@
 // media-day-gate.service.ts's requiredSubjectKeysForUser).
 import {
   mediaDayAnswerOptions, pickMediaDayQuestion, renderMediaDayTemplate, tweetFixedAccounts,
-  type WeeklyChallengeSide,
+  weeklyChallengeTierRequirementLines, type WeeklyChallengeSide, type WeeklyChallengeTier,
 } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -156,6 +156,18 @@ export async function submitMyMediaDayAnswer(input: {
     answer_intent: option.intent,
   }, { onConflict: "period_id,user_id,subject_key,side" });
 
+  // Logged as a real media_statement event -- gives the already-shipped claim-plan tweet engine
+  // and story-arc system (Phase 1c) a verified fact to reference later ("the team said X going
+  // into this game"), the concrete way this week's answers stay "tied into" the league's ongoing
+  // narrative without inventing a separate, parallel tracking mechanism. Best-effort: a logging
+  // failure must never block the answer itself from saving.
+  const { logMediaEvent } = await import("../immortality/media-events.service.js");
+  await logMediaEvent({
+    leagueId: context.leagueId, seasonNumber, weekNumber, eventType: "media_statement",
+    teamId, userId, importanceScore: 20,
+    facts: { factLine: `${teamName} on ${input.side}: "${questionText}" -> "${option.text}"`, side: input.side, challengeId: issued.entry.id, questionId: variant.id, answerKey: option.key, intent: option.intent },
+  }).catch((error) => console.error("[ERROR] logMediaEvent for Media Day answer failed (non-fatal):", error));
+
   const answers = await supabase.from("rec_media_day_challenge_answers").select("side").eq("period_id", periodId).eq("user_id", userId);
   const answeredSides = new Set((answers.data ?? []).map((row) => String(row.side)));
   const complete = SIDES.every((side) => answeredSides.has(side));
@@ -165,4 +177,40 @@ export async function submitMyMediaDayAnswer(input: {
     }, { onConflict: "period_id,user_id,subject_key", ignoreDuplicates: true });
   }
   return { complete };
+}
+
+export type MediaDayChallengeReveal = {
+  side: WeeklyChallengeSide;
+  challengeName: string;
+  tiers: Array<{ tier: WeeklyChallengeTier; lines: string[] }>;
+};
+
+/** Shown right after both sides are answered: the challenge names (secret until now) and their
+ * cumulative stat-line requirements per tier -- never raw Bronze/Silver/Gold point values, just
+ * what the team is actually being held to. */
+export async function getMyMediaDayChallengeReveal(input: { guildId: string; discordId: string }): Promise<MediaDayChallengeReveal[]> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = Number(league.season_number ?? league.display_season_number ?? 1);
+  const weekNumber = Number(league.current_week ?? 1);
+
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
+  const userId = account.data?.user_id ? String(account.data.user_id) : null;
+  const assignment = userId
+    ? await supabase.from("rec_team_assignments").select("team_id")
+        .eq("league_id", context.leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle()
+    : { data: null as { team_id: string } | null };
+  const teamId = assignment.data?.team_id ? String(assignment.data.team_id) : null;
+  if (!teamId) return [];
+
+  const reveals: MediaDayChallengeReveal[] = [];
+  for (const side of SIDES) {
+    const issued = await resolveIssuedEntry({ leagueId: context.leagueId, teamId, seasonNumber, weekNumber, side });
+    if (!issued) continue;
+    reveals.push({
+      side, challengeName: issued.entry.name,
+      tiers: (["bronze", "silver", "gold"] as const).map((tier) => ({ tier, lines: weeklyChallengeTierRequirementLines(issued.entry, tier) })),
+    });
+  }
+  return reveals;
 }

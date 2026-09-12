@@ -19,6 +19,7 @@
 // 200 entries (70 offense, 68 defense, all 10 special-teams) are fully gradable as a result.
 import type { StatKey as PlayerStatKey } from "../immortality/challenges.js";
 import { PLAYER_XP_CHALLENGE_POINTS, FRANCHISE_XP_CHALLENGE_POINTS } from "../xp-economy.js";
+import { getStatLabel } from "../stats/index.js";
 
 export type WeeklyChallengeSide = "offense" | "defense" | "special_teams";
 export type WeeklyChallengeTier = "bronze" | "silver" | "gold";
@@ -189,6 +190,69 @@ export function evaluateWeeklyChallengeTiers(entry: WeeklyChallengeEntry, ctx: W
     { tier: "silver", complete: silverOk },
     { tier: "gold", complete: goldOk },
   ];
+}
+
+// Labels for the handful of TeamStatKey/AggStatKey/PlayerStat values getStatLabel doesn't cover
+// (either team/agg-scoped keys with no player-stat-page equivalent, or the 3 derived-per-game
+// fields computed only here -- see derivedPlayerFields in weekly-challenge-context.service.ts).
+const CONDITION_STAT_LABEL_OVERRIDES: Partial<Record<TeamStatKey | AggStatKey | PlayerStat, string>> = {
+  points_against: "points allowed", off_yards_gained: "total yards", off_rush_yards: "rushing yards",
+  off_pass_yards: "passing yards", off_first_down: "first downs", turnovers_committed: "turnovers",
+  red_zone_off_percentage: "red zone efficiency", generated_turnovers: "takeaways",
+  yards_allowed: "total yards allowed", first_downs_allowed: "first downs allowed",
+  red_zone_def_percentage: "red zone defense", total_tds: "total touchdowns",
+  completion_pct_team: "completion percentage", scrimmage_yards: "yards from scrimmage",
+  total_tds_player: "touchdowns", sacks_and_tackles: "sacks and tackles",
+};
+
+function conditionStatLabel(stat: string): string {
+  return CONDITION_STAT_LABEL_OVERRIDES[stat as TeamStatKey | AggStatKey | PlayerStat] ?? getStatLabel(stat).toLowerCase();
+}
+
+function comparisonPhrase(op: CompareOp, value: number): string {
+  if (op === "gte") return `${value}+`;
+  if (op === "lte") return `under ${value}`;
+  return `fewer than ${value}`;
+}
+
+const ROLE_POSITION_LABEL: Record<RolePosition, string> = {
+  QB: "your quarterback", HB: "your running back", RECEIVER: "a receiver", TE: "your tight end",
+  DEFENDER: "a defender", RUSHER: "a rusher", ANY: "a player", OFFENSE_ANY: "an offensive player",
+};
+
+/** Renders one structured condition as a plain football-media requirement line -- e.g.
+ * "40+ rushing yards", "win the game", "your quarterback: 250+ passing yards". Used by the
+ * Media Day Challenge Reveal to show what the team is actually being held to without ever
+ * surfacing the raw Bronze/Silver/Gold tier machinery. */
+export function describeWeeklyChallengeCondition(condition: WeeklyChallengeCondition): string {
+  switch (condition.kind) {
+    case "team": return `${comparisonPhrase(condition.op, condition.value)} ${conditionStatLabel(condition.stat)}`;
+    case "agg": return `${comparisonPhrase(condition.op, condition.value)} ${conditionStatLabel(condition.stat)}`;
+    case "agg_opponent": return `hold the opponent to ${comparisonPhrase(condition.op, condition.value)} ${conditionStatLabel(condition.stat)}`;
+    case "agg_eq": return `${conditionStatLabel(condition.statA)} at least matching ${conditionStatLabel(condition.statB)}`;
+    case "team_margin_turnover": return `win the turnover margin by ${comparisonPhrase(condition.op, condition.value)}`;
+    case "result": return "win the game";
+    case "win_away": return "win on the road";
+    case "margin": return `win by ${comparisonPhrase(condition.op, condition.value)} points`;
+    case "role": {
+      const who = ROLE_POSITION_LABEL[condition.position];
+      const stat = conditionStatLabel(condition.stat);
+      const threshold = comparisonPhrase(condition.op, condition.value);
+      if (condition.mode === "count") return `${condition.minCount ?? 1}+ ${who === "a player" ? "players" : who} with ${threshold} ${stat}`;
+      return `${who}: ${threshold} ${stat}`;
+    }
+    case "all": return condition.parts.map(describeWeeklyChallengeCondition).join(" and ");
+    default: return "";
+  }
+}
+
+/** Every requirement line for one tier, cumulative per the catalog's stacking rule (silver =
+ * bronze's lines plus its own adds, gold = all three) -- exactly what the Challenge Reveal shows
+ * per tier, in the order the plan calls for: "bronze is X, silver is bronze + Y, gold is
+ * bronze + silver + Z." */
+export function weeklyChallengeTierRequirementLines(entry: WeeklyChallengeEntry, tier: WeeklyChallengeTier): string[] {
+  const conditions = tier === "bronze" ? entry.bronze : tier === "silver" ? [...entry.bronze, ...entry.silverAdds] : [...entry.bronze, ...entry.silverAdds, ...entry.goldAdds];
+  return conditions.map(describeWeeklyChallengeCondition);
 }
 
 // PLAYER_XP_ENGINE.md "PLAYER challenge PPP": Bronze 600 / Silver 1,200 / Gold 1,800 -- was a

@@ -80,10 +80,45 @@ function RewardsRecapScreen({ leagueId, onContinue }: { leagueId: string; onCont
   );
 }
 
+const TIER_TITLE: Record<"bronze" | "silver" | "gold", string> = { bronze: "Bronze", silver: "Silver", gold: "Gold" };
+
+function ChallengeRevealScreen({ leagueId, onContinue }: { leagueId: string; onContinue: () => void }) {
+  const [reveal, setReveal] = useState<Awaited<ReturnType<typeof siteApi.getMediaDayChallengeReveal>> | null>(null);
+
+  useEffect(() => {
+    void siteApi.getMediaDayChallengeReveal(leagueId).then(setReveal).catch(() => setReveal([]));
+  }, [leagueId]);
+
+  return (
+    <div className="media-day-gate-recap">
+      <p className="media-day-gate-eyebrow">This week's challenge</p>
+      {!reveal && <p>Loading...</p>}
+      {reveal?.map((entry) => (
+        <div key={entry.side} className="media-day-gate-recap-subject">
+          <div className="media-day-gate-recap-subject-head">
+            <span>{entry.challengeName}</span>
+            <span className="media-day-gate-eyebrow">{entry.side}</span>
+          </div>
+          {entry.tiers.map((tier) => (
+            <div key={tier.tier}>
+              <p className="media-day-gate-eyebrow">{TIER_TITLE[tier.tier]}</p>
+              <ul className="media-day-gate-recap-lines">
+                {tier.lines.map((line, i) => <li key={i}>{line}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ))}
+      {reveal && <button type="button" className="site-btn site-btn-primary" onClick={onContinue}>Continue to league hub</button>}
+    </div>
+  );
+}
+
 function MediaDayInterviewScreen({ leagueId, onComplete }: { leagueId: string; onComplete: () => void }) {
   const [interview, setInterview] = useState<InterviewResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [revealed, setRevealed] = useState(false);
 
   function load() {
     void siteApi.getMediaDayInterview(leagueId).then(setInterview).catch((err) => setError(err instanceof Error ? err.message : "Couldn't load Media Day."));
@@ -94,12 +129,15 @@ function MediaDayInterviewScreen({ leagueId, onComplete }: { leagueId: string; o
   if (error) return <p className="media-day-gate-eyebrow">{error}</p>;
   if (!interview) return <p>Loading Media Day...</p>;
   if (interview.complete || !interview.questions.length) {
-    return (
-      <div className="media-day-gate-advanced">
-        <h1>All Media Day statements have been recorded</h1>
-        <button type="button" className="site-btn site-btn-primary" onClick={onComplete}>Continue to league hub</button>
-      </div>
-    );
+    if (!revealed) {
+      return (
+        <div className="media-day-gate-advanced">
+          <h1>All Media Day statements have been recorded</h1>
+          <button type="button" className="site-btn site-btn-primary" onClick={() => setRevealed(true)}>See this week's challenge</button>
+        </div>
+      );
+    }
+    return <ChallengeRevealScreen leagueId={leagueId} onContinue={onComplete} />;
   }
 
   const current = interview.questions.find((q) => !q.answered) ?? interview.questions[0]!;
