@@ -1132,6 +1132,17 @@ export const siteApi = {
       missingSubjectKeys: string[];
     }>("/v1/site-leagues/media-day-gate-status", { leagueId });
   },
+  getRewardsRecap(leagueId: string) {
+    return request<{
+      seasonNumber: number;
+      weekNumber: number;
+      subjects: Array<{
+        subjectKey: string; name: string; kind: "player" | "franchise";
+        beforePoints: number; afterPoints: number; beforeXp: number; afterXp: number;
+        lines: Array<{ label: string; points: number }>;
+      }>;
+    }>("/v1/site-leagues/rewards-recap", { leagueId });
+  },
   listNotifications() {
     return request<{
       regular: SiteNotificationItem[];

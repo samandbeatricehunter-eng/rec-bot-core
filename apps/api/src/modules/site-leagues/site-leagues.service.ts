@@ -921,6 +921,14 @@ export async function getSiteMediaDayGateStatus(input: { recUserId: string; leag
   return getMediaDayGateStatus({ guildId: context.guildId, discordId: context.discordId });
 }
 
+/** Rewards Recap for the site's Media Day gate -- same guildId-bridge pattern as the gate status
+ * and ticker above. */
+export async function getSiteRewardsRecap(input: { recUserId: string; leagueId: string }) {
+  const context = await openSiteLeagueHubContext(input);
+  const { getRewardsRecap } = await import("../media-day-gate/rewards-recap.service.js");
+  return getRewardsRecap({ guildId: context.guildId, discordId: context.discordId });
+}
+
 export type SiteLeagueSearchFilters = {
   q?: string;
   game?: string;

@@ -5,7 +5,79 @@ import { siteApi } from "../lib/site-api.js";
 const POLL_MS = 20_000;
 
 type GateStatus = Awaited<ReturnType<typeof siteApi.getMediaDayGateStatus>>;
-type GateStage = "hidden" | "advanced" | "recap" | "media_day" | "reveal";
+type RecapResult = Awaited<ReturnType<typeof siteApi.getRewardsRecap>>;
+type GateStage = "hidden" | "advanced" | "recap" | "week_transition" | "media_day" | "reveal";
+const LINE_REVEAL_MS = 550;
+
+function fractionalPct(xp: number): number {
+  return Math.round((xp - Math.floor(xp)) * 100);
+}
+
+function RewardsRecapScreen({ leagueId, onContinue }: { leagueId: string; onContinue: () => void }) {
+  const [recap, setRecap] = useState<RecapResult | null>(null);
+  const [visibleLines, setVisibleLines] = useState(0);
+
+  useEffect(() => {
+    void siteApi.getRewardsRecap(leagueId).then(setRecap).catch(() => setRecap({ seasonNumber: 0, weekNumber: 0, subjects: [] }));
+  }, [leagueId]);
+
+  const totalLines = recap?.subjects.reduce((sum, s) => sum + s.lines.length, 0) ?? 0;
+
+  useEffect(() => {
+    if (!recap || visibleLines >= totalLines) return;
+    const timer = window.setTimeout(() => setVisibleLines((count) => count + 1), LINE_REVEAL_MS);
+    return () => window.clearTimeout(timer);
+  }, [recap, visibleLines, totalLines]);
+
+  if (!recap) return <p>Loading last week's recap...</p>;
+  if (!recap.subjects.length) {
+    return (
+      <div className="media-day-gate-recap">
+        <p>No new XP to report from last week.</p>
+        <button type="button" className="site-btn site-btn-primary" onClick={onContinue}>Continue</button>
+      </div>
+    );
+  }
+
+  const allRevealed = totalLines > 0 && visibleLines >= totalLines;
+  let seenLines = 0;
+  const subjectsWithCounts = recap.subjects.map((subject) => {
+    const startIndex = seenLines;
+    seenLines += subject.lines.length;
+    return { subject, startIndex };
+  });
+
+  return (
+    <div className="media-day-gate-recap">
+      <p className="media-day-gate-eyebrow">Last week's recap</p>
+      {subjectsWithCounts.map(({ subject, startIndex }) => {
+        const subjectFullyRevealed = visibleLines >= startIndex + subject.lines.length;
+        return (
+          <div key={subject.subjectKey} className="media-day-gate-recap-subject">
+            <div className="media-day-gate-recap-subject-head">
+              <span>{subject.name}</span>
+              <span className="media-day-gate-eyebrow">Level {Math.floor(subject.afterXp)}</span>
+            </div>
+            <div className="media-day-gate-recap-bar">
+              <div
+                className="media-day-gate-recap-bar-fill"
+                style={{ width: `${subjectFullyRevealed ? fractionalPct(subject.afterXp) : fractionalPct(subject.beforeXp)}%` }}
+              />
+            </div>
+            <ul className="media-day-gate-recap-lines">
+              {subject.lines.map((line, i) => (
+                startIndex + i < visibleLines ? <li key={i}>+{line.points.toLocaleString()} — {line.label}</li> : null
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+      {allRevealed && (
+        <button type="button" className="site-btn site-btn-primary" onClick={onContinue}>Continue</button>
+      )}
+    </div>
+  );
+}
 
 /** Post-advance gate: blocks the league page until the user has answered Media Day for the
  * current week/stage. Mounted globally in SiteShell (a sibling of the routed page, never a route
@@ -70,9 +142,12 @@ export function MediaDayGate() {
           </button>
         </div>
       )}
-      {stage === "recap" && (
-        <div className="media-day-gate-advanced">
-          <p>Rewards recap coming soon.</p>
+      {stage === "recap" && status.leagueId && (
+        <RewardsRecapScreen leagueId={status.leagueId} onContinue={() => setStage("week_transition")} />
+      )}
+      {stage === "week_transition" && (
+        <div className="media-day-gate-advanced media-day-gate-week-title">
+          <h1>{status.weekLabel}</h1>
           <button type="button" className="site-btn site-btn-primary" onClick={() => setStage("media_day")}>
             Continue
           </button>

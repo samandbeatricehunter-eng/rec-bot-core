@@ -1589,6 +1589,49 @@ h1, h2, h3, .site-wordmark {
   margin: 0;
   font-size: clamp(28px, 6vw, 48px);
 }
+.media-day-gate-week-title h1 {
+  font-size: clamp(36px, 8vw, 64px);
+  letter-spacing: 0.02em;
+}
+.media-day-gate-recap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(420px, 100%);
+  text-align: left;
+}
+.media-day-gate-recap-subject {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.media-day-gate-recap-subject-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.media-day-gate-recap-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+.media-day-gate-recap-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent, #d9a521);
+  transition: width 900ms ease;
+}
+.media-day-gate-recap-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
 
 /* —— Account menu item (used inside the header's portal-based dropdown panels, see
    HeaderMenu.tsx / .site-header-dropdown-panel) —— */

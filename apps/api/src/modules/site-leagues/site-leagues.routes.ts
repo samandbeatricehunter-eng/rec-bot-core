@@ -5,6 +5,7 @@ import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
   getSiteLeagueTicker,
   getSiteMediaDayGateStatus,
+  getSiteRewardsRecap,
   listOpenTeamsForSiteLeague,
   listMySiteLeagues,
   openSiteLeagueHub,
@@ -101,6 +102,19 @@ export async function siteLeaguesRoutes(app: FastifyInstance) {
       const body = z.object({ leagueId: z.string().uuid() }).parse(request.body ?? {});
       return reply.send(
         await getSiteMediaDayGateStatus({ recUserId: user.recUserId, leagueId: body.leagueId }),
+      );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-leagues/rewards-recap", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({ leagueId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(
+        await getSiteRewardsRecap({ recUserId: user.recUserId, leagueId: body.leagueId }),
       );
     } catch (error) {
       return sendError(reply, error);
