@@ -3640,8 +3640,7 @@ button.poty:disabled {
 .hub-roster-grade-card,
 .league-actions-card,
 .league-mgmt-poll-banner-card,
-.advance-card,
-.pending-item-card {
+.advance-card {
   background: transparent !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -5400,11 +5399,10 @@ button.poty:disabled {
   overflow:hidden;
   border-radius:8px;
   padding:5px 7px;
-  border-color:rgba(255,255,255,.22);
+  border-color:rgba(255,255,255,.28);
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--team-color) 55%, transparent) 0%, color-mix(in srgb, var(--team-color) 42%, transparent) 60%, color-mix(in srgb, var(--team-color) 30%, transparent) 100%),
-    color-mix(in srgb, var(--surface) 88%, black 8%);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.16), inset 0 -1px 0 rgba(0,0,0,.24), 0 2px 6px -3px rgba(0,0,0,.5);
+    linear-gradient(90deg, color-mix(in srgb, var(--team-color) 92%, #fff 8%) 0%, var(--team-color) 42%, color-mix(in srgb, var(--team-color) 72%, #000 28%) 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.28);
 }
 .hub-league-leader-category .rec-stat-player-card-logo {
   position:absolute;
@@ -5416,7 +5414,7 @@ button.poty:disabled {
   max-width:none !important;
   object-fit:contain;
   pointer-events:none;
-  opacity:.5;
+  opacity:.78;
   transform:translateY(-50%) scale(1.2);
   filter:drop-shadow(0 2px 4px rgba(0,0,0,.45));
 }

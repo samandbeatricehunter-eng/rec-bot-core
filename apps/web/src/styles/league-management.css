@@ -627,7 +627,18 @@
 .pending-items-category:hover { color: var(--accent-bright, var(--gold)); }
 .pending-items-category.is-active { color: var(--gold); font-weight: 800; }
 .pending-items-scroll-list { max-height: 420px; overflow-y: auto; }
-.pending-item-card { cursor: pointer; }
+/* A scannable list of many similar items needs its own visible boundary per item -- unlike the
+   big single-panel hub sections that intentionally go chrome-less over the page's themed
+   backdrop (see hub.css's "Free-standing blocks" rule, which this class is deliberately excluded
+   from), a transparent card here left consecutive notifications with no border between them,
+   reading as one run-on block of overlapping badges/text. */
+.pending-item-card {
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
 .pending-item-card-layout { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); flex-wrap: wrap; }
 .pending-item-card-copy { flex: 1 1 240px; min-width: 0; }
 .pending-item-card-heading { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); flex-wrap: wrap; }
@@ -648,6 +659,14 @@
   .pending-item-card-amount { grid-column: 2; grid-row: 1; font-size: var(--text-base); }
 }
 .completed-transaction-list { display: grid; gap: var(--space-3); }
+/* Same fix as .pending-item-card above -- a list of many similar items needs its own visible
+   per-item boundary rather than the transparent free-standing-block default. */
+.completed-transaction-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
 .completed-transaction-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); }
 .completed-transaction-title { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 .completed-transaction-heading p { margin: var(--space-1) 0 0; color: var(--text-secondary); font-size: var(--text-sm); }

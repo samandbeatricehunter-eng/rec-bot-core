@@ -235,7 +235,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
 
 function CompletedTransactions({ transactions }: { transactions: CompletedCommissionerTransaction[] }) {
   if (!transactions.length) return <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>No approved or issued transactions yet.</p></Card>;
-  return <div className="completed-transaction-list">{transactions.map((transaction) => <Card key={transaction.id}>
+  return <div className="completed-transaction-list">{transactions.map((transaction) => <Card key={transaction.id} className="completed-transaction-card">
     <div className="completed-transaction-heading">
       <div><div className="completed-transaction-title"><Badge status="approved">{transaction.statusLabel}</Badge><strong>{transaction.title}</strong></div><p style={{ whiteSpace: "pre-line" }}>{transaction.subtitle}</p></div>
       {transaction.amount != null && <strong className="completed-transaction-amount"><CoinAmount amount={transaction.amount} /></strong>}
