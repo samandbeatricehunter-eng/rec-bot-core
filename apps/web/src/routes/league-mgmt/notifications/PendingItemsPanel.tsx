@@ -94,16 +94,13 @@ function TradeDetail({ payload, fallbackTeams }: { payload: CommissionerNotifica
 // The guts of the commissioner pending-items workflow (category filters, list, review
 // modals) — used by NotificationsHome. Custom-player review opens CustomPlayerReviewModal
 // here rather than sending commissioners to Settings.
-export function PendingItemsPanel({ initialFilter }: { initialFilter?: CommissionerNotificationType | "all" }) {
+export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: CommissionerNotificationType | "all" }) {
   const { guildId } = useReadyAuth();
   const [notifications, setNotifications] = useState<CommissionerNotification[] | null>(null);
   const [completed, setCompleted] = useState<CompletedCommissionerTransaction[] | null>(null);
   const [view, setView] = useState<"pending" | "completed">("pending");
   const [error, setError] = useState<string | null>(null);
-  // initialFilter is accepted for backward compatibility with existing callers that deep-link
-  // into a specific category, but the page itself no longer filters to one category at a time --
-  // every category with something pending gets its own section, always visible together.
-  void initialFilter;
+  const [filter, setFilter] = useState<CommissionerNotificationType | "all">(initialFilter);
   const [activeActiveCheckId, setActiveActiveCheckId] = useState<string | null>(null);
   const [activeEosAwardId, setActiveEosAwardId] = useState<string | null>(null);
   const [activeResolve, setActiveResolve] = useState<CommissionerNotification | null>(null);
@@ -123,11 +120,12 @@ export function PendingItemsPanel({ initialFilter }: { initialFilter?: Commissio
   }
 
   useEffect(load, [guildId]);
-  // EOS Payout rows don't have a useful flat-card click action — they open the ledger UI
-  // instead, under their own always-shown section (same as Stream) rather than as cards.
+  // EOS Payout rows open the ledger UI rather than a notification card.
   const eosNotifications = notifications?.filter((notification) => notification.type === "eos_payout") ?? [];
   const cardNotifications = notifications?.filter((notification) => notification.type !== "eos_payout") ?? [];
-  const sectionTypes = ALL_TYPES.filter((type) => type !== "eos_payout" && (cardNotifications.some((n) => n.type === type) || ALWAYS_VISIBLE_TYPES.includes(type)));
+  const visible = cardNotifications.filter((notification) => filter === "all" || notification.type === filter);
+  const typesPresent = new Set(notifications?.map((notification) => notification.type) ?? []);
+  const showEosLedgers = filter === "eos_payout" || (filter === "all" && eosNotifications.length > 0);
 
   function openNotification(notification: CommissionerNotification) {
     // Custom-player review needs the full identity/attribute-edit UI, not the generic
@@ -204,24 +202,12 @@ export function PendingItemsPanel({ initialFilter }: { initialFilter?: Commissio
       </div>
 
       {view === "pending" ? <>
-        {notifications.length === 0 && <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending right now.</p></Card>}
-        {sectionTypes.map((type) => {
-          const items = cardNotifications.filter((notification) => notification.type === type);
-          return (
-            <section key={type} className="pending-items-section">
-              <h3 className="pending-items-section-heading">{TYPE_LABELS[type]} ({items.length})</h3>
-              {items.length === 0
-                ? <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending here.</p></Card>
-                : <div className="pending-items-scroll-list">{items.map(renderNotificationCard)}</div>}
-            </section>
-          );
-        })}
-        {(eosNotifications.length > 0 || ALWAYS_VISIBLE_TYPES.includes("eos_payout")) && (
-          <section className="pending-items-section">
-            <h3 className="pending-items-section-heading">{TYPE_LABELS.eos_payout}{eosNotifications.length > 0 ? ` (${eosNotifications.length})` : ""}</h3>
-            <EosPayoutLedgers onResolved={(message) => { setNotice(message); load(); window.dispatchEvent(new Event("rec:notifications-changed")); }} />
-          </section>
-        )}
+        <div className="pending-items-category-row" role="group" aria-label="Pending item categories">
+          <button type="button" className={filter === "all" ? "pending-items-category is-active" : "pending-items-category"} aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All ({notifications.length})</button>
+          {ALL_TYPES.filter((type) => typesPresent.has(type) || ALWAYS_VISIBLE_TYPES.includes(type)).map((type) => <button key={type} type="button" className={filter === type ? "pending-items-category is-active" : "pending-items-category"} aria-pressed={filter === type} onClick={() => setFilter(type)}>{TYPE_LABELS[type]} ({notifications.filter((notification) => notification.type === type).length})</button>)}
+        </div>
+        {showEosLedgers && <EosPayoutLedgers onResolved={(message) => { setNotice(message); load(); window.dispatchEvent(new Event("rec:notifications-changed")); }} />}
+        {visible.length > 0 ? <div className="pending-items-scroll-list">{visible.map(renderNotificationCard)}</div> : !showEosLedgers && <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending here.</p></Card>}
       </> : <CompletedTransactions transactions={completed} />}
     </>}
 
