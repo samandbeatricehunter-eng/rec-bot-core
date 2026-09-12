@@ -1121,6 +1121,17 @@ export const siteApi = {
       { leagueId },
     );
   },
+  getMediaDayGateStatus(leagueId: string) {
+    return request<{
+      required: boolean;
+      leagueId: string;
+      seasonNumber: number;
+      weekNumber: number;
+      seasonStage: string;
+      weekLabel: string;
+      missingSubjectKeys: string[];
+    }>("/v1/site-leagues/media-day-gate-status", { leagueId });
+  },
   listNotifications() {
     return request<{
       regular: SiteNotificationItem[];

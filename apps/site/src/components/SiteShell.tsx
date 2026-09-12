@@ -4,6 +4,7 @@ import { SiteFooter } from "./SiteFooter.js";
 import { SiteHeader } from "./SiteHeader.js";
 import { SiteTicker } from "./SiteTicker.js";
 import { GoingLiveModal } from "./GoingLiveModal.js";
+import { MediaDayGate } from "./MediaDayGate.js";
 import { HomeFooterNav, LeagueFooterNav } from "./LeagueFooterNav.js";
 import { useHub } from "../lib/hub-context.js";
 
@@ -45,6 +46,7 @@ export function SiteShell({ children }: { children: ReactNode }) {
       </div>
       <SiteTicker />
       <GoingLiveModal />
+      <MediaDayGate />
     </div>
   );
 }

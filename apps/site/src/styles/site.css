@@ -1559,6 +1559,37 @@ h1, h2, h3, .site-wordmark {
   margin-top: 4px;
 }
 
+/* Media Day post-advance gate -- a full takeover, not a card-on-dim-backdrop like .site-modal,
+   since the "league has advanced" moment is meant to read as a broadcast-style title card. */
+.media-day-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: #000;
+  color: #fff;
+  text-align: center;
+  padding: 20px;
+}
+.media-day-gate-advanced {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+.media-day-gate-eyebrow {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.media-day-gate-advanced h1 {
+  margin: 0;
+  font-size: clamp(28px, 6vw, 48px);
+}
+
 /* —— Account menu item (used inside the header's portal-based dropdown panels, see
    HeaderMenu.tsx / .site-header-dropdown-panel) —— */
 .site-account-menu-item {

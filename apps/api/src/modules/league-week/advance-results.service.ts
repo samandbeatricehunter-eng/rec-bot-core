@@ -884,6 +884,13 @@ export async function completeAdvanceWeek(input: {
     seasonNumber,
   });
 
+  // Media Day gate (Post-Advance Experience): opens the period for the week/stage the league just
+  // advanced INTO. Inert until MEDIA_DAY_GATE_ENABLED is flipped on -- see media-day-gate.service.ts.
+  const { ensureMediaDayPeriodOpen } = await import("../media-day-gate/media-day-gate.service.js");
+  await ensureMediaDayPeriodOpen({
+    leagueId: context.leagueId, seasonNumber, weekNumber: nextTarget.weekNumber, seasonStage: nextTarget.seasonStage,
+  }).catch((err) => console.error("[ERROR] Failed to open Media Day period after advance (non-fatal):", err));
+
   // Player of the Week for the week that JUST completed (currentWeek/currentStage, captured
   // before this advance moved the league forward) -- gameplaySeasonStages excludes preseason
   // and every offseason stage, so this is a no-op there. Idempotent, so a retried advance never

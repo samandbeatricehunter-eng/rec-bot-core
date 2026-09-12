@@ -912,6 +912,15 @@ async function loadSiteLeagueTicker(input: {
   return { items, weekNumber: schedule.currentWeek };
 }
 
+/** Media Day gate status for the site's polling overlay -- resolved from a site session instead
+ * of a guild session, same bridge pattern as getSiteLeagueTicker above. Cheap: no-ops immediately
+ * whenever the gate itself is feature-flagged off (see media-day-gate.service.ts). */
+export async function getSiteMediaDayGateStatus(input: { recUserId: string; leagueId: string }) {
+  const context = await openSiteLeagueHubContext(input);
+  const { getMediaDayGateStatus } = await import("../media-day-gate/media-day-gate.service.js");
+  return getMediaDayGateStatus({ guildId: context.guildId, discordId: context.discordId });
+}
+
 export type SiteLeagueSearchFilters = {
   q?: string;
   game?: string;
