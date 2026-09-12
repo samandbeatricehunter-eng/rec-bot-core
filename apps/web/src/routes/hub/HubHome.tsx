@@ -276,7 +276,7 @@ function RankingListSearch<T>({
 function MaddenMyTeamGrid({
   coachName, my, profile, heroRank, heroUserScore, selectSection, viewMySchedule,
   openMediaDay, setPowerRankingsModalOpen, setBankModalOpen,
-  setFinancialModalOpen, setCareerStatsModalOpen, onOpenWagers, leagueId, isRise, riseHubUnlocked,
+  setFinancialModalOpen, setCareerStatsModalOpen, onOpenWagers, leagueId, isRise,
 }: {
   coachName: string;
   my: any;
@@ -293,7 +293,6 @@ function MaddenMyTeamGrid({
   onOpenWagers: () => void;
   leagueId: string;
   isRise?: boolean;
-  riseHubUnlocked?: boolean;
 }) {
   return <>
     <div className="hub-stat-grid">
@@ -315,11 +314,7 @@ function MaddenMyTeamGrid({
       <div className="hub-my-team-card">
         <p className="hub-eyebrow">Team</p>
         <div className="hub-my-team-card-buttons">
-          {isRise && !riseHubUnlocked ? (
-            <Link className="hub-my-team-btn" to={`/l/${leagueId}/rise`}><strong>Origins</strong><span>Class &amp; builds</span></Link>
-          ) : isRise && riseHubUnlocked ? (
-            <Link className="hub-my-team-btn" to={`/l/${leagueId}/team/progression`}><strong>Progression Tree</strong><span>Perks &amp; promotions</span></Link>
-          ) : !isRise ? (
+          {!isRise ? (
             <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>
           ) : null}
           <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Roster</strong><span>Manage players</span></button>
@@ -338,16 +333,9 @@ function MaddenMyTeamGrid({
       <div className="hub-my-team-card">
         <p className="hub-eyebrow">Finance</p>
         <div className="hub-my-team-card-buttons">
-          {isRise ? (
-            riseHubUnlocked ? (
-              <>
-                <Link className="hub-my-team-btn" to={`/l/${leagueId}/team/upgrades`}><strong>Upgrades</strong><span>Attribute upgrades</span></Link>
-                <Link className="hub-my-team-btn" to={`/l/${leagueId}/team/progression`}><strong>Progression Tree</strong><span>Perks &amp; promotions</span></Link>
-              </>
-            ) : null
-          ) : (
+          {!isRise ? (
             <button type="button" className="hub-my-team-btn" onClick={() => selectSection("store")}><strong>Store</strong><span>Franchise marketplace</span></button>
-          )}
+          ) : null}
           <button type="button" className="hub-my-team-btn" onClick={() => setBankModalOpen(true)}><strong>Bank</strong><span>Wallet &amp; transfers</span></button>
           {isRise ? null : (
             <button type="button" className="hub-my-team-btn" onClick={onOpenWagers}><strong>Wagers</strong><span>Sportsbook</span></button>
@@ -1490,8 +1478,13 @@ export function HubHome() {
         </div>
       </div>
       <div className="hub-stat-grid">
-      <article><span>Coach</span><strong>{coachName}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article><article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
-    </div><div className="hub-profile-sections">
+        <article><span>Coach</span><strong>{coachName}</strong></article>
+        <Link to={`/l/${hub.league.id}/standings`}><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></Link>
+        <Link to={`/l/${hub.league.id}/standings`}><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></Link>
+        <Link to={`/l/${hub.league.id}/matchups`} aria-label="Open my game day matchup"><span>Current matchup</span><strong className="hub-season-snapshot-opponent">{heroOpponent ? heroMatchup?.viewerSide === "home" ? <><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /><em>AT</em><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /></> : <><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /><em>AT</em><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /></> : <><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /><em>—</em></>}</strong></Link>
+        <button type="button" onClick={() => setSnapshotFundsKind("wallet")}><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></button>
+        <button type="button" onClick={() => setSnapshotFundsKind("savings")}><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></button>
+      </div><div className="hub-profile-sections">
       <details open><summary><WalletCards size={18} /> Funds &amp; Savings</summary><div className="hub-profile-panel"><WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} /></div></details>
       <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>PD {Number(profile.seasonRecord?.pointDifferential ?? 0) >= 0 ? "+" : ""}{profile.seasonRecord?.pointDifferential ?? 0} · Streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time (this league)</span><strong>{profile.leagueCareerRecord?.text ?? profile.seasonRecord?.text ?? "0-0-0"}</strong><small>PD {Number(profile.leagueCareerRecord?.pointDifferential ?? 0) >= 0 ? "+" : ""}{profile.leagueCareerRecord?.pointDifferential ?? 0} · Streak {profile.leagueCareerRecord?.activeStreak ?? profile.careerStats?.activeStreak ?? "—"}</small></article><article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? `Score ${heroUserScore}` : "Pending"}</small></article></div></details>
       {!isRise && auth.status === "ready" ? <details open><summary><Award size={18} /> Team Challenges</summary><div className="hub-profile-panel"><WeeklyChallengesCard guildId={auth.guildId} /></div></details> : null}
@@ -1516,7 +1509,6 @@ export function HubHome() {
         onOpenWagers={() => openSportsbook("board")}
         leagueId={hub.league.id}
         isRise={isRise}
-        riseHubUnlocked={riseHubUnlocked}
       />}
       {!isCfbLeague && careerStatsModalOpen && <Modal title="Career Stats" onClose={() => setCareerStatsModalOpen(false)}>
         <ProfileStats values={profile.careerStats} hideBoxScoresUploaded />
