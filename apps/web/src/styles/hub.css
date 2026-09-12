@@ -4411,7 +4411,7 @@ button.poty:disabled {
   background:linear-gradient(180deg,rgba(28,12,12,.96),rgba(10,8,8,.98));
   box-shadow:inset 0 1px 0 rgba(255,120,90,.12),0 10px 28px rgba(0,0,0,.45);
 }
-.hub-season-snapshot-grid article {
+.hub-season-snapshot-grid > :is(article,a,button) {
   position:relative;
   display:flex;
   flex-direction:column;
@@ -4425,25 +4425,19 @@ button.poty:disabled {
   border-radius:8px;
   background:rgba(0,0,0,.35);
   color:#fff;
+  text-decoration:none;
+  font:inherit;
+  cursor:pointer;
 }
-.hub-season-snapshot-grid article > span { color:rgba(255,255,255,.72); font:400 .62rem/.92 "REC Quantico","Arial Narrow",Impact,sans-serif; letter-spacing:.08em; text-transform:uppercase; }
-.hub-season-snapshot-grid article > strong { display:flex; align-items:center; justify-content:center; min-width:0; margin:0; font:700 clamp(.86rem,2vw,1.05rem)/1 "REC Quantico","Arial Narrow",Impact,sans-serif; letter-spacing:.02em; white-space:nowrap; }
+.hub-season-snapshot-grid > :is(a,button):hover { border-color:var(--accent-bright); background:rgba(28,13,13,.65); }
+.hub-season-snapshot-grid > :is(a,button):focus-visible { outline:2px solid var(--accent-bright); outline-offset:2px; }
+.hub-season-snapshot-grid > :is(article,a,button) > span { color:rgba(255,255,255,.72); font:400 .62rem/.92 "REC Quantico","Arial Narrow",Impact,sans-serif; letter-spacing:.08em; text-transform:uppercase; }
+.hub-season-snapshot-grid > :is(article,a,button) > strong { display:flex; align-items:center; justify-content:center; min-width:0; margin:0; font:700 clamp(.86rem,2vw,1.05rem)/1 "REC Quantico","Arial Narrow",Impact,sans-serif; letter-spacing:.02em; white-space:nowrap; }
 .hub-season-snapshot-grid .rec-coin-amount { min-width:0; }
 .hub-season-snapshot-grid .rec-coin-amount svg { width:14px; height:14px; }
 .hub-season-snapshot-opponent .team-logo { width:30px; height:30px; object-fit:contain; }
 .hub-season-snapshot-opponent { gap:6px; }
 .hub-season-snapshot-opponent em { color:rgba(255,255,255,.62); font-size:.58rem; font-style:normal; letter-spacing:.08em; }
-.hub-season-snapshot-matchup { cursor:help; outline:none; }
-.hub-season-snapshot-matchup:focus-visible { border-color:var(--accent-bright); box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 28%,transparent); }
-.hub-season-snapshot-tooltip {
-  position:absolute; z-index:20; left:0; top:calc(100% + 7px); display:none; width:min(330px,82vw); padding:9px 11px;
-  border:1px solid rgba(255,255,255,.2); border-radius:8px; background:rgba(5,7,10,.98); box-shadow:0 10px 30px rgba(0,0,0,.55);
-  color:#f4f5f7 !important; font:700 .68rem/1.35 system-ui,sans-serif !important; letter-spacing:0 !important; text-align:left; text-transform:none !important; white-space:normal;
-}
-.hub-season-snapshot-tooltip > span { display:block; }
-.hub-season-snapshot-tooltip > span + span { margin-top:5px; padding-top:5px; border-top:1px solid rgba(255,255,255,.1); }
-.hub-season-snapshot-matchup:hover .hub-season-snapshot-tooltip,
-.hub-season-snapshot-matchup:focus .hub-season-snapshot-tooltip { display:block; }
 .hub-season-snapshot-secondary { margin-top:8px; }
 .hub-season-form-card strong { gap:4px; }
 .hub-season-form-card strong > em { margin-right:2px; color:#fff; font-size:.8rem; font-style:normal; }
@@ -4457,13 +4451,6 @@ button.poty:disabled {
 .hub-season-team-xp strong svg { color:#b9c2ca; filter:drop-shadow(0 1px 2px #000); }
 .hub-season-team-xp-track { width:80%; height:5px; overflow:hidden; border:1px solid rgba(255,255,255,.12); border-radius:999px; background:rgba(255,255,255,.08); }
 .hub-season-team-xp-track i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#565e66,#d7dde2); box-shadow:0 0 8px rgba(215,221,226,.4); }
-.hub-season-snapshot-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin:8px 0 0 50%; }
-.hub-season-snapshot-actions > button,
-.hub-season-snapshot-actions > a { min-height:54px; }
-.hub-season-snapshot-action { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:7px 10px; border:1px solid rgba(255,255,255,.14); border-radius:8px; background:rgba(0,0,0,.42); color:#fff; text-decoration:none; }
-.hub-season-snapshot-action:hover { border-color:var(--accent-bright); background:color-mix(in srgb,var(--accent) 12%,rgba(0,0,0,.42)); }
-.hub-season-snapshot-action span { color:rgba(255,255,255,.65); font:400 .58rem/1 "REC Quantico","Arial Narrow",Impact,sans-serif; letter-spacing:.08em; text-transform:uppercase; }
-.hub-season-snapshot-action strong { font:700 .84rem/1 "REC Quantico","Arial Narrow",Impact,sans-serif; text-transform:uppercase; }
 .hub-rti-player-snapshot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .hub-rti-player-snapshot-grid.has-owner { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .hub-rti-owner-snapshot-card { grid-template-columns: 1fr; min-height: 0; text-align: center; }
@@ -4543,13 +4530,11 @@ button.poty:disabled {
   .hub-hero-comparison-row { grid-template-columns: minmax(0, 1fr) minmax(112px, 1.2fr) minmax(0, 1fr); gap: 7px; padding-inline: 10px; }
   .hub-hero-comparison-row > div strong { font-size: 18px; }
   .hub-season-snapshot-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; padding:5px; }
-  .hub-season-snapshot-grid article { min-height:50px; padding:6px 3px; }
-  .hub-season-snapshot-grid article > span { font-size:.5rem; letter-spacing:.04em; }
-  .hub-season-snapshot-grid article > strong { max-width:100%; font-size:clamp(.66rem,3.2vw,.82rem); letter-spacing:0; }
+  .hub-season-snapshot-grid > :is(article,a,button) { min-height:50px; padding:6px 3px; }
+  .hub-season-snapshot-grid > :is(article,a,button) > span { font-size:.5rem; letter-spacing:.04em; }
+  .hub-season-snapshot-grid > :is(article,a,button) > strong { max-width:100%; font-size:clamp(.66rem,3.2vw,.82rem); letter-spacing:0; }
   .hub-season-snapshot-grid .rec-coin-amount svg { width:11px; height:11px; }
   .hub-season-snapshot-opponent .team-logo { width:26px; height:26px; }
-  .hub-season-snapshot-actions { grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; margin-left:0; }
-  .hub-season-snapshot-tooltip { width:min(330px,calc(100vw - 28px)); }
   .hub-season-form-card strong { gap:1px; }
   .hub-season-form-game { width:19px; height:19px; }
   .hub-season-form-game .team-logo { width:18px; height:18px; }
@@ -5401,6 +5386,7 @@ button.poty:disabled {
 .rec-stats-filter-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:var(--space-4); }
 
 .rec-league-leader-section-heading { margin:var(--space-4) 0 var(--space-2); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-secondary); }
+.rec-league-leaders-pill { display:block; width:min(100%,680px); height:auto; margin:0 auto; object-fit:contain; }
 .rec-league-leader-section-heading:first-of-type { margin-top:0; }
 
 /* Sortable stats table -- replaces the old card-strip "Stats by Category" list. Wrapped in its

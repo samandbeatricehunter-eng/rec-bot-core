@@ -18,6 +18,7 @@ import { Modal } from "../../components/ui/Modal.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
 import { StatsMiniNav, type StatsNavId } from "../../components/hub/StatsMiniNav.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
+import leagueLeadersPill from "../../assets/league-leaders-pill.png";
 
 type StatsResponse = Awaited<ReturnType<typeof recApi.getLeagueStats>>;
 type StatsPlayer = StatsResponse["players"][number];
@@ -290,7 +291,6 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
   );
 
   return <Card>
-    <h2 style={{ marginTop: 0 }}>League Leaders</h2>
     <h3 className="rec-league-leader-section-heading">Offense</h3>
     {renderGroup(OFFENSE_LEADER_CATEGORIES)}
     <h3 className="rec-league-leader-section-heading">Defense</h3>
@@ -312,7 +312,7 @@ export function LeagueStatsHome() {
     {currentLeague?.id ? <StatsMiniNav active={activeNav} leagueId={currentLeague.id} /> : null}
     {view === "leaders" ? (
       <>
-        <PageHeader title="League Leaders" subtitle="Category leaders across the current season." />
+        <img className="rec-league-leaders-pill" src={leagueLeadersPill} alt="League Leaders" />
         <LeagueLeadersView guildId={guildId} />
       </>
     ) : null}

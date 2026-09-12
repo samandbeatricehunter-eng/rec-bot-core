@@ -5,7 +5,7 @@ import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { HeadshotUploadOverlay } from "../../components/hub/HeadshotUploadOverlay.js";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, Shield, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { InterviewMicIcon, ManageTeamIcon, ScheduleIcon } from "../../components/hub/QuickActionIcons.js";
-import { ManageFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
+import { ManageFundsModal, SnapshotFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
 import { WeeklyChallengesCard } from "../../components/hub/WeeklyChallengesCard.js";
 import { HeroMatchupActions } from "../../components/hub/HeroMatchupActions.js";
 import { HeroMatchupBreakdown } from "../../components/hub/HeroMatchupBreakdown.js";
@@ -649,6 +649,7 @@ export function HubHome() {
   const [heroPreview, setHeroPreview] = useState<MatchupPreviewData | null>(null);
   const [heroBreakdownExpanded, setHeroBreakdownExpanded] = useState(false);
   const [manageFundsOpen, setManageFundsOpen] = useState(false);
+  const [snapshotFundsKind, setSnapshotFundsKind] = useState<"wallet" | "savings" | null>(null);
   const [announcementItemIndex, setAnnouncementItemIndex] = useState(0);
   const [conferenceIndex, setConferenceIndex] = useState(0);
   const [mediaDay, setMediaDay] = useState<NonRtiMediaDayResponse | null>(null);
@@ -1452,12 +1453,6 @@ export function HubHome() {
       ? { abbreviation: heroMatchup.awayTeamAbbr, logoUrl: heroMatchup.awayTeamLogoUrl, name: heroMatchup.awayTeamName }
       : { abbreviation: heroMatchup.homeTeamAbbr, logoUrl: heroMatchup.homeTeamLogoUrl, name: heroMatchup.homeTeamName }
     : null;
-  const weeklyChallengeTooltip = rtiGates?.weeklyChallenges?.length
-    ? rtiGates.weeklyChallenges.map((player) => {
-      const tiers = player.challenges.map((challenge) => `${challenge.tier}: ${challenge.label}`).join(" · ");
-      return `${player.name} (${player.position}) — ${tiers}`;
-    }).join("\n")
-    : "No weekly challenge tiers are assigned for this stage.";
   const playerXpTotal = Number(rtiGates?.playerXpTotal ?? my.progressionSummary?.playerXpTotal ?? rtiGates?.playerSnapshots?.reduce((total, player) => total + Number(player.playerXpTotal ?? 0), 0) ?? 0);
   const teamXpTotal = Number(rtiGates?.teamXpTotal ?? my.progressionSummary?.teamXpTotal ?? 0);
   const teamXpProgress = Math.max(0, Math.min(100, teamXpTotal));
@@ -1498,7 +1493,7 @@ export function HubHome() {
       <article><span>Coach</span><strong>{coachName}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article><article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
     </div><div className="hub-profile-sections">
       <details open><summary><WalletCards size={18} /> Funds &amp; Savings</summary><div className="hub-profile-panel"><WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} /></div></details>
-      <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>Active streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time (this league)</span><strong>{profile.leagueCareerRecord?.text ?? profile.seasonRecord?.text ?? "0-0-0"}</strong><small>Active streak {profile.leagueCareerRecord?.activeStreak ?? profile.careerStats?.activeStreak ?? "—"}</small></article><article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? `Score ${heroUserScore}` : "Pending"}</small></article></div></details>
+      <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>PD {Number(profile.seasonRecord?.pointDifferential ?? 0) >= 0 ? "+" : ""}{profile.seasonRecord?.pointDifferential ?? 0} · Streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time (this league)</span><strong>{profile.leagueCareerRecord?.text ?? profile.seasonRecord?.text ?? "0-0-0"}</strong><small>PD {Number(profile.leagueCareerRecord?.pointDifferential ?? 0) >= 0 ? "+" : ""}{profile.leagueCareerRecord?.pointDifferential ?? 0} · Streak {profile.leagueCareerRecord?.activeStreak ?? profile.careerStats?.activeStreak ?? "—"}</small></article><article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? `Score ${heroUserScore}` : "Pending"}</small></article></div></details>
       {!isRise && auth.status === "ready" ? <details open><summary><Award size={18} /> Team Challenges</summary><div className="hub-profile-panel"><WeeklyChallengesCard guildId={auth.guildId} /></div></details> : null}
       <details><summary><TrendingUp size={18} /> EOS Payout Progress</summary><div className="hub-profile-panel"><EosPayoutProgressPanel /></div></details>
       <details><summary><Landmark size={18} /> Current Season Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.seasonStats} /></div></details>
@@ -1746,25 +1741,18 @@ export function HubHome() {
           <section className="hub-hero hub-hero-rebuilt">
             <section className="hub-season-snapshot">
               <div className="hub-season-snapshot-grid" aria-label="Season snapshot">
-                <article className="hub-season-snapshot-matchup" tabIndex={0} aria-label={`Matchup. ${weeklyChallengeTooltip}`}>
-                  <span>Matchup</span>
-                  <strong className="hub-season-snapshot-opponent">{heroOpponent ? <><em>{heroMatchup?.viewerSide === "away" ? "AT" : "VS"}</em><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /></> : "—"}</strong>
-                  <span className="hub-season-snapshot-tooltip" role="tooltip">{weeklyChallengeTooltip.split("\n").map((line) => <span key={line}>{line}</span>)}</span>
-                </article>
-                <article><span>Record</span><strong>{heroSeasonRecord}</strong></article>
-                <article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article>
-                <article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
+                {isRise ? <article><span>Matchup</span><strong className="hub-season-snapshot-opponent">{heroOpponent ? <TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /> : "—"}</strong></article>
+                  : <Link to={`/l/${hub.league.id}/matchups`} aria-label="Open my game day matchup"><span>Matchup</span><strong className="hub-season-snapshot-opponent">{heroOpponent ? heroMatchup?.viewerSide === "home" ? <><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /><em>AT</em><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /></> : <><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /><em>AT</em><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /></> : <><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /><em>—</em></>}</strong></Link>}
+                {isRise ? <article><span>Record</span><strong>{heroSeasonRecord}</strong></article> : <Link to={`/l/${hub.league.id}/standings`}><span>Record</span><strong>{heroSeasonRecord}</strong></Link>}
+                {isRise ? <article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article> : <button type="button" onClick={() => setSnapshotFundsKind("wallet")}><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></button>}
+                {isRise ? <article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article> : <button type="button" onClick={() => setSnapshotFundsKind("savings")}><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></button>}
               </div>
               {!isRise ? <><div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="Team progression snapshot">
-                <article><span>Power ranking</span><strong>{heroRank}</strong></article>
-                <article className="hub-season-form-card"><span>Streak · Recent form</span><strong><em>{my.userStreakText ?? "—"}</em>{recentForm.length ? recentForm.map((game, index) => <span className={`hub-season-form-game is-${game.result.toLowerCase()}`} key={`${game.opponentName}-${index}`} title={`${game.result} vs ${game.opponentName}`}><TeamLogo abbreviation={game.opponentAbbr} logoUrl={game.opponentLogoUrl} alt={game.opponentName} /><b>{game.result}</b></span>) : <small>—</small>}</strong></article>
-                <article><span>Player XP</span><strong>{playerXpTotal.toLocaleString()}</strong></article>
-                <article className="hub-season-team-xp"><span>Team XP</span><strong>{teamXpTotal.toLocaleString()} <Shield size={17} aria-label="Steel shield" /></strong><div className="hub-season-team-xp-track" aria-label={`${teamXpTotal} Team XP toward steel shield`}><i style={{ width: `${teamXpProgress}%` }} /></div></article>
+                <Link to={`/l/${hub.league.id}/standings?view=power`}><span>Power ranking</span><strong>{heroRank}</strong></Link>
+                <Link className="hub-season-form-card" to={`/l/${hub.league.id}/standings`}><span>Streak · Recent form</span><strong><em>{my.userStreakText ?? "—"}</em>{recentForm.length ? recentForm.map((game, index) => <span className={`hub-season-form-game is-${game.result.toLowerCase()}`} key={`${game.opponentName}-${index}`} title={`${game.result} vs ${game.opponentName}`}><TeamLogo abbreviation={game.opponentAbbr} logoUrl={game.opponentLogoUrl} alt={game.opponentName} /><b>{game.result}</b></span>) : <small>—</small>}</strong></Link>
+                <Link to={`/l/${hub.league.id}/player-progression`}><span>Player XP</span><strong>{playerXpTotal.toLocaleString()}</strong></Link>
+                <Link className="hub-season-team-xp" to={`/l/${hub.league.id}/owner-progression`}><span>Team XP</span><strong>{teamXpTotal.toLocaleString()} <Shield size={17} aria-label="Steel shield" /></strong><div className="hub-season-team-xp-track" aria-label={`${teamXpTotal} Team XP toward steel shield`}><i style={{ width: `${teamXpProgress}%` }} /></div></Link>
               </div>
-              <nav className="hub-season-snapshot-actions" aria-label="Progression links">
-                <Link className="hub-season-snapshot-action" to={`/l/${hub.league.id}/team/upgrades`}><span>Player</span><strong>Progression</strong></Link>
-                <Link className="hub-season-snapshot-action" to={`/l/${hub.league.id}/team/progression`}><span>Team</span><strong>Progression</strong></Link>
-              </nav>
               </> : null}
               {isRise && rtiGates?.playerSnapshots?.length ? (() => {
                 const bannerTeam = rtiGates.playerSnapshots.find((player) => player.teamLogoUrl) ?? rtiGates.playerSnapshots[0];
@@ -1834,6 +1822,7 @@ export function HubHome() {
         </div>
 
         {manageFundsOpen && auth.status === "ready" && <ManageFundsModal guildId={auth.guildId} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} onClose={() => setManageFundsOpen(false)} />}
+        {snapshotFundsKind && auth.status === "ready" && <SnapshotFundsModal kind={snapshotFundsKind} guildId={auth.guildId} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} onClose={() => setSnapshotFundsKind(null)} />}
 
         {(hub.league.game === "madden_26" || hub.league.game === "madden_27") && (!isRise || riseHubUnlocked) && hub.league.fantasyDraftStatus && hub.league.fantasyDraftStatus !== "not_applicable" && hub.league.fantasyDraftStatus !== "concluded" && readyGuildId && (
           <Suspense fallback={<HubSurfaceFallback />}>

@@ -12,6 +12,66 @@ function formatTxLabel(type: string | null) {
   return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+export function SnapshotFundsModal({ kind, guildId, wallet, savings, onTransferred, onClose }: {
+  kind: "wallet" | "savings"; guildId: string; wallet: number; savings: number;
+  onTransferred: () => void; onClose: () => void;
+}) {
+  const [tab, setTab] = useState<"transfer" | "history">("transfer");
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [history, setHistory] = useState<Transaction[] | Array<{ id: string; amount: number; direction: "to_savings" | "from_savings"; createdAt: string }> | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  async function showHistory() {
+    setTab("history");
+    setHistoryError(null);
+    try {
+      const result = kind === "wallet"
+        ? await recApi.getMyRecentTransactions({ guildId, limit: 25 })
+        : await recApi.getMySavingsTransfers(guildId);
+      setHistory(kind === "wallet" ? (result as { transactions: Transaction[] }).transactions : (result as { transfers: Array<{ id: string; amount: number; direction: "to_savings" | "from_savings"; createdAt: string }> }).transfers);
+    } catch (error) { setHistoryError(error instanceof Error ? error.message : "Could not load history."); }
+  }
+
+  async function transfer() {
+    const value = Number(amount);
+    const available = kind === "wallet" ? wallet : savings;
+    if (!Number.isInteger(value) || value <= 0 || value > available) { setStatus(`Enter a whole-coin amount up to ${coinsNumber(available)}.`); return; }
+    setBusy(true);
+    setStatus(null);
+    try {
+      await recApi.transferMyFunds({ guildId, amount: value, direction: kind === "wallet" ? "to_savings" : "from_savings" });
+      setAmount("");
+      setHistory(null);
+      setStatus("Transfer complete.");
+      onTransferred();
+    } catch (error) { setStatus(error instanceof Error ? error.message : "Transfer failed."); }
+    finally { setBusy(false); }
+  }
+
+  return <Modal title={kind === "wallet" ? "Wallet" : "Savings"} onClose={onClose}>
+    <div className="hub-funds-modal">
+      <div className="hub-funds-switcher" role="tablist" aria-label={`${kind} view`}>
+        <button type="button" role="tab" aria-selected={tab === "transfer"} className={tab === "transfer" ? "active" : ""} onClick={() => setTab("transfer")}>Transfer</button>
+        <button type="button" role="tab" aria-selected={tab === "history"} className={tab === "history" ? "active" : ""} onClick={() => void showHistory()}>{kind === "wallet" ? "Coin transactions" : "Transfer history"}</button>
+      </div>
+      {tab === "transfer" ? <>
+        <div className="hub-funds-balances"><div><span>Wallet</span><strong><CoinAmount amount={wallet} /></strong></div><div><span>Savings</span><strong><CoinAmount amount={savings} /></strong></div></div>
+        <p className="hub-muted">{kind === "wallet" ? "Move coins from your wallet to savings." : "Move coins from savings to your wallet."}</p>
+        <label className="form-field"><span className="form-label">Amount</span><input className="form-input" type="number" min="1" step="1" max={kind === "wallet" ? wallet : savings} value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Whole coins" /></label>
+        {status && <p className="hub-transfer-status">{status}</p>}
+        <Button variant="primary" disabled={busy || !amount} onClick={() => void transfer()}>{busy ? "Transferring…" : kind === "wallet" ? "Move to savings" : "Move to wallet"}</Button>
+      </> : historyError ? <p className="hub-empty">{historyError}</p> : history === null ? <p className="hub-empty">Loading…</p> : !history.length ? <p className="hub-empty">No history yet.</p> : <div className="hub-ledger-list">{history.map((item) => {
+        const transferItem = "direction" in item ? item : null;
+        const transactionItem = "transactionType" in item ? item : null;
+        const signedAmount = transferItem ? (transferItem.direction === "to_savings" ? 1 : -1) * transferItem.amount : item.amount;
+        return <div key={item.id} className="hub-ledger-row"><div><strong>{transferItem ? transferItem.direction === "to_savings" ? "Wallet → Savings" : "Savings → Wallet" : transactionItem?.description ?? formatTxLabel(transactionItem?.transactionType ?? null)}</strong><span className="hub-muted">{new Date(item.createdAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}</span></div><strong className={signedAmount >= 0 ? "hub-ledger-positive" : "hub-ledger-negative"}><CoinAmount amount={signedAmount} signed /></strong></div>;
+      })}</div>}
+    </div>
+  </Modal>;
+}
+
 // Condensed wallet/savings block used on both Campus Buzz (hero card) and My Team (replacing
 // the old three-column balances + big Funds & Savings details section) — one block, one
 // balances row, one actions row (View Transactions / Transfer Coins), each opening its own modal.

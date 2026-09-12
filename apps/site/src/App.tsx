@@ -61,6 +61,7 @@ const RenderProTracker = lazy(() => import("./routes/render/RenderProTracker.js"
 const RenderLeagueLeaders = lazy(() => import("./routes/render/RenderLeagueLeaders.js").then((m) => ({ default: m.RenderLeagueLeaders })));
 const RenderRivalryH2h = lazy(() => import("./routes/render/RenderRivalryH2h.js").then((m) => ({ default: m.RenderRivalryH2h })));
 import { SiteUpdateNotice } from "./components/SiteUpdateNotice.js";
+import { StandardProgression } from "./routes/StandardProgression.js";
 
 function formatCaughtError(error: unknown, info?: ErrorInfo): string {
   const parts: string[] = [];
@@ -280,6 +281,8 @@ function Routed() {
         <Route path="/l/:leagueId/rise" element={<RiseOriginsPage />} />
         <Route path="/l/:leagueId/team/upgrades" element={<RiseXpPage />} />
         <Route path="/l/:leagueId/team/progression" element={<RiseProgressionPage />} />
+        <Route path="/l/:leagueId/player-progression" element={<StandardProgression kind="player" />} />
+        <Route path="/l/:leagueId/owner-progression" element={<StandardProgression kind="owner" />} />
         <Route path="/l/:leagueId/team/rivals" element={<RiseRivalsPage />} />
         <Route path="/l/:leagueId/team/trust" element={<RiseTrustTreePage />} />
         <Route path="/l/:leagueId/news" element={<LeagueHubPage />} />

@@ -31,6 +31,7 @@ test("withComputeCache returns the stored value within the TTL and coalesces in-
 test("invalidateLeagueComputeCaches drops power-ranking and user-rating keys for that guild", async () => {
   let rankingCalls = 0;
   let ratingCalls = 0;
+  let standingsCalls = 0;
   await withComputeCache("power-rankings:guild-a:current", 5_000, async () => {
     rankingCalls += 1;
     return { n: rankingCalls };
@@ -39,6 +40,7 @@ test("invalidateLeagueComputeCaches drops power-ranking and user-rating keys for
     ratingCalls += 1;
     return { n: ratingCalls };
   });
+  await withComputeCache("hub:standings-board:guild-a:user", 5_000, async () => ++standingsCalls);
   await withComputeCache("power-rankings:guild-b:current", 5_000, async () => ({ keep: true }));
 
   invalidateLeagueComputeCaches("guild-a");
@@ -52,10 +54,12 @@ test("invalidateLeagueComputeCaches drops power-ranking and user-rating keys for
     return { n: ratingCalls };
   });
   const other = await withComputeCache("power-rankings:guild-b:current", 5_000, async () => ({ keep: false }));
+  const standings = await withComputeCache("hub:standings-board:guild-a:user", 5_000, async () => ++standingsCalls);
 
   assert.equal(ranking.n, 2);
   assert.equal(rating.n, 2);
   assert.equal(other.keep, true);
+  assert.equal(standings, 2);
   invalidateComputeCache("power-rankings:");
   invalidateComputeCache("user-ratings:");
 });

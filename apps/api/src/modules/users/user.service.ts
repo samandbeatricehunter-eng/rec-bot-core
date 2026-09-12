@@ -223,6 +223,17 @@ export async function transferSavings(discordId: string, amount: number, directi
   };
 }
 
+export async function getRecentSavingsTransfers(discordId: string) {
+  const baseline = await getUserBaselineByDiscordId(discordId);
+  const { data, error } = await supabase.from("rec_wallet_savings_transfers")
+    .select("id,amount,direction,created_at")
+    .eq("user_id", baseline.user.id)
+    .order("created_at", { ascending: false })
+    .limit(25);
+  if (error) throw new ApiError(500, "We couldn't load transfer history.", error);
+  return { transfers: (data ?? []).map((row) => ({ id: row.id, amount: row.amount, direction: row.direction, createdAt: row.created_at })) };
+}
+
 // Other active members of the caller's current league, for the "send coins" recipient picker.
 export async function listWalletTransferRecipients(guildId: string, excludeUserId: string) {
   const context = await findCurrentLeagueContext(guildId);
@@ -1122,7 +1133,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     const [assignmentResult, membershipResult, seasonRecordResult, displayRecordResult] = await Promise.all([
       supabase
         .from("rec_team_assignments")
-        .select("team_id,assignment_status,team:rec_teams(id,name,abbreviation,display_city,display_nick,is_relocated)")
+        .select("team_id,assignment_status,team:rec_teams(id,name,abbreviation,original_abbreviation,logo_url,display_city,display_nick,is_relocated)")
         .eq("league_id", league.id)
         .eq("user_id", userId)
         .eq("assignment_status", "active")
@@ -1376,6 +1387,8 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       siteUsername: baseline.user.username ?? null,
       displayName: firstNonEmpty(baseline.user.username, baseline.user.display_name, baseline.discord.global_name, baseline.discord.username) ?? "REC Member",
       teamName: resolveTeamProgramName(assignment?.team) ?? assignment?.team?.name ?? null,
+      teamAbbr: assignment?.team?.is_relocated ? assignment?.team?.original_abbreviation ?? assignment?.team?.abbreviation ?? null : assignment?.team?.abbreviation ?? null,
+      teamLogoUrl: assignment?.team?.logo_url ?? null,
       schoolName: league?.game === "cfb_27" ? null : resolveTeamSubtitle(assignment?.team, league?.game),
       highestRole: membership?.role ?? null,
       wallet: baseline.wallet?.wallet_balance ?? 0,

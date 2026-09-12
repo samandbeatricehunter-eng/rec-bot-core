@@ -341,9 +341,9 @@ export const recApi = {
       }>;
     }>("/v1/hub/league-records", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 45_000 }),
   getHub: (guildId: string) =>
-    recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 45_000 }),
+    recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
   getStandingsBoard: (guildId: string) =>
-    recApiFetch<import("./standings-board-cache.js").StandingsBoardResponse>("/v1/hub/standings-board", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 120_000 }),
+    recApiFetch<import("./standings-board-cache.js").StandingsBoardResponse>("/v1/hub/standings-board", { method: "POST", body: JSON.stringify({ guildId }) }),
   getHubBootstrapStatus: (guildId: string) =>
     recApiFetch<{ leagueExists: boolean; canSetup: boolean }>("/v1/hub/bootstrap-status", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 10_000 }),
   retireFromHub: (guildId: string) =>
@@ -455,7 +455,7 @@ export const recApi = {
   reviewCustomTeamIdentity: (input: { guildId: string; inboxId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<{ reviewed: true; decision: "approve" | "deny" }>("/v1/hub/relocation/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
   getHubMatchupSchedule: (input: { guildId: string; weekNumber?: number | null; seasonNumber?: number | null }) =>
-    recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 45_000 }),
+    recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input) }),
   getHubMatchupDetail: (input: { guildId: string; gameId: string }) =>
     recApiFetch<import("../types/api.js").HubMatchupDetail>("/v1/hub/matchups/detail", { method: "POST", body: JSON.stringify(input) }),
   getMatchupPreview: (input: { guildId: string; gameId: string }) =>
@@ -741,6 +741,8 @@ export const recApi = {
     recApiFetch<{ transferred: number; direction: string; wallet_balance: number; savings_balance: number }>("/v1/users/me/wallet/transfer", { method: "POST", body: JSON.stringify(input) }),
   getMyRecentTransactions: (input: { guildId: string; limit?: number }) =>
     recApiFetch<{ transactions: Array<{ id: string; amount: number; transactionType: string | null; description: string | null; createdAt: string }> }>("/v1/hub/my-transactions", { method: "POST", body: JSON.stringify(input) }),
+  getMySavingsTransfers: (guildId: string) =>
+    recApiFetch<{ transfers: Array<{ id: string; amount: number; direction: "to_savings" | "from_savings"; createdAt: string }> }>("/v1/users/me/wallet/savings-transfers", { method: "POST", body: JSON.stringify({ guildId }) }),
   listWalletTransferRecipients: (input: { guildId: string }) =>
     recApiFetch<{ recipients: Array<{ userId: string; displayName: string }> }>("/v1/users/me/wallet/transfer-recipients", { method: "POST", body: JSON.stringify(input) }),
   sendWalletCoins: (input: { guildId: string; recipientUserId: string; amount: number; note?: string | null }) =>

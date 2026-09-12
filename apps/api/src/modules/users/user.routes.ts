@@ -11,6 +11,7 @@ import {
   listWalletTransferRecipients,
   sendWalletCoins,
   transferSavings,
+  getRecentSavingsTransfers,
   getUserSnapshot,
   getUserScheduleByDiscordId,
 } from "./user.service.js";
@@ -31,6 +32,14 @@ export async function userRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => input.guildId, permission: "member" });
       if (auth.mode !== "user") throw new Error("The self-service transfer route requires a user session.");
       return reply.send(await transferSavings(auth.discordId, input.amount, input.direction));
+    } catch (error) { return sendError(reply, error); }
+  });
+  app.post("/v1/users/me/wallet/savings-transfers", async (request, reply) => {
+    try {
+      const input = z.object({ guildId: z.string().min(1) }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => input.guildId, permission: "member" });
+      if (auth.mode !== "user") throw new Error("A user session is required.");
+      return reply.send(await getRecentSavingsTransfers(auth.discordId));
     } catch (error) { return sendError(reply, error); }
   });
   app.post("/v1/users/me/wallet/transfer-recipients", async (request, reply) => {
