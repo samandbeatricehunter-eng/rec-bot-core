@@ -4445,10 +4445,6 @@ button.poty:disabled {
 .hub-season-snapshot-matchup:hover .hub-season-snapshot-tooltip,
 .hub-season-snapshot-matchup:focus .hub-season-snapshot-tooltip { display:block; }
 .hub-season-snapshot-secondary { margin-top:8px; }
-.hub-season-legend-groups > strong { gap:7px; }
-.hub-season-legend-groups > strong > span { display:flex; align-items:center; gap:2px; min-width:0; }
-.hub-season-legend-groups small { color:#fff; font:700 .62rem/1 system-ui,sans-serif; }
-.hub-season-legend-groups img { width:17px; height:17px; object-fit:contain; }
 .hub-season-form-card strong { gap:4px; }
 .hub-season-form-card strong > em { margin-right:2px; color:#fff; font-size:.8rem; font-style:normal; }
 .hub-season-form-card strong > small { color:rgba(255,255,255,.55); }
@@ -4555,9 +4551,6 @@ button.poty:disabled {
   .hub-season-snapshot-actions { grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px; margin-left:0; }
   .hub-season-snapshot-tooltip { width:min(330px,calc(100vw - 28px)); }
   .hub-season-form-card strong { gap:1px; }
-  .hub-season-legend-groups > strong { gap:3px; }
-  .hub-season-legend-groups small { font-size:.5rem; }
-  .hub-season-legend-groups img { width:13px; height:13px; }
   .hub-season-form-game { width:19px; height:19px; }
   .hub-season-form-game .team-logo { width:18px; height:18px; }
   .hub-season-form-game b { font-size:.56rem; }

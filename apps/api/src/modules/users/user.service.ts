@@ -1340,14 +1340,10 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     if (w + l + t > 0) gotwH2hRecordText = t > 0 ? `${w}-${l}-${t}` : `${w}-${l}`;
   }
 
-  let progressionSummary = {
-    playerXpTotal: 0, teamXpTotal: 0,
-    premiumPlayers: { xfactor: 0, superstar: 0, star: 0 },
-    premiumPlayerCaps: { xfactor: null as number | null, superstar: null as number | null, star: null as number | null },
-  };
+  let progressionSummary = { playerXpTotal: 0, teamXpTotal: 0 };
   if (league?.id && assignment?.team_id) {
     const [rosterResult, franchiseXpResult] = await Promise.all([
-      supabase.from("rec_players").select("id,dev_trait").eq("league_id", league.id).eq("team_id", assignment.team_id),
+      supabase.from("rec_players").select("id").eq("league_id", league.id).eq("team_id", assignment.team_id),
       supabase.from("rec_franchise_xp_state").select("balance_fpp").eq("league_id", league.id).eq("user_id", userId).maybeSingle(),
     ]);
     const rosterRows = rosterResult.data ?? [];
@@ -1358,12 +1354,6 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     progressionSummary = {
       playerXpTotal: (playerXpResult.data ?? []).reduce((total: number, row: any) => total + Number(row.balance_xp ?? 0), 0),
       teamXpTotal: Math.floor(Number(franchiseXpResult.data?.balance_fpp ?? 0) / 6000),
-      premiumPlayers: {
-        xfactor: rosterRows.filter((player: any) => String(player.dev_trait ?? "").toLowerCase() === "xfactor").length,
-        superstar: rosterRows.filter((player: any) => String(player.dev_trait ?? "").toLowerCase() === "superstar").length,
-        star: rosterRows.filter((player: any) => String(player.dev_trait ?? "").toLowerCase() === "star").length,
-      },
-      premiumPlayerCaps: progressionSummary.premiumPlayerCaps,
     };
   }
 

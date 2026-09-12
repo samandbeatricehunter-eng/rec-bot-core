@@ -45,7 +45,6 @@ import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { ExpandableMatchupCard } from "../../components/matchups/ExpandableMatchupCard.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { TeamMiniNav } from "../../components/hub/TeamMiniNav.js";
-import { DevTraitIcon } from "../../components/hub/DevTraitIcon.js";
 
 // Code-split: these destination surfaces/heavy modals are each only rendered behind a specific
 // section/purchaseType/wizard-open condition, but were previously statically imported into this
@@ -1443,10 +1442,6 @@ export function HubHome() {
   // The active season's record remains the display record throughout the offseason. The
   // season record tables reset when the league advances into the next regular-season Week 1.
   const heroSeasonRecord = my.leagueSeasonRecordText ?? profile.seasonRecord?.text ?? "0-0";
-  const homeWeeklyPaidItems = hub.waysToGetPaid.weeklyItems.filter((item) => item.key !== "gotw");
-  const hiddenHomeGotwItem = hub.waysToGetPaid.weeklyItems.find((item) => item.key === "gotw");
-  const homeWeeklyEarned = Math.max(0, hub.waysToGetPaid.weeklyEarned - Number(hiddenHomeGotwItem?.earned ?? 0));
-  const homeWeeklyPotential = Math.max(0, hub.waysToGetPaid.weeklyPotential - Number(hiddenHomeGotwItem ? hiddenHomeGotwItem.amount * hiddenHomeGotwItem.limit : 0));
   const heroMatchup = stageHasScheduledGames(hub.league.seasonStage, hub.league.game as LeagueGame)
     ? (matchupSchedule?.games.find((game) => game.gameId === heroCurrentGameId)
       ?? matchupSchedule?.games.find((game) => game.involvesMe)
@@ -1467,8 +1462,6 @@ export function HubHome() {
   const teamXpTotal = Number(rtiGates?.teamXpTotal ?? my.progressionSummary?.teamXpTotal ?? 0);
   const teamXpProgress = Math.max(0, Math.min(100, teamXpTotal));
   const recentForm = (my.recentForm ?? []) as Array<{ result: "W" | "L" | "T"; opponentName: string; opponentAbbr: string | null; opponentLogoUrl: string | null }>;
-  const premiumPlayers = my.progressionSummary?.premiumPlayers ?? { xfactor: 0, superstar: 0, star: 0 };
-  const premiumPlayerCaps = my.progressionSummary?.premiumPlayerCaps ?? { xfactor: null, superstar: null, star: null };
   const activeHighlight = highlights[activeHighlightIndex] ?? null;
   const highlightOwnerId = (activeHighlight as { user_id?: string | null; userId?: string | null } | null)?.user_id
     ?? (activeHighlight as { userId?: string | null } | null)?.userId
@@ -1763,7 +1756,7 @@ export function HubHome() {
                 <article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
               </div>
               {!isRise ? <><div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="Team progression snapshot">
-                <article className="hub-season-legend-groups"><span>Legend group</span><strong>{(["xfactor", "superstar", "star"] as const).map((tier) => <span key={tier}><small>{premiumPlayers[tier]}/{premiumPlayerCaps[tier] ?? "—"}</small><DevTraitIcon devTrait={tier} /></span>)}</strong></article>
+                <article><span>Power ranking</span><strong>{heroRank}</strong></article>
                 <article className="hub-season-form-card"><span>Streak · Recent form</span><strong><em>{my.userStreakText ?? "—"}</em>{recentForm.length ? recentForm.map((game, index) => <span className={`hub-season-form-game is-${game.result.toLowerCase()}`} key={`${game.opponentName}-${index}`} title={`${game.result} vs ${game.opponentName}`}><TeamLogo abbreviation={game.opponentAbbr} logoUrl={game.opponentLogoUrl} alt={game.opponentName} /><b>{game.result}</b></span>) : <small>—</small>}</strong></article>
                 <article><span>Player XP</span><strong>{playerXpTotal.toLocaleString()}</strong></article>
                 <article className="hub-season-team-xp"><span>Team XP</span><strong>{teamXpTotal.toLocaleString()} <Shield size={17} aria-label="Steel shield" /></strong><div className="hub-season-team-xp-track" aria-label={`${teamXpTotal} Team XP toward steel shield`}><i style={{ width: `${teamXpProgress}%` }} /></div></article>
@@ -1837,13 +1830,6 @@ export function HubHome() {
               </Suspense>
             ) : null}
 
-            <details className="hub-ways-paid">
-              <summary><span>Ways To Get Paid</span><small><CoinAmount amount={homeWeeklyEarned} /> earned of <CoinAmount amount={homeWeeklyPotential} /> potential this week</small></summary>
-              <div className="hub-ways-paid-body">
-                <section><h3>Weekly</h3><div className="hub-ways-paid-list">{homeWeeklyPaidItems.map((item) => <p key={item.key}>{item.label} to earn <CoinAmount amount={item.amount} />{item.limit > 1 ? " per submission" : ""} — <strong>{item.current}/{item.limit}</strong> submitted this week.{item.note ? ` ${item.note}.` : ""}</p>)}</div><p className="hub-muted">{hub.waysToGetPaid.wagerHint}</p></section>
-                {isRise ? null : <section><h3>Season Long</h3><p>Track your exact tier, threshold, current statistic, progress, and projected payout below.</p><EosPayoutProgressPanel /></section>}
-              </div>
-            </details>
           </section>
         </div>
 
