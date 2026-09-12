@@ -348,8 +348,14 @@ export const recApi = {
         entries: Array<{ rank: number; holderType: "NFL_BASELINE" | "REC_PLAYER"; holderName: string; value: number; playerId: string | null; teamId: string | null }>;
       }>;
     }>("/v1/hub/record-book", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 45_000 }),
+  // HubHome fully unmounts (and its in-memory `hub` state with it) every time nav leaves
+  // to League Mgmt/Standings/History/Stats/Records/Rules/Playoff Bracket and comes back —
+  // each return trip previously refetched this, the single largest hub payload, from
+  // scratch with no client cache even though the server already compute-caches the exact
+  // same query for 45s (see hub.service.ts's getHub). This TTL just lets the client reuse
+  // that same warm window instead of paying the round trip again on every tab switch.
   getHub: (guildId: string) =>
-    recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
+    recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }), cacheTtlMs: 20_000 }),
   getStandingsBoard: (guildId: string) =>
     recApiFetch<import("./standings-board-cache.js").StandingsBoardResponse>("/v1/hub/standings-board", { method: "POST", body: JSON.stringify({ guildId }) }),
   getHubBootstrapStatus: (guildId: string) =>
@@ -462,8 +468,10 @@ export const recApi = {
     recApiFetch<{ pendingApproval: true; header: string }>("/v1/hub/relocation/custom", { method: "POST", body: JSON.stringify(input) }),
   reviewCustomTeamIdentity: (input: { guildId: string; inboxId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<{ reviewed: true; decision: "approve" | "deny" }>("/v1/hub/relocation/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  // Same remount-refetch cost as getHub above -- fires again on every return trip to the
+  // league tab. Short TTL since scores/streams here update live during game days.
   getHubMatchupSchedule: (input: { guildId: string; weekNumber?: number | null; seasonNumber?: number | null }) =>
-    recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input) }),
+    recApiFetch<HubMatchupSchedule>("/v1/hub/matchups/schedule", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 15_000 }),
   getHubMatchupDetail: (input: { guildId: string; gameId: string }) =>
     recApiFetch<import("../types/api.js").HubMatchupDetail>("/v1/hub/matchups/detail", { method: "POST", body: JSON.stringify(input) }),
   getMatchupPreview: (input: { guildId: string; gameId: string }) =>
