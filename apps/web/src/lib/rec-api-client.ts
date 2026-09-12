@@ -340,6 +340,14 @@ export const recApi = {
         leaders: Array<{ playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; value: number; weekNumber: number | null; seasonNumber: number | null; rank: number }>;
       }>;
     }>("/v1/hub/league-records", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 45_000 }),
+  getRecordBook: (input: { guildId: string; scope: "game" | "season" | "career" }) =>
+    recApiFetch<{
+      scope: "game" | "season" | "career";
+      categories: Array<{
+        category: string; label: string;
+        entries: Array<{ rank: number; holderType: "NFL_BASELINE" | "REC_PLAYER"; holderName: string; value: number; playerId: string | null; teamId: string | null }>;
+      }>;
+    }>("/v1/hub/record-book", { method: "POST", body: JSON.stringify(input), cacheTtlMs: 45_000 }),
   getHub: (guildId: string) =>
     recApiFetch<HubResponse>("/v1/hub/view", { method: "POST", body: JSON.stringify({ guildId }) }),
   getStandingsBoard: (guildId: string) =>

@@ -7,6 +7,8 @@ import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, C
 import { InterviewMicIcon, ManageTeamIcon, ScheduleIcon } from "../../components/hub/QuickActionIcons.js";
 import { ManageFundsModal, SnapshotFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
 import { WeeklyChallengesCard } from "../../components/hub/WeeklyChallengesCard.js";
+import { DivisionRecordModal } from "../../components/hub/DivisionRecordModal.js";
+import { writeStandingsBoardCache, type StandingsBoardResponse } from "../../lib/standings-board-cache.js";
 import { HeroMatchupActions } from "../../components/hub/HeroMatchupActions.js";
 import { HeroMatchupBreakdown } from "../../components/hub/HeroMatchupBreakdown.js";
 import { GotwVotingCarousel } from "../../components/hub/GotwVotingCarousel.js";
@@ -702,6 +704,7 @@ export function HubHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
   const [careerStatsModalOpen, setCareerStatsModalOpen] = useState(false);
+  const [divisionModalOpen, setDivisionModalOpen] = useState(false);
   const [gotwGuessing, setGotwGuessing] = useState<GotwGuessingRecordsResponse | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [potyHighlightId, setPotyHighlightId] = useState<string | null>(null);
@@ -931,6 +934,11 @@ export function HubHome() {
       const [economy, guessing] = await Promise.all([economyP, guessingP]);
       setEconomyValues(economy);
       setGotwGuessing(guessing);
+      // Fire-and-forget: the "Season record"/"Point differential" boxes on this page jump
+      // straight into Standings. Prefetching here warms both the client cache (so the jump
+      // paints instantly even on a first-ever visit this browser) and the server's own
+      // withComputeCache for this guild, so it's warm even if the fetch below loses the race.
+      void recApi.getStandingsBoard(guildId).then((board) => writeStandingsBoardCache(guildId, board)).catch(() => undefined);
     }
     catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);

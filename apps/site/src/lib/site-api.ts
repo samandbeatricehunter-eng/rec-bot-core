@@ -200,9 +200,14 @@ async function request<T>(path: string, body: unknown = {}): Promise<T> {
 
 const HUB_OPEN_CACHE_PREFIX = "rec-hub-open:";
 
+// localStorage, not sessionStorage: guildId/discordId for a given league essentially never
+// changes, so there's no correctness reason to force a cold refetch on every new tab/app launch
+// -- that was the single biggest cause of "the hub loads slowly" on a fresh open. Safe across
+// account switches on a shared device because clearSiteApiCaches() (called on logout, see
+// auth-context.tsx) wipes these keys explicitly, same as it always did.
 export function readCachedHubOpen(leagueId: string): { guildId: string; discordId: string } | null {
   try {
-    const raw = sessionStorage.getItem(`${HUB_OPEN_CACHE_PREFIX}${leagueId}`);
+    const raw = localStorage.getItem(`${HUB_OPEN_CACHE_PREFIX}${leagueId}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { guildId?: unknown; discordId?: unknown };
     const guildId = String(parsed.guildId ?? "").trim();
@@ -216,7 +221,7 @@ export function readCachedHubOpen(leagueId: string): { guildId: string; discordI
 
 export function persistCachedHubOpen(leagueId: string, context: { guildId: string; discordId: string }) {
   try {
-    sessionStorage.setItem(`${HUB_OPEN_CACHE_PREFIX}${leagueId}`, JSON.stringify(context));
+    localStorage.setItem(`${HUB_OPEN_CACHE_PREFIX}${leagueId}`, JSON.stringify(context));
   } catch {
     /* ignore quota / private mode */
   }
@@ -225,11 +230,11 @@ export function persistCachedHubOpen(leagueId: string, context: { guildId: strin
 function clearCachedHubOpens() {
   try {
     const keys: string[] = [];
-    for (let i = 0; i < sessionStorage.length; i += 1) {
-      const key = sessionStorage.key(i);
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
       if (key?.startsWith(HUB_OPEN_CACHE_PREFIX)) keys.push(key);
     }
-    for (const key of keys) sessionStorage.removeItem(key);
+    for (const key of keys) localStorage.removeItem(key);
   } catch {
     /* ignore */
   }
