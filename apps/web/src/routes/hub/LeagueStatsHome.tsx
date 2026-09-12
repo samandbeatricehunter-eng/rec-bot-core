@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   formatStatValue,
   getStatLabel,
@@ -222,12 +222,12 @@ export function TeamStatsView({ guildId, scope }: { guildId: string; scope: "sea
 }
 
 const LEADER_CATEGORIES = [
-  { label: "Passing Yards", key: "pass_yards" },
-  { label: "Rushing Yards", key: "rush_yards" },
-  { label: "Receiving Yards", key: "receiving_yards" },
-  { label: "Sacks", key: "sacks" },
-  { label: "Tackles", key: "tackles" },
-  { label: "Interceptions", key: "interceptions" },
+  { label: "Passing", primaryKey: "pass_yards", stats: [{ label: "YDS", key: "pass_yards" }, { label: "TD", key: "pass_tds" }] },
+  { label: "Rushing", primaryKey: "rush_yards", stats: [{ label: "YDS", key: "rush_yards" }, { label: "TD", key: "rush_tds" }] },
+  { label: "Receiving", primaryKey: "receiving_yards", stats: [{ label: "YDS", key: "receiving_yards" }, { label: "TD", key: "receiving_tds" }] },
+  { label: "Sacks", primaryKey: "sacks", stats: [{ label: "SACKS", key: "sacks" }] },
+  { label: "Tackles", primaryKey: "tackles", stats: [{ label: "TKL", key: "tackles" }, { label: "FF", key: "forced_fumbles" }, { label: "FR", key: "fumble_recoveries" }] },
+  { label: "Interceptions", primaryKey: "interceptions", stats: [{ label: "INT", key: "interceptions" }, { label: "PBU", key: "pass_deflections" }] },
 ] as const;
 
 function LeagueLeadersView({ guildId }: { guildId: string }) {
@@ -239,21 +239,24 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
 
   return <>
     <div className="rec-leaders-grid">
-      {LEADER_CATEGORIES.map(({ label: categoryLabel, key }) => <section key={key} className="rec-leaders-category" aria-label={categoryLabel}>
+      {LEADER_CATEGORIES.map(({ label: categoryLabel, primaryKey, stats }, index) => <Fragment key={primaryKey}>
+        {index === 3 && <div className="rec-leaders-divider" aria-hidden="true" />}
+        <section className="rec-leaders-category" aria-label={categoryLabel}>
         <h2>{categoryLabel}</h2>
         <div className="rec-leaders-list">
-          {(data.leaders[key] ?? []).length ? (data.leaders[key] ?? []).map((leader) => {
+          {(data.leaders[primaryKey] ?? []).length ? (data.leaders[primaryKey] ?? []).map((leader) => {
             const player = playersById.get(leader.playerId);
             const abbr = resolveTeamLogoAbbr(leader.teamAbbreviation ?? "");
             const color = abbr && NFL_TEAM_PRIMARY_COLORS[abbr] ? NFL_TEAM_PRIMARY_COLORS[abbr] : "#1a1d24";
             return <button key={leader.playerId} type="button" className="hub-div-standing-team rec-leader-block" style={{ ["--team-color" as string]: color }} onClick={() => player && setOpenPlayer(player)} disabled={!player}>
               <TeamLogo abbreviation={leader.teamAbbreviation} alt="" className="hub-div-standing-logo" priority />
-              <span className="rec-leader-name">{leader.playerName}</span>
-              <strong className="rec-leader-value">{formatStatValue(key, leader.value)}</strong>
+              <span className="rec-leader-person"><PlayerAvatar player={{ photoUrl: player?.photoUrl ?? null, position: player?.position ?? leader.position ?? null }} /><span className="rec-leader-name">{leader.playerName}</span></span>
+              <span className="rec-leader-stats">{stats.map((stat) => <strong key={stat.key}><small>{stat.label}</small>{formatStatValue(stat.key, stat.key === primaryKey ? leader.value : (player?.stats[stat.key] ?? 0))}</strong>)}</span>
             </button>;
           }) : <p className="hub-empty">No leaders yet.</p>}
         </div>
-      </section>)}
+        </section>
+      </Fragment>)}
     </div>
     {openPlayer && <PlayerStatsModal player={openPlayer} onClose={() => setOpenPlayer(null)} />}
   </>;
