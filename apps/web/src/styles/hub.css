@@ -4145,10 +4145,10 @@ button.poty:disabled {
 .rec-leader-block:disabled { cursor:default; }
 .rec-leader-block .hub-div-standing-logo { opacity:.65; }
 .rec-leader-person, .rec-leader-stats { position:relative; z-index:1; display:flex; align-items:center; min-width:0; }
-.rec-leader-person { gap:10px; justify-content:center; }
+.rec-leader-person { display:grid; grid-template-columns:50px minmax(0,1fr); gap:10px; width:100%; }
 .rec-leader-person .rec-stat-player-card-avatar, .rec-leader-person .rec-stat-player-card-avatar-fallback { width:50px; height:50px; border:1px solid rgba(255,255,255,.42); }
 .rec-leader-name, .rec-leader-stats { font-family:"REC Quantico","Arial Narrow",Impact,sans-serif; font-weight:700; text-shadow:0 1px 3px rgba(0,0,0,.8); }
-.rec-leader-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; text-align:center; text-transform:uppercase; }
+.rec-leader-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; text-align:center; text-transform:uppercase; }
 .rec-leader-stats { gap:12px; white-space:nowrap; text-align:right; }
 .rec-leader-stats strong { display:flex; flex-direction:column; font-size:16px; line-height:1.05; }
 .rec-leader-stats small { font-size:9px; letter-spacing:.06em; opacity:.8; }
