@@ -36,6 +36,10 @@ export type TradeTargetPlayer = {
   teamId: string;
   teamName: string;
   attributes: Array<{ code: string; value: number }>;
+  // Madden's teamSchemeOvr on their CURRENT team — internal context only, never shown as an
+  // official rating. A meaningfully lower schemeOvr than overallRating suggests they may be a
+  // scheme misfit where they are now (and could play closer to their best OVR in a new scheme).
+  schemeOvr: number | null;
 };
 
 export async function searchTradeTargets(guildId: string, discordId: string, input: { position: string; filters: TradeTargetFilter[] }) {
@@ -45,7 +49,7 @@ export async function searchTradeTargets(guildId: string, discordId: string, inp
   const myTeamId = await teamForUser(context.leagueId, userId);
 
   const roster = await supabase.from("rec_players")
-    .select("id,full_name,position,overall_rating,dev_trait,team_id,attributes")
+    .select("id,full_name,position,overall_rating,dev_trait,team_id,attributes,team_scheme_ovr")
     .eq("league_id", context.leagueId).eq("position", input.position).eq("roster_status", "active")
     .not("team_id", "is", null).neq("team_id", myTeamId);
   if (roster.error) throw new ApiError(500, "We couldn't search the league's rosters. Please try again.", roster.error);
@@ -61,6 +65,7 @@ export async function searchTradeTargets(guildId: string, discordId: string, inp
       id: p.id, fullName: p.full_name, position: p.position, overallRating: p.overall_rating, devTrait: p.dev_trait,
       teamId: p.team_id, teamName: teamNameById.get(p.team_id) ?? "A team",
       attributes: filters.map((f) => ({ code: f.code, value: Number(p.attributes?.[f.code] ?? 0) })),
+      schemeOvr: p.team_scheme_ovr ?? null,
     }))
     .sort((a, b) => (b.overallRating ?? 0) - (a.overallRating ?? 0));
 

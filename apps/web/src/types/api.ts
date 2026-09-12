@@ -12,6 +12,7 @@ export type TradeEvaluatorReport = RecTradeFairnessReport & { proposingAssets: T
 export type TradeTargetPlayer = {
   id: string; fullName: string; position: string; overallRating: number | null; devTrait: string | null;
   teamId: string; teamName: string; attributes: Array<{ code: string; value: number }>;
+  schemeOvr: number | null;
 };
 export type TradeTargetOffer = {
   label: string;

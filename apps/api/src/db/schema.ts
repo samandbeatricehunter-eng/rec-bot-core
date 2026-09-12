@@ -1569,7 +1569,13 @@ export const recPlayers = pgTable("rec_players", {
   photoUrl: text("photo_url"),
   onTradeBlock: boolean("on_trade_block").notNull().default(false),
   tradeBlockNote: text("trade_block_note"),
-  tradeBlockListedAt: timestamp("trade_block_listed_at", { withTimezone: true, mode: "string" })
+  tradeBlockListedAt: timestamp("trade_block_listed_at", { withTimezone: true, mode: "string" }),
+  /** Madden's raw `teamSchemeOvr` — how well this player fits the team's current scheme,
+   * separate from their best-ever overall_rating. Internal/supplemental only (trade-fit
+   * analysis) per RAW_PAYLOAD_UTILIZATION.md — never the authoritative OVR. */
+  teamSchemeOvr: integer("team_scheme_ovr"),
+  /** Madden's raw `confRating` (Player Confidence) — dynamic, changes week to week. */
+  confidenceRating: integer("confidence_rating")
 });
 
 export const recPlayerWeeklyStats = pgTable("rec_player_weekly_stats", {

@@ -854,6 +854,11 @@ function TradeTargetsPanel({ guildId, onProposeSuggested }: {
                 <div className="hub-trade-targets-result-info">
                   <strong>{player.fullName}</strong>
                   <span>{player.position} · {player.teamName}{player.overallRating != null ? ` · ${player.overallRating} OVR` : ""}{player.devTrait ? ` · ${player.devTrait.replaceAll("_", " ")}` : ""}</span>
+                  {player.schemeOvr != null && player.overallRating != null && player.overallRating - player.schemeOvr >= 5 && (
+                    <span className="form-hint" title="Internal context only, not an official Madden rating">
+                      Possible scheme misfit on {player.teamName} — plays {player.overallRating - player.schemeOvr} below best OVR there
+                    </span>
+                  )}
                   {player.attributes.length > 0 && (
                     <span className="hub-trade-targets-result-attrs">{player.attributes.map((a) => `${attributeLabel(a.code)} ${a.value}`).join(" · ")}</span>
                   )}
