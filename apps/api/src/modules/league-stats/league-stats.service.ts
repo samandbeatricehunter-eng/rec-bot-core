@@ -44,8 +44,13 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
     "select id,name,abbreviation,conference,division from rec_teams where league_id=$1 and coalesce(is_schedule_placeholder,false)=false order by name", [leagueId],
   );
   const params: unknown[] = [leagueId];
-  // Preseason stats are excluded unconditionally below (not just for "career") -- preseason is a
-  // roster-evaluation stage, never real production, for either scope.
+  // Preseason and postseason rows are excluded unconditionally below (not just for "career") --
+  // preseason is a roster-evaluation stage, never real production; postseason production is
+  // tracked separately (rec_player_weekly_stats.season_stage = 'playoffs' already exists as its
+  // own distinct value) and deliberately kept out of "season"/"career" totals so a deep playoff
+  // run can't quietly inflate a regular-season leaderboard or career total. A dedicated
+  // postseason-scoped view can read the same rows by flipping this filter later, the way
+  // league-records.service.ts already does with its explicit `postseason` toggle.
   const seasonFilter = input.scope === "career" ? "" : ` and s.season_number=$${params.push(league.season_number)}`;
   let filter = "";
   if (input.teamId) { params.push(input.teamId); filter += ` and p.team_id=$${params.length}`; }
@@ -76,7 +81,7 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
        select s.player_id,e.key,
          case when e.key = any($${maxKeysParam}::text[]) then max(e.value::numeric) else sum(e.value::numeric) end as total
        from rec_player_weekly_stats s cross join lateral jsonb_each_text(s.stats) e
-       where s.league_id=$1${seasonFilter} and s.season_stage <> 'preseason' and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$' and e.key <> all($${nonAggregableKeysParam}::text[])
+       where s.league_id=$1${seasonFilter} and s.season_stage = 'regular_season' and e.value ~ '^-?[0-9]+(\\.[0-9]+)?$' and e.key <> all($${nonAggregableKeysParam}::text[])
        group by s.player_id,e.key
      ), totals as (
        select player_id,jsonb_object_agg(key,total order by key) as stats from numeric_stats group by player_id
@@ -181,7 +186,7 @@ export async function getLeagueTeamStatsForLeagueId(leagueId: string) {
     `select t.id,t.name,t.abbreviation,t.conference,t.division,
        ${selectCols}
      from rec_teams t
-     left join rec_team_game_stats g on g.team_id=t.id and g.league_id=t.league_id and g.season_number=$2
+     left join rec_team_game_stats g on g.team_id=t.id and g.league_id=t.league_id and g.season_number=$2 and g.phase='regular_season'
      where t.league_id=$1 and coalesce(t.is_schedule_placeholder,false)=false
      group by t.id
      order by t.conference nulls last, t.division nulls last, t.name`,

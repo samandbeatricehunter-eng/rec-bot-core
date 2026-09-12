@@ -7,6 +7,8 @@ import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, C
 import { InterviewMicIcon, ManageTeamIcon, ScheduleIcon } from "../../components/hub/QuickActionIcons.js";
 import { ManageFundsModal, SnapshotFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
 import { WeeklyChallengesCard } from "../../components/hub/WeeklyChallengesCard.js";
+import { DivisionRecordModal } from "../../components/hub/DivisionRecordModal.js";
+import { writeStandingsBoardCache, type StandingsBoardResponse } from "../../lib/standings-board-cache.js";
 import { HeroMatchupActions } from "../../components/hub/HeroMatchupActions.js";
 import { HeroMatchupBreakdown } from "../../components/hub/HeroMatchupBreakdown.js";
 import { GotwVotingCarousel } from "../../components/hub/GotwVotingCarousel.js";
@@ -702,6 +704,7 @@ export function HubHome() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
   const [careerStatsModalOpen, setCareerStatsModalOpen] = useState(false);
+  const [divisionModalOpen, setDivisionModalOpen] = useState(false);
   const [gotwGuessing, setGotwGuessing] = useState<GotwGuessingRecordsResponse | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [potyHighlightId, setPotyHighlightId] = useState<string | null>(null);
@@ -931,6 +934,11 @@ export function HubHome() {
       const [economy, guessing] = await Promise.all([economyP, guessingP]);
       setEconomyValues(economy);
       setGotwGuessing(guessing);
+      // Fire-and-forget: the "Season record"/"Point differential" boxes on this page jump
+      // straight into Standings. Prefetching here warms both the client cache (so the jump
+      // paints instantly even on a first-ever visit this browser) and the server's own
+      // withComputeCache for this guild, so it's warm even if the fetch below loses the race.
+      void recApi.getStandingsBoard(guildId).then((board) => writeStandingsBoardCache(guildId, board)).catch(() => undefined);
     }
     catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
@@ -1479,12 +1487,14 @@ export function HubHome() {
       </div>
       <div className="hub-stat-grid">
         <article><span>Coach</span><strong>{coachName}</strong></article>
-        <Link to={`/l/${hub.league.id}/standings`}><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></Link>
-        <Link to={`/l/${hub.league.id}/standings`}><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></Link>
+        <button type="button" onClick={() => setDivisionModalOpen(true)}><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></button>
+        <button type="button" onClick={() => setDivisionModalOpen(true)}><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></button>
         <Link to={`/l/${hub.league.id}/matchups`} aria-label="Open my game day matchup"><span>Current matchup</span><strong className="hub-season-snapshot-opponent">{heroOpponent ? heroMatchup?.viewerSide === "home" ? <><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /><em>AT</em><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /></> : <><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /><em>AT</em><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /></> : <><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /><em>—</em></>}</strong></Link>
         <button type="button" onClick={() => setSnapshotFundsKind("wallet")}><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></button>
         <button type="button" onClick={() => setSnapshotFundsKind("savings")}><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></button>
-      </div><div className="hub-profile-sections">
+      </div>
+      {divisionModalOpen && auth.status === "ready" && <DivisionRecordModal guildId={auth.guildId} leagueId={hub.league.id} myTeamId={hub.sos?.viewerTeamId ?? null} onClose={() => setDivisionModalOpen(false)} />}
+      <div className="hub-profile-sections">
       <details open><summary><WalletCards size={18} /> Funds &amp; Savings</summary><div className="hub-profile-panel"><WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} /></div></details>
       <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>PD {Number(profile.seasonRecord?.pointDifferential ?? 0) >= 0 ? "+" : ""}{profile.seasonRecord?.pointDifferential ?? 0} · Streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time (this league)</span><strong>{profile.leagueCareerRecord?.text ?? profile.seasonRecord?.text ?? "0-0-0"}</strong><small>PD {Number(profile.leagueCareerRecord?.pointDifferential ?? 0) >= 0 ? "+" : ""}{profile.leagueCareerRecord?.pointDifferential ?? 0} · Streak {profile.leagueCareerRecord?.activeStreak ?? profile.careerStats?.activeStreak ?? "—"}</small></article><article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? `Score ${heroUserScore}` : "Pending"}</small></article></div></details>
       {!isRise && auth.status === "ready" ? <details open><summary><Award size={18} /> Team Challenges</summary><div className="hub-profile-panel"><WeeklyChallengesCard guildId={auth.guildId} /></div></details> : null}
