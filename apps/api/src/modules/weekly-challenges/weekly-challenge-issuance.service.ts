@@ -25,6 +25,7 @@ import { loadImmortalityLeague } from "../immortality/immortality.service.js";
 import { buildWeeklyChallengeContext } from "./weekly-challenge-context.service.js";
 import { creditPlayerXp } from "../player-xp/player-xp-ledger.service.js";
 import { creditFranchiseXp } from "../franchise-xp/franchise-xp-ledger.service.js";
+import { MEDIA_DAY_GATE_ENABLED } from "../media-day-gate/media-day-gate.service.js";
 
 const SIDES: WeeklyChallengeSide[] = ["offense", "defense", "special_teams"];
 
@@ -149,36 +150,46 @@ export type WeeklyChallengeCreditResult = { beneficiaryPlayerIds: string[]; perP
 async function creditTierXp(input: {
   leagueId: string; seasonNumber: number; weekNumber: number; teamId: string; side: WeeklyChallengeSide;
   entry: WeeklyChallengeEntry; tier: WeeklyChallengeTier; previousTier: WeeklyChallengeTier | null;
-  ctx: WeeklyChallengeGameContext; creditedToUserId: string | null;
+  ctx: WeeklyChallengeGameContext; creditedToUserId: string | null; isRti: boolean;
 }): Promise<WeeklyChallengeCreditResult> {
   const none: WeeklyChallengeCreditResult = { beneficiaryPlayerIds: [], perPlayerAwardedXp: 0, franchiseAwardedFpp: 0 };
-  const conditions = flattenConditions(cumulativeConditions(input.entry, input.tier));
-  const roleConditions = conditions.filter((c): c is Extract<WeeklyChallengeCondition, { kind: "role" }> => c.kind === "role" && c.side === "self");
-  const beneficiaries = new Set<string>();
-  for (const condition of roleConditions) {
-    for (const playerId of findRoleBeneficiaries(condition, input.ctx)) beneficiaries.add(playerId);
-  }
-  if (!beneficiaries.size) {
-    const anchor = await resolveAnchorPlayerId(input.leagueId, input.seasonNumber, input.weekNumber, input.teamId, input.side);
-    if (anchor) beneficiaries.add(anchor);
-  }
-  if (!beneficiaries.size) return none;
 
-  const previousTeamXp = input.previousTier ? pointsForWeeklyTeamTier(input.previousTier) : 0;
-  const rawXp = pointsForWeeklyTeamTier(input.tier) - previousTeamXp;
+  // RTI leagues: this is the OWNER's team-level challenge (per-prospect challenges stay on RTI's
+  // own separate system, immortality/challenge-issuance.service.ts). RTI player progression lives
+  // in rec_immortality_xp_ledger, not rec_player_xp_ledger, so there is no per-player beneficiary
+  // to credit here -- only Franchise XP, to the owner.
+  let beneficiaries = new Set<string>();
+  if (!input.isRti) {
+    const conditions = flattenConditions(cumulativeConditions(input.entry, input.tier));
+    const roleConditions = conditions.filter((c): c is Extract<WeeklyChallengeCondition, { kind: "role" }> => c.kind === "role" && c.side === "self");
+    for (const condition of roleConditions) {
+      for (const playerId of findRoleBeneficiaries(condition, input.ctx)) beneficiaries.add(playerId);
+    }
+    if (!beneficiaries.size) {
+      const anchor = await resolveAnchorPlayerId(input.leagueId, input.seasonNumber, input.weekNumber, input.teamId, input.side);
+      if (anchor) beneficiaries.add(anchor);
+    }
+    if (!beneficiaries.size) return none;
+  }
+
   const sourceId = `weekly_challenge:${input.teamId}:${input.seasonNumber}:${input.weekNumber}:${input.side}:${input.tier}`;
   let perPlayerAwardedXp = 0;
-  for (const playerId of beneficiaries) {
-    const result = await creditPlayerXp({
-      leagueId: input.leagueId, playerId, creditedToUserId: input.creditedToUserId,
-      seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, eventType: "weekly_challenge",
-      sourceId, rawXp, metadata: { challengeId: input.entry.id, name: input.entry.name, side: input.side, tier: input.tier, previousTier: input.previousTier },
-    }).catch((error) => { console.error(`[ERROR] creditPlayerXp failed for weekly challenge ${sourceId} (non-fatal):`, error); return { credited: false, awardedXp: 0 }; });
-    perPlayerAwardedXp = Math.max(perPlayerAwardedXp, result.awardedXp);
+  if (!input.isRti) {
+    const previousTeamXp = input.previousTier ? pointsForWeeklyTeamTier(input.previousTier) : 0;
+    const rawXp = pointsForWeeklyTeamTier(input.tier) - previousTeamXp;
+    for (const playerId of beneficiaries) {
+      const result = await creditPlayerXp({
+        leagueId: input.leagueId, playerId, creditedToUserId: input.creditedToUserId,
+        seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, eventType: "weekly_challenge",
+        sourceId, rawXp, metadata: { challengeId: input.entry.id, name: input.entry.name, side: input.side, tier: input.tier, previousTier: input.previousTier },
+      }).catch((error) => { console.error(`[ERROR] creditPlayerXp failed for weekly challenge ${sourceId} (non-fatal):`, error); return { credited: false, awardedXp: 0 }; });
+      perPlayerAwardedXp = Math.max(perPlayerAwardedXp, result.awardedXp);
+    }
   }
 
   // Franchise XP: same event, paid once to the team's owning user (not per player-beneficiary --
-  // FPP is a team-owner-level currency, distinct from the per-player credit above).
+  // FPP is a team-owner-level currency, distinct from the per-player credit above). The only
+  // credit an RTI owner's team challenge pays.
   let franchiseAwardedFpp = 0;
   if (input.creditedToUserId) {
     const previousFpp = input.previousTier ? pointsForWeeklyFranchiseTier(input.previousTier) : 0;
@@ -204,13 +215,19 @@ export type GradedWeeklyChallenge = {
  * data (safe to call repeatedly/redundantly as corrections come in -- it just overwrites
  * graded_tier with the current truth, up or down); crediting is a deliberate, separate step tied
  * to the advance the commissioner actually runs (see creditGradedWeeklyChallengesForLeagueAtAdvance
- * below), which is also what the Rewards Recap presentation is built from. No-ops entirely for RTI
- * leagues, which have their own separate weekly challenge system (challenge-issuance.service.ts). */
+ * below), which is also what the Rewards Recap presentation is built from.
+ *
+ * RTI leagues are included here too (as of the Media Day rebuild) -- the RTI owner's OWN
+ * team-level weekly challenge reuses this exact team-scoped system rather than a parallel one,
+ * since an RTI owner's team is a real rec_teams row like any other. RTI's per-PROSPECT challenges
+ * stay entirely on their own separate system (challenge-issuance.service.ts), untouched.
+ * Gated behind MEDIA_DAY_GATE_ENABLED, same as the rest of Media Day, so this can't start issuing/
+ * crediting for real RTI leagues before the RTI interview flow that would ask about it exists. */
 export async function issueAndGradeWeeklyTeamChallenges(input: {
   leagueId: string; teamId: string; seasonNumber: number; weekNumber: number;
 }): Promise<GradedWeeklyChallenge[]> {
   const immortalityLeague = await loadImmortalityLeague(input.leagueId);
-  if (immortalityLeague) return [];
+  if (immortalityLeague && !MEDIA_DAY_GATE_ENABLED) return [];
 
   const ctx = await buildWeeklyChallengeContext(input);
   if (!ctx) return [];
@@ -262,7 +279,8 @@ export async function creditGradedWeeklyChallengesForLeagueAtAdvance(input: {
   leagueId: string; seasonNumber: number; weekNumber: number;
 }): Promise<CreditedWeeklyChallenge[]> {
   const immortalityLeague = await loadImmortalityLeague(input.leagueId);
-  if (immortalityLeague) return [];
+  if (immortalityLeague && !MEDIA_DAY_GATE_ENABLED) return [];
+  const isRti = Boolean(immortalityLeague);
 
   const rows = await supabase.from("rec_weekly_team_challenges_issued")
     .select("team_id,side,challenge_id,name,bronze,silver_adds,gold_adds,graded_tier,credited_tier")
@@ -284,12 +302,12 @@ export async function creditGradedWeeklyChallengesForLeagueAtAdvance(input: {
 
     const result = await creditTierXp({
       leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, teamId: row.team_id,
-      side: row.side, entry, tier: gradedTier, previousTier: creditedTier, ctx, creditedToUserId,
+      side: row.side, entry, tier: gradedTier, previousTier: creditedTier, ctx, creditedToUserId, isRti,
     });
     await supabase.from("rec_weekly_team_challenges_issued").update({ credited_tier: gradedTier })
       .eq("league_id", input.leagueId).eq("team_id", row.team_id)
       .eq("season_number", input.seasonNumber).eq("week_number", input.weekNumber).eq("side", row.side);
-    if (result.beneficiaryPlayerIds.length) {
+    if (result.beneficiaryPlayerIds.length || result.franchiseAwardedFpp > 0) {
       credited.push({
         teamId: row.team_id, side: row.side, challengeName: row.name, tier: gradedTier,
         beneficiaryPlayerIds: result.beneficiaryPlayerIds, perPlayerAwardedXp: result.perPlayerAwardedXp,
