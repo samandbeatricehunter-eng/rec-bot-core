@@ -4,6 +4,16 @@ import { useAuth } from "../lib/auth-context.js";
 import { safeInternalNext } from "../lib/safe-next.js";
 import { siteApi } from "../lib/site-api.js";
 
+// `dest` swaps the handoff's default `/l/:leagueId/buzz` landing for another top-level hub
+// page -- e.g. the Discord /league command's News/Matchups/Standings/Stats deep links.
+const DEST_TO_SITE_SEGMENT: Record<string, string> = {
+  mgmt: "mgmt",
+  news: "news",
+  matchups: "matchups",
+  standings: "standings",
+  stats: "stats",
+};
+
 export function OpenApp() {
   const auth = useAuth();
   const navigate = useNavigate();
@@ -24,12 +34,9 @@ export function OpenApp() {
         if (cancelled) return;
         if (result.status === "ready") {
           let path = result.sitePath;
-          if (
-            dest === "mgmt" &&
-            path.startsWith("/l/") &&
-            path.endsWith("/buzz")
-          ) {
-            path = path.replace(/\/buzz$/, "/mgmt");
+          const destSegment = DEST_TO_SITE_SEGMENT[dest];
+          if (destSegment && path.startsWith("/l/") && path.endsWith("/buzz")) {
+            path = path.replace(/\/buzz$/, `/${destSegment}`);
           }
           navigate(path, { replace: true });
           return;

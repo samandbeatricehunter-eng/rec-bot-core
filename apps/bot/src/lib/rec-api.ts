@@ -665,6 +665,9 @@ export const recApi = {
   getPowerRankings: (guildId: string, discordId?: string | null, completedWeekNumber?: number | null) =>
     recFetch<any>("/v1/schedule/power-rankings", { method: "POST", body: JSON.stringify({ guildId, discordId, completedWeekNumber }) }),
 
+  getLeagueSummary: (guildId: string) =>
+    recFetch<any>("/v1/schedule/league-summary", { method: "POST", body: JSON.stringify({ guildId }) }),
+
   // ─── Wagers ───
   listWagerGames: (guildId: string, discordId: string) =>
     recFetch<any>("/v1/wagers/games", { method: "POST", body: JSON.stringify({ guildId, discordId }) }),

@@ -8,6 +8,7 @@ import { getTeamScheduleManualState } from "./team-schedule.service.js";
 import { getLinkedRoster, getTeamManagementSummary } from "./team-schedule-summary.service.js";
 import { computeLeagueSos } from "./sos.service.js";
 import { computePowerRankings } from "./power-rankings.service.js";
+import { getLeagueSummary } from "./league-summary.service.js";
 import { setGameRivalry } from "../rivalries/rivalries.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { commitTeamScheduleDecisionsTransactional, removeTeamScheduleGame } from "./team-schedule-transaction.service.js";
@@ -87,6 +88,16 @@ export async function scheduleRoutes(app: FastifyInstance) {
         completedWeekNumber: z.number().int().positive().optional().nullable(),
       }).parse(request.body);
       return reply.send(await computePowerRankings(input.guildId, input.discordId ?? null, { completedWeekNumber: input.completedWeekNumber ?? null }));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/schedule/league-summary", async (request, reply) => {
+    try {
+      requireInternalApiKey(request);
+      const { guildId } = GuildSchema.parse(request.body);
+      return reply.send(await getLeagueSummary(guildId));
     } catch (error) {
       return sendError(reply, error);
     }

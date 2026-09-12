@@ -37,7 +37,7 @@ export type DiscordCommandDefinition = {
 // Linked-league member commands, commissioner commands, and the unlinked/setup-guild command.
 // Deliberately NOT registered (per current product direction): /twitter, /availability, /draft,
 // /openteams, /viewleague. /availability has no standalone command — /matchup owns that entry
-// point. /league, /teams, and /profile don't have bot handlers built yet.
+// point.
 export const DISCORD_COMMANDS: DiscordCommandDefinition[] = [
   { name: "matchup", description: "Show your current-week matchup." },
   { name: "schedule", description: "Show your team's full season schedule." },
@@ -45,6 +45,9 @@ export const DISCORD_COMMANDS: DiscordCommandDefinition[] = [
   { name: "standings", description: "Show current season standings." },
   { name: "wallet", description: "Check your coin balance and savings." },
   { name: "powerrankings", description: "Show current power rankings." },
+  { name: "league", description: "Show compact league state: season/week, advance status, Game of the Week, and leaders." },
+  { name: "teams", description: "Browse the team directory: claimed/open state, owners, and records." },
+  { name: "profile", description: "Show your personal summary: team, record, current matchup, and Coins/Savings." },
   { name: "rules", description: "Browse this league's rules." },
   { name: "highlights", description: "Get a link to upload a highlight for an eligible week." },
   { name: "commishtools", description: "Commissioner tools: Force Win, Fair Sim, AutoPilot, Suspend, Boot, Reset Scheduling, Game Day Audit." },

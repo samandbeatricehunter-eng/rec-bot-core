@@ -118,6 +118,9 @@ import { handleLinkLeagueSlash } from "./flows/linkleague-slash.js";
 import { handleStandingsSlash } from "./flows/standings-slash.js";
 import { handleWalletSlash } from "./flows/wallet-slash.js";
 import { handlePowerRankingsSlash } from "./flows/powerrankings-slash.js";
+import { handleLeagueSlash } from "./flows/league-slash.js";
+import { handleTeamsSlash } from "./flows/teams-slash.js";
+import { handleProfileSlash } from "./flows/profile-slash.js";
 import { handleSetTimezoneSelect, handleSetTimezoneOtherModal, SETTIMEZONE_CUSTOM_IDS } from "./flows/settimezone-slash.js";
 import {
   AVAILABILITY_WIZARD_CUSTOM_IDS,
@@ -576,6 +579,21 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isChatInputCommand() && interaction.commandName === "powerrankings") {
       await handlePowerRankingsSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "league") {
+      await handleLeagueSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "teams") {
+      await handleTeamsSlash(interaction);
+      return;
+    }
+
+    if (interaction.isChatInputCommand() && interaction.commandName === "profile") {
+      await handleProfileSlash(interaction);
       return;
     }
 
