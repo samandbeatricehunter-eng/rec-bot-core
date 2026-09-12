@@ -1719,65 +1719,6 @@ export function HubHome() {
         {homeMediaView ? <MediaMiniNav active={homeMediaView} leagueId={hub.league.id} /> : null}
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-rebuilt">
-            <header className="hub-hero-centered-header">
-              <p className="hub-eyebrow">{gameLabel(hub.league.game)}</p>
-              <h1><span>{hub.league.name}</span><em>–</em><span>{displayLabel(String(hub.league.seasonStage))}</span><em>–</em><span>Week {hub.league.weekNumber}</span></h1>
-              {auth.status === "ready" && heroMatchup?.matchupType === "h2h" && <HeroSchedulingStatus guildId={auth.guildId} gameId={heroMatchup.gameId} reloadKey={matchupReloadKey} />}
-            </header>
-
-            {isRise && !riseHubUnlocked ? (
-              <div className="hub-hero-no-matchup">
-                <strong>Registration pool</strong>
-                <span>Complete Origins on the Rise page. After the virtual rookie draft you are linked to a franchise on the site and Discord, and this hub switches to the full league UI. Unused teams stay CPU.</span>
-                <Link className="hub-my-team-btn" to={`/l/${hub.league.id}/rise`} style={{ marginTop: 12, display: "inline-flex" }}><strong>Open Origins</strong><span>Create your class</span></Link>
-              </div>
-            ) : heroMatchup ? <div className="hub-hero-matchup-stack">
-              {/* Not `passive` on the card itself -- this wrapper's onClick needs the click to
-               * bubble up from the card; the reaction row below (reactionsBelow) is a separate
-               * sibling, not inside this clickable area, so it's unaffected either way. */}
-              <div
-                role="button"
-                tabIndex={0}
-                aria-expanded={heroBreakdownExpanded}
-                className="hub-expandable-matchup-trigger"
-                onClick={() => setHeroBreakdownExpanded((value) => !value)}
-                onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setHeroBreakdownExpanded((value) => !value); } }}
-              >
-                <MatchupCard game={heroMatchup} showReactions reactionsBelow />
-              </div>
-              {heroBreakdownExpanded ? (
-                <div className="hub-expandable-matchup-drawer">
-                  {heroPreview?.gameId === heroMatchup.gameId ? <HeroMatchupBreakdown preview={heroPreview} /> : <p className="hub-empty">Loading matchup breakdown…</p>}
-                </div>
-              ) : null}
-              {auth.status === "ready" && <HeroMatchupActions
-                guildId={auth.guildId}
-                matchup={heroMatchup}
-                boxScoreMode={boxScoreMode}
-                onChanged={() => setMatchupReloadKey((value) => value + 1)}
-                onOpenPlayerStats={() => void openPlayerStats(heroMatchup)}
-                onOpenShareStream={() => setShareStreamGame(heroMatchup)}
-                onUploadHighlight={() => setHighlightUploadGame(heroMatchup)}
-                onOpenRequestHelp={heroMatchup.matchupType === "h2h" ? () => setRequestHelpGame(heroMatchup) : undefined}
-              />}
-              {isRise && rtiGates?.weeklyChallenges?.length ? (
-                <div className="hub-rti-challenges">
-                  {rtiGates.weeklyChallenges.map((player) => (
-                    <article key={player.prospectId}>
-                      <strong>{player.name || player.position} · {player.position}</strong>
-                      <ul>
-                        {player.challenges.map((challenge) => (
-                          <li key={challenge.id} className={challenge.complete ? "is-complete" : undefined}>
-                            <span>{challenge.tier}</span> {challenge.label}
-                          </li>
-                        ))}
-                      </ul>
-                    </article>
-                  ))}
-                </div>
-              ) : null}
-            </div> : <div className="hub-hero-no-matchup"><strong>No matchup this week</strong><span>Your next game will appear here when the league schedule is ready.</span></div>}
-
             <section className="hub-season-snapshot">
               <header><span>Season Snapshot</span><small>{coachName} · {heroTeam}</small></header>
               {isRise && rtiGates?.playerSnapshots?.length ? (() => {
@@ -1849,32 +1790,6 @@ export function HubHome() {
               </Suspense>
             ) : null}
 
-            <div className="hub-gameday-card hub-quick-actions-card hub-hero-quick-actions">
-              <p className="hub-eyebrow">Quick actions</p>
-              <div className="hub-gameday-actions hub-quick-actions-row">
-                {isRise ? (
-                  <>
-                    <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/team/upgrades`)}><strong>Upgrades</strong><span>Attribute upgrades</span></button>
-                    <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/team/progression`)}><strong>Progression Tree</strong><span>Perks &amp; promotions</span></button>
-                    {rtiGates?.pendingContracts ? <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rise`)}><strong>Contracts</strong><span>{rtiGates.pendingContracts} waiting to sign</span></button> : null}
-                    {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button> : null}
-                    <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>
-                    {riseHubUnlocked ? <button type="button" className="hub-my-team-btn" onClick={() => setManageFundsOpen(true)}><strong>Manage Funds</strong><span>Transfer &amp; transactions</span></button> : null}
-                  </>
-                ) : (
-                  <>
-                <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
-                <button type="button" className="hub-my-team-btn" onClick={() => setMediaDayOpen(true)}><strong>Media Day</strong><span>Weekly interview</span></button>
-                <button type="button" className="hub-my-team-btn" onClick={() => openSportsbook()}><strong>Place a Wager</strong><span>Sportsbook</span></button>
-                <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/store`)}><strong>Store</strong><span>Franchise marketplace</span></button>
-                <button type="button" className="hub-my-team-btn" onClick={() => navigate(`/l/${hub.league.id}/rules`)}><strong>Rules</strong><span>League policies</span></button>
-                {!isCfbLeague && <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>}
-                <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Manage Team</strong><span>Roster &amp; players</span></button>
-                <button type="button" className="hub-my-team-btn" onClick={() => setManageFundsOpen(true)}><strong>Manage Funds</strong><span>Transfer &amp; transactions</span></button>
-                  </>
-                )}
-              </div>
-            </div>
             <details className="hub-ways-paid">
               <summary><span>Ways To Get Paid</span><small><CoinAmount amount={hub.waysToGetPaid.weeklyEarned} /> earned of <CoinAmount amount={hub.waysToGetPaid.weeklyPotential} /> potential this week</small></summary>
               <div className="hub-ways-paid-body">
