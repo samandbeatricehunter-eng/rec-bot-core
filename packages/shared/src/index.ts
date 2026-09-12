@@ -13,6 +13,7 @@ export * from "./nfl-schedules.js";
 export * from "./route-channels.js";
 export * from "./discord-commands.js";
 export * from "./roundtable-personalities.js";
+export * from "./xp-economy.js";
 export * from "./media-social/tweet-personalities.js";
 export * from "./media-social/social-claim-plan.js";
 export * from "./media-social/root-post-fragments.js";

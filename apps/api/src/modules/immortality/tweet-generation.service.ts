@@ -21,6 +21,7 @@ import { conversationTemplateKey, selectConversationLine, type ConversationKind,
 import { personaForHandle, playerVoiceFromTraits } from "./tweet-bank-voices.js";
 import { isImmortalityCreatedPlayer, loadRtiProspectPlayerIds } from "./player-identity.service.js";
 import { buildClaimGroundedPostBody, pickReactivePersona, reactivePersonaAuthor } from "./social-claim-engine.js";
+import { loadGameRivalries } from "../rivalries/rivalries.service.js";
 
 const QUEUE_SIZE = 10;
 const REACTIVE_PERSONA_KEYS = new Set<string>(["marcus", "vaughn", "elliot", "darius"]);
@@ -371,6 +372,85 @@ export async function queueImmortalityTweetsAfterAdvance(input: { leagueId: stri
   await generateAndQueueImmortalityTweets(input.leagueId, input.seasonNumber, input.weekNumber, input.seasonStage);
   await queuePlayerChatterAfterImport(input.leagueId, input.seasonNumber, input.weekNumber, input.seasonStage).catch((err) =>
     console.error(`[ERROR] Player chatter tweets failed for league ${input.leagueId} (non-fatal):`, err));
+}
+
+/** Pregame beef escalation, per social_event_playbooks.json's rivalry_pregame/gotw_pregame
+ * entries (both already fully wired in the claim/fragment catalogs -- contextual_blueprint_policy
+ * covers every persona for both -- this was the only missing piece: nothing ever called them).
+ * One claim-grounded post per qualifying game in the UPCOMING week: the just-selected Game of the
+ * Week (if any) and every game flagged as a rivalry. Fires once per advance, right after the new
+ * week's schedule becomes current, so it reads as pregame hype rather than a recap. The "beef"
+ * escalates through the fact itself -- series record and active streak length pulled straight
+ * from rec_league_rivalries -- not through a multi-day posting cadence this system doesn't have.
+ * No-ops for non-RTI leagues, same as the rest of this module. */
+export async function queuePregameHypeTweets(input: {
+  leagueId: string;
+  seasonNumber: number;
+  weekNumber: number;
+  gotwGameId?: string | null;
+}): Promise<void> {
+  const immortalityLeague = await loadImmortalityLeague(input.leagueId);
+  if (!immortalityLeague) return;
+
+  const weekGames = await supabase.from("rec_games")
+    .select("id").eq("league_id", input.leagueId).eq("week_number", input.weekNumber).not("rivalry_id", "is", null);
+  if (weekGames.error) return;
+
+  const gameIds = new Set<string>((weekGames.data ?? []).map((row: any) => row.id as string));
+  if (input.gotwGameId) gameIds.add(input.gotwGameId);
+  if (!gameIds.size) return;
+
+  const [rivalryByGame, games] = await Promise.all([
+    loadGameRivalries([...gameIds]),
+    supabase.from("rec_games")
+      .select("id,home_team_id,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)")
+      .in("id", [...gameIds]),
+  ]);
+  if (games.error || !games.data?.length) return;
+
+  for (const game of games.data as any[]) {
+    const rivalry = rivalryByGame.get(game.id);
+    const isGotw = game.id === input.gotwGameId;
+    const isRivalry = Boolean(rivalry?.enabled);
+    if (!isGotw && !isRivalry) continue;
+
+    const homeName = formatTeamDisplayName(game.home_team) ?? "Home";
+    const awayName = formatTeamDisplayName(game.away_team) ?? "Away";
+
+    let factLine: string;
+    let eventType: SocialEventType;
+    let storylineTitle: string;
+    if (isRivalry && rivalry?.details) {
+      const d: any = rivalry.details;
+      const seriesRecord = `${d.team_a_wins}-${d.team_b_wins}${d.ties ? `-${d.ties}` : ""}`;
+      const streakLine = d.streak_length > 1 ? ` The current holder has won ${d.streak_length} straight in the series.` : "";
+      factLine = `${awayName} and ${homeName} renew ${d.rivalry_name ?? "their rivalry"} in Week ${input.weekNumber}, with the all-time series at ${seriesRecord}.${streakLine}`;
+      eventType = "rivalry_pregame";
+      storylineTitle = `${d.rivalry_name ?? `${awayName}-${homeName}`} rivalry`;
+    } else {
+      factLine = `${awayName} at ${homeName} is this week's featured Game of the Week for Week ${input.weekNumber}.`;
+      eventType = "gotw_pregame";
+      storylineTitle = `Week ${input.weekNumber} Game of the Week`;
+    }
+
+    const persona = pickReactivePersona({});
+    const body = await buildClaimGroundedPostBody({
+      leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber,
+      eventType, persona, subjectKey: `game:${game.id}`, factLine, storylineTitle,
+      teamId: game.home_team_id, gameId: game.id,
+    }).catch((error) => {
+      console.error(`[ERROR] buildClaimGroundedPostBody failed for pregame hype (game ${game.id}, non-fatal):`, error);
+      return null;
+    });
+    if (!body) continue;
+
+    const author = reactivePersonaAuthor(persona);
+    await supabase.from("rec_immortality_tweet_queue").insert({
+      league_id: input.leagueId, season_number: input.seasonNumber, week_number: input.weekNumber,
+      author_kind: author.authorKind, author_handle: author.handle, author_display_name: author.displayName,
+      body, status: "pending", source: isRivalry ? "rivalry_pregame" : "gotw_pregame",
+    });
+  }
 }
 
 /** Same generator, called from the EA import completion hooks (ea-connections.service.ts /
@@ -1299,7 +1379,48 @@ async function queueAmbientFanChatterIfDue(recLeagueId: string, immortalityLeagu
   const league = await supabase.from("rec_leagues")
     .select("season_number,current_week,season_stage,game").eq("id", recLeagueId).maybeSingle();
   if (!league.data) return;
-  const inGameplayStage = gameplaySeasonStages(league.data.game as LeagueGame).has(String(league.data.season_stage ?? ""));
+  const seasonNumber = Number(league.data.season_number ?? 1);
+  const currentWeek = Number(league.data.current_week ?? 1);
+  const seasonStage = String(league.data.season_stage ?? "");
+  const inGameplayStage = gameplaySeasonStages(league.data.game as LeagueGame).has(seasonStage);
+
+  // Claim-grounded path first: reuses the exact same real-stat candidate builder the weekly
+  // recap uses (buildCandidates), just triggered on the ambient cadence instead of once/week --
+  // this week's box scores are often already imported before the recap fires at advance time,
+  // so there's real material to react to. Falls through to the legacy random-prospect
+  // praise/taunt/camp_buzz bank below whenever there's nothing gradeable yet (bye week, no
+  // imports since last advance) or the claim engine can't produce a body.
+  if (inGameplayStage) {
+    const claimCandidates = (await buildCandidates(recLeagueId, seasonNumber, currentWeek, seasonStage))
+      .filter((candidate) => candidate.mediaSocial);
+    const [chosen] = weightedSample(claimCandidates, 1);
+    if (chosen?.mediaSocial) {
+      const persona = pickReactivePersona(chosen.mediaSocial.personaWeights);
+      const claimBody = await buildClaimGroundedPostBody({
+        leagueId: recLeagueId, seasonNumber, weekNumber: currentWeek,
+        eventType: chosen.mediaSocial.eventType,
+        persona,
+        subjectKey: chosen.mediaSocial.subjectKey,
+        factLine: chosen.mediaSocial.factLine,
+        teamId: chosen.mediaSocial.teamId,
+        playerId: chosen.mediaSocial.playerId,
+        gameId: chosen.mediaSocial.gameId,
+        storylineTitle: chosen.mediaSocial.storylineTitle,
+      }).catch((error) => {
+        console.error(`[ERROR] buildClaimGroundedPostBody failed for ambient chatter in league ${recLeagueId} (non-fatal, falling back to legacy bank):`, error);
+        return null;
+      });
+      if (claimBody) {
+        const author = reactivePersonaAuthor(persona);
+        await supabase.from("rec_immortality_tweet_queue").insert({
+          league_id: recLeagueId, season_number: seasonNumber, week_number: currentWeek,
+          author_kind: author.authorKind, author_handle: author.handle, author_display_name: author.displayName,
+          body: claimBody, status: "pending", source: "ambient",
+        });
+        return;
+      }
+    }
+  }
 
   const prospects = await supabase.from("rec_immortality_prospects")
     .select("first_name,last_name,player_id").eq("immortality_league_id", immortalityLeagueId).not("player_id", "is", null);
@@ -1325,8 +1446,8 @@ async function queueAmbientFanChatterIfDue(recLeagueId: string, immortalityLeagu
 
   await supabase.from("rec_immortality_tweet_queue").insert({
     league_id: recLeagueId,
-    season_number: Number(league.data.season_number ?? 1),
-    week_number: Number(league.data.current_week ?? 1),
+    season_number: seasonNumber,
+    week_number: currentWeek,
     author_kind: author.authorKind, author_handle: author.handle, author_display_name: author.displayName,
     body, status: "pending", source: "ambient",
   });

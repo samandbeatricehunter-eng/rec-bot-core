@@ -16,7 +16,7 @@
 // on a real, identifiable individual instead of splitting into meaningless fractions across 50+
 // roster spots.
 import {
-  evaluateWeeklyChallengeTiers, pickWeeklyChallenge, pointsForWeeklyTeamTier,
+  evaluateWeeklyChallengeTiers, pickWeeklyChallenge, pointsForWeeklyTeamTier, pointsForWeeklyFranchiseTier,
   type WeeklyChallengeCondition, type WeeklyChallengeEntry, type WeeklyChallengeGameContext,
   type WeeklyChallengeSide, type WeeklyChallengeTier,
 } from "@rec/shared";
@@ -24,6 +24,7 @@ import { supabase } from "../../lib/supabase.js";
 import { loadImmortalityLeague } from "../immortality/immortality.service.js";
 import { buildWeeklyChallengeContext } from "./weekly-challenge-context.service.js";
 import { creditPlayerXp } from "../player-xp/player-xp-ledger.service.js";
+import { creditFranchiseXp } from "../franchise-xp/franchise-xp-ledger.service.js";
 
 const SIDES: WeeklyChallengeSide[] = ["offense", "defense", "special_teams"];
 
@@ -153,6 +154,17 @@ async function creditTierXp(input: {
       seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, eventType: "weekly_challenge",
       sourceId, rawXp, metadata: { challengeId: input.entry.id, name: input.entry.name, side: input.side, tier: input.tier },
     }).catch((error) => console.error(`[ERROR] creditPlayerXp failed for weekly challenge ${sourceId} (non-fatal):`, error));
+  }
+
+  // Franchise XP: same event, paid once to the team's owning user (not per player-beneficiary --
+  // FPP is a team-owner-level currency, distinct from the per-player credit above).
+  if (input.creditedToUserId) {
+    await creditFranchiseXp({
+      leagueId: input.leagueId, userId: input.creditedToUserId, teamId: input.teamId,
+      seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, eventType: "weekly_challenge",
+      sourceId, rawFpp: pointsForWeeklyFranchiseTier(input.tier),
+      metadata: { challengeId: input.entry.id, name: input.entry.name, side: input.side, tier: input.tier },
+    }).catch((error) => console.error(`[ERROR] creditFranchiseXp failed for weekly challenge ${sourceId} (non-fatal):`, error));
   }
 }
 

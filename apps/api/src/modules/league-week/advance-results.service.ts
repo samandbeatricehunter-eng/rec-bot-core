@@ -1,4 +1,4 @@
-import { firstOffseasonStage, isCfb, isOffseasonPipelineStage, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, postseasonResultMultiplier, stageForWeek, stageLabel } from "@rec/shared";
+import { firstOffseasonStage, isCfb, isOffseasonPipelineStage, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, postseasonResultMultiplier, stageForWeek, stageLabel, FRANCHISE_XP_GAME_RESULT_POINTS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -32,6 +32,7 @@ import { cleanupSeasonHighlights, settleGameOfTheYear, settleSeasonHighlightAwar
 import { clearTradeBlockAtSeasonEnd } from "../trades/trades.service.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
+import { creditFranchiseXp } from "../franchise-xp/franchise-xp-ledger.service.js";
 import { updateAdvanceProgress } from "./advance-progress.service.js";
 import { snapshotNflPlayoffBracket } from "../standings/nfl-bracket.service.js";
 import { resetLeaguePurchaseCapsForOffseason } from "../purchases/purchases.service.js";
@@ -817,6 +818,26 @@ export async function completeAdvanceWeek(input: {
       await cancelAllWagersForGame({ guildId: input.guildId, gameId: game.data.id, reason: "force_win" });
     }
 
+    // Franchise XP: team win FPP (FRANCHISE_XP_ENGINE.md "Team results / milestones"). Same
+    // administrative-outcome exclusion as the Coin payout above -- a Force Win/Fair Sim isn't a
+    // "legitimate" win. Conference-championship-specific FPP (2400) isn't broken out separately
+    // here (postseason_round isn't loaded in this query) -- every non-title playoff win pays the
+    // generic 1,200 playoff-win rate; only the National Championship/Super Bowl pays 4,800.
+    if (winningUserId && result.designation !== "fair_sim" && result.designation !== "force_win") {
+      const isPlayoff = !isRegularSeasonWeek(game.data.week_number ?? currentWeek, context.rec_leagues.game);
+      const winFpp = game.data.is_national_championship
+        ? FRANCHISE_XP_GAME_RESULT_POINTS.superBowlWin
+        : isPlayoff
+          ? FRANCHISE_XP_GAME_RESULT_POINTS.playoffWin
+          : FRANCHISE_XP_GAME_RESULT_POINTS.regularSeasonWin;
+      await creditFranchiseXp({
+        leagueId: context.leagueId, userId: winningUserId, teamId: winningTeamId,
+        seasonNumber, weekNumber: game.data.week_number ?? currentWeek, eventType: "game_win",
+        sourceId: `game_win:${game.data.id}`, rawFpp: winFpp,
+        metadata: { gameId: game.data.id, isPlayoff, isNationalChampionship: Boolean(game.data.is_national_championship) },
+      }).catch((err) => console.error("[ERROR] creditFranchiseXp (game_win) failed during advance (non-fatal):", err));
+    }
+
     // Surface any pending wager this result just made settle-ready. The Discord bot does this
     // itself (refreshConfirmableWagerEmbeds, called from its own interactive advance wizard)
     // but that only fires for an advance actually run through the bot — a web-dashboard advance,
@@ -931,6 +952,19 @@ export async function completeAdvanceWeek(input: {
     seasonNumber: Number((advanceResult.league as { season_number?: number } | null)?.season_number ?? seasonNumber),
   }).catch((err) => console.error("[ERROR] RTI contract offers failed after advance (non-fatal):", err));
 
+  // Weekly Transactions: one team-oriented embed per advance summarizing prior-week Coin/XP
+  // activity. Window is (last advance -> this advance) so it captures exactly what happened
+  // since the last time this posted, including this advance's own weekly-challenge XP awards
+  // (credited just above) and box-score payouts credited earlier in this same advance.
+  const { postWeeklyTransactionsForAdvance } = await import("../economy/weekly-transactions.service.js");
+  await postWeeklyTransactionsForAdvance({
+    guildId: input.guildId,
+    seasonNumber,
+    weekNumber: currentWeek,
+    windowStartIso: context.rec_leagues.last_advance_at ?? context.rec_leagues.created_at ?? "1970-01-01T00:00:00Z",
+    windowEndIso: now,
+  }).catch((err) => console.error("[ERROR] postWeeklyTransactionsForAdvance failed after advance (non-fatal):", err));
+
   await notifyLeagueMembersOfAdvance({
     leagueId: context.leagueId,
     leagueName: context.rec_leagues.name,
@@ -986,6 +1020,16 @@ export async function completeAdvanceWeek(input: {
       weekNumber: nextTarget.weekNumber,
     });
   }
+
+  // Pregame beef escalation: one claim-grounded post for the just-selected GOTW game (if any)
+  // and every rivalry game now on the upcoming week's schedule. No-ops for non-RTI leagues.
+  const { queuePregameHypeTweets } = await import("../immortality/tweet-generation.service.js");
+  await queuePregameHypeTweets({
+    leagueId: context.leagueId,
+    seasonNumber,
+    weekNumber: nextTarget.weekNumber,
+    gotwGameId: nextTarget.seasonStage === "regular_season" ? input.nextGotwGameId ?? null : null,
+  }).catch((err) => console.error("[ERROR] queuePregameHypeTweets failed after advance (non-fatal):", err));
 
   // Postseason-end boundary — advancing out of the terminal stage (super_bowl/
   // national_championship) into the first offseason stage (coach_hiring for Madden,

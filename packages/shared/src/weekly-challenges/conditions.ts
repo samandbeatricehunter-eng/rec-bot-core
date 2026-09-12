@@ -18,6 +18,7 @@
 // than guessed at -- see config/weekly_challenge_catalog.json's provenance comment. 148 of the
 // 200 entries (70 offense, 68 defense, all 10 special-teams) are fully gradable as a result.
 import type { StatKey as PlayerStatKey } from "../immortality/challenges.js";
+import { PLAYER_XP_CHALLENGE_POINTS, FRANCHISE_XP_CHALLENGE_POINTS } from "../xp-economy.js";
 
 export type WeeklyChallengeSide = "offense" | "defense" | "special_teams";
 export type WeeklyChallengeTier = "bronze" | "silver" | "gold";
@@ -190,6 +191,14 @@ export function evaluateWeeklyChallengeTiers(entry: WeeklyChallengeEntry, ctx: W
   ];
 }
 
+// PLAYER_XP_ENGINE.md "PLAYER challenge PPP": Bronze 600 / Silver 1,200 / Gold 1,800 -- was a
+// 1/2/3 placeholder before config/xp_economy.json supplied the real economy numbers.
 export function pointsForWeeklyTeamTier(tier: WeeklyChallengeTier): number {
-  return tier === "bronze" ? 1 : tier === "silver" ? 2 : 3;
+  return PLAYER_XP_CHALLENGE_POINTS[tier];
+}
+
+// FRANCHISE_XP_ENGINE.md "Weekly challenge FPP": Bronze 900 / Silver 1,800 / Gold 3,000. Same
+// event as the player-side credit above, paid to the team's owning user instead of a player.
+export function pointsForWeeklyFranchiseTier(tier: WeeklyChallengeTier): number {
+  return FRANCHISE_XP_CHALLENGE_POINTS[tier];
 }
