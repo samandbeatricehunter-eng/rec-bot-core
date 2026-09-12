@@ -232,9 +232,12 @@ export async function listCommissionerNotifications(
 ): Promise<{ notifications: CommissionerNotification[] }> {
   let query = supabase
     .from("rec_commissioners_inbox")
-    .select("id,queue_type,header,summary,amount,requester_discord_id,requester_user_id,team_id,week_number,source_id,payload,created_at,internal_memo,voting_topic_id,awaiting_user_response")
+    .select("id,queue_type,header,summary,amount,requester_discord_id,requester_user_id,team_id,week_number,source_id,payload,created_at,internal_memo,voting_topic_id,awaiting_user_response,status")
     .eq("guild_id", guildId)
-    .eq("status", "pending")
+    // verification_mismatch (immortality_upgrade_batch's manual-Madden-change lifecycle) belongs
+    // in the same "needs commissioner attention" bucket as a fresh pending item -- the EA sync
+    // came back showing something other than what was expected, so it's back in their queue.
+    .in("status", ["pending", "verification_mismatch"])
     .order("priority", { ascending: false })
     .order("created_at", { ascending: false });
   if (sinceIso) query = query.gt("created_at", sinceIso);
@@ -312,7 +315,7 @@ export async function listCommissionerNotifications(
         votingTopicId: row.voting_topic_id ?? null,
         awaitingUserResponse: Boolean(row.awaiting_user_response),
         displayStatus: deriveCaseDisplayStatus({
-          status: "pending",
+          status: row.status,
           internalMemo: row.internal_memo,
           votingTopicId: row.voting_topic_id,
           awaitingUserResponse: row.awaiting_user_response,
@@ -407,7 +410,7 @@ export async function listUnattendedCommissionerNotifications(guildId: string) {
     .from("rec_commissioners_inbox")
     .select("id,header,summary")
     .eq("guild_id", guildId)
-    .eq("status", "pending")
+    .in("status", ["pending", "verification_mismatch"])
     .is("dm_notified_at", null)
     .lte("created_at", cutoff)
     .order("created_at", { ascending: true });
@@ -438,7 +441,7 @@ export async function markCommissionerNotificationsDmSent(guildId: string, ids: 
     .from("rec_commissioners_inbox")
     .update({ dm_notified_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq("guild_id", guildId)
-    .eq("status", "pending")
+    .in("status", ["pending", "verification_mismatch"])
     .in("id", ids)
     .select("id");
   if (error) throw new ApiError(500, "Failed to mark commissioner notification DMs.", error);

@@ -19,6 +19,7 @@ import { ingestCompanionPayload, recUserIdFromDiscordId, syncCompanionScheduleRe
 import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
 import { issueAndGradeWeeklyTeamChallengesForGame } from "../weekly-challenges/weekly-challenge-issuance.service.js";
 import { reconcileApprovedMaddenPurchases } from "../purchases/purchases.service.js";
+import { reconcileImmortalityUpgradeVerifications } from "../immortality/immortality.service.js";
 import { levenshtein, normalizePlayerName } from "./player-name-matching.js";
 import {
   BLAZE_COMPONENT_NAME,
@@ -1118,6 +1119,17 @@ export async function importEaDatasetsWithProgress(
     });
     if (fulfilled.legendsFulfilled > 0 || fulfilled.customPlayersApplied > 0) {
       console.log(`[EA] Fulfilled ${fulfilled.legendsFulfilled} legend(s), applied ${fulfilled.customPlayersApplied} custom player(s) from this import.`);
+    }
+
+    // Manual-Madden-change lifecycle: check every "applied_pending_verification" attribute
+    // upgrade batch against what this import actually shows for that player.
+    pushProgress(leagueId, { type: "reconciling", step: "Verifying applied attribute upgrades…" });
+    const upgradeVerification = await reconcileImmortalityUpgradeVerifications(leagueId).catch((error) => {
+      console.error("[WARN] Failed to reconcile immortality upgrade verifications (non-fatal):", error);
+      return { verified: 0, mismatched: 0 };
+    });
+    if (upgradeVerification.verified > 0 || upgradeVerification.mismatched > 0) {
+      console.log(`[EA] Verified ${upgradeVerification.verified} upgrade batch(es), ${upgradeVerification.mismatched} mismatch(es).`);
     }
 
     // Restore player photos from the saved mapping (by EA ID first, then by name)

@@ -23,10 +23,15 @@ export function deriveCaseDisplayStatus(input: {
   awaitingUserResponse?: boolean | null;
 }): CaseDisplayStatus {
   const status = String(input.status ?? "").toLowerCase();
-  if (status === "approved") return "Approved";
+  if (status === "approved" || status === "verified_fulfilled") return "Approved";
   if (status === "denied") return "Denied";
   if (status === "cancelled") return "Cancelled";
   if (TERMINAL_RESOLVED_STATUSES.has(status)) return "Resolved";
+  // Manual-Madden-change lifecycle (immortality_upgrade_batch and friends): applied but not yet
+  // confirmed by an EA sync, or confirmed to have come back wrong -- both still need eyes on
+  // them, so neither is terminal.
+  if (status === "applied_pending_verification") return "Under Review";
+  if (status === "verification_mismatch") return "Under Review";
   // Anything still open (pending, or any other non-terminal value) — derive the sub-state.
   if (input.votingTopicId) return "Voting";
   if (input.awaitingUserResponse) return "Waiting on User";

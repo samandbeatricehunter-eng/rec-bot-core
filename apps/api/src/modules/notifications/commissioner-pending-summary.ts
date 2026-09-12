@@ -43,8 +43,8 @@ export async function getCommissionerPendingSummaries(
         l.id as league_id,
         l.name as league_name,
         l.game,
-        count(i.id) filter (where i.status = 'pending')::int as pending_count,
-        max(i.created_at) filter (where i.status = 'pending') as latest_created_at,
+        count(i.id) filter (where i.status in ('pending', 'verification_mismatch'))::int as pending_count,
+        max(i.created_at) filter (where i.status in ('pending', 'verification_mismatch')) as latest_created_at,
         r.viewed_at
       from rec_leagues l
       left join rec_commissioners_inbox i on i.league_id = l.id
@@ -128,7 +128,7 @@ export async function notifyLeagueCommissionersOfPendingItem(leagueId: string): 
         select
           l.name as league_name,
           l.game,
-          count(i.id) filter (where i.status = 'pending')::int as pending_count
+          count(i.id) filter (where i.status in ('pending', 'verification_mismatch'))::int as pending_count
         from rec_leagues l
         left join rec_commissioners_inbox i on i.league_id = l.id
         where l.id = $1

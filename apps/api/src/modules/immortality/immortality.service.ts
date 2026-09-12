@@ -4057,9 +4057,15 @@ export async function submitImmortalityUpgrades(input: {
   return { applied: true as const, upgrades, totalXpCost, remainingXp, requestId: inboxInsert.data.id };
 }
 
-/** Commissioner resolves a pending upgrade batch -- "applied" just confirms/logs it (the XP and
- * rating changes already happened at submit time), "refunded" reverses both: credits the XP back
- * and reverts every attribute in the batch to its previousRating. */
+/** Commissioner resolves a pending upgrade batch. Follows the master plan's manual-Madden-change
+ * lifecycle: pending -> applied_pending_verification -> verified_fulfilled, with a mismatch
+ * branch (applied_pending_verification -> verification_mismatch) when the next EA sync's roster
+ * doesn't actually show the target rating -- see reconcileImmortalityUpgradeVerifications, which
+ * runs that check after every roster import. "Applied" here only means "I made the change in my
+ * Madden save" -- it does NOT resolve the item; that's confirmed later by the sync. "Refunded"
+ * reverses both immediately: credits the XP back and reverts every attribute in the batch to its
+ * previousRating. Re-resolvable from verification_mismatch too, so a commissioner who fixes a
+ * missed edit (or gives up and refunds) isn't stuck. */
 export async function resolveImmortalityUpgradeBatch(input: {
   guildId: string; requestId: string; action: "applied" | "refunded"; reviewerDiscordId: string; note?: string;
 }) {
@@ -4067,7 +4073,9 @@ export async function resolveImmortalityUpgradeBatch(input: {
   const request = await supabase.from("rec_commissioners_inbox").select("*").eq("id", input.requestId).eq("league_id", context.leagueId).maybeSingle();
   if (request.error || !request.data) throw new ApiError(404, "Request not found in this league.");
   if (String(request.data.queue_type) !== "immortality_upgrade_batch") throw new ApiError(400, "That request isn't an upgrade batch.");
-  if (request.data.status !== "pending") throw new ApiError(409, `Request is already ${request.data.status}.`);
+  if (request.data.status !== "pending" && request.data.status !== "verification_mismatch") {
+    throw new ApiError(409, `Request is already ${request.data.status}.`);
+  }
 
   const payload = (request.data.payload ?? {}) as { prospectId: string; batchId: string; upgrades: UpgradeBatchRow[]; totalXpCost: number };
   if (input.action === "refunded") {
@@ -4098,12 +4106,61 @@ export async function resolveImmortalityUpgradeBatch(input: {
   }
 
   const updated = await supabase.from("rec_commissioners_inbox").update({
-    status: input.action === "applied" ? "approved" : "denied",
+    status: input.action === "applied" ? "applied_pending_verification" : "denied",
     reviewed_by_discord_id: input.reviewerDiscordId, reviewed_at: new Date().toISOString(),
     review_reason: input.note?.trim() ?? null,
   }).eq("id", input.requestId).select("*").single();
   if (updated.error) throw new ApiError(500, "Could not save that review decision.", updated.error);
   return { request: updated.data };
+}
+
+/** The other half of the manual-Madden-change lifecycle: run after every roster import (both EA
+ * Direct and Madden Companion) to check every "applied_pending_verification" upgrade batch
+ * against what the import actually shows. rec_players.attributes always reflects the freshest
+ * imported Madden state right after that write, so reading it here (rather than trusting REC's
+ * own speculative write from submitImmortalityUpgradeBatch) tells us what the commissioner
+ * actually did in their save, not what REC hoped they'd do. */
+export async function reconcileImmortalityUpgradeVerifications(leagueId: string): Promise<{ verified: number; mismatched: number }> {
+  const pending = await supabase
+    .from("rec_commissioners_inbox")
+    .select("id,payload")
+    .eq("league_id", leagueId)
+    .eq("queue_type", "immortality_upgrade_batch")
+    .eq("status", "applied_pending_verification");
+  if (pending.error || !pending.data?.length) return { verified: 0, mismatched: 0 };
+
+  let verified = 0;
+  let mismatched = 0;
+  for (const row of pending.data) {
+    const payload = (row.payload ?? {}) as { prospectId?: string; upgrades?: UpgradeBatchRow[] };
+    if (!payload.prospectId || !payload.upgrades?.length) continue;
+
+    const prospect = await supabase.from("rec_immortality_prospects").select("player_id").eq("id", payload.prospectId).maybeSingle();
+    if (!prospect.data?.player_id) continue;
+    const player = await supabase.from("rec_players").select("attributes").eq("id", prospect.data.player_id).maybeSingle();
+    if (!player.data) continue;
+    const attributes = (player.data.attributes ?? {}) as Record<string, number | null>;
+
+    const mismatches = payload.upgrades
+      .map((upgrade) => ({ attributeCode: upgrade.attributeCode, expected: upgrade.newRating, actual: rosterAttributeValueForCode(attributes, upgrade.attributeCode) }))
+      .filter((check) => check.actual !== check.expected);
+
+    if (mismatches.length) {
+      await supabase.from("rec_commissioners_inbox").update({
+        status: "verification_mismatch",
+        payload: { ...row.payload, mismatches },
+        // Re-arm the unattended-DM digest -- this row was already DMed once as a fresh pending
+        // item, and a mismatch is functionally a new ask for commissioner attention.
+        dm_notified_at: null,
+      }).eq("id", row.id);
+      mismatched += 1;
+    } else {
+      await supabase.from("rec_commissioners_inbox").update({ status: "verified_fulfilled" }).eq("id", row.id);
+      verified += 1;
+    }
+  }
+  if (mismatched > 0) await notifyLeagueCommissionersOfPendingItem(leagueId);
+  return { verified, mismatched };
 }
 
 export type ImmortalityCustomTeamSlot = LeagueTeamIdentityOverride;

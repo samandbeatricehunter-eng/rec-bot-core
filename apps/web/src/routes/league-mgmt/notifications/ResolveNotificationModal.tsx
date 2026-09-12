@@ -560,6 +560,22 @@ export function ResolveNotificationModal({
           )}
         </div>
       )}
+      {notification.type === "immortality_upgrade_batch" && Array.isArray(notification.payload?.mismatches) && (
+        <div style={{ marginTop: "var(--space-2)", padding: "var(--space-2)", borderRadius: "var(--radius-sm)", background: "var(--color-danger-bg, rgba(220,50,50,0.1))" }}>
+          <p style={{ margin: 0, fontWeight: 600 }}>The last EA sync didn't show these changes in Madden:</p>
+          <table style={{ width: "100%", fontSize: "var(--text-sm)", marginTop: "var(--space-1)" }}>
+            <tbody>
+              {(notification.payload!.mismatches as Array<{ attributeCode: string; expected: number; actual: number | null }>).map((row) => (
+                <tr key={row.attributeCode}>
+                  <td style={{ color: "var(--text-secondary)", padding: "2px 0" }}>{row.attributeCode}</td>
+                  <td style={{ textAlign: "right", padding: "2px 0" }}>expected {row.expected}, EA shows {row.actual ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-secondary)" }}>Make the change in your Madden save and mark it Applied again, or Refund it.</p>
+        </div>
+      )}
       {notification.type === "immortality_upgrade_batch" && Array.isArray(notification.payload?.upgrades) && (
         <table style={{ width: "100%", fontSize: "var(--text-sm)", marginTop: "var(--space-2)" }}>
           <tbody>

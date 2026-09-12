@@ -9,6 +9,7 @@ import { importedStatsNeedFinalize } from "../league-records/league-records.fina
 import { companionChecksum, normalizeCompanionPayload, splitCompanionPayload } from "./madden-companion.adapters.js";
 import { applyCompanionRecordToCanonical } from "./madden-companion.canonical.js";
 import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../official-records/official-records.service.js";
+import { reconcileImmortalityUpgradeVerifications } from "../immortality/immortality.service.js";
 
 export type MaddenEndpointKey =
   | "league_metadata"
@@ -246,6 +247,12 @@ export async function ingestCompanionBundle(connection: CompanionConnection, pay
     && imports.some((item) => !item.duplicate && item.records_applied > 0)) {
     await finalizeImportedLeagueStats(connection.league_id).catch((error) =>
       console.error("[WARN] Failed to refresh league records and hub ranks after Companion import (non-fatal):", error));
+  }
+  // Manual-Madden-change lifecycle: check every "applied_pending_verification" attribute
+  // upgrade batch against what this import actually shows for that player.
+  if (imports.some((item) => item.endpoint_key === "rosters" && !item.duplicate)) {
+    await reconcileImmortalityUpgradeVerifications(connection.league_id).catch((error) =>
+      console.error("[WARN] Failed to reconcile immortality upgrade verifications after Companion import (non-fatal):", error));
   }
   return {
     accepted: true as const,
