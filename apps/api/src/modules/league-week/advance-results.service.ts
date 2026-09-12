@@ -946,6 +946,15 @@ export async function completeAdvanceWeek(input: {
     game: context.rec_leagues.game,
   }).catch((err) => console.error("[ERROR] RTI challenge XP awards failed after advance (non-fatal):", err));
 
+  // Non-RTI weekly team challenges: graded continuously as box scores land during the week
+  // (see weekly-challenge-issuance.service.ts), but Player XP/Franchise XP is only ever paid out
+  // here, at the advance itself -- this is also the credited-events source the Rewards Recap
+  // presentation reads from. No-ops instantly for RTI leagues.
+  const { creditGradedWeeklyChallengesForLeagueAtAdvance } = await import("../weekly-challenges/weekly-challenge-issuance.service.js");
+  await creditGradedWeeklyChallengesForLeagueAtAdvance({
+    leagueId: context.leagueId, seasonNumber, weekNumber: currentWeek,
+  }).catch((err) => { console.error("[ERROR] Weekly team challenge crediting failed after advance (non-fatal):", err); return []; });
+
   const { offerDuePerformanceContracts } = await import("../immortality/contracts.service.js");
   await offerDuePerformanceContracts({
     leagueId: context.leagueId,

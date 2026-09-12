@@ -135,6 +135,8 @@ async function resolveAnchorPlayerId(leagueId: string, seasonNumber: number, wee
   return pickBest((p) => p === "K", "fg_attempts") ?? pickBest((p) => p === "P", "punts");
 }
 
+export type WeeklyChallengeCreditResult = { beneficiaryPlayerIds: string[]; perPlayerAwardedXp: number; franchiseAwardedFpp: number };
+
 /** Credits only the DELTA between `previousTier` (the highest tier already paid for this issued
  * challenge, if any) and `tier` (the new highest complete tier) -- so a team that jumps straight
  * to gold is paid gold once, and a team that clears bronze this pass then gold on a later re-grade
@@ -145,7 +147,8 @@ async function creditTierXp(input: {
   leagueId: string; seasonNumber: number; weekNumber: number; teamId: string; side: WeeklyChallengeSide;
   entry: WeeklyChallengeEntry; tier: WeeklyChallengeTier; previousTier: WeeklyChallengeTier | null;
   ctx: WeeklyChallengeGameContext; creditedToUserId: string | null;
-}): Promise<void> {
+}): Promise<WeeklyChallengeCreditResult> {
+  const none: WeeklyChallengeCreditResult = { beneficiaryPlayerIds: [], perPlayerAwardedXp: 0, franchiseAwardedFpp: 0 };
   const conditions = flattenConditions(cumulativeConditions(input.entry, input.tier));
   const roleConditions = conditions.filter((c): c is Extract<WeeklyChallengeCondition, { kind: "role" }> => c.kind === "role" && c.side === "self");
   const beneficiaries = new Set<string>();
@@ -156,30 +159,36 @@ async function creditTierXp(input: {
     const anchor = await resolveAnchorPlayerId(input.leagueId, input.seasonNumber, input.weekNumber, input.teamId, input.side);
     if (anchor) beneficiaries.add(anchor);
   }
-  if (!beneficiaries.size) return;
+  if (!beneficiaries.size) return none;
 
   const previousTeamXp = input.previousTier ? pointsForWeeklyTeamTier(input.previousTier) : 0;
   const rawXp = pointsForWeeklyTeamTier(input.tier) - previousTeamXp;
   const sourceId = `weekly_challenge:${input.teamId}:${input.seasonNumber}:${input.weekNumber}:${input.side}:${input.tier}`;
+  let perPlayerAwardedXp = 0;
   for (const playerId of beneficiaries) {
-    await creditPlayerXp({
+    const result = await creditPlayerXp({
       leagueId: input.leagueId, playerId, creditedToUserId: input.creditedToUserId,
       seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, eventType: "weekly_challenge",
       sourceId, rawXp, metadata: { challengeId: input.entry.id, name: input.entry.name, side: input.side, tier: input.tier, previousTier: input.previousTier },
-    }).catch((error) => console.error(`[ERROR] creditPlayerXp failed for weekly challenge ${sourceId} (non-fatal):`, error));
+    }).catch((error) => { console.error(`[ERROR] creditPlayerXp failed for weekly challenge ${sourceId} (non-fatal):`, error); return { credited: false, awardedXp: 0 }; });
+    perPlayerAwardedXp = Math.max(perPlayerAwardedXp, result.awardedXp);
   }
 
   // Franchise XP: same event, paid once to the team's owning user (not per player-beneficiary --
   // FPP is a team-owner-level currency, distinct from the per-player credit above).
+  let franchiseAwardedFpp = 0;
   if (input.creditedToUserId) {
     const previousFpp = input.previousTier ? pointsForWeeklyFranchiseTier(input.previousTier) : 0;
-    await creditFranchiseXp({
+    const result = await creditFranchiseXp({
       leagueId: input.leagueId, userId: input.creditedToUserId, teamId: input.teamId,
       seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, eventType: "weekly_challenge",
       sourceId, rawFpp: pointsForWeeklyFranchiseTier(input.tier) - previousFpp,
       metadata: { challengeId: input.entry.id, name: input.entry.name, side: input.side, tier: input.tier, previousTier: input.previousTier },
-    }).catch((error) => console.error(`[ERROR] creditFranchiseXp failed for weekly challenge ${sourceId} (non-fatal):`, error));
+    }).catch((error) => { console.error(`[ERROR] creditFranchiseXp failed for weekly challenge ${sourceId} (non-fatal):`, error); return { credited: false, awardedFpp: 0 }; });
+    franchiseAwardedFpp = result.awardedFpp;
   }
+
+  return { beneficiaryPlayerIds: [...beneficiaries], perPlayerAwardedXp, franchiseAwardedFpp };
 }
 
 export type GradedWeeklyChallenge = {
@@ -187,11 +196,13 @@ export type GradedWeeklyChallenge = {
   tiers: Array<{ tier: WeeklyChallengeTier; complete: boolean }>;
 };
 
-/** Issues (if needed) and grades all 3 sides' weekly challenges for one team's one week, crediting
- * Player XP for any tier that's complete. Safe to call repeatedly (idempotent XP via
- * creditPlayerXp, frozen issuance via resolveIssuedEntry) -- e.g. a corrected/reprocessed box
- * score just re-grades without double-paying. No-ops entirely for RTI leagues, which have their
- * own separate weekly challenge system (challenge-issuance.service.ts). */
+/** Issues (if needed) and grades all 3 sides' weekly challenges for one team's one week --
+ * evaluation only, no XP/FPP crediting. Grading runs the moment a clean import gives us box-score
+ * data (safe to call repeatedly/redundantly as corrections come in -- it just overwrites
+ * graded_tier with the current truth, up or down); crediting is a deliberate, separate step tied
+ * to the advance the commissioner actually runs (see creditGradedWeeklyChallengesForLeagueAtAdvance
+ * below), which is also what the Rewards Recap presentation is built from. No-ops entirely for RTI
+ * leagues, which have their own separate weekly challenge system (challenge-issuance.service.ts). */
 export async function issueAndGradeWeeklyTeamChallenges(input: {
   leagueId: string; teamId: string; seasonNumber: number; weekNumber: number;
 }): Promise<GradedWeeklyChallenge[]> {
@@ -201,29 +212,19 @@ export async function issueAndGradeWeeklyTeamChallenges(input: {
   const ctx = await buildWeeklyChallengeContext(input);
   if (!ctx) return [];
 
-  const assignment = await supabase.from("rec_team_assignments").select("user_id")
-    .eq("league_id", input.leagueId).eq("team_id", input.teamId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
-  const creditedToUserId = assignment.data?.user_id ? String(assignment.data.user_id) : null;
-
   const results: GradedWeeklyChallenge[] = [];
   for (const side of SIDES) {
     const resolved = await resolveIssuedEntry({ leagueId: input.leagueId, teamId: input.teamId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, side });
     if (!resolved) continue;
-    const { entry, creditedTier } = resolved;
+    const { entry } = resolved;
     const tiers = evaluateWeeklyChallengeTiers(entry, ctx);
     // Conditions are cumulative (silver includes bronze's, gold includes both), so more than one
-    // tier can show complete at once -- only the single highest complete tier is ever credited,
-    // and only the delta above whatever was already credited for this issued challenge.
+    // tier can show complete at once -- graded_tier records only the single highest complete tier
+    // (or null if none), reflecting the box score's current truth until it's credited at advance.
     const highestComplete = [...tiers].reverse().find((t) => t.complete)?.tier ?? null;
-    if (highestComplete && (!creditedTier || TIER_RANK[highestComplete] > TIER_RANK[creditedTier])) {
-      await creditTierXp({
-        leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, teamId: input.teamId,
-        side, entry, tier: highestComplete, previousTier: creditedTier, ctx, creditedToUserId,
-      });
-      await supabase.from("rec_weekly_team_challenges_issued").update({ credited_tier: highestComplete })
-        .eq("league_id", input.leagueId).eq("team_id", input.teamId)
-        .eq("season_number", input.seasonNumber).eq("week_number", input.weekNumber).eq("side", side);
-    }
+    await supabase.from("rec_weekly_team_challenges_issued").update({ graded_tier: highestComplete })
+      .eq("league_id", input.leagueId).eq("team_id", input.teamId)
+      .eq("season_number", input.seasonNumber).eq("week_number", input.weekNumber).eq("side", side);
     results.push({ side, id: entry.id, name: entry.name, tiers });
   }
   return results;
@@ -243,6 +244,57 @@ export async function issueAndGradeWeeklyTeamChallengesForGame(input: {
     await issueAndGradeWeeklyTeamChallenges({ leagueId: input.leagueId, teamId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber })
       .catch((error) => console.error(`[ERROR] issueAndGradeWeeklyTeamChallenges failed for team ${teamId} (non-fatal):`, error));
   }
+}
+
+export type CreditedWeeklyChallenge = {
+  teamId: string; side: WeeklyChallengeSide; challengeName: string; tier: WeeklyChallengeTier;
+  beneficiaryPlayerIds: string[]; perPlayerAwardedXp: number; franchiseAwardedFpp: number; creditedToUserId: string | null;
+};
+
+/** Credits Player XP + Franchise XP for every issued challenge in this league/week whose
+ * graded_tier has moved past what's already been credited. Called once per advance (never at
+ * import) so a mid-week box-score correction can freely move graded_tier around without paying
+ * out early. Returns exactly what got credited this call, for the Rewards Recap to present. */
+export async function creditGradedWeeklyChallengesForLeagueAtAdvance(input: {
+  leagueId: string; seasonNumber: number; weekNumber: number;
+}): Promise<CreditedWeeklyChallenge[]> {
+  const immortalityLeague = await loadImmortalityLeague(input.leagueId);
+  if (immortalityLeague) return [];
+
+  const rows = await supabase.from("rec_weekly_team_challenges_issued")
+    .select("team_id,side,challenge_id,name,bronze,silver_adds,gold_adds,graded_tier,credited_tier")
+    .eq("league_id", input.leagueId).eq("season_number", input.seasonNumber).eq("week_number", input.weekNumber)
+    .not("graded_tier", "is", null);
+
+  const credited: CreditedWeeklyChallenge[] = [];
+  for (const row of (rows.data ?? []) as Array<{ team_id: string; side: WeeklyChallengeSide; challenge_id: string; name: string; bronze: WeeklyChallengeCondition[]; silver_adds: WeeklyChallengeCondition[]; gold_adds: WeeklyChallengeCondition[]; graded_tier: WeeklyChallengeTier | null; credited_tier: WeeklyChallengeTier | null }>) {
+    const gradedTier = row.graded_tier;
+    const creditedTier = row.credited_tier ?? null;
+    if (!gradedTier || (creditedTier && TIER_RANK[gradedTier] <= TIER_RANK[creditedTier])) continue;
+
+    const ctx = await buildWeeklyChallengeContext({ leagueId: input.leagueId, teamId: row.team_id, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber });
+    if (!ctx) continue;
+    const assignment = await supabase.from("rec_team_assignments").select("user_id")
+      .eq("league_id", input.leagueId).eq("team_id", row.team_id).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+    const creditedToUserId = assignment.data?.user_id ? String(assignment.data.user_id) : null;
+    const entry: WeeklyChallengeEntry = { id: row.challenge_id, side: row.side, name: row.name, bronze: row.bronze, silverAdds: row.silver_adds, goldAdds: row.gold_adds };
+
+    const result = await creditTierXp({
+      leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, teamId: row.team_id,
+      side: row.side, entry, tier: gradedTier, previousTier: creditedTier, ctx, creditedToUserId,
+    });
+    await supabase.from("rec_weekly_team_challenges_issued").update({ credited_tier: gradedTier })
+      .eq("league_id", input.leagueId).eq("team_id", row.team_id)
+      .eq("season_number", input.seasonNumber).eq("week_number", input.weekNumber).eq("side", row.side);
+    if (result.beneficiaryPlayerIds.length) {
+      credited.push({
+        teamId: row.team_id, side: row.side, challengeName: row.name, tier: gradedTier,
+        beneficiaryPlayerIds: result.beneficiaryPlayerIds, perPlayerAwardedXp: result.perPlayerAwardedXp,
+        franchiseAwardedFpp: result.franchiseAwardedFpp, creditedToUserId,
+      });
+    }
+  }
+  return credited;
 }
 
 /** Read-only view for the hub UI -- current issued challenges + tier completion for one team's
