@@ -871,10 +871,97 @@ still-incomplete batch is currently sitting uncommitted**: `apps/api/src/modules
 user.service.ts` (a `displayedRecordSeasonNumber` fix so the completed season's record stays
 visible through preseason instead of resetting early) and `apps/web/src/routes/hub/HubHome.tsx` +
 `apps/web/src/styles/hub.css` (a hero "Season Snapshot" redesign — opponent logo, record, wallet,
-savings in a 4-up grid). **Do not commit these without re-checking first** — `hub.css` already
-defines a `.hub-season-snapshot-actions` class with zero JSX consumers yet, meaning the UI work
-is mid-flight, not finished. Confirm with the user or verify the JSX now uses it before treating
-this as done.
+savings in a 4-up grid). **Update: the user finished and committed this themselves**
+(`5015e814` "Rebuild league snapshot as compact stat nav" — `.hub-season-snapshot-actions` now
+has real JSX consumers). No longer a loose end.
+
+## Weekly Transactions, Franchise XP ledger, pregame beef escalation (2026-09-12)
+
+Three items from the user's Master Plan directive, all shipped in commit `a3ea9af4`:
+
+- **Weekly Transactions embed** — `apps/api/src/modules/economy/weekly-transactions.service.ts`,
+  called from `completeAdvanceWeek`. One embed per team per advance, single-line Coin/XP activity
+  since the last advance (window = `last_advance_at` -> now), plus a pending-purchase line, no
+  wallet balances. New `rec_weekly_transaction_posts` table makes it idempotent (unique per
+  league/season/week/user — a slot is claimed by INSERT before the embed posts, so a retried
+  advance skips instead of double-posting). Reads XP from `rec_player_xp_ledger` (non-RTI) or
+  `rec_immortality_xp_ledger` via prospect->user_id (RTI) depending on `leagueType`.
+- **Franchise XP ledger, earning side** — `apps/api/src/modules/franchise-xp/
+  franchise-xp-ledger.service.ts` + `packages/shared/src/xp-economy.ts` (real numbers ported from
+  `config/xp_economy.json`, replacing a placeholder). New `rec_franchise_xp_ledger`/
+  `rec_franchise_xp_state`, keyed by `(league_id, user_id)` — the doc explicitly flags this
+  ownership question as "must not guess"; went with user-owner-scoped to match every other REC
+  economy ledger, with `team_id` still recorded per row. Only two of the doc's six earning
+  sources are wired: weekly challenge FPP (in `weekly-challenge-issuance.service.ts`, alongside
+  the existing Player XP credit) and team win FPP (in `advance-results.service.ts`, off the same
+  per-game loop that already writes `rec_game_results`). **Not built**: Player Performance
+  Dividend (top-5-by-PPP box-score ranking — no such computation exists yet), Media Day
+  commitment FPP, player recognition dividend (POTW/season-award hooks), and the 6,000-FPP
+  regular-season game cap. Each is a new `event_type` into the same two tables when built.
+- **Pregame beef escalation** — turned out the hard part (claim/fragment catalogs for
+  `rivalry_pregame`/`gotw_pregame`, every persona) was already fully built in
+  `packages/shared/src/media-social/config/` from the total-handoff package; nothing had ever
+  called it. New `queuePregameHypeTweets` in `tweet-generation.service.ts`, called from
+  `completeAdvanceWeek` right after the upcoming week's GOTW poll is created — one claim-grounded
+  post per rivalry game or the featured GOTW game, fact-lined off real `rec_league_rivalries`
+  series record/streak data.
+- **Ambient fan chatter migration** — `queueAmbientFanChatterIfDue` now tries the same real-stat
+  candidate builder the weekly recap uses (`buildCandidates` -> `player_hot_streak`/
+  `player_cold_streak`) before falling back to the fully-legacy random-prospect praise/taunt/
+  camp_buzz template bank, which is now only a safety net for bye weeks/no-data windows instead
+  of the only path.
+- All packages typechecked clean (one transient false-positive on `HubHome.tsx` mid-session,
+  caused by catching the user's own concurrent edit mid-save — re-running immediately after
+  showed it was never a real error).
+
+### What's left from the Master Handoff Plan (full picture as of 2026-09-12)
+
+**Phase 4 (Discord/matchup experience)** — `/league`/`/teams`/`/profile` shipped this session.
+`/matchup`/`/schedule`/`/standings`/`/powerrankings`/`/wallet`/`/rules`/`/highlights` were already
+live from earlier work. Nothing else outstanding here.
+
+**Phase 5 (Pending Items lifecycle)** — the 4-state lifecycle itself shipped this session
+(attribute-upgrade batches as the reference case). Not yet extended to the other queue_types that
+share the same "Applied in game"/"Refunded" pattern (`immortality_tree_purchase`,
+`immortality_dev_promotion`, `immortality_owner_tree_purchase`) — same small change, just not
+asked for yet.
+
+**Phase 3 (Ledgers)** — Weekly Transactions and the Franchise XP ledger's earning-side
+infrastructure shipped this session. Still open: Ways to Get Paid embed (the doc's other named
+embed — route channel already exists end-to-end, no poster service yet, same shape as Weekly
+Transactions was before today); the four deferred Franchise XP earning sources listed above; the
+non-RTI six-department progression tree's SPEND side (node-by-node XP cost map) — this is the
+one **owner-blocked** gate repeatedly flagged across this whole plan, not something buildable
+without the real numbers.
+
+**Phase 8 (Media/Tweets/highlights)** — pregame beef escalation and the ambient-chatter claim
+migration shipped this session. Explicitly postponed by the user: dedicated Highlight Reel
+viewer, weekly multipart reel worker. Not investigated this session: whether the rest of
+`tweet-generation.service.ts`'s legacy-bank call sites (contract signings, record breaks, player
+chatter after import, persona autoposts) are worth migrating too, or whether they're fine as-is
+(they're all still real/grounded events, just not run through the claim/fragment catalog's richer
+wording).
+
+**Phase 6 (Progression/roster UI)** — blocked on the same non-RTI tree SPEND cost map as above.
+
+**Phase 9 (Legend catalog)** — **owner-blocked**: needs a per-player evidence pass from the
+league owner, per `FINAL_AUDIT.md`. Not something this session (or any session) can unblock
+without that input.
+
+**Phase 7 (Compliance/rivalries), Phase 10 (Surface/copy/performance polish), Phase 11 (Final
+sweep)** — not investigated at all this session; unknown how much (if anything) is already
+covered by work done under other phases' names (e.g., rivalry_pregame/rivalry_result tweets now
+exist, which overlaps Phase 7's rivalry scope even though it shipped under "media"). Worth a
+fresh audit pass before assuming these are fully untouched.
+
+**Two persistent themes across every remaining item**: (1) most of what's left needs either the
+owner's real numbers (progression tree costs, Legend catalog evidence) or a scoping decision this
+session made a best-effort call on rather than blocking to ask (Franchise XP ownership model);
+(2) the claim-grounded social engine's *content* infrastructure is consistently further ahead
+than its *callers* — this was true for rivalry_pregame/gotw_pregame before today, and may be true
+elsewhere in `social_event_playbooks.json`'s ~35 registered event types that nothing calls yet
+(worth a dedicated audit: cross-reference every registered event_type against actual callers,
+the same way this session found rivalry_pregame/gotw_pregame).
 
 ## Notes
 - Trunk-based workflow: commit + push directly to main in small verified batches, `git fetch` before each push, typecheck before pushing.
