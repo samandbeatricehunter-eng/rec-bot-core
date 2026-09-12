@@ -6,7 +6,6 @@ import {
   statCategoriesForPosition,
   statKeysForCategories,
   NFL_TEAM_PRIMARY_COLORS,
-  type StatPageCategoryKey,
 } from "@rec/shared";
 import { useSearchParams } from "react-router-dom";
 import { useReadyAuth } from "../../lib/auth-context.js";
@@ -21,40 +20,6 @@ import { TeamLogo } from "../../components/ui/TeamLogo.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
 import { StatsMiniNav, type StatsNavId } from "../../components/hub/StatsMiniNav.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
-import leagueLeadersPill from "../../assets/league-leaders-pill.png";
-
-// Same technique LeagueStandingsHome.tsx uses for division-standings cards: a team-color
-// gradient background (via a --team-color custom property) with the logo bled off the edge as a
-// low-opacity watermark, text in a separate opaque layer on top. Duplicated here (not imported)
-// rather than extracted into a shared util, since LeagueStandingsHome.tsx is under active
-// concurrent edit in this repo right now and touching it risks colliding with that work.
-function leaderTeamColor(abbreviation: string | null | undefined): string {
-  const abbr = resolveTeamLogoAbbr(abbreviation ?? "");
-  if (abbr && NFL_TEAM_PRIMARY_COLORS[abbr]) return NFL_TEAM_PRIMARY_COLORS[abbr];
-  return "#1a1d24";
-}
-
-function leaderContrastingInk(hex: string): string {
-  const raw = hex.replace("#", "");
-  const full = raw.length === 3 ? raw.split("").map((c) => c + c).join("") : raw;
-  const n = Number.parseInt(full, 16);
-  if (!Number.isFinite(n)) return "#fff";
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  return luma > 0.62 ? "#111111" : "#ffffff";
-}
-
-/** Splits a full display name into a stacked first/last pair for the leader card -- everything
- * but the last word is "first" (so multi-word first names like "Mary Jane" stay together),
- * the last word is "last". Imperfect for suffixes ("Jr.") but matches the same
- * good-enough-for-a-card-label approach LeagueStandingsHome.tsx uses for team city/nick. */
-function splitLeaderName(fullName: string): { first: string; last: string } {
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length < 2) return { first: "", last: fullName.trim() };
-  return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1] ?? "" };
-}
 
 type StatsResponse = Awaited<ReturnType<typeof recApi.getLeagueStats>>;
 type StatsPlayer = StatsResponse["players"][number];
@@ -256,92 +221,42 @@ export function TeamStatsView({ guildId, scope }: { guildId: string; scope: "sea
   </Card>;
 }
 
-type LeaderCategory = { label: string; columns: string[]; category: StatPageCategoryKey };
-// Top row (offense) / bottom row (divider between) / bottom row (defense) -- exactly 3 columns
-// each, per the requested 3x2 layout.
-const OFFENSE_LEADER_CATEGORIES: LeaderCategory[] = [
-  { label: "Passing Yards", columns: ["pass_yards", "pass_tds"], category: "passing" },
-  { label: "Rushing Yards", columns: ["rush_yards", "rush_tds"], category: "rushing" },
-  { label: "Receiving Yards", columns: ["receiving_yards", "receiving_tds"], category: "receiving" },
-];
-const DEFENSE_LEADER_CATEGORIES: LeaderCategory[] = [
-  { label: "Sacks", columns: ["sacks"], category: "defense" },
-  { label: "Tackles", columns: ["tackles"], category: "defense" },
-  { label: "Interceptions", columns: ["interceptions"], category: "defense" },
-];
+const LEADER_CATEGORIES = [
+  { label: "Passing Yards", key: "pass_yards" },
+  { label: "Rushing Yards", key: "rush_yards" },
+  { label: "Receiving Yards", key: "receiving_yards" },
+  { label: "Sacks", key: "sacks" },
+  { label: "Tackles", key: "tackles" },
+  { label: "Interceptions", key: "interceptions" },
+] as const;
 
-/** "League Leaders" — one card per category (3 offense on top, 3 defense on bottom, a neon
- * divider between the two rows), top 5 players ranked by that category's headline stat, each
- * showing the ranking stat alongside a secondary column (TDs for the three yardage categories)
- * while still sorting purely by the ranking stat. */
 function LeagueLeadersView({ guildId }: { guildId: string }) {
-  const [openPlayer, setOpenPlayer] = useState<StatsPlayer | null>(null);
   const { data, error } = useLeagueStats(guildId);
-
+  const [openPlayer, setOpenPlayer] = useState<StatsPlayer | null>(null);
   if (error) return <ErrorState message={error} />;
   if (!data) return <LoadingState label="Loading league leaders…" />;
+  const playersById = new Map(data.players.map((player) => [player.id, player]));
 
-  const playersById = new Map(data.players.map((p) => [p.id, p]));
-
-  const renderCategory = (cat: LeaderCategory) => {
-    const primaryKey = cat.columns[0];
-    const leaders = data.leaders[primaryKey] ?? [];
-    return (
-      <section key={cat.label} className="hub-league-leader-category">
-        <h3>{cat.label}</h3>
-        {!leaders.length ? (
-          <p className="form-hint">No approved or imported stats are available for this category yet.</p>
-        ) : (
-          <div className="rec-stat-card-list">
-            {leaders.map((leader) => {
-              const player = playersById.get(leader.playerId);
-              const photoUrl = player?.photoUrl ?? null;
-              const position = player?.position ?? leader.position ?? null;
-              const teamColor = leaderTeamColor(leader.teamAbbreviation);
-              const teamInk = leaderContrastingInk(teamColor);
-              const { first, last } = splitLeaderName(leader.playerName);
-              return (
-                <div
-                  key={leader.playerId}
-                  className="rec-stat-player-card"
-                  style={{ ["--team-color" as string]: teamColor, ["--team-ink" as string]: teamInk }}
-                >
-                  <TeamLogo abbreviation={leader.teamAbbreviation} alt="" className="rec-stat-player-card-logo" priority />
-                  <div className="rec-stat-player-card-head">
-                    <span className="rec-stat-player-card-rank">#{leader.rank}</span>
-                    <button type="button" onClick={() => player && setOpenPlayer(player)} disabled={!player}>
-                      <PlayerAvatar player={{ photoUrl, position }} />
-                      <span className="rec-stat-player-card-identity">
-                        {first ? <small className="rec-stat-player-card-first">{first}</small> : null}
-                        <strong className="rec-stat-player-card-last">{last}</strong>
-                      </span>
-                    </button>
-                  </div>
-                  <div className="rec-stat-chip-row">
-                    {cat.columns.map((key) => (
-                      <div key={key} className="rec-stat-chip">
-                        <div className="rec-stat-chip-label">{statColumnLabel(key)}</div>
-                        <div className="rec-stat-chip-value">{formatStatValue(key, key === primaryKey ? leader.value : (player?.stats[key] ?? 0))}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    );
-  };
-
-  return <Card>
-    <div className="hub-league-leader-grid">
-      {OFFENSE_LEADER_CATEGORIES.map(renderCategory)}
-      <div className="hub-league-leader-divider" aria-hidden="true" />
-      {DEFENSE_LEADER_CATEGORIES.map(renderCategory)}
+  return <>
+    <div className="rec-leaders-grid">
+      {LEADER_CATEGORIES.map(({ label: categoryLabel, key }) => <section key={key} className="rec-leaders-category" aria-label={categoryLabel}>
+        <h2>{categoryLabel}</h2>
+        <div className="rec-leaders-list">
+          {(data.leaders[key] ?? []).length ? (data.leaders[key] ?? []).map((leader) => {
+            const player = playersById.get(leader.playerId);
+            const abbr = resolveTeamLogoAbbr(leader.teamAbbreviation ?? "");
+            const color = abbr && NFL_TEAM_PRIMARY_COLORS[abbr] ? NFL_TEAM_PRIMARY_COLORS[abbr] : "#1a1d24";
+            return <button key={leader.playerId} type="button" className="hub-div-standing-team rec-leader-block" style={{ ["--team-color" as string]: color }} onClick={() => player && setOpenPlayer(player)} disabled={!player}>
+              <TeamLogo abbreviation={leader.teamAbbreviation} alt="" className="hub-div-standing-logo" priority />
+              <span className="rec-leader-name">{leader.playerName}</span>
+              <strong className="rec-leader-value">{formatStatValue(key, leader.value)}</strong>
+            </button>;
+          }) : <p className="hub-empty">No leaders yet.</p>}
+        </div>
+      </section>)}
     </div>
     {openPlayer && <PlayerStatsModal player={openPlayer} onClose={() => setOpenPlayer(null)} />}
-  </Card>;
+  </>;
 }
 
 export function LeagueStatsHome() {
@@ -355,12 +270,7 @@ export function LeagueStatsHome() {
 
   return <div className="hub-section">
     {currentLeague?.id ? <StatsMiniNav active={activeNav} leagueId={currentLeague.id} /> : null}
-    {view === "leaders" ? (
-      <>
-        <img className="rec-league-leaders-pill" src={leagueLeadersPill} alt="League Leaders" />
-        <LeagueLeadersView guildId={guildId} />
-      </>
-    ) : null}
+    {view === "leaders" && <LeagueLeadersView guildId={guildId} />}
     {view === "season" ? (
       <>
         <PageHeader title="Season Stats" subtitle="Complete player production for the current season." />

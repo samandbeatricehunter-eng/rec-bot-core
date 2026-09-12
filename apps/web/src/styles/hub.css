@@ -3863,24 +3863,6 @@ button.poty:disabled {
 .hub-stats-power-grid article strong { grid-row:1 / 3; color:var(--accent-bright); font-family:var(--font-display); font-size:20px; }
 .hub-stats-power-grid article span { min-width:0; font-weight:800; }
 .hub-stats-power-grid article small { color:var(--text-muted); }
-/* 3 columns x 2 rows always (mobile included, per direction) -- top row offense (passing/
-   rushing/receiving), bottom row defense (sacks/tackles/interceptions), with a full-width neon
-   divider between the rows. */
-.hub-league-leader-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; align-items:start; }
-.hub-league-leader-divider {
-  grid-column:1 / -1;
-  width:100%;
-  height:3px;
-  border-radius:999px;
-  background:linear-gradient(90deg, transparent 0%, #ff2a2a 12%, #ff4d4d 50%, #ff2a2a 88%, transparent 100%);
-  box-shadow:0 0 8px rgba(255,42,42,.85), 0 0 18px rgba(255,16,16,.45);
-}
-.hub-league-leader-category { min-width:0; padding:8px 6px; border:1px solid var(--border); border-radius:var(--radius-md); background:color-mix(in srgb,var(--surface) 70%,black 10%); display:flex; flex-direction:column; gap:6px; }
-.hub-league-leader-category h3 {
-  margin:0; color:var(--text-primary); font-family:"REC Quantico","Arial Narrow",Impact,sans-serif;
-  font-size:10px; letter-spacing:.06em; text-transform:uppercase; text-align:center; padding-bottom:6px; border-bottom:1px solid var(--border);
-}
-.hub-league-leader-category .rec-stat-card-list { gap:6px; }
 .hub-stats-resource-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
 .hub-stats-resource-grid button { padding:14px; border:1px solid var(--border); border-radius:var(--radius-md); background:rgba(5,7,10,.32); color:var(--text-primary); font:inherit; font-weight:800; text-align:left; cursor:pointer; }
 .hub-stats-resource-grid button.active { border-color:var(--accent-bright); background:color-mix(in srgb,var(--accent) 14%,transparent); color:var(--accent-bright); }
@@ -4153,6 +4135,19 @@ button.poty:disabled {
   transform: translateY(-50%) scale(1.28);
   opacity:.78;
 }
+.rec-leaders-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:start; }
+.rec-leaders-category { min-width:0; }
+.rec-leaders-category h2 { margin:0 0 7px; color:var(--text-primary); font:700 13px/1.2 "REC Quantico","Arial Narrow",Impact,sans-serif; letter-spacing:.08em; text-align:center; text-transform:uppercase; }
+.rec-leaders-list { display:grid; gap:5px; }
+.rec-leader-block { width:100%; min-height:62px; border-radius:0; color:#fff; font:inherit; text-align:left; cursor:pointer; background:linear-gradient(90deg,color-mix(in srgb,var(--team-color) 78%,#090b10 22%),color-mix(in srgb,var(--team-color) 73%,#090b10 27%)); }
+.rec-leader-block:hover:not(:disabled), .rec-leader-block:focus-visible { border-color:rgba(255,255,255,.65); filter:brightness(1.12); }
+.rec-leader-block:disabled { cursor:default; }
+.rec-leader-block .hub-div-standing-logo { opacity:.65; }
+.rec-leader-name, .rec-leader-value { position:relative; z-index:1; min-width:0; font-family:"REC Quantico","Arial Narrow",Impact,sans-serif; font-weight:700; text-shadow:0 1px 3px rgba(0,0,0,.8); }
+.rec-leader-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; text-transform:uppercase; }
+.rec-leader-value { white-space:nowrap; font-size:18px; }
+@media (max-width:900px) { .rec-leaders-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:600px) { .rec-leaders-grid { grid-template-columns:1fr; } }
 .hub-div-standing-identity {
   position:relative;
   display:flex;
@@ -5389,60 +5384,7 @@ button.poty:disabled {
 .rec-stat-chip-label { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-secondary); white-space:nowrap; }
 .rec-stat-chip-value { font-weight:700; white-space:nowrap; }
 
-/* League Leaders cards -- team-color background (via --team-color, computed client-side from the
-   leader's team abbreviation, same lookup LeagueStandingsHome.tsx's division cards use) with the
-   team logo bled off the edge as a low-opacity watermark underneath fully-opaque text, mirroring
-   .hub-div-standing-team/.hub-div-standing-logo's technique. Sized down from the old dense-card
-   look -- this page's cards had a lot of unused vertical space before. */
-.hub-league-leader-category .rec-stat-player-card {
-  position:relative;
-  overflow:hidden;
-  border-radius:8px;
-  padding:5px 7px;
-  border-color:rgba(255,255,255,.28);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--team-color) 92%, #fff 8%) 0%, var(--team-color) 42%, color-mix(in srgb, var(--team-color) 72%, #000 28%) 100%);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.22), inset 0 -1px 0 rgba(0,0,0,.28);
-}
-.hub-league-leader-category .rec-stat-player-card-logo {
-  position:absolute;
-  right:-10%;
-  top:50%;
-  z-index:0;
-  width:76px !important;
-  height:76px !important;
-  max-width:none !important;
-  object-fit:contain;
-  pointer-events:none;
-  opacity:.78;
-  transform:translateY(-50%) scale(1.2);
-  filter:drop-shadow(0 2px 4px rgba(0,0,0,.45));
-}
-.hub-league-leader-category .rec-stat-player-card-head { position:relative; z-index:1; margin-bottom:4px; gap:6px; }
-.hub-league-leader-category .rec-stat-player-card-avatar,
-.hub-league-leader-category .rec-stat-player-card-avatar-fallback { width:28px; height:28px; font-size:10px; }
-.hub-league-leader-category .rec-stat-player-card-rank {
-  display:inline-flex; align-items:center; justify-content:center; min-width:16px;
-  font-family:"REC Quantico","Arial Narrow",Impact,sans-serif; color:var(--team-ink,#fff);
-  text-shadow:0 1px 2px rgba(0,0,0,.55);
-}
-.rec-stat-player-card-identity { display:flex; flex-direction:column; gap:0; min-width:0; line-height:1; }
-.rec-stat-player-card-first,
-.rec-stat-player-card-last {
-  display:block; width:100%; max-width:100%; font-family:"REC Quantico","Arial Narrow",Impact,sans-serif;
-  color:var(--team-ink,#fff); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1;
-}
-.rec-stat-player-card-first { font-weight:400; font-size:9px; letter-spacing:.03em; opacity:.88; margin:0 0 1px; text-transform:uppercase; }
-.rec-stat-player-card-last { font-weight:700; font-size:13px; letter-spacing:.01em; text-transform:uppercase; }
-.hub-league-leader-category .rec-stat-chip-row { position:relative; z-index:1; overflow-x:visible; gap:5px; }
-.hub-league-leader-category .rec-stat-chip { border:0; padding:0; min-width:0; text-align:left; }
-.hub-league-leader-category .rec-stat-chip-label { font-family:"REC Quantico","Arial Narrow",Impact,sans-serif; font-size:8px; }
-.hub-league-leader-category .rec-stat-chip-value { font-family:"REC Quantico","Arial Narrow",Impact,sans-serif; font-size:13px; color:var(--team-ink,var(--accent-bright)); }
 .rec-stats-filter-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:var(--space-4); }
-
-.rec-league-leader-section-heading { margin:var(--space-4) 0 var(--space-2); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-secondary); }
-.rec-league-leaders-pill { display:block; width:min(100%,680px); height:auto; margin:0 auto; object-fit:contain; }
-.rec-league-leader-section-heading:first-of-type { margin-top:0; }
 
 /* Sortable stats table -- replaces the old card-strip "Stats by Category" list. Wrapped in its
    own horizontally-scrolling container so a wide column set never forces the page itself to
