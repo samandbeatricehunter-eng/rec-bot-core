@@ -1439,9 +1439,9 @@ export function HubHome() {
       ? (viewerUser.grade ?? "—")
       : (typeof viewerUser.rating === "number" ? viewerUser.rating.toFixed(1) : "—"))
     : "—";
-  const heroUserMeta = viewerUser
-    ? `#${viewerUser.rank}${viewerUser.teamName ? ` · ${viewerUser.teamName}` : ""}`
-    : "Pending";
+  // The active season's record remains the display record throughout the offseason. The
+  // season record tables reset when the league advances into the next regular-season Week 1.
+  const heroSeasonRecord = my.leagueSeasonRecordText ?? profile.seasonRecord?.text ?? "0-0";
   const homeWeeklyPaidItems = hub.waysToGetPaid.weeklyItems.filter((item) => item.key !== "gotw");
   const hiddenHomeGotwItem = hub.waysToGetPaid.weeklyItems.find((item) => item.key === "gotw");
   const homeWeeklyEarned = Math.max(0, hub.waysToGetPaid.weeklyEarned - Number(hiddenHomeGotwItem?.earned ?? 0));
@@ -1450,6 +1450,11 @@ export function HubHome() {
     ? (matchupSchedule?.games.find((game) => game.gameId === heroCurrentGameId)
       ?? matchupSchedule?.games.find((game) => game.involvesMe)
       ?? null)
+    : null;
+  const heroOpponent = heroMatchup
+    ? heroMatchup.viewerSide === "home"
+      ? { abbreviation: heroMatchup.awayTeamAbbr, logoUrl: heroMatchup.awayTeamLogoUrl, name: heroMatchup.awayTeamName }
+      : { abbreviation: heroMatchup.homeTeamAbbr, logoUrl: heroMatchup.homeTeamLogoUrl, name: heroMatchup.homeTeamName }
     : null;
   const activeHighlight = highlights[activeHighlightIndex] ?? null;
   const highlightOwnerId = (activeHighlight as { user_id?: string | null; userId?: string | null } | null)?.user_id
@@ -1734,7 +1739,12 @@ export function HubHome() {
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-rebuilt">
             <section className="hub-season-snapshot">
-              <header><span>Season Snapshot</span><small>{coachName} · {heroTeam}</small></header>
+              <div className="hub-season-snapshot-grid" aria-label="Season snapshot">
+                <article><span>Matchup</span><strong className="hub-season-snapshot-opponent">{heroOpponent ? <TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /> : "—"}</strong></article>
+                <article><span>Record</span><strong>{heroSeasonRecord}</strong></article>
+                <article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article>
+                <article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
+              </div>
               {isRise && rtiGates?.playerSnapshots?.length ? (() => {
                 const bannerTeam = rtiGates.playerSnapshots.find((player) => player.teamLogoUrl) ?? rtiGates.playerSnapshots[0];
                 return bannerTeam.teamName ? (
@@ -1791,11 +1801,6 @@ export function HubHome() {
                   <div className="hub-rti-hof-meter" role="progressbar" aria-label={`${player.playerName} Hall of Fame progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={player.hofProgress}><i style={{ width: `${player.hofProgress}%` }} /></div>
                 </article>)}
               </div> : null}
-              <div className={`hub-season-snapshot-grid${isRise ? " is-rti" : ""}`}>
-                {!isRise ? <article><span>User Score &amp; League Ranking</span><strong>{heroUserScore}</strong><small>{heroUserMeta}</small></article> : null}
-                <article><span>Wallet Balance</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong><small>Available funds</small></article>
-                <article><span>Savings Balance</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong><small>Banked funds</small></article>
-              </div>
             </section>
 
             {isRise && auth.status === "ready" ? (

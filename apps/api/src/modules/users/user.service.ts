@@ -1112,6 +1112,11 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     const isPostseason = postseasonPayoutStages(league.game).has(stage);
     const isPreseason = stage === "preseason" || stage === "preseason_training_camp";
     const isGameplayStage = gameplaySeasonStages(league.game).has(stage);
+    // The next season number is assigned when preseason begins, but the completed-season
+    // record should remain visible until the league actually enters regular-season Week 1.
+    const displayedRecordSeasonNumber = isPreseason && Number(seasonNumber) > 1
+      ? Number(seasonNumber) - 1
+      : Number(seasonNumber);
 
     const [assignmentResult, membershipResult, seasonRecordResult, displayRecordResult] = await Promise.all([
       supabase
@@ -1132,14 +1137,14 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
         .from("rec_season_user_records")
         .select("*")
         .eq("league_id", league.id)
-        .eq("season_number", seasonNumber)
+        .eq("season_number", displayedRecordSeasonNumber)
         .eq("user_id", userId)
         .maybeSingle(),
       supabase
         .from("rec_season_user_display_records")
         .select("wins,losses,ties,point_differential")
         .eq("league_id", league.id)
-        .eq("season_number", seasonNumber)
+        .eq("season_number", displayedRecordSeasonNumber)
         .eq("user_id", userId)
         .maybeSingle()
     ]);
