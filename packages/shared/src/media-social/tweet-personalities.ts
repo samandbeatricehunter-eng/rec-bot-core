@@ -20,11 +20,36 @@ export type TweetFixedAccount = {
   handle: string;
   verified: boolean;
   headshotCatalogKey: string;
+  headshotUrl: string;
   outlet: string;
   role: string;
   coreBelief: string;
   primaryBeats: string[];
 };
+
+const AVATAR_DELIVERY_BASE = "https://imagedelivery.net/QAGFLBPDqDrzG1Yqj0cQIA";
+
+// The uploaded package's headshot_catalog_key values (media_marcus_vale, etc.) don't correspond
+// to anything actually uploaded -- the real Cloudflare Images ids are the ones
+// immortality/tweet-bank.ts's TWEET_HOSTS/STANDALONE_ACCOUNTS already use for these same 8
+// identities (that file predates this canonical roster and will likely fold into it during a
+// later consolidation pass; until then this is the one place outside tweet-bank.ts that needs the
+// real ids). gridiron_gospel has no dedicated photo uploaded -- tweet-bank.ts uses the shared
+// generic-001 headshot for it too, kept consistent here.
+const REAL_HEADSHOT_IMAGE_ID: Record<TweetFixedAccountKey, string> = {
+  marcus: "rti-tweet-host-marcus",
+  vaughn: "rti-tweet-host-vaughn",
+  elliot: "rti-tweet-host-elliot",
+  darius: "rti-tweet-host-darius",
+  rec_insider: "rti-tweet-standalone-rec-insider",
+  nfl_front_office: "rti-tweet-standalone-nfl-front-office",
+  gridiron_gospel: "rti-tweet-generic-001",
+  tmz: "rti-tweet-standalone-tmz",
+};
+
+function realHeadshotUrl(key: TweetFixedAccountKey): string {
+  return `${AVATAR_DELIVERY_BASE}/${REAL_HEADSHOT_IMAGE_ID[key]}/public`;
+}
 
 type RawFixedAccount = {
   key: string;
@@ -50,6 +75,7 @@ export function tweetFixedAccounts(): TweetFixedAccount[] {
     handle: row.handle,
     verified: row.verified,
     headshotCatalogKey: row.headshot_catalog_key,
+    headshotUrl: realHeadshotUrl(row.key as TweetFixedAccountKey),
     outlet: row.outlet,
     role: row.role,
     coreBelief: row.core_belief,

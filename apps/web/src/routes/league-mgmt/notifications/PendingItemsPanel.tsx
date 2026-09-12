@@ -94,13 +94,16 @@ function TradeDetail({ payload, fallbackTeams }: { payload: CommissionerNotifica
 // The guts of the commissioner pending-items workflow (category filters, list, review
 // modals) — used by NotificationsHome. Custom-player review opens CustomPlayerReviewModal
 // here rather than sending commissioners to Settings.
-export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: CommissionerNotificationType | "all" }) {
+export function PendingItemsPanel({ initialFilter }: { initialFilter?: CommissionerNotificationType | "all" }) {
   const { guildId } = useReadyAuth();
   const [notifications, setNotifications] = useState<CommissionerNotification[] | null>(null);
   const [completed, setCompleted] = useState<CompletedCommissionerTransaction[] | null>(null);
   const [view, setView] = useState<"pending" | "completed">("pending");
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<CommissionerNotificationType | "all">(initialFilter);
+  // initialFilter is accepted for backward compatibility with existing callers that deep-link
+  // into a specific category, but the page itself no longer filters to one category at a time --
+  // every category with something pending gets its own section, always visible together.
+  void initialFilter;
   const [activeActiveCheckId, setActiveActiveCheckId] = useState<string | null>(null);
   const [activeEosAwardId, setActiveEosAwardId] = useState<string | null>(null);
   const [activeResolve, setActiveResolve] = useState<CommissionerNotification | null>(null);
@@ -120,17 +123,11 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
   }
 
   useEffect(load, [guildId]);
-  // EOS Payout rows don't have a useful flat-card click action — they open the ledger
-  // UI instead. They still count toward Pending/All, and All shows the ledger so a lone
-  // EOS item isn't a "Pending (1) / All (0) / Nothing pending here" mismatch.
+  // EOS Payout rows don't have a useful flat-card click action — they open the ledger UI
+  // instead, under their own always-shown section (same as Stream) rather than as cards.
   const eosNotifications = notifications?.filter((notification) => notification.type === "eos_payout") ?? [];
   const cardNotifications = notifications?.filter((notification) => notification.type !== "eos_payout") ?? [];
-  const visible = cardNotifications.filter((notification) => filter === "all" || notification.type === filter);
-  const typesPresent = new Set([
-    ...cardNotifications.map((notification) => notification.type),
-    ...eosNotifications.map((notification) => notification.type),
-  ]);
-  const showEosLedgers = filter === "eos_payout" || (filter === "all" && eosNotifications.length > 0);
+  const sectionTypes = ALL_TYPES.filter((type) => type !== "eos_payout" && (cardNotifications.some((n) => n.type === type) || ALWAYS_VISIBLE_TYPES.includes(type)));
 
   function openNotification(notification: CommissionerNotification) {
     // Custom-player review needs the full identity/attribute-edit UI, not the generic
@@ -157,6 +154,44 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
     window.dispatchEvent(new Event("rec:notifications-changed"));
   }
 
+  function renderNotificationCard(notification: CommissionerNotification) {
+    return <Card key={notification.id} className="pending-item-card" onClick={() => openNotification(notification)}>
+      <div className="pending-item-card-layout">
+        <div className="pending-item-card-copy">
+          <div className="pending-item-card-heading"><Badge status="info">{TYPE_LABELS[notification.type]}</Badge><Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge><span className="pending-item-card-title">{notification.title}</span></div>
+          {/* Legend and custom-player purchases carry a full detail dump (attributes,
+              replacement target, package) in their subtitle — that belongs only in the
+              dedicated review modal (LegendPurchaseDetail / CustomPlayerBuildRow) opened
+              on tap, not in this scannable list. Every other type's subtitle stays short
+              enough to keep here. */}
+          {notification.type !== "legend" && notification.type !== "custom_player" && notification.type !== "immortality_prospect" && (
+            <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{notification.subtitle}</p>
+          )}
+          {notification.type === "custom_team" && typeof (notification.payload as { logoUrl?: string } | null)?.logoUrl === "string" && (
+            <img
+              className="pending-item-logo-preview"
+              src={(notification.payload as { logoUrl: string }).logoUrl}
+              alt="Submitted custom team logo"
+            />
+          )}
+          {(notification.type === "immortality_prospect" || notification.type === "custom_player") && typeof (notification.payload as { headshotUrl?: string } | null)?.headshotUrl === "string" && (
+            <img
+              className="pending-item-logo-preview"
+              src={(notification.payload as { headshotUrl: string }).headshotUrl}
+              alt="Player headshot"
+            />
+          )}
+          <TradeDetail
+            payload={notification.payload}
+            fallbackTeams={{ proposing: (notification.payload as Record<string, unknown> | null)?.proposingTeam, receiving: (notification.payload as Record<string, unknown> | null)?.receivingTeam }}
+          />
+          <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>{notification.submittedByName ? `From ${notification.submittedByName} — ` : ""}{new Date(notification.submittedAt).toLocaleString()}</p>
+        </div>
+        {notification.amount != null && <span className="pending-item-card-amount"><CoinAmount amount={notification.amount} /></span>}
+      </div>
+    </Card>;
+  }
+
   return <>
     {notice && <p style={{ color: "var(--success)", marginTop: 0 }}>{notice}</p>}
     {error && <ErrorState message={error} />}
@@ -169,58 +204,24 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
       </div>
 
       {view === "pending" ? <>
-        <div className="pending-items-category-row" style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap", marginBottom: "var(--space-4)" }}>
-          <button type="button" className={filter === "all" ? "pending-items-category is-active" : "pending-items-category"} onClick={() => setFilter("all")}>All ({notifications.length})</button>
-          {ALL_TYPES.filter((type) => typesPresent.has(type) || ALWAYS_VISIBLE_TYPES.includes(type)).map((type) => (
-            <button key={type} type="button" className={filter === type ? "pending-items-category is-active" : "pending-items-category"} onClick={() => setFilter(type)}>
-              {TYPE_LABELS[type]}
-              {type === "eos_payout" && eosNotifications.length > 0 ? ` (${eosNotifications.length})` : ""}
-            </button>
-          ))}
-        </div>
-        {showEosLedgers ? (
-          <EosPayoutLedgers onResolved={(message) => { setNotice(message); load(); window.dispatchEvent(new Event("rec:notifications-changed")); }} />
-        ) : null}
-        {filter !== "eos_payout" ? <>
-          {visible.length === 0 && !showEosLedgers && <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending here.</p></Card>}
-          <div className="pending-items-scroll-list" style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-            {visible.map((notification) => <Card key={notification.id} className="pending-item-card" onClick={() => openNotification(notification)}>
-              <div className="pending-item-card-layout">
-                <div className="pending-item-card-copy">
-                  <div className="pending-item-card-heading"><Badge status="info">{TYPE_LABELS[notification.type]}</Badge><Badge status={CASE_STATUS_BADGE[notification.displayStatus]}>{notification.displayStatus}</Badge><span className="pending-item-card-title">{notification.title}</span></div>
-                  {/* Legend and custom-player purchases carry a full detail dump (attributes,
-                      replacement target, package) in their subtitle — that belongs only in the
-                      dedicated review modal (LegendPurchaseDetail / CustomPlayerBuildRow) opened
-                      on tap, not in this scannable list. Every other type's subtitle stays short
-                      enough to keep here. */}
-                  {notification.type !== "legend" && notification.type !== "custom_player" && notification.type !== "immortality_prospect" && (
-                    <p style={{ margin: 0, color: "var(--text-secondary)", fontSize: "var(--text-sm)", whiteSpace: "pre-line", overflowWrap: "anywhere" }}>{notification.subtitle}</p>
-                  )}
-                  {notification.type === "custom_team" && typeof (notification.payload as { logoUrl?: string } | null)?.logoUrl === "string" && (
-                    <img
-                      className="pending-item-logo-preview"
-                      src={(notification.payload as { logoUrl: string }).logoUrl}
-                      alt="Submitted custom team logo"
-                    />
-                  )}
-                  {(notification.type === "immortality_prospect" || notification.type === "custom_player") && typeof (notification.payload as { headshotUrl?: string } | null)?.headshotUrl === "string" && (
-                    <img
-                      className="pending-item-logo-preview"
-                      src={(notification.payload as { headshotUrl: string }).headshotUrl}
-                      alt="Player headshot"
-                    />
-                  )}
-                  <TradeDetail
-                    payload={notification.payload}
-                    fallbackTeams={{ proposing: (notification.payload as Record<string, unknown> | null)?.proposingTeam, receiving: (notification.payload as Record<string, unknown> | null)?.receivingTeam }}
-                  />
-                  <p style={{ margin: "var(--space-1) 0 0", color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>{notification.submittedByName ? `From ${notification.submittedByName} — ` : ""}{new Date(notification.submittedAt).toLocaleString()}</p>
-                </div>
-                {notification.amount != null && <span className="pending-item-card-amount"><CoinAmount amount={notification.amount} /></span>}
-              </div>
-            </Card>)}
-          </div>
-        </> : null}
+        {notifications.length === 0 && <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending right now.</p></Card>}
+        {sectionTypes.map((type) => {
+          const items = cardNotifications.filter((notification) => notification.type === type);
+          return (
+            <section key={type} className="pending-items-section">
+              <h3 className="pending-items-section-heading">{TYPE_LABELS[type]} ({items.length})</h3>
+              {items.length === 0
+                ? <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending here.</p></Card>
+                : <div className="pending-items-scroll-list">{items.map(renderNotificationCard)}</div>}
+            </section>
+          );
+        })}
+        {(eosNotifications.length > 0 || ALWAYS_VISIBLE_TYPES.includes("eos_payout")) && (
+          <section className="pending-items-section">
+            <h3 className="pending-items-section-heading">{TYPE_LABELS.eos_payout}{eosNotifications.length > 0 ? ` (${eosNotifications.length})` : ""}</h3>
+            <EosPayoutLedgers onResolved={(message) => { setNotice(message); load(); window.dispatchEvent(new Event("rec:notifications-changed")); }} />
+          </section>
+        )}
       </> : <CompletedTransactions transactions={completed} />}
     </>}
 

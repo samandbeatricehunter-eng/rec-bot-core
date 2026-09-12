@@ -1668,12 +1668,8 @@ h1, h2, h3, .site-wordmark {
   height: 36px;
   flex-shrink: 0;
   border-radius: 50%;
+  object-fit: cover;
   background: var(--accent, #d9a521);
-  color: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 500;
 }
 .media-day-gate-interview-options {
   display: flex;

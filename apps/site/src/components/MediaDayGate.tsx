@@ -169,7 +169,7 @@ function MediaDayInterviewScreen({ leagueId, onComplete }: { leagueId: string; o
         ))}
       </div>
       <div className="media-day-gate-interview-question">
-        <div className="media-day-gate-interview-avatar" aria-hidden="true">{current.reporterName.slice(0, 1)}</div>
+        <img className="media-day-gate-interview-avatar" src={current.reporterHeadshotUrl} alt={current.reporterName} />
         <div>
           <p className="media-day-gate-eyebrow">{current.reporterName}</p>
           <p>{current.questionText}</p>

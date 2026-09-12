@@ -6,7 +6,7 @@
 // media-day-gate.service.ts's requiredSubjectKeysForUser).
 import {
   mediaDayAnswerOptions, pickMediaDayQuestion, renderMediaDayTemplate, tweetFixedAccounts,
-  weeklyChallengeTierRequirementLines, type WeeklyChallengeSide, type WeeklyChallengeTier,
+  weeklyChallengeTierRequirementLines, type TweetFixedAccountKey, type WeeklyChallengeSide, type WeeklyChallengeTier,
 } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -20,15 +20,35 @@ function pickIndex(seed: string, length: number): number {
   return length ? hash % length : 0;
 }
 
-/** Deterministic reporter assignment per (team, week, side) -- the uploaded package's own
- * reporter-beat-eligibility metadata was dropped when the question bank was slimmed down (it also
- * wasn't wired into any working beat-eligibility engine), so this is a plain rotation across the
- * 8 fixed accounts rather than a beat-matched pick. Good enough to give every question a
- * consistent, identified voice; refining to real beat-affinity is a fast-follow. */
-function pickReporter(seed: string): { key: string; displayName: string } {
+// The uploaded question bank's reporter_beats vocabulary (passing/rushing/pass_defense/etc, an
+// EA-style stat-category taxonomy) shares no vocabulary at all with tweet_personalities.json's
+// primary_beats (roster construction/rivalries/momentum/etc, a narrative-theme taxonomy) -- the
+// two banks were authored independently and can't be string-matched. This is a hand-curated
+// weighting onto the two personas whose actual persona description is built around X's-and-O's
+// analysis (Elliot Mercer: "The Strategist"/efficiency/scheme; Gridiron Gospel: "The Film
+// Columnist"/matchup tendencies/scheme fit) leaning heaviest for these strategy-flavored weekly
+// challenge questions, with the others still reachable but less likely -- an editorial judgment
+// call, not a literal beat match, same kind of call record-book.service.ts already makes for
+// which personas react to a record break.
+const CATEGORY_PERSONA_WEIGHTS: Partial<Record<TweetFixedAccountKey, number>> = {
+  elliot: 4, gridiron_gospel: 4, marcus: 2, darius: 2, vaughn: 1, rec_insider: 1, nfl_front_office: 1, tmz: 1,
+};
+
+/** Deterministic weighted reporter assignment per (team, week, side) -- same weights every call
+ * for a given seed (so re-fetching the interview before answering never swaps the byline), picked
+ * via a hash-seeded cumulative-weight walk instead of Math.random() for that determinism. */
+function pickReporter(seed: string): { key: string; displayName: string; headshotUrl: string } {
   const accounts = tweetFixedAccounts();
-  const account = accounts[pickIndex(seed, accounts.length)]!;
-  return { key: account.key, displayName: account.display };
+  const weighted = accounts.map((account) => ({ account, weight: CATEGORY_PERSONA_WEIGHTS[account.key] ?? 1 }));
+  const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  const roll = pickIndex(seed, totalWeight);
+  let cumulative = 0;
+  for (const entry of weighted) {
+    cumulative += entry.weight;
+    if (roll < cumulative) return { key: entry.account.key, displayName: entry.account.display, headshotUrl: entry.account.headshotUrl };
+  }
+  const fallback = weighted[weighted.length - 1]!.account;
+  return { key: fallback.key, displayName: fallback.display, headshotUrl: fallback.headshotUrl };
 }
 
 export type MediaDayInterviewQuestion = {
@@ -37,6 +57,7 @@ export type MediaDayInterviewQuestion = {
   questionText: string;
   answerFamily: string;
   reporterName: string;
+  reporterHeadshotUrl: string;
   options: Array<{ key: string; text: string }>;
   answered: boolean;
   answerKey: string | null;
@@ -104,7 +125,8 @@ export async function getMyMediaDayInterview(input: { guildId: string; discordId
     const options = mediaDayAnswerOptions(variant.answer_family).map((option) => ({ key: option.key, text: option.text }));
     const reporter = pickReporter(`${seed}:reporter`);
     questions.push({
-      side, questionId: variant.id, questionText, answerFamily: variant.answer_family, reporterName: reporter.displayName, options,
+      side, questionId: variant.id, questionText, answerFamily: variant.answer_family,
+      reporterName: reporter.displayName, reporterHeadshotUrl: reporter.headshotUrl, options,
       answered: answeredBySide.has(side), answerKey: answeredBySide.get(side) ?? null,
     });
   }

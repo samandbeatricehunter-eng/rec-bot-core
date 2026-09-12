@@ -1154,6 +1154,7 @@ export const siteApi = {
         questionText: string;
         answerFamily: string;
         reporterName: string;
+        reporterHeadshotUrl: string;
         options: Array<{ key: string; text: string }>;
         answered: boolean;
         answerKey: string | null;
