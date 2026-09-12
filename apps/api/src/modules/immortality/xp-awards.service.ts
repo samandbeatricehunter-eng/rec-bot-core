@@ -611,10 +611,17 @@ export async function loadRtiMemberGates(input: {
     .select("id,side,position,player_id,headshot_url,xp_points_balance")
     .eq("immortality_league_id", immortality.id)
     .eq("user_id", input.userId);
+  // This ran one prospect at a time (await inside the loop) -- an owner's full roster of
+  // prospects each cost a separate sequential rec_immortality_prospect_characteristics round
+  // trip, and this whole function sits on getHub's critical path (loadHub awaits it directly
+  // for every RTI hub view), so a ~20-prospect roster alone added multiple seconds to every
+  // hub load. Each prospect's modifiers are independent, so fetch them concurrently instead.
+  const allModifiers = await Promise.all(
+    (prospects.data ?? []).map((prospect) => modifiersForProspect({ id: String(prospect.id), position: String(prospect.position) })),
+  );
   let tradesUnlocked = false;
   let teammateDevUnlocked = false;
-  for (const prospect of prospects.data ?? []) {
-    const modifiers = await modifiersForProspect({ id: String(prospect.id), position: String(prospect.position) });
+  for (const modifiers of allModifiers) {
     tradesUnlocked = tradesUnlocked || modifiers.tradeAccess;
     teammateDevUnlocked = teammateDevUnlocked || modifiers.teammateDevPurchaseUnlocked;
   }
