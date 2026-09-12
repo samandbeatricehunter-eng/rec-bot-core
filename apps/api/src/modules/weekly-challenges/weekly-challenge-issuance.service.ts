@@ -32,7 +32,10 @@ type IssuedRow = { challenge_id: string; name: string; bronze: WeeklyChallengeCo
 
 const TIER_RANK: Record<WeeklyChallengeTier, number> = { bronze: 1, silver: 2, gold: 3 };
 
-async function resolveIssuedEntry(input: {
+/** Issues (if needed) and returns the frozen entry for one team/side/week -- exported for the
+ * Media Day interview flow, which needs a challenge_id issued up front to ask that side's
+ * matching question about, before any grading has happened. */
+export async function resolveIssuedEntry(input: {
   leagueId: string; teamId: string; seasonNumber: number; weekNumber: number; side: WeeklyChallengeSide;
 }): Promise<{ entry: WeeklyChallengeEntry; creditedTier: WeeklyChallengeTier | null } | null> {
   const existing = await supabase.from("rec_weekly_team_challenges_issued")

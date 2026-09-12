@@ -5,6 +5,7 @@ import { requireSiteUserSession } from "../../lib/site-auth.js";
 import {
   getSiteLeagueTicker,
   getSiteMediaDayGateStatus,
+  getSiteMediaDayInterview,
   getSiteRewardsRecap,
   listOpenTeamsForSiteLeague,
   listMySiteLeagues,
@@ -14,6 +15,7 @@ import {
   requestSiteLeagueTeam,
   joinRiseToImmortalityPool,
   searchSiteLeagues,
+  submitSiteMediaDayAnswer,
 } from "./site-leagues.service.js";
 
 export async function siteLeaguesRoutes(app: FastifyInstance) {
@@ -115,6 +117,35 @@ export async function siteLeaguesRoutes(app: FastifyInstance) {
       const body = z.object({ leagueId: z.string().uuid() }).parse(request.body ?? {});
       return reply.send(
         await getSiteRewardsRecap({ recUserId: user.recUserId, leagueId: body.leagueId }),
+      );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-leagues/media-day-interview", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({ leagueId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(
+        await getSiteMediaDayInterview({ recUserId: user.recUserId, leagueId: body.leagueId }),
+      );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-leagues/media-day-answer", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({
+        leagueId: z.string().uuid(), side: z.enum(["offense", "defense"]),
+        questionId: z.string().min(1), answerKey: z.string().min(1),
+      }).parse(request.body ?? {});
+      return reply.send(
+        await submitSiteMediaDayAnswer({ recUserId: user.recUserId, ...body }),
       );
     } catch (error) {
       return sendError(reply, error);

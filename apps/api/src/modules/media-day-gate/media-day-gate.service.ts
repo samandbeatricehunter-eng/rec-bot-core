@@ -22,23 +22,15 @@ export async function ensureMediaDayPeriodOpen(input: {
   }, { onConflict: "league_id,season_number,week_number,season_stage", ignoreDuplicates: true });
 }
 
-/** The subject keys one user must complete for a period: non-RTI is a single team-voice subject;
- * RTI is the owner plus each prospect (offense/defense) that user actually owns -- so a user with
- * only one prospect side, or none yet, is never gated on a subject that doesn't apply to them. */
+/** The subject keys one user must complete for a period. RTI leagues already have their own,
+ * separate, working Media Day system (three interview panels on the RTI Overview page) -- this
+ * new gate deliberately does not cover them yet, the same way the Universal Record Book excludes
+ * RTI leagues. Unifying RTI onto this gate is a later consolidation, not part of this build. */
 async function requiredSubjectKeysForUser(leagueId: string, userId: string): Promise<string[]> {
   const immortality = await loadImmortalityLeague(leagueId);
-  if (!immortality) return ["team"];
-
-  const keys: string[] = [];
-  const ownerAssignment = await supabase.from("rec_immortality_user_team_assignments")
-    .select("user_id").eq("immortality_league_id", immortality.id).eq("user_id", userId).limit(1);
-  if (ownerAssignment.data?.length) keys.push("owner");
-
-  const prospects = await supabase.from("rec_immortality_prospects")
-    .select("id").eq("immortality_league_id", immortality.id).eq("user_id", userId);
-  for (const prospect of prospects.data ?? []) keys.push(`prospect:${prospect.id}`);
-
-  return keys;
+  if (immortality) return [];
+  void userId;
+  return ["team"];
 }
 
 export type MediaDayGateStatus = {

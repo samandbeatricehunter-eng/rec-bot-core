@@ -929,6 +929,18 @@ export async function getSiteRewardsRecap(input: { recUserId: string; leagueId: 
   return getRewardsRecap({ guildId: context.guildId, discordId: context.discordId });
 }
 
+export async function getSiteMediaDayInterview(input: { recUserId: string; leagueId: string }) {
+  const context = await openSiteLeagueHubContext(input);
+  const { getMyMediaDayInterview } = await import("../media-day/media-day-interview.service.js");
+  return getMyMediaDayInterview({ guildId: context.guildId, discordId: context.discordId });
+}
+
+export async function submitSiteMediaDayAnswer(input: { recUserId: string; leagueId: string; side: "offense" | "defense"; questionId: string; answerKey: string }) {
+  const context = await openSiteLeagueHubContext(input);
+  const { submitMyMediaDayAnswer } = await import("../media-day/media-day-interview.service.js");
+  return submitMyMediaDayAnswer({ guildId: context.guildId, discordId: context.discordId, side: input.side, questionId: input.questionId, answerKey: input.answerKey });
+}
+
 export type SiteLeagueSearchFilters = {
   q?: string;
   game?: string;

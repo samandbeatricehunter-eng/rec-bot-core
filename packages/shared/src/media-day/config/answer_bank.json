@@ -1,0 +1,286 @@
+{
+  "schema_version": 2,
+  "purpose": "Contextual answer rendering. Gate creation freezes the final wording and semantic payload so later UI visits cannot change it.",
+  "dimensions": {
+    "confidence": [
+      "very_low",
+      "low",
+      "guarded",
+      "neutral",
+      "confident",
+      "very_confident"
+    ],
+    "certainty": [
+      "exploratory",
+      "conditional",
+      "committed"
+    ],
+    "tone": [
+      "calm",
+      "competitive",
+      "defiant",
+      "optimistic",
+      "critical",
+      "protective",
+      "urgent",
+      "patient"
+    ],
+    "accountability": [
+      "self",
+      "shared",
+      "staff",
+      "players",
+      "circumstance",
+      "none"
+    ],
+    "aggression": [
+      "conservative",
+      "measured",
+      "aggressive",
+      "all_in"
+    ],
+    "respect": [
+      "high",
+      "neutral",
+      "dismissive"
+    ],
+    "time_horizon": [
+      "immediate",
+      "this_stage",
+      "this_season",
+      "multi_season"
+    ]
+  },
+  "rules": {
+    "visible_choices_per_question": "4–6",
+    "freeze_on_gate_creation": true,
+    "semantic_first": true,
+    "named_entities_require_canonical_ids": true,
+    "freeform_requires_extraction_and_confirmation_for_consequential_claims": true
+  },
+  "voice_pools": {
+    "non_rti_team": {
+      "guarded": [
+        "We see the opportunity, but we have not earned the right to talk past the next game.",
+        "There is a path there. We still have to prove we can follow it."
+      ],
+      "neutral": [
+        "We are treating it for what it is: one important step, not a verdict on the season.",
+        "The focus is on the work in front of us, not the noise around it."
+      ],
+      "confident": [
+        "We believe our team is ready for this matchup.",
+        "We expect to play well, and we are comfortable saying that publicly."
+      ],
+      "very_confident": [
+        "We expect to set the terms of this game.",
+        "Our expectation is to control this matchup, not simply survive it."
+      ],
+      "defiant": [
+        "We have heard the criticism. Our answer has to come on the field.",
+        "People can keep the same opinion. We intend to make them defend it after the game."
+      ],
+      "patient": [
+        "We do not need to force the game in the first quarter. We need to make the right decisions for four quarters.",
+        "Patience is part of the plan. We will take the opportunities that are actually there."
+      ],
+      "aggressive": [
+        "We want to put pressure on them early and make them adjust to us.",
+        "We are not going into this game waiting for something to happen. We want to create it."
+      ],
+      "accountable": [
+        "If it does not work, that belongs to us. We are choosing this approach.",
+        "We own the plan and we will own the result that comes with it."
+      ]
+    },
+    "rti_subject": {
+      "guarded": [
+        "I like where I am, but I still have to prove it again.",
+        "There are good signs. I am not going to pretend the job is finished."
+      ],
+      "neutral": [
+        "I am focused on the next rep and the next game.",
+        "I am not trying to make it bigger than it is. I just want to play well."
+      ],
+      "confident": [
+        "I trust my game in this matchup.",
+        "I believe I can be one of the reasons we win this week."
+      ],
+      "very_confident": [
+        "I expect to make a real impact on this game.",
+        "I am going into this matchup expecting to take control of my part of it."
+      ],
+      "defiant": [
+        "I heard what was said. I would rather answer it on the field.",
+        "They can have the opinion. I get a chance to respond when we play."
+      ],
+      "patient": [
+        "I do not have to force the big play. If I keep doing my job, it will come.",
+        "I can stay patient and let the game tell me where the opportunity is."
+      ],
+      "aggressive": [
+        "I want to put them under pressure from the start.",
+        "If I see the chance to change the game, I am taking it."
+      ],
+      "accountable": [
+        "If I say I can do it, I have to own that after the game too.",
+        "My part of this is simple: do my job and own the result."
+      ]
+    }
+  },
+  "family_routes": {
+    "team_outlook": [
+      "guarded",
+      "neutral",
+      "confident",
+      "very_confident",
+      "accountable"
+    ],
+    "accountability": [
+      "accountable",
+      "guarded",
+      "defiant",
+      "neutral"
+    ],
+    "roster_need": [
+      "patient",
+      "aggressive",
+      "neutral",
+      "confident"
+    ],
+    "player_future": [
+      "guarded",
+      "confident",
+      "accountable",
+      "patient"
+    ],
+    "contract": [
+      "patient",
+      "aggressive",
+      "guarded",
+      "accountable"
+    ],
+    "fa_posture": [
+      "patient",
+      "aggressive",
+      "neutral",
+      "confident"
+    ],
+    "fa_exit": [
+      "accountable",
+      "defiant",
+      "guarded",
+      "confident"
+    ],
+    "draft": [
+      "patient",
+      "aggressive",
+      "neutral",
+      "confident"
+    ],
+    "trade": [
+      "accountable",
+      "aggressive",
+      "patient",
+      "guarded"
+    ],
+    "weekly_offense": [
+      "patient",
+      "aggressive",
+      "confident",
+      "guarded"
+    ],
+    "weekly_defense": [
+      "patient",
+      "aggressive",
+      "confident",
+      "defiant"
+    ],
+    "rivalry": [
+      "competitive",
+      "defiant",
+      "confident",
+      "guarded"
+    ],
+    "generic": [
+      "guarded",
+      "neutral",
+      "confident",
+      "accountable"
+    ],
+    "player_confidence": [
+      "guarded",
+      "neutral",
+      "confident",
+      "very_confident"
+    ],
+    "player_confidence_low": [
+      "guarded",
+      "defiant",
+      "accountable",
+      "patient"
+    ],
+    "dev_opportunity": [
+      "guarded",
+      "confident",
+      "very_confident",
+      "accountable"
+    ],
+    "contract_intent": [
+      "patient",
+      "aggressive",
+      "guarded",
+      "accountable"
+    ]
+  },
+  "semantic_templates": {
+    "guarded": {
+      "confidence": "guarded",
+      "certainty": "conditional",
+      "tone": "calm"
+    },
+    "neutral": {
+      "confidence": "neutral",
+      "certainty": "conditional",
+      "tone": "calm"
+    },
+    "confident": {
+      "confidence": "confident",
+      "certainty": "committed",
+      "tone": "competitive"
+    },
+    "very_confident": {
+      "confidence": "very_confident",
+      "certainty": "committed",
+      "tone": "competitive"
+    },
+    "defiant": {
+      "confidence": "confident",
+      "certainty": "committed",
+      "tone": "defiant"
+    },
+    "patient": {
+      "confidence": "neutral",
+      "certainty": "conditional",
+      "tone": "patient",
+      "aggression": "measured"
+    },
+    "aggressive": {
+      "confidence": "confident",
+      "certainty": "committed",
+      "tone": "urgent",
+      "aggression": "aggressive"
+    },
+    "accountable": {
+      "confidence": "neutral",
+      "certainty": "committed",
+      "tone": "calm",
+      "accountability": "self"
+    },
+    "competitive": {
+      "confidence": "confident",
+      "certainty": "committed",
+      "tone": "competitive"
+    }
+  }
+}
