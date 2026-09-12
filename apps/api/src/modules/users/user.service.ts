@@ -1066,7 +1066,7 @@ function stageDisplay(stage?: string | null) {
 // Current win/loss/tie streak for a user, derived from completed game results (most recent first).
 function streakFromGames(games: any[], userId: string): string {
   const completed = games
-    .filter((g) => (Number(g.home_score) || 0) > 0 || (Number(g.away_score) || 0) > 0)
+    .filter((g) => g.home_score != null && g.away_score != null)
     .sort((a, b) => (a.season_number - b.season_number) || (a.week_number - b.week_number));
   let streak = 0;
   let type: "W" | "L" | "T" | null = null;
@@ -1104,6 +1104,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   let matchupType = "NONE";
   let opponentUserId: string | null = null;
   let opponentName: string | null = null;
+  let displayedRecordSeasonNumber = 1;
 
   if (league?.id) {
     const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
@@ -1114,7 +1115,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     const isGameplayStage = gameplaySeasonStages(league.game).has(stage);
     // The next season number is assigned when preseason begins, but the completed-season
     // record should remain visible until the league actually enters regular-season Week 1.
-    const displayedRecordSeasonNumber = isPreseason && Number(seasonNumber) > 1
+    displayedRecordSeasonNumber = isPreseason && Number(seasonNumber) > 1
       ? Number(seasonNumber) - 1
       : Number(seasonNumber);
 
@@ -1283,21 +1284,43 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   let opponentRecordText = "â€”";
   let opponentPointDifferential = 0;
   let opponentStreakText = "â€”";
+  let recentForm: Array<{ result: "W" | "L" | "T"; opponentName: string; opponentAbbr: string | null; opponentLogoUrl: string | null }> = [];
   if (league?.id) {
-    const profileSeason = league.season_number ?? league.display_season_number ?? 1;
     const { data: userGames } = await supabase
       .from("rec_game_results")
-      .select("home_user_id,away_user_id,home_score,away_score,season_number,week_number,source")
+      .select("home_user_id,away_user_id,home_team_id,away_team_id,home_score,away_score,season_number,week_number,source")
       .eq("league_id", league.id)
-      .eq("season_number", profileSeason)
+      .eq("season_number", displayedRecordSeasonNumber)
       .in("source", [...OFFICIAL_RESULT_SOURCES])
       .or(`home_user_id.eq.${userId},away_user_id.eq.${userId}`);
     userStreakText = streakFromGames(userGames ?? [], userId);
 
+    const latestGames = (userGames ?? [])
+      .filter((game: any) => game.home_score != null && game.away_score != null)
+      .sort((a: any, b: any) => Number(b.week_number ?? 0) - Number(a.week_number ?? 0))
+      .slice(0, 3);
+    const opponentTeamIds = [...new Set(latestGames.map((game: any) => String(game.home_user_id === userId ? game.away_team_id : game.home_team_id)).filter(Boolean))];
+    const recentTeams = opponentTeamIds.length
+      ? await supabase.from("rec_teams").select("id,name,abbreviation,original_abbreviation,is_relocated,logo_url").in("id", opponentTeamIds)
+      : { data: [] as any[] };
+    const recentTeamById = new Map((recentTeams.data ?? []).map((team: any) => [String(team.id), team]));
+    recentForm = latestGames.map((game: any) => {
+      const isHome = game.home_user_id === userId;
+      const mine = Number(isHome ? game.home_score : game.away_score);
+      const theirs = Number(isHome ? game.away_score : game.home_score);
+      const opponent = recentTeamById.get(String(isHome ? game.away_team_id : game.home_team_id)) as any;
+      return {
+        result: mine > theirs ? "W" as const : mine < theirs ? "L" as const : "T" as const,
+        opponentName: resolveTeamProgramName(opponent) ?? opponent?.name ?? "Opponent",
+        opponentAbbr: opponent?.is_relocated ? opponent?.original_abbreviation ?? opponent?.abbreviation ?? null : opponent?.abbreviation ?? null,
+        opponentLogoUrl: opponent?.logo_url ?? null,
+      };
+    });
+
     if (opponentUserId) {
       const [oppRecordResult, oppGamesResult] = await Promise.all([
-        supabase.from("rec_season_user_display_records").select("*").eq("league_id", league.id).eq("season_number", profileSeason).eq("user_id", opponentUserId).maybeSingle(),
-        supabase.from("rec_game_results").select("home_user_id,away_user_id,home_score,away_score,season_number,week_number,source").eq("league_id", league.id).eq("season_number", profileSeason).in("source", [...OFFICIAL_RESULT_SOURCES]).or(`home_user_id.eq.${opponentUserId},away_user_id.eq.${opponentUserId}`)
+        supabase.from("rec_season_user_display_records").select("*").eq("league_id", league.id).eq("season_number", displayedRecordSeasonNumber).eq("user_id", opponentUserId).maybeSingle(),
+        supabase.from("rec_game_results").select("home_user_id,away_user_id,home_score,away_score,season_number,week_number,source").eq("league_id", league.id).eq("season_number", displayedRecordSeasonNumber).in("source", [...OFFICIAL_RESULT_SOURCES]).or(`home_user_id.eq.${opponentUserId},away_user_id.eq.${opponentUserId}`)
       ]);
       opponentRecordText = recordText(oppRecordResult.data ?? {});
       opponentPointDifferential = oppRecordResult.data?.point_differential ?? 0;
@@ -1372,6 +1395,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       opponentPointDifferential,
       opponentStreakText,
       userStreakText,
+      recentForm,
       gotwH2hRecordText,
       // True when this Discord identity is claimed/linked to a REC Leagues site auth account.
       hasSiteAccount: Boolean(baseline.user?.supabase_auth_user_id),

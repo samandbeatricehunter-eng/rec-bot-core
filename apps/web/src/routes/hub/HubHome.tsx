@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, regularSeasonWeeks, stageForWeek, stageHasScheduledGames, stageLabel, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { HeadshotUploadOverlay } from "../../components/hub/HeadshotUploadOverlay.js";
-import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
+import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, Shield, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
 import { InterviewMicIcon, ManageTeamIcon, ScheduleIcon } from "../../components/hub/QuickActionIcons.js";
 import { ManageFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
 import { WeeklyChallengesCard } from "../../components/hub/WeeklyChallengesCard.js";
@@ -1456,6 +1456,17 @@ export function HubHome() {
       ? { abbreviation: heroMatchup.awayTeamAbbr, logoUrl: heroMatchup.awayTeamLogoUrl, name: heroMatchup.awayTeamName }
       : { abbreviation: heroMatchup.homeTeamAbbr, logoUrl: heroMatchup.homeTeamLogoUrl, name: heroMatchup.homeTeamName }
     : null;
+  const weeklyChallengeTooltip = rtiGates?.weeklyChallenges?.length
+    ? rtiGates.weeklyChallenges.map((player) => {
+      const tiers = player.challenges.map((challenge) => `${challenge.tier}: ${challenge.label}`).join(" · ");
+      return `${player.name} (${player.position}) — ${tiers}`;
+    }).join("\n")
+    : "No weekly challenge tiers are assigned for this stage.";
+  const playerXpTotal = Number(rtiGates?.playerXpTotal ?? rtiGates?.playerSnapshots?.reduce((total, player) => total + Number(player.playerXpTotal ?? 0), 0) ?? 0);
+  const teamXpTotal = Number(rtiGates?.teamXpTotal ?? 0);
+  const teamXpProgress = Math.max(0, Math.min(100, teamXpTotal));
+  const recentForm = (my.recentForm ?? []) as Array<{ result: "W" | "L" | "T"; opponentName: string; opponentAbbr: string | null; opponentLogoUrl: string | null }>;
+  const legendUsage = { used: rtiGates?.playerSnapshots?.length ?? 0, cap: 2 };
   const activeHighlight = highlights[activeHighlightIndex] ?? null;
   const highlightOwnerId = (activeHighlight as { user_id?: string | null; userId?: string | null } | null)?.user_id
     ?? (activeHighlight as { userId?: string | null } | null)?.userId
@@ -1740,11 +1751,26 @@ export function HubHome() {
           <section className="hub-hero hub-hero-rebuilt">
             <section className="hub-season-snapshot">
               <div className="hub-season-snapshot-grid" aria-label="Season snapshot">
-                <article><span>Matchup</span><strong className="hub-season-snapshot-opponent">{heroOpponent ? <TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /> : "—"}</strong></article>
+                <article className="hub-season-snapshot-matchup" tabIndex={0} aria-label={`Matchup. ${weeklyChallengeTooltip}`}>
+                  <span>Matchup</span>
+                  <strong className="hub-season-snapshot-opponent">{heroOpponent ? <><em>{heroMatchup?.viewerSide === "away" ? "AT" : "VS"}</em><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /></> : "—"}</strong>
+                  <span className="hub-season-snapshot-tooltip" role="tooltip">{weeklyChallengeTooltip.split("\n").map((line) => <span key={line}>{line}</span>)}</span>
+                </article>
                 <article><span>Record</span><strong>{heroSeasonRecord}</strong></article>
                 <article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article>
                 <article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
               </div>
+              {isRise ? <><div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="Team progression snapshot">
+                <article><span>Legend group</span><strong>{legendUsage.used}/{legendUsage.cap}</strong></article>
+                <article className="hub-season-form-card"><span>Streak · Recent form</span><strong><em>{my.userStreakText ?? "—"}</em>{recentForm.length ? recentForm.map((game, index) => <span className={`hub-season-form-game is-${game.result.toLowerCase()}`} key={`${game.opponentName}-${index}`} title={`${game.result} vs ${game.opponentName}`}><TeamLogo abbreviation={game.opponentAbbr} logoUrl={game.opponentLogoUrl} alt={game.opponentName} /><b>{game.result}</b></span>) : <small>—</small>}</strong></article>
+                <article><span>Player XP</span><strong>{playerXpTotal.toLocaleString()}</strong></article>
+                <article className="hub-season-team-xp"><span>Team XP</span><strong>{teamXpTotal.toLocaleString()} <Shield size={17} aria-label="Steel shield" /></strong><div className="hub-season-team-xp-track" aria-label={`${teamXpTotal} Team XP toward steel shield`}><i style={{ width: `${teamXpProgress}%` }} /></div></article>
+              </div>
+              <nav className="hub-season-snapshot-actions" aria-label="Progression links">
+                <Link className="hub-season-snapshot-action" to={`/l/${hub.league.id}/team/upgrades`}><span>Player</span><strong>Progression</strong></Link>
+                <Link className="hub-season-snapshot-action" to={`/l/${hub.league.id}/team/progression`}><span>Team</span><strong>Progression</strong></Link>
+              </nav>
+              </> : null}
               {isRise && rtiGates?.playerSnapshots?.length ? (() => {
                 const bannerTeam = rtiGates.playerSnapshots.find((player) => player.teamLogoUrl) ?? rtiGates.playerSnapshots[0];
                 return bannerTeam.teamName ? (

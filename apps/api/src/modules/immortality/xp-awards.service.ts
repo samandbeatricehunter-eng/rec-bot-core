@@ -566,7 +566,10 @@ export async function loadRtiMemberGates(input: {
     teamName: string; teamAbbr: string | null; teamLogoUrl: string | null;
     seasonLines: string[]; positionRank: number | null; positionCount: number | null; hofProgress: number;
     xpProgressPct: number;
+    playerXpTotal: number;
   }>;
+  playerXpTotal: number;
+  teamXpTotal: number;
   pendingContracts: number;
   owner: { name: string; headshotUrl: string | null } | null;
 }> {
@@ -590,6 +593,8 @@ export async function loadRtiMemberGates(input: {
     teammateDevUnlocked: false,
     weeklyChallenges: [] as WeeklyChallengeView[],
     playerSnapshots: [],
+    playerXpTotal: 0,
+    teamXpTotal: 0,
     pendingContracts: 0,
     owner: null,
   };
@@ -649,12 +654,14 @@ export async function loadRtiMemberGates(input: {
   // Player XP point (see creditXpPoints) -- there's no running total column, so the career total
   // shown on the card is summed from every ledger entry's already-granted whole points.
   const xpLedger = prospectIds.length
-    ? await supabase.from("rec_immortality_xp_ledger").select("prospect_id,player_xp_delta").in("prospect_id", prospectIds)
+    ? await supabase.from("rec_immortality_xp_ledger").select("prospect_id,player_xp_delta,team_xp_delta").in("prospect_id", prospectIds)
     : { data: [] };
   const xpTotalByProspect = new Map<string, number>();
-  for (const row of (xpLedger.data ?? []) as Array<{ prospect_id: string; player_xp_delta: number | null }>) {
+  let teamXpTotal = 0;
+  for (const row of (xpLedger.data ?? []) as Array<{ prospect_id: string; player_xp_delta: number | null; team_xp_delta: number | null }>) {
     const key = String(row.prospect_id);
     xpTotalByProspect.set(key, (xpTotalByProspect.get(key) ?? 0) + Number(row.player_xp_delta ?? 0));
+    teamXpTotal += Number(row.team_xp_delta ?? 0);
   }
   const playerSnapshots = await Promise.all(playerIds.map((playerId) => import("../league-week/pro-tracker.service.js")
     .then(({ computePlayerLine }) => computePlayerLine({ leagueId: input.leagueId, playerId, seasonNumber, weekNumber }))
@@ -675,6 +682,8 @@ export async function loadRtiMemberGates(input: {
     teammateDevUnlocked,
     weeklyChallenges,
     playerSnapshots: playerSnapshots.filter((row): row is NonNullable<typeof row> => Boolean(row)),
+    playerXpTotal: [...xpTotalByProspect.values()].reduce((total, value) => total + value, 0),
+    teamXpTotal,
     pendingContracts: Number(pending.count ?? 0),
     owner,
   };
