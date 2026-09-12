@@ -187,6 +187,191 @@ function MediaDayInterviewScreen({ leagueId, onComplete }: { leagueId: string; o
   );
 }
 
+function RtiOwnerInterviewScreen({ guildId, onDone }: { guildId: string; onDone: () => void }) {
+  const [interview, setInterview] = useState<Awaited<ReturnType<typeof siteApi.getRtiOwnerInterview>> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  function load() {
+    void siteApi.getRtiOwnerInterview({ guildId }).then(setInterview).catch((err) => setError(err instanceof Error ? err.message : "Couldn't load the owner interview."));
+  }
+  useEffect(load, [guildId]);
+  useEffect(() => {
+    if (interview?.complete) onDone();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interview?.complete]);
+
+  if (error) return <p className="media-day-gate-eyebrow">{error}</p>;
+  if (!interview || interview.complete) return <p>Loading Media Day...</p>;
+  const answeredCount = interview.answers.length;
+  const current = interview.questions[answeredCount];
+  if (!current) return <p>Loading...</p>;
+
+  async function choose(optionIndex: number) {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await siteApi.submitRtiOwnerInterview({ guildId, questionId: current!.id, optionIndex });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't submit that answer.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="media-day-gate-interview">
+      <div className="media-day-gate-interview-head">
+        <span>Owner interview</span>
+        <span className="media-day-gate-eyebrow">{answeredCount + 1} of {interview.questions.length}</span>
+      </div>
+      <div className="media-day-gate-interview-progress">
+        {interview.questions.map((q, i) => (
+          <div key={q.id} className={i < answeredCount ? "media-day-gate-interview-progress-seg is-done" : "media-day-gate-interview-progress-seg"} />
+        ))}
+      </div>
+      <div className="media-day-gate-interview-question">
+        {interview.headshotUrl && <img className="media-day-gate-interview-avatar" src={interview.headshotUrl} alt={interview.ownerName} />}
+        <div>
+          <p className="media-day-gate-eyebrow">{interview.ownerName}</p>
+          <p>{current.question}</p>
+        </div>
+      </div>
+      <div className="media-day-gate-interview-options">
+        {current.options.map((option, i) => (
+          <button key={i} type="button" disabled={submitting} onClick={() => void choose(i)}>{option.text}</button>
+        ))}
+      </div>
+      {error && <p className="media-day-gate-eyebrow">{error}</p>}
+    </div>
+  );
+}
+
+function RtiProspectInterviewScreen({ guildId, side, onDone }: { guildId: string; side: "offense" | "defense"; onDone: () => void }) {
+  const [interview, setInterview] = useState<Awaited<ReturnType<typeof siteApi.getRtiWeeklyMatchupInterview>> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  function load() {
+    void siteApi.getRtiWeeklyMatchupInterview({ guildId, side }).then(setInterview).catch((err) => setError(err instanceof Error ? err.message : "Couldn't load this prospect's Media Day."));
+  }
+  useEffect(load, [guildId, side]);
+  const done = interview?.complete || interview?.windowClosed;
+  useEffect(() => {
+    if (done) onDone();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [done]);
+
+  if (error) return <p className="media-day-gate-eyebrow">{error}</p>;
+  if (!interview || done) return <p>Loading Media Day...</p>;
+  const answeredCount = interview.answers.length;
+  const current = interview.questions[answeredCount];
+  if (!current) return <p>Loading...</p>;
+
+  async function choose(optionIndex: number) {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await siteApi.submitRtiWeeklyMatchupInterview({ guildId, side, questionId: current!.id, optionIndex });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't submit that answer.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="media-day-gate-interview">
+      <div className="media-day-gate-interview-head">
+        <span>{interview.prospectName} ({side})</span>
+        <span className="media-day-gate-eyebrow">{answeredCount + 1} of {interview.questions.length}</span>
+      </div>
+      <div className="media-day-gate-interview-progress">
+        {interview.questions.map((q, i) => (
+          <div key={q.id} className={i < answeredCount ? "media-day-gate-interview-progress-seg is-done" : "media-day-gate-interview-progress-seg"} />
+        ))}
+      </div>
+      <div className="media-day-gate-interview-question">
+        {interview.headshotUrl && <img className="media-day-gate-interview-avatar" src={interview.headshotUrl} alt={interview.prospectName} />}
+        <p>{current.question}</p>
+      </div>
+      <div className="media-day-gate-interview-options">
+        {current.options.map((option, i) => (
+          <button key={i} type="button" disabled={submitting} onClick={() => void choose(i)}>{option.text}</button>
+        ))}
+      </div>
+      {error && <p className="media-day-gate-eyebrow">{error}</p>}
+    </div>
+  );
+}
+
+const RTI_TIER_TITLE: Record<string, string> = { bronze: "Bronze", silver: "Silver", gold: "Gold" };
+
+function RtiChallengeRevealScreen({ leagueId, onContinue }: { leagueId: string; onContinue: () => void }) {
+  const [ownerReveal, setOwnerReveal] = useState<Awaited<ReturnType<typeof siteApi.getMediaDayChallengeReveal>> | null>(null);
+  const [prospectReveal, setProspectReveal] = useState<Awaited<ReturnType<typeof siteApi.getRtiProspectChallengeReveal>> | null>(null);
+
+  useEffect(() => {
+    void siteApi.getMediaDayChallengeReveal(leagueId).then(setOwnerReveal).catch(() => setOwnerReveal([]));
+    void siteApi.getRtiProspectChallengeReveal(leagueId).then(setProspectReveal).catch(() => setProspectReveal([]));
+  }, [leagueId]);
+
+  const loaded = ownerReveal !== null && prospectReveal !== null;
+  return (
+    <div className="media-day-gate-recap">
+      <p className="media-day-gate-eyebrow">This week's challenges</p>
+      {!loaded && <p>Loading...</p>}
+      {prospectReveal?.map((prospect) => (
+        <div key={prospect.prospectId} className="media-day-gate-recap-subject">
+          <div className="media-day-gate-recap-subject-head"><span>{prospect.name}</span><span className="media-day-gate-eyebrow">{prospect.side}</span></div>
+          <ul className="media-day-gate-recap-lines">
+            {prospect.tiers.map((tier) => <li key={tier.tier}>{RTI_TIER_TITLE[tier.tier] ?? tier.tier}: {tier.label}</li>)}
+          </ul>
+        </div>
+      ))}
+      {ownerReveal?.map((entry) => (
+        <div key={entry.side} className="media-day-gate-recap-subject">
+          <div className="media-day-gate-recap-subject-head"><span>{entry.challengeName}</span><span className="media-day-gate-eyebrow">Team ({entry.side})</span></div>
+          {entry.tiers.map((tier) => (
+            <div key={tier.tier}>
+              <p className="media-day-gate-eyebrow">{RTI_TIER_TITLE[tier.tier]}</p>
+              <ul className="media-day-gate-recap-lines">{tier.lines.map((line, i) => <li key={i}>{line}</li>)}</ul>
+            </div>
+          ))}
+        </div>
+      ))}
+      {loaded && <button type="button" className="site-btn site-btn-primary" onClick={onContinue}>Continue to league hub</button>}
+    </div>
+  );
+}
+
+function RtiInterviewFlow({ guildId, leagueId, subjectKeys, onComplete }: { guildId: string; leagueId: string; subjectKeys: string[]; onComplete: () => void }) {
+  const [subjectIndex, setSubjectIndex] = useState(0);
+  const [showReveal, setShowReveal] = useState(false);
+
+  if (subjectIndex >= subjectKeys.length) {
+    if (!showReveal) {
+      return (
+        <div className="media-day-gate-advanced">
+          <h1>All Media Day statements have been recorded</h1>
+          <button type="button" className="site-btn site-btn-primary" onClick={() => setShowReveal(true)}>See this week's challenges</button>
+        </div>
+      );
+    }
+    return <RtiChallengeRevealScreen leagueId={leagueId} onContinue={onComplete} />;
+  }
+
+  const subjectKey = subjectKeys[subjectIndex]!;
+  const onSubjectDone = () => setSubjectIndex((i) => i + 1);
+  if (subjectKey === "owner") return <RtiOwnerInterviewScreen key={subjectKey} guildId={guildId} onDone={onSubjectDone} />;
+  const side = subjectKey.split(":")[1] as "offense" | "defense";
+  return <RtiProspectInterviewScreen key={subjectKey} guildId={guildId} side={side} onDone={onSubjectDone} />;
+}
+
 /** Post-advance gate: blocks the league page until the user has answered Media Day for the
  * current week/stage. Mounted globally in SiteShell (a sibling of the routed page, never a route
  * itself) so closing it never unmounts whatever the user was doing underneath -- a half-built
@@ -199,6 +384,7 @@ function MediaDayInterviewScreen({ leagueId, onComplete }: { leagueId: string; o
 export function MediaDayGate() {
   const hub = useHub();
   const leagueId = hub.scope.kind === "league" ? hub.scope.leagueId : null;
+  const guildId = hub.selectedLeague?.guildId ?? null;
   const [status, setStatus] = useState<GateStatus | null>(null);
   const [stage, setStage] = useState<GateStage>("hidden");
 
@@ -261,7 +447,13 @@ export function MediaDayGate() {
           </button>
         </div>
       )}
-      {stage === "media_day" && status.leagueId && (
+      {stage === "media_day" && status.leagueId && status.isRti && guildId && (
+        <RtiInterviewFlow
+          guildId={guildId} leagueId={status.leagueId} subjectKeys={status.missingSubjectKeys}
+          onComplete={() => { setStage("hidden"); void refresh(status.leagueId); }}
+        />
+      )}
+      {stage === "media_day" && status.leagueId && !status.isRti && (
         <MediaDayInterviewScreen leagueId={status.leagueId} onComplete={() => { setStage("hidden"); void refresh(status.leagueId); }} />
       )}
     </div>

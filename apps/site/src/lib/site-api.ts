@@ -808,6 +808,8 @@ export type SiteActivityCounts = {
   unreadCommissionerItems: number;
 };
 
+type RtiInterviewQuestion = { id: number; question: string; options: Array<{ text: string }> };
+
 export const siteApi = {
   getLinkProfile() {
     return request<LinkProfileResponse>("/v1/site-auth/me", {});
@@ -1129,6 +1131,7 @@ export const siteApi = {
       weekNumber: number;
       seasonStage: string;
       weekLabel: string;
+      isRti: boolean;
       missingSubjectKeys: string[];
     }>("/v1/site-leagues/media-day-gate-status", { leagueId });
   },
@@ -1170,6 +1173,36 @@ export const siteApi = {
       challengeName: string;
       tiers: Array<{ tier: "bronze" | "silver" | "gold"; lines: string[] }>;
     }>>("/v1/site-leagues/media-day-challenge-reveal", { leagueId });
+  },
+  getRtiProspectChallengeReveal(leagueId: string) {
+    return request<Array<{
+      prospectId: string; side: string; name: string;
+      tiers: Array<{ tier: string; label: string; complete: boolean }>;
+    }>>("/v1/site-leagues/rti-prospect-challenge-reveal", { leagueId });
+  },
+  // RTI's own interview systems -- called directly (guildId, not leagueId) the same way
+  // RiseOrigins.tsx already calls every other /v1/immortality/* endpoint from a site session.
+  getRtiWeeklyMatchupInterview(input: { guildId: string; side: "offense" | "defense" }) {
+    return request<{
+      season: number; week: number; complete: boolean; windowClosed: boolean;
+      prospectName: string; headshotUrl: string | null;
+      questions: RtiInterviewQuestion[];
+      answers: Array<{ slot: number; question_id: number; option_index: number }>;
+    }>("/v1/immortality/interview/weekly", input);
+  },
+  submitRtiWeeklyMatchupInterview(input: { guildId: string; side: "offense" | "defense"; questionId: number; optionIndex: number }) {
+    return request<{ slot: number; complete: boolean }>("/v1/immortality/interview/weekly/submit", input);
+  },
+  getRtiOwnerInterview(input: { guildId: string }) {
+    return request<{
+      season: number; seasonStage: string; group: string; complete: boolean;
+      ownerName: string; headshotUrl: string | null;
+      questions: RtiInterviewQuestion[];
+      answers: Array<{ slot: number; question_id: number; option_index: number }>;
+    }>("/v1/immortality/owner/interview", input);
+  },
+  submitRtiOwnerInterview(input: { guildId: string; questionId: number; optionIndex: number }) {
+    return request<{ slot: number; complete: boolean }>("/v1/immortality/owner/interview/submit", input);
   },
   listNotifications() {
     return request<{

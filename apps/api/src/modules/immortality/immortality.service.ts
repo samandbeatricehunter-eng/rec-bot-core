@@ -2768,6 +2768,8 @@ export async function getWeeklyMatchupInterview(input: { guildId: string; discor
   const userId = await recUserIdFromDiscordId(input.discordId);
   const prospect = await loadProspectForUser(league.id, userId, input.side);
   if (!prospect) throw new ApiError(400, "Save identity first.");
+  const prospectName = `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Your prospect";
+  const headshotUrl: string | null = prospect.headshot_url ?? null;
   const season = Number(context.rec_leagues.season_number ?? 1);
   const week = Number(context.rec_leagues.current_week ?? 1);
   const teamId = prospect.player_id
@@ -2790,10 +2792,10 @@ export async function getWeeklyMatchupInterview(input: { guildId: string; discor
   }
 
   if (answered.length >= MEDIA_DAY_SLOTS) {
-    return { season, week, questions: answered.map((row) => row.rendered_question), answers: answered, complete: true, windowClosed };
+    return { season, week, prospectName, headshotUrl, questions: answered.map((row) => row.rendered_question), answers: answered, complete: true, windowClosed };
   }
   if (windowClosed) {
-    return { season, week, questions: answered.map((row) => row.rendered_question), answers: answered, complete: false, windowClosed };
+    return { season, week, prospectName, headshotUrl, questions: answered.map((row) => row.rendered_question), answers: answered, complete: false, windowClosed };
   }
 
   const answeredIds = new Set(answered.map((row) => Number(row.question_id)));
@@ -2833,7 +2835,7 @@ export async function getWeeklyMatchupInterview(input: { guildId: string; discor
   }
 
   return {
-    season, week, complete: false, windowClosed: false,
+    season, week, prospectName, headshotUrl, complete: false, windowClosed: false,
     questions: [...answered.map((row) => row.rendered_question), ...nextQuestions],
     answers: answered,
   };
@@ -2964,9 +2966,11 @@ export async function getOwnerWeeklyInterview(input: { guildId: string; discordI
   const context = await getCurrentLeagueContext(input.guildId);
   const league = await requireImmortalityLeague(context.leagueId);
   const userId = await recUserIdFromDiscordId(input.discordId);
-  const owner = await supabase.from("rec_immortality_owners").select("id,first_name,last_name")
+  const owner = await supabase.from("rec_immortality_owners").select("id,first_name,last_name,headshot_url")
     .eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle();
   if (!owner.data) throw new ApiError(400, "Create your owner first.");
+  const ownerName = `${owner.data.first_name ?? ""} ${owner.data.last_name ?? ""}`.trim() || "Owner";
+  const headshotUrl: string | null = owner.data.headshot_url ?? null;
   const season = Number(context.rec_leagues.season_number ?? 1);
   const seasonStage = String(context.rec_leagues.season_stage ?? "");
   const advanceIndex = Number(context.rec_leagues.current_week ?? 1);
@@ -2978,7 +2982,7 @@ export async function getOwnerWeeklyInterview(input: { guildId: string; discordI
   if (existing.error) throw new ApiError(500, "Could not load this week's owner interview.", existing.error);
   const answered = existing.data ?? [];
   if (answered.length >= OWNER_INTERVIEW_SLOTS) {
-    return { season, seasonStage, group, complete: true, questions: answered.map((row) => row.rendered_question), answers: answered };
+    return { season, seasonStage, group, ownerName, headshotUrl, complete: true, questions: answered.map((row) => row.rendered_question), answers: answered };
   }
 
   const remainingSlots = OWNER_INTERVIEW_SLOTS - answered.length;
@@ -2991,7 +2995,7 @@ export async function getOwnerWeeklyInterview(input: { guildId: string; discordI
   });
 
   return {
-    season, seasonStage, group, complete: false,
+    season, seasonStage, group, ownerName, headshotUrl, complete: false,
     questions: [...answered.map((row) => row.rendered_question), ...nextQuestions],
     answers: answered,
   };

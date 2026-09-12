@@ -947,6 +947,12 @@ export async function getSiteMediaDayChallengeReveal(input: { recUserId: string;
   return getMyMediaDayChallengeReveal({ guildId: context.guildId, discordId: context.discordId });
 }
 
+export async function getSiteRtiProspectChallengeReveal(input: { recUserId: string; leagueId: string }) {
+  const context = await openSiteLeagueHubContext(input);
+  const { getMyRtiProspectChallengeReveal } = await import("../media-day/media-day-interview.service.js");
+  return getMyRtiProspectChallengeReveal({ guildId: context.guildId, discordId: context.discordId });
+}
+
 export type SiteLeagueSearchFilters = {
   q?: string;
   game?: string;

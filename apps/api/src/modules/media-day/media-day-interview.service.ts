@@ -2,8 +2,13 @@
 // defense), each tied to that side's already-issued weekly challenge (issued here if it hasn't
 // been yet, so there's something to ask about before any box score exists), pulled from the
 // uploaded package's real question/answer content (packages/shared/src/media-day/content.ts).
-// RTI leagues keep their own separate, existing Media Day system -- this never runs for them (see
-// media-day-gate.service.ts's requiredSubjectKeysForUser).
+// RTI leagues keep their own separate, existing interview systems (immortality.service.ts's
+// getWeeklyMatchupInterview/getOwnerWeeklyInterview) for the actual Q&A -- this file's non-RTI
+// functions never run for them (see media-day-gate.service.ts's rtiMissingSubjectKeys). The one
+// RTI-specific piece that DOES live here is getMyRtiProspectChallengeReveal at the bottom, since
+// the owner's OWN team-level challenge reveal already comes for free from
+// getMyMediaDayChallengeReveal below (resolveIssuedEntry doesn't distinguish RTI from non-RTI --
+// an RTI owner's team is a real rec_teams row like any other).
 import {
   mediaDayAnswerOptions, pickMediaDayQuestion, renderMediaDayTemplate, tweetFixedAccounts,
   weeklyChallengeTierRequirementLines, type TweetFixedAccountKey, type WeeklyChallengeSide, type WeeklyChallengeTier,
@@ -235,4 +240,33 @@ export async function getMyMediaDayChallengeReveal(input: { guildId: string; dis
     });
   }
   return reveals;
+}
+
+export type RtiProspectChallengeReveal = {
+  prospectId: string; side: string; name: string;
+  tiers: Array<{ tier: string; label: string; complete: boolean }>;
+};
+
+/** RTI counterpart to getMyMediaDayChallengeReveal, for the prospect(s) this user owns --
+ * reuses weeklyChallengesForUser (xp-awards.service.ts) unchanged, the exact same
+ * frozen-issuance read gradeProspectForWeek grades against, so this always shows precisely what
+ * the eventual grading pass will hold the prospect to. Labels are already human-readable text
+ * from the RTI challenge catalog (packages/shared/src/immortality/challenges.ts) -- no separate
+ * condition-to-text renderer needed the way the non-RTI team-challenge reveal required one. */
+export async function getMyRtiProspectChallengeReveal(input: { guildId: string; discordId: string }): Promise<RtiProspectChallengeReveal[]> {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const league = context.rec_leagues;
+  const seasonNumber = Number(league.season_number ?? league.display_season_number ?? 1);
+  const weekNumber = Number(league.current_week ?? 1);
+
+  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
+  const userId = account.data?.user_id ? String(account.data.user_id) : null;
+  if (!userId) return [];
+
+  const { weeklyChallengesForUser } = await import("../immortality/xp-awards.service.js");
+  const views = await weeklyChallengesForUser({ leagueId: context.leagueId, userId, seasonNumber, weekNumber });
+  return views.map((view) => ({
+    prospectId: view.prospectId, side: view.side, name: view.name,
+    tiers: view.challenges.map((challenge) => ({ tier: challenge.tier, label: challenge.label, complete: challenge.complete })),
+  }));
 }
