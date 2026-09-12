@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { americanFromDecimal } from "@rec/shared";
 import type {
   MatchupPreview as MatchupPreviewData,
@@ -123,9 +123,11 @@ function featuredMarkets(options: WagerOptionsResponse | null | undefined) {
 export function MatchupPreview({
   preview,
   wagerOptions,
+  children,
 }: {
   preview: MatchupPreviewData;
   wagerOptions?: WagerOptionsResponse | null;
+  children?: ReactNode;
 }) {
   const { away, home, prediction, displayAsGrade } = preview;
   const markets =
@@ -231,6 +233,7 @@ export function MatchupPreview({
           </div>
         </section>
       )}
+      {children}
     </section>
   );
 }

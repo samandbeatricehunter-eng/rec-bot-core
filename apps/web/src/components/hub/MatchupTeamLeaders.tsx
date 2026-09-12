@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { formatStatValue, getStatShortLabel } from "@rec/shared";
+import { getStatShortLabel } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 import { PlayerPhoto } from "./PlayerPhoto.js";
 
@@ -29,7 +29,7 @@ function headlineLine(player: StatsPlayer): string {
   if (!ordered.length) return "No production logged";
   return ordered
     .slice(0, 2)
-    .map((row) => `${formatStatValue(row.key, row.value)} ${getStatShortLabel(row.key)}`)
+    .map((row) => `${row.value.toLocaleString("en-US")} ${getStatShortLabel(row.key)}`)
     .join(" · ");
 }
 

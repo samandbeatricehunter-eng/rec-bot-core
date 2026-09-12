@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Coins } from "lucide-react";
+import { ChevronLeft, ChevronRight, Coins } from "lucide-react";
 import { recApi } from "../../lib/rec-api-client.js";
 import type {
   GotwGuessingRecordsResponse,
@@ -7,7 +7,6 @@ import type {
   MatchupPreview as MatchupPreviewData,
   WagerOptionsResponse,
 } from "../../types/api.js";
-import { SectionFrame } from "../design-system/SectionFrame.js";
 import { Button } from "../ui/Button.js";
 import { MatchupCard } from "../matchups/MatchupCard.js";
 import { MatchupPreview } from "../matchups/MatchupPreview.js";
@@ -31,7 +30,6 @@ export function GotwVotingCarousel({
   onOpenWager,
 }: GotwVotingCarouselProps) {
   const [index, setIndex] = useState(0);
-  const [drawerOpen, setDrawerOpen] = useState(true);
   const [previewByGame, setPreviewByGame] = useState<Record<string, MatchupPreviewData>>({});
   const [wagersByGame, setWagersByGame] = useState<Record<string, WagerOptionsResponse>>({});
   const [detailsError, setDetailsError] = useState<string | null>(null);
@@ -43,7 +41,6 @@ export function GotwVotingCarousel({
 
   useEffect(() => {
     setIndex(0);
-    setDrawerOpen(true);
     setDetailsError(null);
   }, [gameIds]);
 
@@ -79,17 +76,11 @@ export function GotwVotingCarousel({
 
   function move(direction: -1 | 1) {
     setIndex((current) => (current + direction + games.length) % games.length);
-    setDrawerOpen(true);
     setDetailsError(null);
   }
 
   return (
-    <SectionFrame
-      eyebrow={poll.status === "open" ? "Voting is open" : "Voting closed"}
-      title="Game of the Week"
-      subtitle={`Week ${game.weekNumber}${games.length > 1 ? ` · Matchup ${activeIndex + 1} of ${games.length}` : ""}`}
-      className="hub-gotw-carousel"
-    >
+    <section className="hub-gotw-carousel" aria-label="Game of the Week">
       <div className={`hub-gotw-carousel-stage${games.length > 1 ? " has-navigation" : ""}`}>
         {games.length > 1 ? <button type="button" className="hub-highlight-arrow previous" aria-label="Previous Game of the Week" onClick={() => move(-1)}><ChevronLeft /></button> : null}
         <div className="hub-gotw-carousel-content">
@@ -121,39 +112,25 @@ export function GotwVotingCarousel({
             </button>
           </div>
 
-          <div className="hub-gotw-toolbar">
-            <button
-              type="button"
-              className="hub-gotw-drawer-toggle"
-              aria-expanded={drawerOpen}
-              aria-controls={`gotw-details-${game.gameId}`}
-              onClick={() => setDrawerOpen((current) => !current)}
-            >
-              <span><strong>Matchup &amp; wager details</strong><small>Scouting, prediction and current lines</small></span>
-              {drawerOpen ? <ChevronUp size={19} /> : <ChevronDown size={19} />}
-            </button>
-            {canPlaceWager && onOpenWager ? <Button variant="primary" size="compact" className="hub-gotw-wager-button" onClick={() => onOpenWager(game)}><Coins size={15} /> Place a Wager</Button> : null}
-          </div>
-
           {guessingRecord ? <p className="hub-gotw-record">Your record: {guessingRecord.wins}-{guessingRecord.losses}{guessingRecord.ties ? `-${guessingRecord.ties}` : ""}{guessingRecord.current_streak > 1 ? ` · ${guessingRecord.current_streak}-game streak` : ""}</p> : null}
 
-          {drawerOpen ? (
-            <div className="hub-gotw-drawer" id={`gotw-details-${game.gameId}`}>
-              {preview ? <MatchupPreview preview={preview} wagerOptions={wagersByGame[game.gameId] ?? null} /> : detailsError ? <GameDayEmpty title={detailsError} /> : <GameDayEmpty title="Loading matchup and wager details…" />}
-            </div>
-          ) : null}
-
           <MatchupGameMedia game={game} />
-          <MatchupTeamLeaders
-            guildId={guildId}
-            awayTeamId={game.awayTeamId}
-            homeTeamId={game.homeTeamId}
-            awayTeamName={game.awayTeamName}
-            homeTeamName={game.homeTeamName}
-          />
+          {canPlaceWager && onOpenWager ? <div className="hub-gotw-toolbar"><Button variant="primary" size="compact" className="hub-gotw-wager-button" onClick={() => onOpenWager(game)}><Coins size={15} /> Place a Wager</Button></div> : null}
+
+          <div className="hub-gotw-details" id={`gotw-details-${game.gameId}`}>
+            {preview ? <MatchupPreview preview={preview} wagerOptions={wagersByGame[game.gameId] ?? null}>
+              <MatchupTeamLeaders
+                guildId={guildId}
+                awayTeamId={game.awayTeamId}
+                homeTeamId={game.homeTeamId}
+                awayTeamName={game.awayTeamName}
+                homeTeamName={game.homeTeamName}
+              />
+            </MatchupPreview> : detailsError ? <GameDayEmpty title={detailsError} /> : <GameDayEmpty title="Loading matchup and wager details…" />}
+          </div>
         </div>
         {games.length > 1 ? <button type="button" className="hub-highlight-arrow next" aria-label="Next Game of the Week" onClick={() => move(1)}><ChevronRight /></button> : null}
       </div>
-    </SectionFrame>
+    </section>
   );
 }

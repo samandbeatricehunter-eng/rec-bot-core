@@ -966,19 +966,29 @@ export function HubHome() {
     if (auth.status !== "ready" || section !== "league") return;
     setMatchupScheduleLoading(true);
     setMatchupScheduleError(null);
-    recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupWeek, seasonNumber: matchupSeason })
+    const requestedWeek = gameDayView === "schedule" ? matchupWeek : null;
+    recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: requestedWeek, seasonNumber: matchupSeason })
       .then((schedule) => {
         setMatchupSchedule(schedule);
         setMatchupScheduleError(null);
         if (matchupSeason == null) setMatchupSeason(schedule.seasonNumber);
-        if (matchupWeek == null) setMatchupWeek(schedule.selectedWeek);
+        // Do not turn the offseason pipeline's internal counter into a Week 1 selection.
+        // Leaving the week unset preserves the API's current-offseason empty-state guard.
+        if (matchupWeek == null && !schedule.isOffseason) setMatchupWeek(schedule.selectedWeek);
       })
       .catch((cause) => {
         setMatchupSchedule(null);
         setMatchupScheduleError(cause instanceof Error ? cause.message : "Failed to load matchups.");
       })
       .finally(() => setMatchupScheduleLoading(false));
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, subTab, section, matchupWeek, matchupSeason, matchupReloadKey]);
+  }, [auth.status, auth.status === "ready" ? auth.guildId : null, subTab, section, gameDayView, matchupWeek, matchupSeason, matchupReloadKey]);
+
+  useEffect(() => {
+    if (gameDayView === "schedule" || !hub) return;
+    if (!stageHasScheduledGames(hub.league.seasonStage, hub.league.game as LeagueGame)) {
+      setMatchupWeek(null);
+    }
+  }, [gameDayView, hub?.league.seasonStage, hub?.league.game]);
 
   useEffect(() => {
     if (auth.status !== "ready") return;
@@ -1432,6 +1442,10 @@ export function HubHome() {
   const heroUserMeta = viewerUser
     ? `#${viewerUser.rank}${viewerUser.teamName ? ` · ${viewerUser.teamName}` : ""}`
     : "Pending";
+  const homeWeeklyPaidItems = hub.waysToGetPaid.weeklyItems.filter((item) => item.key !== "gotw");
+  const hiddenHomeGotwItem = hub.waysToGetPaid.weeklyItems.find((item) => item.key === "gotw");
+  const homeWeeklyEarned = Math.max(0, hub.waysToGetPaid.weeklyEarned - Number(hiddenHomeGotwItem?.earned ?? 0));
+  const homeWeeklyPotential = Math.max(0, hub.waysToGetPaid.weeklyPotential - Number(hiddenHomeGotwItem ? hiddenHomeGotwItem.amount * hiddenHomeGotwItem.limit : 0));
   const heroMatchup = stageHasScheduledGames(hub.league.seasonStage, hub.league.game as LeagueGame)
     ? (matchupSchedule?.games.find((game) => game.gameId === heroCurrentGameId)
       ?? matchupSchedule?.games.find((game) => game.involvesMe)
@@ -1791,9 +1805,9 @@ export function HubHome() {
             ) : null}
 
             <details className="hub-ways-paid">
-              <summary><span>Ways To Get Paid</span><small><CoinAmount amount={hub.waysToGetPaid.weeklyEarned} /> earned of <CoinAmount amount={hub.waysToGetPaid.weeklyPotential} /> potential this week</small></summary>
+              <summary><span>Ways To Get Paid</span><small><CoinAmount amount={homeWeeklyEarned} /> earned of <CoinAmount amount={homeWeeklyPotential} /> potential this week</small></summary>
               <div className="hub-ways-paid-body">
-                <section><h3>Weekly</h3><div className="hub-ways-paid-list">{hub.waysToGetPaid.weeklyItems.map((item) => <p key={item.key}>{item.label} to earn <CoinAmount amount={item.amount} />{item.limit > 1 ? " per submission" : ""} — <strong>{item.current}/{item.limit}</strong> submitted this week.{item.note ? ` ${item.note}.` : ""}</p>)}</div><p className="hub-muted">{hub.waysToGetPaid.wagerHint}</p></section>
+                <section><h3>Weekly</h3><div className="hub-ways-paid-list">{homeWeeklyPaidItems.map((item) => <p key={item.key}>{item.label} to earn <CoinAmount amount={item.amount} />{item.limit > 1 ? " per submission" : ""} — <strong>{item.current}/{item.limit}</strong> submitted this week.{item.note ? ` ${item.note}.` : ""}</p>)}</div><p className="hub-muted">{hub.waysToGetPaid.wagerHint}</p></section>
                 {isRise ? null : <section><h3>Season Long</h3><p>Track your exact tier, threshold, current statistic, progress, and projected payout below.</p><EosPayoutProgressPanel /></section>}
               </div>
             </details>
@@ -1807,14 +1821,6 @@ export function HubHome() {
             <FantasyDraftCard guildId={readyGuildId} leagueId={hub.league.id} compact />
           </Suspense>
         )}
-
-        {auth.status === "ready" && riseHubUnlocked && gotwGames.length ? <GotwVotingCarousel
-          guildId={auth.guildId}
-          games={gotwGames}
-          guessingRecord={gotwGuessing?.mine}
-          onVote={voteGotw}
-          onOpenWager={isRise ? undefined : (game) => void openWager(game)}
-        /> : null}
 
         <LiveGamesCard liveStreams={hub.liveStreams} />
 
@@ -2041,7 +2047,7 @@ export function HubHome() {
           ) : null}
 
           {gameDayView === "gotw" ? (
-            <SectionFrame eyebrow="Vote & predict" title="Game of the Week" className="hub-matchup-section">
+            <section className="hub-matchup-section hub-gotw-page">
               {auth.status === "ready" && gotwGames.length ? (
                 <GotwVotingCarousel
                   guildId={auth.guildId}
@@ -2056,7 +2062,7 @@ export function HubHome() {
                   : noGotwEmptyCopy();
                 return <GameDayEmpty title={empty.title} detail={empty.detail} />;
               })()}
-            </SectionFrame>
+            </section>
           ) : null}
 
           {gameDayView === "schedule" ? (

@@ -23,7 +23,7 @@ import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
 import { getH2hHistory } from "../official-records/official-records.service.js";
 import { createStreamPayoutReview, deriveStreamMatchupContext, postStreamToDiscordChannel, postStreamToGameChannel } from "../streams/streams.service.js";
-import { isRiseToImmortalityLeagueType, RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT, RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
+import { isRiseToImmortalityLeagueType, regularSeasonWeeks, RISE_TO_IMMORTALITY_HIGHLIGHT_PAYOUT, RISE_TO_IMMORTALITY_HIGHLIGHT_WEEKLY_LIMIT, RISE_TO_IMMORTALITY_MEDIA_DAY_PAYOUT, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
 import { resolveChatAuthor } from "../../lib/chat-identity.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
@@ -1884,7 +1884,13 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   if (games.error || weeks.error || results.error || streamLogs.error || assignments.error || gotwPoll.error) throw new ApiError(500, "We couldn't load the matchup schedule. Please try again.", games.error ?? weeks.error ?? results.error ?? streamLogs.error ?? assignments.error ?? gotwPoll.error);
   if (streamViewsForWeek.error && !missingRelation(streamViewsForWeek.error, "rec_stream_views")) throw new ApiError(500, "We couldn't load stream views right now. Please try again.", streamViewsForWeek.error);
   if (streamReactionsForWeek.error && !missingRelation(streamReactionsForWeek.error, "rec_stream_reactions")) throw new ApiError(500, "We couldn't load stream reactions right now. Please try again.", streamReactionsForWeek.error);
-  const polls = gotwPoll.data ?? [];
+  // Regular-season GOTW is singular. A legacy creation path could leave one poll per matchup,
+  // making every schedule card look featured; keep only the newest poll for those weeks.
+  // Postseason rounds intentionally permit multiple simultaneous GOTW polls.
+  const loadedPolls = gotwPoll.data ?? [];
+  const polls = selectedWeek <= regularSeasonWeeks(context.rec_leagues.game)
+    ? loadedPolls.slice(0, 1)
+    : loadedPolls;
   const pollIds = polls.map((row: any) => row.id);
   const allVoteRows = pollIds.length
     ? await supabase.from("rec_game_of_week_votes").select("poll_id,selected_team_id,discord_id").in("poll_id", pollIds)

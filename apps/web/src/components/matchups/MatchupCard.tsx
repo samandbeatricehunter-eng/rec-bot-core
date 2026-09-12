@@ -163,6 +163,7 @@ export function MatchupCard({
         <div className="rec-matchup-card__team rec-matchup-card__team--away" style={{ "--team-color": game.awayTeamColor, "--team-text": readableText(game.awayTeamColor) } as CSSProperties}>
           <TeamLogo abbreviation={game.awayTeamAbbr} logoUrl={game.awayTeamLogoUrl} alt={game.awayTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />
           <span className="rec-matchup-card__team-text">
+            <small className="rec-matchup-card__side-label">Away</small>
             {schoolLine(game.awayTeamName, game.awayTeamMascot) && <small>{schoolLine(game.awayTeamName, game.awayTeamMascot)}</small>}
             <strong>{game.awayTeamMascot}</strong>
             {game.forceWinSide === "away" && <em className="rec-matchup-card__force-win-tag">Force Win</em>}
@@ -181,6 +182,7 @@ export function MatchupCard({
         </div>
         <div className="rec-matchup-card__team rec-matchup-card__team--home" style={{ "--team-color": game.homeTeamColor, "--team-text": readableText(game.homeTeamColor) } as CSSProperties}>
           <span className="rec-matchup-card__team-text">
+            <small className="rec-matchup-card__side-label">Home</small>
             {schoolLine(game.homeTeamName, game.homeTeamMascot) && <small>{schoolLine(game.homeTeamName, game.homeTeamMascot)}</small>}
             <strong>{game.homeTeamMascot}</strong>
             {game.forceWinSide === "home" && <em className="rec-matchup-card__force-win-tag">Force Win</em>}
