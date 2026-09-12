@@ -175,6 +175,11 @@ export async function finalizeImportedLeagueStats(leagueId: string): Promise<voi
   const guildIds = new Set<string>([siteOnlyGuildId(leagueId)]);
   if (routes?.guildId) guildIds.add(routes.guildId);
   for (const guildId of guildIds) invalidateLeagueComputeCaches(guildId);
+
+  // Universal Record Book (non-RTI leagues only -- RTI has its own separate NFL-baseline board,
+  // refreshed elsewhere via checkNflRecordsAfterImport).
+  const { checkRecordBookAfterImport } = await import("../record-book/record-book.service.js");
+  await checkRecordBookAfterImport(leagueId).catch((error) => console.error(`[ERROR] checkRecordBookAfterImport failed for league ${leagueId} (non-fatal):`, error));
 }
 
 /**
