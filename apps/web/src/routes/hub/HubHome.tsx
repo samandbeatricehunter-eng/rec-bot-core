@@ -1462,11 +1462,13 @@ export function HubHome() {
       return `${player.name} (${player.position}) — ${tiers}`;
     }).join("\n")
     : "No weekly challenge tiers are assigned for this stage.";
-  const playerXpTotal = Number(rtiGates?.playerXpTotal ?? rtiGates?.playerSnapshots?.reduce((total, player) => total + Number(player.playerXpTotal ?? 0), 0) ?? 0);
-  const teamXpTotal = Number(rtiGates?.teamXpTotal ?? 0);
+  const playerXpTotal = Number(rtiGates?.playerXpTotal ?? my.progressionSummary?.playerXpTotal ?? rtiGates?.playerSnapshots?.reduce((total, player) => total + Number(player.playerXpTotal ?? 0), 0) ?? 0);
+  const teamXpTotal = Number(rtiGates?.teamXpTotal ?? my.progressionSummary?.teamXpTotal ?? 0);
   const teamXpProgress = Math.max(0, Math.min(100, teamXpTotal));
   const recentForm = (my.recentForm ?? []) as Array<{ result: "W" | "L" | "T"; opponentName: string; opponentAbbr: string | null; opponentLogoUrl: string | null }>;
-  const legendUsage = { used: rtiGates?.playerSnapshots?.length ?? 0, cap: 2 };
+  const legendUsage = isRise
+    ? { used: rtiGates?.playerSnapshots?.length ?? 0, cap: 2 }
+    : { used: Number(my.progressionSummary?.legendUsed ?? 0), cap: Number(my.progressionSummary?.legendCap ?? 0) };
   const activeHighlight = highlights[activeHighlightIndex] ?? null;
   const highlightOwnerId = (activeHighlight as { user_id?: string | null; userId?: string | null } | null)?.user_id
     ?? (activeHighlight as { userId?: string | null } | null)?.userId
@@ -1760,8 +1762,8 @@ export function HubHome() {
                 <article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article>
                 <article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
               </div>
-              {isRise ? <><div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="Team progression snapshot">
-                <article><span>Legend group</span><strong>{legendUsage.used}/{legendUsage.cap}</strong></article>
+              <div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="Team progression snapshot">
+                <article><span>Legend group</span><strong>{legendUsage.used}/{legendUsage.cap > 0 ? legendUsage.cap : "—"}</strong></article>
                 <article className="hub-season-form-card"><span>Streak · Recent form</span><strong><em>{my.userStreakText ?? "—"}</em>{recentForm.length ? recentForm.map((game, index) => <span className={`hub-season-form-game is-${game.result.toLowerCase()}`} key={`${game.opponentName}-${index}`} title={`${game.result} vs ${game.opponentName}`}><TeamLogo abbreviation={game.opponentAbbr} logoUrl={game.opponentLogoUrl} alt={game.opponentName} /><b>{game.result}</b></span>) : <small>—</small>}</strong></article>
                 <article><span>Player XP</span><strong>{playerXpTotal.toLocaleString()}</strong></article>
                 <article className="hub-season-team-xp"><span>Team XP</span><strong>{teamXpTotal.toLocaleString()} <Shield size={17} aria-label="Steel shield" /></strong><div className="hub-season-team-xp-track" aria-label={`${teamXpTotal} Team XP toward steel shield`}><i style={{ width: `${teamXpProgress}%` }} /></div></article>
@@ -1770,7 +1772,6 @@ export function HubHome() {
                 <Link className="hub-season-snapshot-action" to={`/l/${hub.league.id}/team/upgrades`}><span>Player</span><strong>Progression</strong></Link>
                 <Link className="hub-season-snapshot-action" to={`/l/${hub.league.id}/team/progression`}><span>Team</span><strong>Progression</strong></Link>
               </nav>
-              </> : null}
               {isRise && rtiGates?.playerSnapshots?.length ? (() => {
                 const bannerTeam = rtiGates.playerSnapshots.find((player) => player.teamLogoUrl) ?? rtiGates.playerSnapshots[0];
                 return bannerTeam.teamName ? (

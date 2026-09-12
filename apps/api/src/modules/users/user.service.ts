@@ -1340,6 +1340,26 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     if (w + l + t > 0) gotwH2hRecordText = t > 0 ? `${w}-${l}-${t}` : `${w}-${l}`;
   }
 
+  let progressionSummary = { playerXpTotal: 0, teamXpTotal: 0, legendUsed: 0, legendCap: 0 };
+  if (league?.id && assignment?.team_id) {
+    const [rosterResult, configResult, franchiseXpResult] = await Promise.all([
+      supabase.from("rec_players").select("id,player_source").eq("league_id", league.id).eq("team_id", assignment.team_id),
+      supabase.from("rec_league_configuration").select("legends_season_cap").eq("league_id", league.id).maybeSingle(),
+      supabase.from("rec_franchise_xp_state").select("balance_fpp").eq("league_id", league.id).eq("user_id", userId).maybeSingle(),
+    ]);
+    const rosterRows = rosterResult.data ?? [];
+    const playerIds = rosterRows.map((player: any) => String(player.id));
+    const playerXpResult = playerIds.length
+      ? await supabase.from("rec_player_xp_state").select("balance_xp").eq("league_id", league.id).in("player_id", playerIds)
+      : { data: [] as any[] };
+    progressionSummary = {
+      playerXpTotal: (playerXpResult.data ?? []).reduce((total: number, row: any) => total + Number(row.balance_xp ?? 0), 0),
+      teamXpTotal: Math.floor(Number(franchiseXpResult.data?.balance_fpp ?? 0) / 6000),
+      legendUsed: rosterRows.filter((player: any) => String(player.player_source ?? "").toLowerCase() === "legend").length,
+      legendCap: Number(configResult.data?.legends_season_cap ?? 0),
+    };
+  }
+
   return {
     user: baseline.user,
     discord: baseline.discord,
@@ -1396,6 +1416,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       opponentStreakText,
       userStreakText,
       recentForm,
+      progressionSummary,
       gotwH2hRecordText,
       // True when this Discord identity is claimed/linked to a REC Leagues site auth account.
       hasSiteAccount: Boolean(baseline.user?.supabase_auth_user_id),
