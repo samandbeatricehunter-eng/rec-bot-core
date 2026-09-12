@@ -1632,6 +1632,58 @@ h1, h2, h3, .site-wordmark {
   font-size: 13px;
   color: var(--text-muted);
 }
+.media-day-gate-interview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(420px, 100%);
+  text-align: left;
+}
+.media-day-gate-interview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 500;
+}
+.media-day-gate-interview-progress {
+  display: flex;
+  gap: 4px;
+}
+.media-day-gate-interview-progress-seg {
+  height: 3px;
+  flex: 1;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.media-day-gate-interview-progress-seg.is-done {
+  background: var(--accent, #d9a521);
+}
+.media-day-gate-interview-question {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.media-day-gate-interview-avatar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--accent, #d9a521);
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+}
+.media-day-gate-interview-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.media-day-gate-interview-options button {
+  width: 100%;
+  text-align: left;
+}
 
 /* —— Account menu item (used inside the header's portal-based dropdown panels, see
    HeaderMenu.tsx / .site-header-dropdown-panel) —— */

@@ -6,6 +6,7 @@ const POLL_MS = 20_000;
 
 type GateStatus = Awaited<ReturnType<typeof siteApi.getMediaDayGateStatus>>;
 type RecapResult = Awaited<ReturnType<typeof siteApi.getRewardsRecap>>;
+type InterviewResult = Awaited<ReturnType<typeof siteApi.getMediaDayInterview>>;
 type GateStage = "hidden" | "advanced" | "recap" | "week_transition" | "media_day" | "reveal";
 const LINE_REVEAL_MS = 550;
 
@@ -75,6 +76,75 @@ function RewardsRecapScreen({ leagueId, onContinue }: { leagueId: string; onCont
       {allRevealed && (
         <button type="button" className="site-btn site-btn-primary" onClick={onContinue}>Continue</button>
       )}
+    </div>
+  );
+}
+
+function MediaDayInterviewScreen({ leagueId, onComplete }: { leagueId: string; onComplete: () => void }) {
+  const [interview, setInterview] = useState<InterviewResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  function load() {
+    void siteApi.getMediaDayInterview(leagueId).then(setInterview).catch((err) => setError(err instanceof Error ? err.message : "Couldn't load Media Day."));
+  }
+
+  useEffect(load, [leagueId]);
+
+  if (error) return <p className="media-day-gate-eyebrow">{error}</p>;
+  if (!interview) return <p>Loading Media Day...</p>;
+  if (interview.complete || !interview.questions.length) {
+    return (
+      <div className="media-day-gate-advanced">
+        <h1>All Media Day statements have been recorded</h1>
+        <button type="button" className="site-btn site-btn-primary" onClick={onComplete}>Continue to league hub</button>
+      </div>
+    );
+  }
+
+  const current = interview.questions.find((q) => !q.answered) ?? interview.questions[0]!;
+  const answeredCount = interview.questions.filter((q) => q.answered).length;
+
+  async function choose(answerKey: string) {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await siteApi.submitMediaDayAnswer({ leagueId, side: current.side, questionId: current.questionId, answerKey });
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't submit that answer.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="media-day-gate-interview">
+      <div className="media-day-gate-interview-head">
+        <span>{interview.teamName} press conference</span>
+        <span className="media-day-gate-eyebrow">{answeredCount + 1} of {interview.questions.length}</span>
+      </div>
+      <div className="media-day-gate-interview-progress">
+        {interview.questions.map((q) => (
+          <div key={q.questionId} className={q.answered ? "media-day-gate-interview-progress-seg is-done" : "media-day-gate-interview-progress-seg"} />
+        ))}
+      </div>
+      <div className="media-day-gate-interview-question">
+        <div className="media-day-gate-interview-avatar" aria-hidden="true">{current.reporterName.slice(0, 1)}</div>
+        <div>
+          <p className="media-day-gate-eyebrow">{current.reporterName}</p>
+          <p>{current.questionText}</p>
+        </div>
+      </div>
+      <div className="media-day-gate-interview-options">
+        {current.options.map((option) => (
+          <button key={option.key} type="button" disabled={submitting} onClick={() => void choose(option.key)}>
+            {option.text}
+          </button>
+        ))}
+      </div>
+      {error && <p className="media-day-gate-eyebrow">{error}</p>}
     </div>
   );
 }
@@ -153,13 +223,8 @@ export function MediaDayGate() {
           </button>
         </div>
       )}
-      {stage === "media_day" && (
-        <div className="media-day-gate-advanced">
-          <p>Media Day coming soon.</p>
-          <button type="button" className="site-btn site-btn-primary" onClick={() => setStage("hidden")}>
-            Close
-          </button>
-        </div>
+      {stage === "media_day" && status.leagueId && (
+        <MediaDayInterviewScreen leagueId={status.leagueId} onComplete={() => { setStage("hidden"); void refresh(status.leagueId); }} />
       )}
     </div>
   );

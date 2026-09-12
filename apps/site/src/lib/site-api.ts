@@ -1143,6 +1143,26 @@ export const siteApi = {
       }>;
     }>("/v1/site-leagues/rewards-recap", { leagueId });
   },
+  getMediaDayInterview(leagueId: string) {
+    return request<{
+      periodId: string | null;
+      teamName: string;
+      complete: boolean;
+      questions: Array<{
+        side: "offense" | "defense";
+        questionId: string;
+        questionText: string;
+        answerFamily: string;
+        reporterName: string;
+        options: Array<{ key: string; text: string }>;
+        answered: boolean;
+        answerKey: string | null;
+      }>;
+    }>("/v1/site-leagues/media-day-interview", { leagueId });
+  },
+  submitMediaDayAnswer(input: { leagueId: string; side: "offense" | "defense"; questionId: string; answerKey: string }) {
+    return request<{ complete: boolean }>("/v1/site-leagues/media-day-answer", input);
+  },
   listNotifications() {
     return request<{
       regular: SiteNotificationItem[];
