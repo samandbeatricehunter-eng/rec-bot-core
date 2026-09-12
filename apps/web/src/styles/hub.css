@@ -4138,17 +4138,17 @@ button.poty:disabled {
 .rec-leaders-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; align-items:start; width:min(100% - 48px,1480px); margin:0 auto; }
 .rec-leaders-divider { grid-column:1/-1; height:2px; margin:-6px 0; border-radius:999px; background:linear-gradient(90deg,transparent,#ff2929 12%,#ff5353 50%,#ff2929 88%,transparent); box-shadow:0 0 8px rgba(255,42,42,.8),0 0 16px rgba(255,16,16,.4); }
 .rec-leaders-category { min-width:0; }
-.rec-leaders-category h2 { margin:0 0 7px; color:var(--text-primary); font:700 13px/1.2 "REC Quantico","Arial Narrow",Impact,sans-serif; letter-spacing:.08em; text-align:center; text-transform:uppercase; }
+.rec-leaders-category h2 { margin:0 0 9px; color:var(--text-primary); font:700 16px/1.2 "REC Quantico","Arial Narrow",Impact,sans-serif; letter-spacing:.08em; text-align:center; text-transform:uppercase; }
 .rec-leaders-list { display:grid; gap:5px; }
-.rec-leader-block { width:100%; min-height:66px; border-radius:0; grid-template-columns:minmax(0,1fr) auto; gap:12px; color:#fff; font:inherit; text-align:left; cursor:pointer; background:linear-gradient(90deg,color-mix(in srgb,var(--team-color) 78%,#090b10 22%),color-mix(in srgb,var(--team-color) 73%,#090b10 27%)); }
+.rec-leader-block { width:100%; min-height:78px; border-radius:0; grid-template-columns:minmax(0,1fr) auto; gap:12px; color:#fff; font:inherit; text-align:left; cursor:pointer; background:linear-gradient(90deg,color-mix(in srgb,var(--team-color) 78%,#090b10 22%),color-mix(in srgb,var(--team-color) 73%,#090b10 27%)); }
 .rec-leader-block:hover:not(:disabled), .rec-leader-block:focus-visible { border-color:rgba(255,255,255,.65); filter:brightness(1.12); }
 .rec-leader-block:disabled { cursor:default; }
 .rec-leader-block .hub-div-standing-logo { opacity:.65; }
 .rec-leader-person, .rec-leader-stats { position:relative; z-index:1; display:flex; align-items:center; min-width:0; }
-.rec-leader-person { gap:8px; }
-.rec-leader-person .rec-stat-player-card-avatar, .rec-leader-person .rec-stat-player-card-avatar-fallback { width:34px; height:34px; border:1px solid rgba(255,255,255,.42); }
+.rec-leader-person { gap:10px; justify-content:center; }
+.rec-leader-person .rec-stat-player-card-avatar, .rec-leader-person .rec-stat-player-card-avatar-fallback { width:50px; height:50px; border:1px solid rgba(255,255,255,.42); }
 .rec-leader-name, .rec-leader-stats { font-family:"REC Quantico","Arial Narrow",Impact,sans-serif; font-weight:700; text-shadow:0 1px 3px rgba(0,0,0,.8); }
-.rec-leader-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; text-transform:uppercase; }
+.rec-leader-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; text-align:center; text-transform:uppercase; }
 .rec-leader-stats { gap:12px; white-space:nowrap; text-align:right; }
 .rec-leader-stats strong { display:flex; flex-direction:column; font-size:16px; line-height:1.05; }
 .rec-leader-stats small { font-size:9px; letter-spacing:.06em; opacity:.8; }

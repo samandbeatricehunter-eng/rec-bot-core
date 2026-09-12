@@ -250,8 +250,11 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
             const color = abbr && NFL_TEAM_PRIMARY_COLORS[abbr] ? NFL_TEAM_PRIMARY_COLORS[abbr] : "#1a1d24";
             return <button key={leader.playerId} type="button" className="hub-div-standing-team rec-leader-block" style={{ ["--team-color" as string]: color }} onClick={() => player && setOpenPlayer(player)} disabled={!player}>
               <TeamLogo abbreviation={leader.teamAbbreviation} alt="" className="hub-div-standing-logo" priority />
-              <span className="rec-leader-person"><PlayerAvatar player={{ photoUrl: player?.photoUrl ?? null, position: player?.position ?? leader.position ?? null }} /><span className="rec-leader-name">{leader.playerName}</span></span>
-              <span className="rec-leader-stats">{stats.map((stat) => <strong key={stat.key}><small>{stat.label}</small>{formatStatValue(stat.key, stat.key === primaryKey ? leader.value : (player?.stats[stat.key] ?? 0))}</strong>)}</span>
+              <span className="rec-leader-person"><PlayerAvatar player={{ photoUrl: player?.photoUrl ?? null, position: player?.position ?? leader.position ?? null }} /><span className="rec-leader-name">{leader.playerName} - {player?.position ?? leader.position ?? "—"}</span></span>
+              <span className="rec-leader-stats">{stats.map((stat) => {
+                const value = stat.key === primaryKey ? leader.value : (player?.stats[stat.key] ?? 0);
+                return <strong key={stat.key}><small>{stat.label}</small>{stat.key.endsWith("_yards") ? Number(value).toLocaleString() : formatStatValue(stat.key, value)}</strong>;
+              })}</span>
             </button>;
           }) : <p className="hub-empty">No leaders yet.</p>}
         </div>
