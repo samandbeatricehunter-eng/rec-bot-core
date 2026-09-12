@@ -1,0 +1,62 @@
+[
+  {
+    "path": "00_MASTER/AMENDMENTS_COMPETITIVE_BALANCE_RECORD_BOOK.md",
+    "bytes": 6848,
+    "sha256": "4cf4a9720c40abdacf451f36fa94e006332cc7c14c532d5eeac26f31a6703c61"
+  },
+  {
+    "path": "00_MASTER/MASTER_XP_PLAN.md",
+    "bytes": 3379,
+    "sha256": "b3f0e67ccdcca85741509dd7b30cbbb5944df61361928af26bcfd8fb1cadb7e5"
+  },
+  {
+    "path": "01_PLAYER/PLAYER_XP_ENGINE.md",
+    "bytes": 5503,
+    "sha256": "dad4bfb228137924934fc9e1b79e63a834aecceedf3f2287fb9b82adb3bbbd0a"
+  },
+  {
+    "path": "02_FRANCHISE/FRANCHISE_XP_ENGINE.md",
+    "bytes": 2035,
+    "sha256": "5572db181cff1c335ad76a113ec0963ad04cb795a982df8e6dbc684157229c64"
+  },
+  {
+    "path": "03_CHALLENGES/WEEKLY_CHALLENGE_TARGETING.md",
+    "bytes": 3904,
+    "sha256": "7ea0ae8832473e86eb7538ba558383618e87b79cc36a3deed7ff66122c5f6f5b"
+  },
+  {
+    "path": "04_MEDIA/MEDIA_COMMITMENT_ENGINE.md",
+    "bytes": 1563,
+    "sha256": "508e17d1d8e77ce4559649da34dd066c220ed1d858cad4e3037254323d84f510"
+  },
+  {
+    "path": "05_SCHEMA/DATA_SCHEMA.md",
+    "bytes": 2937,
+    "sha256": "fa5e077d31af8681a290ddee79457821b3c349325ae9a60bf64c87f16a9fdbbf"
+  },
+  {
+    "path": "06_BALANCE/BALANCE_AND_BUG_AUDIT.md",
+    "bytes": 5415,
+    "sha256": "eedf734f6cda8344c7ef1bb84d0bc42e2e010452f95206fffae93ef47c204257"
+  },
+  {
+    "path": "07_IMPLEMENTATION/IMPLEMENTATION_HANDOFF.md",
+    "bytes": 3185,
+    "sha256": "2c54e7d19d2bc640171fc855069300b0e6664006f5ddb8298a25c1c6ead2506d"
+  },
+  {
+    "path": "08_RECORDS/UNIVERSAL_RECORD_BOOK.md",
+    "bytes": 2275,
+    "sha256": "2825893ae0358830540bc26e661a664be53a457de01ccb6be41601e0e5fb6dde"
+  },
+  {
+    "path": "README.md",
+    "bytes": 1268,
+    "sha256": "119856c87a6d1a0e019a988b48802e9f2bb89aab2939db931b70ec80ad1ab8b9"
+  },
+  {
+    "path": "config/xp_economy.json",
+    "bytes": 2087,
+    "sha256": "6f69265e399f4fb866e890ee82673912e8ef8c16ee372d3f21c7a347ce0c2b00"
+  }
+]

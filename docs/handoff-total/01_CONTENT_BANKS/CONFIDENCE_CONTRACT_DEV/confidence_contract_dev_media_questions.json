@@ -1,0 +1,2832 @@
+[
+  {
+    "id": "confidence_rising:1",
+    "topic": "confidence_rising",
+    "question": "{player_name}'s Madden confidence has climbed {confidence_delta} points over the last {sample_size} roster snapshots, while his recent line is {player_recent_stat_line}. What do you think has changed?",
+    "answer_family": "player_confidence",
+    "answers": [
+      {
+        "id": "confidence_rising:1:a1",
+        "text": "The results are giving him confidence, but I care more about whether the habits behind it are repeatable.",
+        "intent": {
+          "confidence_view": "earned_rhythm",
+          "future_expectation": "sustain"
+        }
+      },
+      {
+        "id": "confidence_rising:1:a2",
+        "text": "I think he is getting more comfortable with what we are asking him to do. That clarity matters.",
+        "intent": {
+          "confidence_view": "role_comfort",
+          "future_expectation": "continue_role"
+        }
+      },
+      {
+        "id": "confidence_rising:1:a3",
+        "text": "Confidence usually follows production. If he keeps making plays, the rest takes care of itself.",
+        "intent": {
+          "confidence_view": "production_driven",
+          "future_expectation": "produce"
+        }
+      },
+      {
+        "id": "confidence_rising:1:a4",
+        "text": "A good stretch raises the standard. Now the question is whether he can hold that level when teams adjust.",
+        "intent": {
+          "confidence_view": "raised_expectations",
+          "future_expectation": "prove_it"
+        }
+      },
+      {
+        "id": "confidence_rising:1:a5",
+        "text": "I am not treating a confidence spike like a finished product. We need to see it over a longer stretch.",
+        "intent": {
+          "confidence_view": "cautious",
+          "future_expectation": "longer_sample"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_delta",
+        "player_name",
+        "player_recent_stat_line",
+        "sample_size"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_rising:2",
+    "topic": "confidence_rising",
+    "question": "{player_name}'s Madden confidence has climbed {confidence_delta} points over the last {sample_size} roster snapshots, while his recent line is {player_recent_stat_line}. What do you think has changed? What matters most in that evaluation?",
+    "answer_family": "player_confidence",
+    "answers": [
+      {
+        "id": "confidence_rising:2:a1",
+        "text": "The results are giving him confidence, but I care more about whether the habits behind it are repeatable.",
+        "intent": {
+          "confidence_view": "earned_rhythm",
+          "future_expectation": "sustain"
+        }
+      },
+      {
+        "id": "confidence_rising:2:a2",
+        "text": "I think he is getting more comfortable with what we are asking him to do. That clarity matters.",
+        "intent": {
+          "confidence_view": "role_comfort",
+          "future_expectation": "continue_role"
+        }
+      },
+      {
+        "id": "confidence_rising:2:a3",
+        "text": "Confidence usually follows production. If he keeps making plays, the rest takes care of itself.",
+        "intent": {
+          "confidence_view": "production_driven",
+          "future_expectation": "produce"
+        }
+      },
+      {
+        "id": "confidence_rising:2:a4",
+        "text": "A good stretch raises the standard. Now the question is whether he can hold that level when teams adjust.",
+        "intent": {
+          "confidence_view": "raised_expectations",
+          "future_expectation": "prove_it"
+        }
+      },
+      {
+        "id": "confidence_rising:2:a5",
+        "text": "I am not treating a confidence spike like a finished product. We need to see it over a longer stretch.",
+        "intent": {
+          "confidence_view": "cautious",
+          "future_expectation": "longer_sample"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_delta",
+        "player_name",
+        "player_recent_stat_line",
+        "sample_size"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_rising:3",
+    "topic": "confidence_rising",
+    "question": "{player_name}'s Madden confidence has climbed {confidence_delta} points over the last {sample_size} roster snapshots, while his recent line is {player_recent_stat_line}. What do you think has changed? What would make you change your mind?",
+    "answer_family": "player_confidence",
+    "answers": [
+      {
+        "id": "confidence_rising:3:a1",
+        "text": "The results are giving him confidence, but I care more about whether the habits behind it are repeatable.",
+        "intent": {
+          "confidence_view": "earned_rhythm",
+          "future_expectation": "sustain"
+        }
+      },
+      {
+        "id": "confidence_rising:3:a2",
+        "text": "I think he is getting more comfortable with what we are asking him to do. That clarity matters.",
+        "intent": {
+          "confidence_view": "role_comfort",
+          "future_expectation": "continue_role"
+        }
+      },
+      {
+        "id": "confidence_rising:3:a3",
+        "text": "Confidence usually follows production. If he keeps making plays, the rest takes care of itself.",
+        "intent": {
+          "confidence_view": "production_driven",
+          "future_expectation": "produce"
+        }
+      },
+      {
+        "id": "confidence_rising:3:a4",
+        "text": "A good stretch raises the standard. Now the question is whether he can hold that level when teams adjust.",
+        "intent": {
+          "confidence_view": "raised_expectations",
+          "future_expectation": "prove_it"
+        }
+      },
+      {
+        "id": "confidence_rising:3:a5",
+        "text": "I am not treating a confidence spike like a finished product. We need to see it over a longer stretch.",
+        "intent": {
+          "confidence_view": "cautious",
+          "future_expectation": "longer_sample"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_delta",
+        "player_name",
+        "player_recent_stat_line",
+        "sample_size"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_rising:4",
+    "topic": "confidence_rising",
+    "question": "{player_name}'s Madden confidence has climbed {confidence_delta} points over the last {sample_size} roster snapshots, while his recent line is {player_recent_stat_line}. What do you think has changed? How much does the next month matter?",
+    "answer_family": "player_confidence",
+    "answers": [
+      {
+        "id": "confidence_rising:4:a1",
+        "text": "The results are giving him confidence, but I care more about whether the habits behind it are repeatable.",
+        "intent": {
+          "confidence_view": "earned_rhythm",
+          "future_expectation": "sustain"
+        }
+      },
+      {
+        "id": "confidence_rising:4:a2",
+        "text": "I think he is getting more comfortable with what we are asking him to do. That clarity matters.",
+        "intent": {
+          "confidence_view": "role_comfort",
+          "future_expectation": "continue_role"
+        }
+      },
+      {
+        "id": "confidence_rising:4:a3",
+        "text": "Confidence usually follows production. If he keeps making plays, the rest takes care of itself.",
+        "intent": {
+          "confidence_view": "production_driven",
+          "future_expectation": "produce"
+        }
+      },
+      {
+        "id": "confidence_rising:4:a4",
+        "text": "A good stretch raises the standard. Now the question is whether he can hold that level when teams adjust.",
+        "intent": {
+          "confidence_view": "raised_expectations",
+          "future_expectation": "prove_it"
+        }
+      },
+      {
+        "id": "confidence_rising:4:a5",
+        "text": "I am not treating a confidence spike like a finished product. We need to see it over a longer stretch.",
+        "intent": {
+          "confidence_view": "cautious",
+          "future_expectation": "longer_sample"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_delta",
+        "player_name",
+        "player_recent_stat_line",
+        "sample_size"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_rising:5",
+    "topic": "confidence_rising",
+    "question": "{player_name}'s Madden confidence has climbed {confidence_delta} points over the last {sample_size} roster snapshots, while his recent line is {player_recent_stat_line}. What do you think has changed? What part of the situation is easiest to misread?",
+    "answer_family": "player_confidence",
+    "answers": [
+      {
+        "id": "confidence_rising:5:a1",
+        "text": "The results are giving him confidence, but I care more about whether the habits behind it are repeatable.",
+        "intent": {
+          "confidence_view": "earned_rhythm",
+          "future_expectation": "sustain"
+        }
+      },
+      {
+        "id": "confidence_rising:5:a2",
+        "text": "I think he is getting more comfortable with what we are asking him to do. That clarity matters.",
+        "intent": {
+          "confidence_view": "role_comfort",
+          "future_expectation": "continue_role"
+        }
+      },
+      {
+        "id": "confidence_rising:5:a3",
+        "text": "Confidence usually follows production. If he keeps making plays, the rest takes care of itself.",
+        "intent": {
+          "confidence_view": "production_driven",
+          "future_expectation": "produce"
+        }
+      },
+      {
+        "id": "confidence_rising:5:a4",
+        "text": "A good stretch raises the standard. Now the question is whether he can hold that level when teams adjust.",
+        "intent": {
+          "confidence_view": "raised_expectations",
+          "future_expectation": "prove_it"
+        }
+      },
+      {
+        "id": "confidence_rising:5:a5",
+        "text": "I am not treating a confidence spike like a finished product. We need to see it over a longer stretch.",
+        "intent": {
+          "confidence_view": "cautious",
+          "future_expectation": "longer_sample"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_delta",
+        "player_name",
+        "player_recent_stat_line",
+        "sample_size"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_high:1",
+    "topic": "confidence_high",
+    "question": "{player_name} is playing with one of the higher confidence marks on the roster and has {player_recent_stat_line} recently. How much should that change what you ask of him?",
+    "answer_family": "player_confidence",
+    "answers": [
+      {
+        "id": "confidence_high:1:a1",
+        "text": "The results are giving him confidence, but I care more about whether the habits behind it are repeatable.",
+        "intent": {
+          "confidence_view": "earned_rhythm",
+          "future_expectation": "sustain"
+        }
+      },
+      {
+        "id": "confidence_high:1:a2",
+        "text": "I think he is getting more comfortable with what we are asking him to do. That clarity matters.",
+        "intent": {
+          "confidence_view": "role_comfort",
+          "future_expectation": "continue_role"
+        }
+      },
+      {
+        "id": "confidence_high:1:a3",
+        "text": "Confidence usually follows production. If he keeps making plays, the rest takes care of itself.",
+        "intent": {
+          "confidence_view": "production_driven",
+          "future_expectation": "produce"
+        }
+      },
+      {
+        "id": "confidence_high:1:a4",
+        "text": "A good stretch raises the standard. Now the question is whether he can hold that level when teams adjust.",
+        "intent": {
+          "confidence_view": "raised_expectations",
+          "future_expectation": "prove_it"
+        }
+      },
+      {
+        "id": "confidence_high:1:a5",
+        "text": "I am not treating a confidence spike like a finished product. We need to see it over a longer stretch.",
+        "intent": {
+          "confidence_view": "cautious",
+          "future_expectation": "longer_sample"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_high:2",
+    "topic": "confidence_high",
+    "question": "{player_name} is playing with one of the higher confidence marks on the roster and has {player_recent_stat_line} recently. How much should that change what you ask of him? What matters most in that evaluation?",
+    "answer_family": "player_confidence",
+    "answers": [
+      {
+        "id": "confidence_high:2:a1",
+        "text": "The results are giving him confidence, but I care more about whether the habits behind it are repeatable.",
+        "intent": {
+          "confidence_view": "earned_rhythm",
+          "future_expectation": "sustain"
+        }
+      },
+      {
+        "id": "confidence_high:2:a2",
+        "text": "I think he is getting more comfortable with what we are asking him to do. That clarity matters.",
+        "intent": {
+          "confidence_view": "role_comfort",
+          "future_expectation": "continue_role"
+        }
+      },
+      {
+        "id": "confidence_high:2:a3",
+        "text": "Confidence usually follows production. If he keeps making plays, the rest takes care of itself.",
+        "intent": {
+          "confidence_view": "production_driven",
+          "future_expectation": "produce"
+        }
+      },
+      {
+        "id": "confidence_high:2:a4",
+        "text": "A good stretch raises the standard. Now the question is whether he can hold that level when teams adjust.",
+        "intent": {
+          "confidence_view": "raised_expectations",
+          "future_expectation": "prove_it"
+        }
+      },
+      {
+        "id": "confidence_high:2:a5",
+        "text": "I am not treating a confidence spike like a finished product. We need to see it over a longer stretch.",
+        "intent": {
+          "confidence_view": "cautious",
+          "future_expectation": "longer_sample"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_high:3",
+    "topic": "confidence_high",
+    "question": "{player_name} is playing with one of the higher confidence marks on the roster and has {player_recent_stat_line} recently. How much should that change what you ask of him? What would make you change your mind?",
+    "answer_family": "player_confidence",
+    "answers": [
+      {
+        "id": "confidence_high:3:a1",
+        "text": "The results are giving him confidence, but I care more about whether the habits behind it are repeatable.",
+        "intent": {
+          "confidence_view": "earned_rhythm",
+          "future_expectation": "sustain"
+        }
+      },
+      {
+        "id": "confidence_high:3:a2",
+        "text": "I think he is getting more comfortable with what we are asking him to do. That clarity matters.",
+        "intent": {
+          "confidence_view": "role_comfort",
+          "future_expectation": "continue_role"
+        }
+      },
+      {
+        "id": "confidence_high:3:a3",
+        "text": "Confidence usually follows production. If he keeps making plays, the rest takes care of itself.",
+        "intent": {
+          "confidence_view": "production_driven",
+          "future_expectation": "produce"
+        }
+      },
+      {
+        "id": "confidence_high:3:a4",
+        "text": "A good stretch raises the standard. Now the question is whether he can hold that level when teams adjust.",
+        "intent": {
+          "confidence_view": "raised_expectations",
+          "future_expectation": "prove_it"
+        }
+      },
+      {
+        "id": "confidence_high:3:a5",
+        "text": "I am not treating a confidence spike like a finished product. We need to see it over a longer stretch.",
+        "intent": {
+          "confidence_view": "cautious",
+          "future_expectation": "longer_sample"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_high:4",
+    "topic": "confidence_high",
+    "question": "{player_name} is playing with one of the higher confidence marks on the roster and has {player_recent_stat_line} recently. How much should that change what you ask of him? How much does the next month matter?",
+    "answer_family": "player_confidence",
+    "answers": [
+      {
+        "id": "confidence_high:4:a1",
+        "text": "The results are giving him confidence, but I care more about whether the habits behind it are repeatable.",
+        "intent": {
+          "confidence_view": "earned_rhythm",
+          "future_expectation": "sustain"
+        }
+      },
+      {
+        "id": "confidence_high:4:a2",
+        "text": "I think he is getting more comfortable with what we are asking him to do. That clarity matters.",
+        "intent": {
+          "confidence_view": "role_comfort",
+          "future_expectation": "continue_role"
+        }
+      },
+      {
+        "id": "confidence_high:4:a3",
+        "text": "Confidence usually follows production. If he keeps making plays, the rest takes care of itself.",
+        "intent": {
+          "confidence_view": "production_driven",
+          "future_expectation": "produce"
+        }
+      },
+      {
+        "id": "confidence_high:4:a4",
+        "text": "A good stretch raises the standard. Now the question is whether he can hold that level when teams adjust.",
+        "intent": {
+          "confidence_view": "raised_expectations",
+          "future_expectation": "prove_it"
+        }
+      },
+      {
+        "id": "confidence_high:4:a5",
+        "text": "I am not treating a confidence spike like a finished product. We need to see it over a longer stretch.",
+        "intent": {
+          "confidence_view": "cautious",
+          "future_expectation": "longer_sample"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_high:5",
+    "topic": "confidence_high",
+    "question": "{player_name} is playing with one of the higher confidence marks on the roster and has {player_recent_stat_line} recently. How much should that change what you ask of him? What part of the situation is easiest to misread?",
+    "answer_family": "player_confidence",
+    "answers": [
+      {
+        "id": "confidence_high:5:a1",
+        "text": "The results are giving him confidence, but I care more about whether the habits behind it are repeatable.",
+        "intent": {
+          "confidence_view": "earned_rhythm",
+          "future_expectation": "sustain"
+        }
+      },
+      {
+        "id": "confidence_high:5:a2",
+        "text": "I think he is getting more comfortable with what we are asking him to do. That clarity matters.",
+        "intent": {
+          "confidence_view": "role_comfort",
+          "future_expectation": "continue_role"
+        }
+      },
+      {
+        "id": "confidence_high:5:a3",
+        "text": "Confidence usually follows production. If he keeps making plays, the rest takes care of itself.",
+        "intent": {
+          "confidence_view": "production_driven",
+          "future_expectation": "produce"
+        }
+      },
+      {
+        "id": "confidence_high:5:a4",
+        "text": "A good stretch raises the standard. Now the question is whether he can hold that level when teams adjust.",
+        "intent": {
+          "confidence_view": "raised_expectations",
+          "future_expectation": "prove_it"
+        }
+      },
+      {
+        "id": "confidence_high:5:a5",
+        "text": "I am not treating a confidence spike like a finished product. We need to see it over a longer stretch.",
+        "intent": {
+          "confidence_view": "cautious",
+          "future_expectation": "longer_sample"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_falling:1",
+    "topic": "confidence_falling",
+    "question": "{player_name}'s confidence has fallen {confidence_drop} points while his recent line is {player_recent_stat_line}. How do you respond to that stretch?",
+    "answer_family": "player_confidence_low",
+    "answers": [
+      {
+        "id": "confidence_falling:1:a1",
+        "text": "We have to put him in situations where he can stack some good plays and get back into rhythm.",
+        "intent": {
+          "confidence_response": "support_and_simplify"
+        }
+      },
+      {
+        "id": "confidence_falling:1:a2",
+        "text": "He still has to play through it. Confidence cannot become an excuse for missed opportunities.",
+        "intent": {
+          "confidence_response": "player_accountability"
+        }
+      },
+      {
+        "id": "confidence_falling:1:a3",
+        "text": "We need to look at whether the role is helping him or making the problem harder.",
+        "intent": {
+          "confidence_response": "reassess_role"
+        }
+      },
+      {
+        "id": "confidence_falling:1:a4",
+        "text": "I am not overreacting to a rough stretch. Good players work through these periods.",
+        "intent": {
+          "confidence_response": "patience"
+        }
+      },
+      {
+        "id": "confidence_falling:1:a5",
+        "text": "Nothing is guaranteed. If somebody else is playing better, the competition has to stay real.",
+        "intent": {
+          "confidence_response": "competition"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_drop",
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_falling:2",
+    "topic": "confidence_falling",
+    "question": "{player_name}'s confidence has fallen {confidence_drop} points while his recent line is {player_recent_stat_line}. How do you respond to that stretch? What matters most in that evaluation?",
+    "answer_family": "player_confidence_low",
+    "answers": [
+      {
+        "id": "confidence_falling:2:a1",
+        "text": "We have to put him in situations where he can stack some good plays and get back into rhythm.",
+        "intent": {
+          "confidence_response": "support_and_simplify"
+        }
+      },
+      {
+        "id": "confidence_falling:2:a2",
+        "text": "He still has to play through it. Confidence cannot become an excuse for missed opportunities.",
+        "intent": {
+          "confidence_response": "player_accountability"
+        }
+      },
+      {
+        "id": "confidence_falling:2:a3",
+        "text": "We need to look at whether the role is helping him or making the problem harder.",
+        "intent": {
+          "confidence_response": "reassess_role"
+        }
+      },
+      {
+        "id": "confidence_falling:2:a4",
+        "text": "I am not overreacting to a rough stretch. Good players work through these periods.",
+        "intent": {
+          "confidence_response": "patience"
+        }
+      },
+      {
+        "id": "confidence_falling:2:a5",
+        "text": "Nothing is guaranteed. If somebody else is playing better, the competition has to stay real.",
+        "intent": {
+          "confidence_response": "competition"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_drop",
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_falling:3",
+    "topic": "confidence_falling",
+    "question": "{player_name}'s confidence has fallen {confidence_drop} points while his recent line is {player_recent_stat_line}. How do you respond to that stretch? What would make you change your mind?",
+    "answer_family": "player_confidence_low",
+    "answers": [
+      {
+        "id": "confidence_falling:3:a1",
+        "text": "We have to put him in situations where he can stack some good plays and get back into rhythm.",
+        "intent": {
+          "confidence_response": "support_and_simplify"
+        }
+      },
+      {
+        "id": "confidence_falling:3:a2",
+        "text": "He still has to play through it. Confidence cannot become an excuse for missed opportunities.",
+        "intent": {
+          "confidence_response": "player_accountability"
+        }
+      },
+      {
+        "id": "confidence_falling:3:a3",
+        "text": "We need to look at whether the role is helping him or making the problem harder.",
+        "intent": {
+          "confidence_response": "reassess_role"
+        }
+      },
+      {
+        "id": "confidence_falling:3:a4",
+        "text": "I am not overreacting to a rough stretch. Good players work through these periods.",
+        "intent": {
+          "confidence_response": "patience"
+        }
+      },
+      {
+        "id": "confidence_falling:3:a5",
+        "text": "Nothing is guaranteed. If somebody else is playing better, the competition has to stay real.",
+        "intent": {
+          "confidence_response": "competition"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_drop",
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_falling:4",
+    "topic": "confidence_falling",
+    "question": "{player_name}'s confidence has fallen {confidence_drop} points while his recent line is {player_recent_stat_line}. How do you respond to that stretch? How much does the next month matter?",
+    "answer_family": "player_confidence_low",
+    "answers": [
+      {
+        "id": "confidence_falling:4:a1",
+        "text": "We have to put him in situations where he can stack some good plays and get back into rhythm.",
+        "intent": {
+          "confidence_response": "support_and_simplify"
+        }
+      },
+      {
+        "id": "confidence_falling:4:a2",
+        "text": "He still has to play through it. Confidence cannot become an excuse for missed opportunities.",
+        "intent": {
+          "confidence_response": "player_accountability"
+        }
+      },
+      {
+        "id": "confidence_falling:4:a3",
+        "text": "We need to look at whether the role is helping him or making the problem harder.",
+        "intent": {
+          "confidence_response": "reassess_role"
+        }
+      },
+      {
+        "id": "confidence_falling:4:a4",
+        "text": "I am not overreacting to a rough stretch. Good players work through these periods.",
+        "intent": {
+          "confidence_response": "patience"
+        }
+      },
+      {
+        "id": "confidence_falling:4:a5",
+        "text": "Nothing is guaranteed. If somebody else is playing better, the competition has to stay real.",
+        "intent": {
+          "confidence_response": "competition"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_drop",
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_falling:5",
+    "topic": "confidence_falling",
+    "question": "{player_name}'s confidence has fallen {confidence_drop} points while his recent line is {player_recent_stat_line}. How do you respond to that stretch? What part of the situation is easiest to misread?",
+    "answer_family": "player_confidence_low",
+    "answers": [
+      {
+        "id": "confidence_falling:5:a1",
+        "text": "We have to put him in situations where he can stack some good plays and get back into rhythm.",
+        "intent": {
+          "confidence_response": "support_and_simplify"
+        }
+      },
+      {
+        "id": "confidence_falling:5:a2",
+        "text": "He still has to play through it. Confidence cannot become an excuse for missed opportunities.",
+        "intent": {
+          "confidence_response": "player_accountability"
+        }
+      },
+      {
+        "id": "confidence_falling:5:a3",
+        "text": "We need to look at whether the role is helping him or making the problem harder.",
+        "intent": {
+          "confidence_response": "reassess_role"
+        }
+      },
+      {
+        "id": "confidence_falling:5:a4",
+        "text": "I am not overreacting to a rough stretch. Good players work through these periods.",
+        "intent": {
+          "confidence_response": "patience"
+        }
+      },
+      {
+        "id": "confidence_falling:5:a5",
+        "text": "Nothing is guaranteed. If somebody else is playing better, the competition has to stay real.",
+        "intent": {
+          "confidence_response": "competition"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_drop",
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_99:1",
+    "topic": "confidence_99",
+    "question": "{player_name} has reached a 99 confidence mark during a season where he has {player_season_stat_line}. What does the next level of expectation look like now?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "confidence_99:1:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "confidence_99:1:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "confidence_99:1:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "confidence_99:1:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "confidence_99:1:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "player_season_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_99:2",
+    "topic": "confidence_99",
+    "question": "{player_name} has reached a 99 confidence mark during a season where he has {player_season_stat_line}. What does the next level of expectation look like now? What matters most in that evaluation?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "confidence_99:2:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "confidence_99:2:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "confidence_99:2:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "confidence_99:2:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "confidence_99:2:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "player_season_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_99:3",
+    "topic": "confidence_99",
+    "question": "{player_name} has reached a 99 confidence mark during a season where he has {player_season_stat_line}. What does the next level of expectation look like now? What would make you change your mind?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "confidence_99:3:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "confidence_99:3:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "confidence_99:3:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "confidence_99:3:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "confidence_99:3:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "player_season_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_99:4",
+    "topic": "confidence_99",
+    "question": "{player_name} has reached a 99 confidence mark during a season where he has {player_season_stat_line}. What does the next level of expectation look like now? How much does the next month matter?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "confidence_99:4:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "confidence_99:4:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "confidence_99:4:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "confidence_99:4:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "confidence_99:4:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "player_season_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "confidence_99:5",
+    "topic": "confidence_99",
+    "question": "{player_name} has reached a 99 confidence mark during a season where he has {player_season_stat_line}. What does the next level of expectation look like now? What part of the situation is easiest to misread?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "confidence_99:5:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "confidence_99:5:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "confidence_99:5:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "confidence_99:5:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "confidence_99:5:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "player_season_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_granted:1",
+    "topic": "dev_granted",
+    "question": "{player_name} has earned an elevated development opportunity after {qualification_summary}. What do you need to see from him in the next game?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_granted:1:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_granted:1:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_granted:1:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_granted:1:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_granted:1:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "qualification_summary"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_granted:2",
+    "topic": "dev_granted",
+    "question": "{player_name} has earned an elevated development opportunity after {qualification_summary}. What do you need to see from him in the next game? What matters most in that evaluation?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_granted:2:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_granted:2:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_granted:2:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_granted:2:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_granted:2:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "qualification_summary"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_granted:3",
+    "topic": "dev_granted",
+    "question": "{player_name} has earned an elevated development opportunity after {qualification_summary}. What do you need to see from him in the next game? What would make you change your mind?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_granted:3:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_granted:3:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_granted:3:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_granted:3:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_granted:3:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "qualification_summary"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_granted:4",
+    "topic": "dev_granted",
+    "question": "{player_name} has earned an elevated development opportunity after {qualification_summary}. What do you need to see from him in the next game? How much does the next month matter?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_granted:4:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_granted:4:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_granted:4:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_granted:4:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_granted:4:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "qualification_summary"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_granted:5",
+    "topic": "dev_granted",
+    "question": "{player_name} has earned an elevated development opportunity after {qualification_summary}. What do you need to see from him in the next game? What part of the situation is easiest to misread?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_granted:5:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_granted:5:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_granted:5:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_granted:5:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_granted:5:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "qualification_summary"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_met:1",
+    "topic": "dev_met",
+    "question": "{player_name} answered his development opportunity with {promotion_game_stat_line}. What did that performance prove to you?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_met:1:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_met:1:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_met:1:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_met:1:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_met:1:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "promotion_game_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_met:2",
+    "topic": "dev_met",
+    "question": "{player_name} answered his development opportunity with {promotion_game_stat_line}. What did that performance prove to you? What matters most in that evaluation?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_met:2:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_met:2:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_met:2:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_met:2:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_met:2:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "promotion_game_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_met:3",
+    "topic": "dev_met",
+    "question": "{player_name} answered his development opportunity with {promotion_game_stat_line}. What did that performance prove to you? What would make you change your mind?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_met:3:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_met:3:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_met:3:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_met:3:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_met:3:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "promotion_game_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_met:4",
+    "topic": "dev_met",
+    "question": "{player_name} answered his development opportunity with {promotion_game_stat_line}. What did that performance prove to you? How much does the next month matter?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_met:4:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_met:4:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_met:4:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_met:4:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_met:4:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "promotion_game_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_met:5",
+    "topic": "dev_met",
+    "question": "{player_name} answered his development opportunity with {promotion_game_stat_line}. What did that performance prove to you? What part of the situation is easiest to misread?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_met:5:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_met:5:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_met:5:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_met:5:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_met:5:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "promotion_game_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_missed:1",
+    "topic": "dev_missed",
+    "question": "{player_name} had an elevated development opportunity and finished with {promotion_game_stat_line}. How do you evaluate the miss without losing sight of the season he has had?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_missed:1:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_missed:1:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_missed:1:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_missed:1:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_missed:1:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "promotion_game_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_missed:2",
+    "topic": "dev_missed",
+    "question": "{player_name} had an elevated development opportunity and finished with {promotion_game_stat_line}. How do you evaluate the miss without losing sight of the season he has had? What matters most in that evaluation?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_missed:2:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_missed:2:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_missed:2:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_missed:2:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_missed:2:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "promotion_game_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_missed:3",
+    "topic": "dev_missed",
+    "question": "{player_name} had an elevated development opportunity and finished with {promotion_game_stat_line}. How do you evaluate the miss without losing sight of the season he has had? What would make you change your mind?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_missed:3:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_missed:3:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_missed:3:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_missed:3:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_missed:3:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "promotion_game_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_missed:4",
+    "topic": "dev_missed",
+    "question": "{player_name} had an elevated development opportunity and finished with {promotion_game_stat_line}. How do you evaluate the miss without losing sight of the season he has had? How much does the next month matter?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_missed:4:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_missed:4:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_missed:4:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_missed:4:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_missed:4:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "promotion_game_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "dev_missed:5",
+    "topic": "dev_missed",
+    "question": "{player_name} had an elevated development opportunity and finished with {promotion_game_stat_line}. How do you evaluate the miss without losing sight of the season he has had? What part of the situation is easiest to misread?",
+    "answer_family": "dev_opportunity",
+    "answers": [
+      {
+        "id": "dev_missed:5:a1",
+        "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+        "intent": {
+          "dev_opportunity_view": "earned_test"
+        }
+      },
+      {
+        "id": "dev_missed:5:a2",
+        "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+        "intent": {
+          "dev_opportunity_view": "momentum"
+        }
+      },
+      {
+        "id": "dev_missed:5:a3",
+        "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+        "intent": {
+          "dev_opportunity_view": "prove_next_level"
+        }
+      },
+      {
+        "id": "dev_missed:5:a4",
+        "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+        "intent": {
+          "dev_opportunity_view": "cautious"
+        }
+      },
+      {
+        "id": "dev_missed:5:a5",
+        "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+        "intent": {
+          "dev_opportunity_view": "pressure_test"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "promotion_game_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_player"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_ask:1",
+    "topic": "contract_ask",
+    "question": "{player_name}'s deal has reached its decision point, and his current asking salary is {desired_salary}. With {player_season_stat_line}, how do you view that number?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_ask:1:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_ask:1:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_ask:1:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_ask:1:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_ask:1:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "desired_salary",
+        "player_name",
+        "player_season_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_ask:2",
+    "topic": "contract_ask",
+    "question": "{player_name}'s deal has reached its decision point, and his current asking salary is {desired_salary}. With {player_season_stat_line}, how do you view that number? What matters most in that evaluation?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_ask:2:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_ask:2:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_ask:2:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_ask:2:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_ask:2:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "desired_salary",
+        "player_name",
+        "player_season_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_ask:3",
+    "topic": "contract_ask",
+    "question": "{player_name}'s deal has reached its decision point, and his current asking salary is {desired_salary}. With {player_season_stat_line}, how do you view that number? What would make you change your mind?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_ask:3:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_ask:3:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_ask:3:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_ask:3:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_ask:3:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "desired_salary",
+        "player_name",
+        "player_season_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_ask:4",
+    "topic": "contract_ask",
+    "question": "{player_name}'s deal has reached its decision point, and his current asking salary is {desired_salary}. With {player_season_stat_line}, how do you view that number? How much does the next month matter?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_ask:4:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_ask:4:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_ask:4:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_ask:4:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_ask:4:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "desired_salary",
+        "player_name",
+        "player_season_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_ask:5",
+    "topic": "contract_ask",
+    "question": "{player_name}'s deal has reached its decision point, and his current asking salary is {desired_salary}. With {player_season_stat_line}, how do you view that number? What part of the situation is easiest to misread?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_ask:5:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_ask:5:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_ask:5:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_ask:5:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_ask:5:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "desired_salary",
+        "player_name",
+        "player_season_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_confidence:1",
+    "topic": "contract_confidence",
+    "question": "{player_name} enters a contract decision with confidence at {confidence_current} and a recent line of {player_recent_stat_line}. How much should current form affect the negotiation?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_confidence:1:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_confidence:1:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_confidence:1:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_confidence:1:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_confidence:1:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_current",
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_confidence:2",
+    "topic": "contract_confidence",
+    "question": "{player_name} enters a contract decision with confidence at {confidence_current} and a recent line of {player_recent_stat_line}. How much should current form affect the negotiation? What matters most in that evaluation?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_confidence:2:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_confidence:2:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_confidence:2:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_confidence:2:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_confidence:2:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_current",
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_confidence:3",
+    "topic": "contract_confidence",
+    "question": "{player_name} enters a contract decision with confidence at {confidence_current} and a recent line of {player_recent_stat_line}. How much should current form affect the negotiation? What would make you change your mind?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_confidence:3:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_confidence:3:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_confidence:3:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_confidence:3:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_confidence:3:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_current",
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_confidence:4",
+    "topic": "contract_confidence",
+    "question": "{player_name} enters a contract decision with confidence at {confidence_current} and a recent line of {player_recent_stat_line}. How much should current form affect the negotiation? How much does the next month matter?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_confidence:4:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_confidence:4:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_confidence:4:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_confidence:4:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_confidence:4:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_current",
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_confidence:5",
+    "topic": "contract_confidence",
+    "question": "{player_name} enters a contract decision with confidence at {confidence_current} and a recent line of {player_recent_stat_line}. How much should current form affect the negotiation? What part of the situation is easiest to misread?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_confidence:5:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_confidence:5:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_confidence:5:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_confidence:5:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_confidence:5:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "confidence_current",
+        "player_name",
+        "player_recent_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_potw:1",
+    "topic": "contract_potw",
+    "question": "{player_name} is due for a contract decision after recently winning {potw_label} with {potw_stat_line}. Did that performance materially change his value to you?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_potw:1:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_potw:1:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_potw:1:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_potw:1:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_potw:1:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "potw_label",
+        "potw_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_potw:2",
+    "topic": "contract_potw",
+    "question": "{player_name} is due for a contract decision after recently winning {potw_label} with {potw_stat_line}. Did that performance materially change his value to you? What matters most in that evaluation?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_potw:2:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_potw:2:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_potw:2:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_potw:2:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_potw:2:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "potw_label",
+        "potw_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_potw:3",
+    "topic": "contract_potw",
+    "question": "{player_name} is due for a contract decision after recently winning {potw_label} with {potw_stat_line}. Did that performance materially change his value to you? What would make you change your mind?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_potw:3:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_potw:3:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_potw:3:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_potw:3:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_potw:3:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "potw_label",
+        "potw_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_potw:4",
+    "topic": "contract_potw",
+    "question": "{player_name} is due for a contract decision after recently winning {potw_label} with {potw_stat_line}. Did that performance materially change his value to you? How much does the next month matter?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_potw:4:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_potw:4:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_potw:4:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_potw:4:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_potw:4:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "potw_label",
+        "potw_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  },
+  {
+    "id": "contract_potw:5",
+    "topic": "contract_potw",
+    "question": "{player_name} is due for a contract decision after recently winning {potw_label} with {potw_stat_line}. Did that performance materially change his value to you? What part of the situation is easiest to misread?",
+    "answer_family": "contract_intent",
+    "answers": [
+      {
+        "id": "contract_potw:5:a1",
+        "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+        "intent": {
+          "contract_intent": "willing_to_pay"
+        }
+      },
+      {
+        "id": "contract_potw:5:a2",
+        "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+        "intent": {
+          "contract_intent": "market_disciplined"
+        }
+      },
+      {
+        "id": "contract_potw:5:a3",
+        "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+        "intent": {
+          "contract_intent": "negotiate"
+        }
+      },
+      {
+        "id": "contract_potw:5:a4",
+        "text": "I want the season to give us more information before we decide how far to go.",
+        "intent": {
+          "contract_intent": "wait"
+        }
+      },
+      {
+        "id": "contract_potw:5:a5",
+        "text": "At that price, I would rather put the resources somewhere else.",
+        "intent": {
+          "contract_intent": "move_on"
+        }
+      }
+    ],
+    "eligibility": {
+      "required_placeholders": [
+        "player_name",
+        "potw_label",
+        "potw_stat_line"
+      ],
+      "strict": true
+    },
+    "routing": [
+      "non_rti",
+      "rti_owner"
+    ],
+    "fact_policy": "Confidence must come from imported confRating snapshots; contract asks must come from positive desiredSalary on a 0-year contract; player stats must be imported for the named player."
+  }
+]

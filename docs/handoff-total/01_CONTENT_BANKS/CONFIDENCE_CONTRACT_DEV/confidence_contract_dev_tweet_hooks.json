@@ -1,0 +1,48 @@
+{
+  "confidence_events": [
+    {
+      "event": "PLAYER_CONFIDENCE_SURGING",
+      "Marcus Vale": "Connect confidence rise to repeatable production/process; do not call it morale.",
+      "Vaughn Price": "Raise the standard and keep receipts if the owner/player publicly embraced the surge.",
+      "Elliot Mercer": "Use confidence delta plus last-3 vs season production.",
+      "Darius King": "Momentum/star spotlight, especially POTW/GOTW/rivalry."
+    },
+    {
+      "event": "PLAYER_CONFIDENCE_FALLING",
+      "Marcus Vale": "Ask whether role/support/process is sustainable.",
+      "Vaughn Price": "Only be sharp if there is an actual failed statement or objective slump.",
+      "Elliot Mercer": "Show confidence delta beside actual stat decline.",
+      "Darius King": "Avoid mocking a player solely for confidence; focus on bounce-back stakes."
+    },
+    {
+      "event": "PLAYER_CONFIDENCE_99",
+      "Marcus Vale": "Treat 99 as a high-expectation marker, not automatic greatness.",
+      "Vaughn Price": "Pressure-test the next game if production is also elite.",
+      "Elliot Mercer": "Compare season percentile/recent percentile to confidence.",
+      "Darius King": "Use as breakout/spotlight moment."
+    }
+  ],
+  "dev_events": [
+    {
+      "event": "DEV_OPPORTUNITY_GRANTED",
+      "rule": "Name exact player and why they qualified; never present as team-wide challenge."
+    },
+    {
+      "event": "DEV_OPPORTUNITY_MET",
+      "rule": "Cite exact player stat line that completed it and resulting Dev Trait step."
+    },
+    {
+      "event": "DEV_OPPORTUNITY_MISSED",
+      "rule": "Cite exact player stat line; do not imply team failure caused the miss."
+    }
+  ],
+  "contract_events": [
+    {
+      "event": "CONTRACT_ASK_ACTIVE",
+      "REC Insider": "Can call player a contract name to monitor and cite ask/current production.",
+      "NFL Front Office": "No post unless contract/extension is finalized.",
+      "Gridiron Gospel": "Evaluate ask against age/production/OVR/position context.",
+      "TMZ": "May discuss tension only if public statement/tweet creates it; ask alone is not discontent."
+    }
+  ]
+}

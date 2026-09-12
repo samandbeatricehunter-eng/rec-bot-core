@@ -1,0 +1,162 @@
+{
+  "principle": "Never tweet literal UI/game-system language such as 'unlocked Tier 3'. Convert progression changes into football-world implications while preserving the actual event in metadata.",
+  "non_rti": {
+    "Trade Desk": [
+      {
+        "event": "trade_access_expanded",
+        "media_effect": "front office is becoming more active/flexible in the trade market",
+        "tweet_hooks": [
+          "trade aggressiveness",
+          "deadline posture",
+          "deal volume"
+        ]
+      },
+      {
+        "event": "package_authority_expanded",
+        "media_effect": "front office can pursue more complex packages",
+        "tweet_hooks": [
+          "blockbuster speculation",
+          "asset consolidation"
+        ]
+      }
+    ],
+    "Ability Lab": [
+      {
+        "event": "ability_flexibility_expanded",
+        "media_effect": "staff has more freedom to tailor player roles/ability packages",
+        "tweet_hooks": [
+          "scheme adjustment",
+          "player usage expectations"
+        ]
+      }
+    ],
+    "Personnel Department": [
+      {
+        "event": "custom_or_legend_capacity_expanded",
+        "media_effect": "personnel department has more room to add premium talent",
+        "tweet_hooks": [
+          "roster competition",
+          "star concentration",
+          "expectations"
+        ]
+      }
+    ],
+    "War Room": [
+      {
+        "event": "rookie_development_investment",
+        "media_effect": "franchise is investing more heavily in rookie development",
+        "tweet_hooks": [
+          "rookie expectations",
+          "draft-class pressure",
+          "young-player breakout"
+        ]
+      },
+      {
+        "event": "dev_promotion_awarded",
+        "media_effect": "young player has earned/received a larger developmental opportunity",
+        "tweet_hooks": [
+          "breakout watch",
+          "pressure to justify investment"
+        ]
+      }
+    ],
+    "Franchise Operations": [
+      {
+        "event": "revenue_media_upgrade",
+        "media_effect": "franchise business/media operation has expanded",
+        "tweet_hooks": [
+          "visibility",
+          "expectations",
+          "front-office resources"
+        ],
+        "note": "Do not make this sound like magic football ability."
+      }
+    ],
+    "Training Facility": [
+      {
+        "event": "development_capacity_expanded",
+        "media_effect": "player-development operation is more aggressive/effective",
+        "tweet_hooks": [
+          "before/after player growth",
+          "dev-trait change",
+          "age reset framed as career rejuvenation only when that actual transaction occurs"
+        ]
+      }
+    ]
+  },
+  "rti": {
+    "offensive_player": [
+      {
+        "event": "attribute_upgrade",
+        "media_effect": "specific improvement becomes a development storyline only after it changes OVR/key rating or appears in game production"
+      },
+      {
+        "event": "ability_change",
+        "media_effect": "role/skill-set discussion; compare pre/post performance"
+      },
+      {
+        "event": "dev_promotion",
+        "media_effect": "expectations rise; player may be asked whether the new status changes pressure"
+      },
+      {
+        "event": "ovr_milestone",
+        "media_effect": "league-wide progression/legacy watch"
+      }
+    ],
+    "defensive_player": [
+      {
+        "event": "attribute_upgrade",
+        "media_effect": "specific improvement becomes a development storyline only after it changes OVR/key rating or appears in game production"
+      },
+      {
+        "event": "ability_change",
+        "media_effect": "matchup/role discussion; compare pre/post splash production"
+      },
+      {
+        "event": "dev_promotion",
+        "media_effect": "expectations rise; player may be asked about pressure"
+      },
+      {
+        "event": "ovr_milestone",
+        "media_effect": "league-wide progression/legacy watch"
+      }
+    ],
+    "owner": [
+      {
+        "event": "owner_tree_unlock",
+        "media_effect": "translate node into front-office philosophy/resource implication, never UI-tier jargon"
+      },
+      {
+        "event": "personnel_or_trade_authority",
+        "media_effect": "increases speculation around future roster decisions"
+      },
+      {
+        "event": "development_investment",
+        "media_effect": "creates accountability for how the two Immortals and supporting roster develop"
+      }
+    ]
+  },
+  "v6_progression_structure": {
+    "non_rti": [
+      "Trade Desk",
+      "Ability Lab",
+      "Personnel Department",
+      "War Room",
+      "Franchise Operations",
+      "Training Facility"
+    ],
+    "rti_player": [
+      "Craft",
+      "Development",
+      "Ability Mastery",
+      "Team Impact"
+    ],
+    "rti_owner": [
+      "Front Office",
+      "Player Development Department",
+      "Contract & Player Relations",
+      "Franchise Culture"
+    ],
+    "rule": "Media should translate progression purchases into football-world consequences and never recite UI tier jargon."
+  }
+}

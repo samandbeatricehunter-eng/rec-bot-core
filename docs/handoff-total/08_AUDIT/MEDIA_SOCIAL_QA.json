@@ -1,0 +1,26 @@
+{
+  "status": "PASS",
+  "media_day": {
+    "offseason_question_count": 1120,
+    "weekly_question_count": 950,
+    "weekly_unique_normalized_questions": 950,
+    "rti_counts": {
+      "offense": 160,
+      "defense": 160,
+      "owner": 160
+    },
+    "weekly_challenge_name_leaks": [],
+    "rti_questions_missing_direct_subject_address": [],
+    "conditional_tone_followups": true
+  },
+  "social": {
+    "fixed_deep_profiles": 8,
+    "reporter_accounts_beyond_headline_four": 4,
+    "tweet_blueprints": 1968,
+    "unique_normalized_tweet_blueprints": 1968,
+    "event_types": 41,
+    "fan_accounts": 20,
+    "hater_accounts": 20
+  },
+  "json_parse_errors": []
+}

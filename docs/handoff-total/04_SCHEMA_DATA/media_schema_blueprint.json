@@ -1,0 +1,236 @@
+{
+  "rec_media_context_snapshots": {
+    "purpose": "Frozen/updated normalized facts for selection and generation.",
+    "fields": [
+      "id",
+      "league_id",
+      "season_number",
+      "season_stage",
+      "week_number",
+      "user_id",
+      "team_id",
+      "game_id",
+      "context_json",
+      "provenance_json",
+      "generated_at",
+      "updated_at"
+    ]
+  },
+  "rec_media_events": {
+    "purpose": "Append-only event bus for every meaningful media input.",
+    "fields": [
+      "id",
+      "league_id",
+      "season_number",
+      "week_number",
+      "event_type",
+      "team_id",
+      "user_id",
+      "player_id",
+      "game_id",
+      "trade_id",
+      "rivalry_id",
+      "award_id",
+      "importance_score",
+      "facts_json",
+      "created_at"
+    ]
+  },
+  "rec_media_statements": {
+    "purpose": "Deterministic multiple-choice Media Day answers.",
+    "fields": [
+      "id",
+      "league_id",
+      "user_id",
+      "team_id",
+      "subject_type",
+      "subject_id",
+      "question_id",
+      "answer_option_id",
+      "rendered_question",
+      "rendered_answer",
+      "intent_json",
+      "context_snapshot_id",
+      "creates_receipt",
+      "created_at"
+    ]
+  },
+  "rec_media_statement_clarifiers": {
+    "purpose": "One or more clarifiers attached to a statement.",
+    "fields": [
+      "id",
+      "statement_id",
+      "clarifier_id",
+      "answer_option_id",
+      "rendered_question",
+      "rendered_answer",
+      "intent_json",
+      "entity_refs_json",
+      "created_at"
+    ]
+  },
+  "rec_media_receipts": {
+    "purpose": "Track explicit commitments and future resolution.",
+    "fields": [
+      "id",
+      "statement_id",
+      "receipt_type",
+      "subject_type",
+      "subject_id",
+      "claim_json",
+      "strength",
+      "status",
+      "resolution_event_id",
+      "resolved_at",
+      "created_at"
+    ]
+  },
+  "rec_media_storylines": {
+    "purpose": "Persistent season-long story thread.",
+    "fields": [
+      "id",
+      "league_id",
+      "team_id",
+      "user_id",
+      "storyline_type",
+      "title",
+      "premise_json",
+      "status",
+      "priority",
+      "opened_at",
+      "last_event_at",
+      "closed_at"
+    ]
+  },
+  "rec_tweets": {
+    "purpose": "Source of truth for roots and replies.",
+    "fields": [
+      "id",
+      "league_id",
+      "event_id",
+      "storyline_id",
+      "root_tweet_id",
+      "parent_tweet_id",
+      "author_key",
+      "body",
+      "status",
+      "platform_channel_id",
+      "platform_message_id",
+      "posted_at",
+      "created_at"
+    ]
+  },
+  "rec_tweet_queue_v2": {
+    "purpose": "Publication schedule only; never conversation source of truth.",
+    "fields": [
+      "id",
+      "tweet_id",
+      "ready_after",
+      "attempts",
+      "last_error",
+      "status",
+      "created_at"
+    ]
+  },
+  "rec_team_media_snapshots": {
+    "purpose": "Commissioner private-channel team briefing state.",
+    "fields": [
+      "id",
+      "league_id",
+      "team_id",
+      "user_id",
+      "snapshot_json",
+      "discord_channel_id",
+      "discord_message_id",
+      "updated_at"
+    ]
+  },
+  "rec_team_rival_slots": {
+    "purpose": "Non-RTI two user-selected rival slots.",
+    "fields": [
+      "id",
+      "league_id",
+      "user_id",
+      "team_id",
+      "slot",
+      "rival_team_id",
+      "unchanged_since_season",
+      "last_changed_season",
+      "created_at",
+      "updated_at"
+    ]
+  },
+  "rec_player_state_history": {
+    "purpose": "Historical Madden-side player-state snapshots for confidence, Dev Trait, contract asks, scheme fit and ability-state context.",
+    "fields": [
+      "id",
+      "league_id",
+      "player_id",
+      "season_number",
+      "week_number",
+      "stage",
+      "confidence_rating",
+      "overall_rating",
+      "dev_trait",
+      "team_id",
+      "roster_status",
+      "contract_years_left",
+      "desired_salary",
+      "desired_length",
+      "team_scheme_ovr",
+      "ability_state_hash",
+      "source_raw_hash",
+      "imported_at"
+    ]
+  },
+  "rec_dev_promotion_opportunities_v2": {
+    "purpose": "Player-specific generated Dev Trait promotion opportunities for RTI and non-RTI with hard seasonal caps and frozen player-stat criteria.",
+    "fields": [
+      "id",
+      "league_id",
+      "user_id",
+      "player_id",
+      "rti_prospect_id",
+      "season_number",
+      "from_trait",
+      "to_trait",
+      "source",
+      "poi_score",
+      "confidence_current",
+      "confidence_peak_season",
+      "confidence_delta_3",
+      "season_percentile",
+      "recent_percentile",
+      "target_game_id",
+      "target_week",
+      "criteria_json",
+      "frozen_context_json",
+      "status",
+      "granted_at",
+      "resolved_at"
+    ]
+  },
+  "rec_player_ability_slots": {
+    "purpose": "Normalized history/current snapshot of EA signatureSlotList for Ability Lab.",
+    "fields": [
+      "id",
+      "league_id",
+      "player_id",
+      "season_number",
+      "week_number",
+      "stage",
+      "slot_index",
+      "ovr_threshold",
+      "locked",
+      "empty",
+      "ability_title",
+      "ability_rank",
+      "ability_description",
+      "activation_description",
+      "deactivation_description",
+      "logo_id",
+      "source_hash",
+      "imported_at"
+    ]
+  }
+}

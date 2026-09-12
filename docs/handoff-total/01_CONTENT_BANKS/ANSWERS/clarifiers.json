@@ -1,0 +1,606 @@
+{
+  "offensive_position": {
+    "question": "Where on offense is the biggest need?",
+    "options": [
+      {
+        "id": "QB",
+        "text": "Quarterback.",
+        "intent": {
+          "need_position": "QB"
+        }
+      },
+      {
+        "id": "HB",
+        "text": "Running back.",
+        "intent": {
+          "need_position": "HB"
+        }
+      },
+      {
+        "id": "WR_TE",
+        "text": "Receiver / tight end.",
+        "intent": {
+          "need_position_group": "WR_TE"
+        }
+      },
+      {
+        "id": "OL",
+        "text": "Offensive line.",
+        "intent": {
+          "need_position": "OL"
+        }
+      },
+      {
+        "id": "MULTIPLE",
+        "text": "More than one offensive room.",
+        "intent": {
+          "need_position": "MULTIPLE_OFFENSE"
+        }
+      }
+    ]
+  },
+  "defensive_position": {
+    "question": "Where on defense is the biggest need?",
+    "options": [
+      {
+        "id": "EDGE",
+        "text": "Edge / pass rush.",
+        "intent": {
+          "need_position": "EDGE"
+        }
+      },
+      {
+        "id": "IDL",
+        "text": "Interior defensive line.",
+        "intent": {
+          "need_position": "IDL"
+        }
+      },
+      {
+        "id": "LB",
+        "text": "Linebacker.",
+        "intent": {
+          "need_position": "LB"
+        }
+      },
+      {
+        "id": "CB",
+        "text": "Cornerback.",
+        "intent": {
+          "need_position": "CB"
+        }
+      },
+      {
+        "id": "S",
+        "text": "Safety.",
+        "intent": {
+          "need_position": "S"
+        }
+      }
+    ]
+  },
+  "trade_return": {
+    "question": "What kind of return would make you seriously consider it?",
+    "options": [
+      {
+        "id": "premium_pick",
+        "text": "A premium draft pick.",
+        "intent": {
+          "desired_return": "premium_pick"
+        }
+      },
+      {
+        "id": "young_need",
+        "text": "A younger player at a position we need.",
+        "intent": {
+          "desired_return": "young_need"
+        },
+        "clarifier": "player_or_position_picker"
+      },
+      {
+        "id": "starter",
+        "text": "Another established starter.",
+        "intent": {
+          "desired_return": "starter"
+        }
+      },
+      {
+        "id": "package",
+        "text": "A package. I am flexible if the total value is right.",
+        "intent": {
+          "desired_return": "package"
+        }
+      },
+      {
+        "id": "not_shopping",
+        "text": "I am listening, but I am not actively trying to move him.",
+        "intent": {
+          "trade_posture": "passive_listening"
+        }
+      }
+    ]
+  },
+  "alternate_acquisition": {
+    "question": "If free agency is not the answer, where are you most likely to address it?",
+    "options": [
+      {
+        "id": "trade",
+        "text": "Trade market.",
+        "intent": {
+          "acquisition_path": "trade"
+        }
+      },
+      {
+        "id": "draft",
+        "text": "Draft.",
+        "intent": {
+          "acquisition_path": "draft"
+        }
+      },
+      {
+        "id": "development",
+        "text": "Develop somebody already here.",
+        "intent": {
+          "acquisition_path": "development"
+        }
+      },
+      {
+        "id": "either",
+        "text": "Trade or draft — whichever gives us the better value.",
+        "intent": {
+          "acquisition_path": "trade_or_draft"
+        }
+      },
+      {
+        "id": "wait",
+        "text": "We may not address it immediately.",
+        "intent": {
+          "acquisition_path": "wait"
+        }
+      }
+    ]
+  },
+  "draft_position": {
+    "question": "Which area is the priority if the board cooperates?",
+    "options": [
+      {
+        "id": "QB",
+        "text": "Quarterback.",
+        "intent": {
+          "draft_need_position": "QB"
+        }
+      },
+      {
+        "id": "SKILL",
+        "text": "Offensive skill position.",
+        "intent": {
+          "draft_need_group": "offensive_skill"
+        },
+        "clarifier": "offensive_skill_picker"
+      },
+      {
+        "id": "OL",
+        "text": "Offensive line.",
+        "intent": {
+          "draft_need_position": "OL"
+        }
+      },
+      {
+        "id": "FRONT7",
+        "text": "Front seven.",
+        "intent": {
+          "draft_need_group": "front7"
+        },
+        "clarifier": "front7_picker"
+      },
+      {
+        "id": "SECONDARY",
+        "text": "Secondary.",
+        "intent": {
+          "draft_need_group": "secondary"
+        },
+        "clarifier": "secondary_picker"
+      }
+    ]
+  },
+  "trade_up_aggression": {
+    "question": "How aggressive would you be if the player you want starts to slide?",
+    "options": [
+      {
+        "id": "small",
+        "text": "A small move if the price stays reasonable.",
+        "intent": {
+          "trade_up_aggression": "low"
+        }
+      },
+      {
+        "id": "meaningful",
+        "text": "I would move a meaningful mid-round asset.",
+        "intent": {
+          "trade_up_aggression": "medium"
+        }
+      },
+      {
+        "id": "premium",
+        "text": "I would consider a future premium pick for the right player.",
+        "intent": {
+          "trade_up_aggression": "high"
+        }
+      },
+      {
+        "id": "player",
+        "text": "A player could be part of the package if the fit made sense.",
+        "intent": {
+          "trade_up_aggression": "player_package"
+        }
+      },
+      {
+        "id": "depends",
+        "text": "It depends entirely on who is there and what the board looks like.",
+        "intent": {
+          "trade_up_aggression": "conditional"
+        }
+      }
+    ]
+  },
+  "pivot_reason": {
+    "question": "What changed the plan?",
+    "options": [
+      {
+        "id": "price",
+        "text": "The price at our original target area was too high.",
+        "intent": {
+          "pivot_reason": "price"
+        }
+      },
+      {
+        "id": "availability",
+        "text": "The players we wanted were not actually available to us.",
+        "intent": {
+          "pivot_reason": "availability"
+        }
+      },
+      {
+        "id": "value",
+        "text": "A better value appeared somewhere else on the roster.",
+        "intent": {
+          "pivot_reason": "better_value_elsewhere"
+        }
+      },
+      {
+        "id": "internal",
+        "text": "We became more comfortable with a player already on our roster.",
+        "intent": {
+          "pivot_reason": "internal_development"
+        }
+      },
+      {
+        "id": "draft",
+        "text": "We decided the draft is a better place to solve it.",
+        "intent": {
+          "pivot_reason": "draft_plan"
+        }
+      }
+    ]
+  },
+  "reassessment_reason": {
+    "question": "What changed your view of the roster?",
+    "options": [
+      {
+        "id": "internal",
+        "text": "A player already here changed the evaluation.",
+        "intent": {
+          "reassessment_reason": "internal_player"
+        }
+      },
+      {
+        "id": "other_move",
+        "text": "Another move changed how the pieces fit together.",
+        "intent": {
+          "reassessment_reason": "other_transaction"
+        }
+      },
+      {
+        "id": "scheme",
+        "text": "The way we plan to use the roster changed.",
+        "intent": {
+          "reassessment_reason": "scheme"
+        }
+      },
+      {
+        "id": "price",
+        "text": "The outside market changed the value calculation.",
+        "intent": {
+          "reassessment_reason": "market"
+        }
+      },
+      {
+        "id": "draft",
+        "text": "The draft class changed how we value the need.",
+        "intent": {
+          "reassessment_reason": "draft_class"
+        }
+      }
+    ]
+  },
+  "rti_why": {
+    "question": "What is the biggest reason for that answer?",
+    "options": [
+      {
+        "id": "film",
+        "text": "What I have seen in the games.",
+        "intent": {
+          "reason": "game_performance"
+        }
+      },
+      {
+        "id": "role",
+        "text": "The role and how the team is using me / us.",
+        "intent": {
+          "reason": "role_usage"
+        }
+      },
+      {
+        "id": "matchup",
+        "text": "This specific matchup.",
+        "intent": {
+          "reason": "matchup"
+        }
+      },
+      {
+        "id": "trend",
+        "text": "The direction things have been moving over the last few weeks.",
+        "intent": {
+          "reason": "trend"
+        }
+      },
+      {
+        "id": "team",
+        "text": "What the team needs right now.",
+        "intent": {
+          "reason": "team_need"
+        }
+      }
+    ]
+  },
+  "rti_performance_reason": {
+    "question": "What is driving that answer most?",
+    "options": [
+      {
+        "id": "execution",
+        "text": "My own execution.",
+        "intent": {
+          "reason": "self_execution"
+        }
+      },
+      {
+        "id": "usage",
+        "text": "How the team is using me.",
+        "intent": {
+          "reason": "role_usage"
+        }
+      },
+      {
+        "id": "support",
+        "text": "The players around me.",
+        "intent": {
+          "reason": "supporting_cast"
+        }
+      },
+      {
+        "id": "matchup",
+        "text": "The matchups I have been getting.",
+        "intent": {
+          "reason": "matchups"
+        }
+      },
+      {
+        "id": "confidence",
+        "text": "Confidence and rhythm.",
+        "intent": {
+          "reason": "confidence"
+        }
+      }
+    ]
+  },
+  "rti_opponent_plan": {
+    "question": "What part of the opponent concerns you most?",
+    "options": [
+      {
+        "id": "qb",
+        "text": "Quarterback play.",
+        "intent": {
+          "opponent_focus": "QB"
+        }
+      },
+      {
+        "id": "run",
+        "text": "The run game.",
+        "intent": {
+          "opponent_focus": "RUN"
+        }
+      },
+      {
+        "id": "targets",
+        "text": "Their receivers / tight ends.",
+        "intent": {
+          "opponent_focus": "RECEIVERS"
+        }
+      },
+      {
+        "id": "front",
+        "text": "Their front / pass rush.",
+        "intent": {
+          "opponent_focus": "FRONT"
+        }
+      },
+      {
+        "id": "balance",
+        "text": "How balanced they are.",
+        "intent": {
+          "opponent_focus": "BALANCE"
+        }
+      }
+    ]
+  },
+  "rti_rivalry_meaning": {
+    "question": "What makes the rivalry matter most to you?",
+    "options": [
+      {
+        "id": "history",
+        "text": "The history between the teams.",
+        "intent": {
+          "rivalry_reason": "history"
+        }
+      },
+      {
+        "id": "player",
+        "text": "The individual matchups inside it.",
+        "intent": {
+          "rivalry_reason": "player_matchups"
+        }
+      },
+      {
+        "id": "standings",
+        "text": "What these games usually mean in the standings.",
+        "intent": {
+          "rivalry_reason": "standings"
+        }
+      },
+      {
+        "id": "respect",
+        "text": "There is real respect, which makes beating them matter more.",
+        "intent": {
+          "rivalry_reason": "respect"
+        }
+      },
+      {
+        "id": "personal",
+        "text": "It is personal. I want that one more than most.",
+        "intent": {
+          "rivalry_reason": "personal"
+        }
+      }
+    ]
+  },
+  "rti_owner_transaction": {
+    "question": "What was the biggest reason behind that decision?",
+    "options": [
+      {
+        "id": "need",
+        "text": "It addressed a clear roster need.",
+        "intent": {
+          "transaction_reason": "need"
+        }
+      },
+      {
+        "id": "value",
+        "text": "The value was too good to pass up.",
+        "intent": {
+          "transaction_reason": "value"
+        }
+      },
+      {
+        "id": "window",
+        "text": "We are trying to win now.",
+        "intent": {
+          "transaction_reason": "win_now"
+        }
+      },
+      {
+        "id": "future",
+        "text": "It improves the long-term build.",
+        "intent": {
+          "transaction_reason": "future"
+        }
+      },
+      {
+        "id": "fit",
+        "text": "The player fits what we want to do better than the alternatives.",
+        "intent": {
+          "transaction_reason": "fit"
+        }
+      }
+    ]
+  },
+  "rti_owner_contract": {
+    "question": "What matters most in that contract decision?",
+    "options": [
+      {
+        "id": "production",
+        "text": "Production.",
+        "intent": {
+          "contract_factor": "production"
+        }
+      },
+      {
+        "id": "age",
+        "text": "Age and future decline.",
+        "intent": {
+          "contract_factor": "age"
+        }
+      },
+      {
+        "id": "cap",
+        "text": "Cap flexibility.",
+        "intent": {
+          "contract_factor": "cap"
+        }
+      },
+      {
+        "id": "replacement",
+        "text": "How hard the player would be to replace.",
+        "intent": {
+          "contract_factor": "replacement"
+        }
+      },
+      {
+        "id": "leadership",
+        "text": "What the player means to the identity of the team.",
+        "intent": {
+          "contract_factor": "identity"
+        }
+      }
+    ]
+  },
+  "rti_owner_pair": {
+    "question": "What do you need most from the two Immortals together?",
+    "options": [
+      {
+        "id": "production",
+        "text": "Consistent production every week.",
+        "intent": {
+          "pair_priority": "production"
+        }
+      },
+      {
+        "id": "clutch",
+        "text": "Big plays in the biggest games.",
+        "intent": {
+          "pair_priority": "clutch"
+        }
+      },
+      {
+        "id": "growth",
+        "text": "Continued development across the season.",
+        "intent": {
+          "pair_priority": "development"
+        }
+      },
+      {
+        "id": "identity",
+        "text": "For them to become the identity of the franchise.",
+        "intent": {
+          "pair_priority": "identity"
+        }
+      },
+      {
+        "id": "winning",
+        "text": "For their play to translate directly into wins.",
+        "intent": {
+          "pair_priority": "winning"
+        }
+      }
+    ]
+  }
+}

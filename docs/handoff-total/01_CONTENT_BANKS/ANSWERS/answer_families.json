@@ -1,0 +1,1060 @@
+{
+  "team_outlook": [
+    {
+      "key": "championship",
+      "text": "We are trying to win the whole thing. I do not think this roster needs permission to think that big.",
+      "intent": {
+        "season_expectation": "championship",
+        "certainty": "committed",
+        "confidence": "high"
+      }
+    },
+    {
+      "key": "division",
+      "text": "The division is the first standard. If we handle that, the rest of the picture takes care of itself.",
+      "intent": {
+        "season_expectation": "division_title",
+        "certainty": "committed",
+        "confidence": "high"
+      }
+    },
+    {
+      "key": "playoffs",
+      "text": "We should be playing postseason football. That is a fair expectation for this group.",
+      "intent": {
+        "season_expectation": "playoffs",
+        "certainty": "committed",
+        "confidence": "measured"
+      }
+    },
+    {
+      "key": "competitive",
+      "text": "I expect us to be in meaningful games late. I want to see how high this group can push it.",
+      "intent": {
+        "season_expectation": "competitive",
+        "certainty": "intended",
+        "confidence": "measured"
+      }
+    },
+    {
+      "key": "development",
+      "text": "I care about building this correctly. I am not going to force a one-year window if the roster is not there yet.",
+      "intent": {
+        "season_expectation": "developing",
+        "certainty": "committed",
+        "confidence": "guarded"
+      }
+    }
+  ],
+  "accountability": [
+    {
+      "key": "self",
+      "text": "If the result is not good enough, that starts with me. I built the plan and I own it.",
+      "intent": {
+        "accountability": "owner_user"
+      }
+    },
+    {
+      "key": "staff",
+      "text": "We have to put the roster in better situations. That is on the staff as much as anybody.",
+      "intent": {
+        "accountability": "staff"
+      }
+    },
+    {
+      "key": "players",
+      "text": "The opportunity is there. At some point the players have to win their matchups.",
+      "intent": {
+        "accountability": "players"
+      }
+    },
+    {
+      "key": "shared",
+      "text": "There is no one person to pin it on. Staff, players and I all own a piece of it.",
+      "intent": {
+        "accountability": "shared"
+      }
+    },
+    {
+      "key": "process",
+      "text": "I am less interested in assigning blame than fixing the part of the process that keeps showing up.",
+      "intent": {
+        "accountability": "process"
+      }
+    }
+  ],
+  "roster_need": [
+    {
+      "key": "offense",
+      "text": "The biggest work is still on offense.",
+      "intent": {
+        "need_side": "offense"
+      },
+      "clarifier": "offensive_position"
+    },
+    {
+      "key": "defense",
+      "text": "The biggest work is still on defense.",
+      "intent": {
+        "need_side": "defense"
+      },
+      "clarifier": "defensive_position"
+    },
+    {
+      "key": "depth",
+      "text": "I am more concerned with the bottom half of the roster than one headline position. We need better depth.",
+      "intent": {
+        "need_position": "multiple_depth"
+      }
+    },
+    {
+      "key": "best_value",
+      "text": "I am not forcing one position. If the right player is there at the right value, we take him.",
+      "intent": {
+        "need_position": "best_value",
+        "certainty": "conditional"
+      }
+    },
+    {
+      "key": "none",
+      "text": "I do not think we have one emergency need. We can be selective instead of chasing a hole.",
+      "intent": {
+        "need_position": "none_urgent"
+      }
+    }
+  ],
+  "player_future": [
+    {
+      "key": "cornerstone",
+      "text": "He is one of the players we are building around. I am not looking for an exit there.",
+      "intent": {
+        "player_status": "cornerstone",
+        "trade_posture": "not_available",
+        "certainty": "committed"
+      }
+    },
+    {
+      "key": "starter",
+      "text": "He has earned his role, but nobody owns a job forever. He still has to keep playing well.",
+      "intent": {
+        "player_status": "starter_with_competition",
+        "trade_posture": "unlikely"
+      }
+    },
+    {
+      "key": "upgrade_room",
+      "text": "I want him here, but that does not mean the room is finished. We can still add competition around him.",
+      "intent": {
+        "player_status": "retain_upgrade_room",
+        "trade_posture": "unlikely"
+      }
+    },
+    {
+      "key": "replaceable",
+      "text": "If there is a clear upgrade available, we have to be willing to look at it.",
+      "intent": {
+        "player_status": "replaceable",
+        "trade_posture": "available_for_value"
+      }
+    },
+    {
+      "key": "listen",
+      "text": "I will listen if somebody values him enough. Listening and trying to dump a player are two different things.",
+      "intent": {
+        "player_status": "valued",
+        "trade_posture": "listening"
+      },
+      "clarifier": "trade_return"
+    }
+  ],
+  "contract": [
+    {
+      "key": "pay",
+      "text": "If he is one of our core players, I am willing to pay like it.",
+      "intent": {
+        "contract_posture": "pay_premium",
+        "certainty": "committed"
+      }
+    },
+    {
+      "key": "market",
+      "text": "I want him back, but the number has to stay within the market for that role.",
+      "intent": {
+        "contract_posture": "market_value",
+        "certainty": "conditional"
+      }
+    },
+    {
+      "key": "value",
+      "text": "I like the player. I am not going to create a bad contract just because I like the player.",
+      "intent": {
+        "contract_posture": "price_sensitive",
+        "certainty": "conditional"
+      }
+    },
+    {
+      "key": "wait",
+      "text": "I want more information before we commit. There is no benefit to pretending the decision is already made.",
+      "intent": {
+        "contract_posture": "wait_and_see",
+        "certainty": "conditional"
+      }
+    },
+    {
+      "key": "move_on",
+      "text": "At the current cost, I would rather put those resources somewhere else.",
+      "intent": {
+        "contract_posture": "move_on",
+        "certainty": "committed"
+      }
+    }
+  ],
+  "fa_posture": [
+    {
+      "key": "attack",
+      "text": "If the right player is there, we are going after him early. I do not want to watch the market pass us.",
+      "intent": {
+        "fa_aggression": "aggressive",
+        "risk_tolerance": "high"
+      }
+    },
+    {
+      "key": "targeted",
+      "text": "We have specific types of players we want. I will be aggressive on the right fit, not on everybody.",
+      "intent": {
+        "fa_aggression": "targeted",
+        "risk_tolerance": "medium"
+      }
+    },
+    {
+      "key": "value",
+      "text": "I am not paying a bad price because the market opened. Value still matters.",
+      "intent": {
+        "fa_aggression": "measured",
+        "price_posture": "value"
+      }
+    },
+    {
+      "key": "patient",
+      "text": "We can be patient. If the market gets silly, we can solve the need another way.",
+      "intent": {
+        "fa_aggression": "patient",
+        "risk_tolerance": "low"
+      },
+      "clarifier": "alternate_acquisition"
+    },
+    {
+      "key": "internal",
+      "text": "I want to give our own roster a chance before I assume the answer has to come from outside.",
+      "intent": {
+        "fa_aggression": "low",
+        "acquisition_path": "development"
+      }
+    }
+  ],
+  "fa_exit": [
+    {
+      "key": "fulfilled",
+      "text": "That was the plan. We identified the need and I think the move addressed it.",
+      "intent": {
+        "prior_statement_resolution": "fulfilled"
+      }
+    },
+    {
+      "key": "partial",
+      "text": "It helps, but I would not say the work is finished. We still need more from that area.",
+      "intent": {
+        "prior_statement_resolution": "partial"
+      }
+    },
+    {
+      "key": "pivot",
+      "text": "The market changed. Forcing the original plan would have been worse than adjusting to the value that was actually there.",
+      "intent": {
+        "prior_statement_resolution": "pivoted"
+      },
+      "clarifier": "pivot_reason"
+    },
+    {
+      "key": "missed",
+      "text": "We did not get everything done that I wanted to get done. I am not going to dress that up.",
+      "intent": {
+        "prior_statement_resolution": "missed"
+      }
+    },
+    {
+      "key": "different_view",
+      "text": "I think the roster changed enough that the original concern looks different now.",
+      "intent": {
+        "prior_statement_resolution": "reassessed"
+      },
+      "clarifier": "reassessment_reason"
+    }
+  ],
+  "draft": [
+    {
+      "key": "need",
+      "text": "The board matters, but there is a position we need to come out of this draft better at.",
+      "intent": {
+        "draft_strategy": "need"
+      },
+      "clarifier": "draft_position"
+    },
+    {
+      "key": "bpa",
+      "text": "I am not reaching to fill a depth-chart box. Best player on our board carries the day.",
+      "intent": {
+        "draft_strategy": "best_player_available"
+      }
+    },
+    {
+      "key": "upside",
+      "text": "I am willing to bet on upside if the ceiling is worth it. Safe is not always better.",
+      "intent": {
+        "draft_strategy": "upside",
+        "risk_tolerance": "high"
+      }
+    },
+    {
+      "key": "trade_up",
+      "text": "If somebody we love gets within range, I am open to moving up.",
+      "intent": {
+        "draft_strategy": "trade_up"
+      },
+      "clarifier": "trade_up_aggression"
+    },
+    {
+      "key": "trade_down",
+      "text": "If the board is flat, adding picks and moving back makes sense.",
+      "intent": {
+        "draft_strategy": "trade_down"
+      }
+    }
+  ],
+  "trade": [
+    {
+      "key": "keep",
+      "text": "I am not looking to move him. He fits what we are doing.",
+      "intent": {
+        "trade_posture": "not_available"
+      }
+    },
+    {
+      "key": "listen",
+      "text": "I will listen, but I am not giving away a good player just to make a deal.",
+      "intent": {
+        "trade_posture": "listening"
+      },
+      "clarifier": "trade_return"
+    },
+    {
+      "key": "available",
+      "text": "For the right return, yes, I would move him.",
+      "intent": {
+        "trade_posture": "available_for_value"
+      },
+      "clarifier": "trade_return"
+    },
+    {
+      "key": "shop",
+      "text": "We are actively looking for a deal that makes the roster better.",
+      "intent": {
+        "trade_posture": "actively_shopping"
+      },
+      "clarifier": "trade_return"
+    },
+    {
+      "key": "market",
+      "text": "This is more about finding out how the league values him than forcing a move.",
+      "intent": {
+        "trade_posture": "market_check"
+      }
+    }
+  ],
+  "weekly_offense": [
+    {
+      "key": "identity",
+      "text": "We are going to lean into what we do well and make them prove they can stop it.",
+      "intent": {
+        "tactical_posture": "lean_strength",
+        "confidence": "high"
+      }
+    },
+    {
+      "key": "weakness",
+      "text": "Their numbers show where the opportunity is. We have to keep making them defend that area until they prove they can.",
+      "intent": {
+        "tactical_posture": "attack_weakness",
+        "confidence": "high"
+      }
+    },
+    {
+      "key": "balanced",
+      "text": "I do not want to give them an easy answer. We need to stay balanced and take what they give us.",
+      "intent": {
+        "tactical_posture": "balanced",
+        "confidence": "measured"
+      }
+    },
+    {
+      "key": "clean",
+      "text": "The biggest thing is not giving possessions away. If we stay clean, I like where that leaves us.",
+      "intent": {
+        "tactical_posture": "ball_security",
+        "confidence": "measured"
+      }
+    },
+    {
+      "key": "adjust",
+      "text": "I have a plan, but I am not married to it. If they take something away, we have to adjust faster than they do.",
+      "intent": {
+        "tactical_posture": "adaptive",
+        "confidence": "measured"
+      }
+    }
+  ],
+  "weekly_defense": [
+    {
+      "key": "remove_strength",
+      "text": "We have to take away the thing that makes their offense comfortable and make them live somewhere else.",
+      "intent": {
+        "tactical_posture": "remove_strength",
+        "confidence": "high"
+      }
+    },
+    {
+      "key": "pressure",
+      "text": "We cannot let their quarterback operate clean all day. The pocket has to feel different from the start.",
+      "intent": {
+        "tactical_posture": "pressure_qb",
+        "confidence": "high"
+      }
+    },
+    {
+      "key": "explosives",
+      "text": "Make them earn every drive. We cannot give them cheap explosives and short fields.",
+      "intent": {
+        "tactical_posture": "prevent_explosives",
+        "confidence": "measured"
+      }
+    },
+    {
+      "key": "takeaways",
+      "text": "We need to turn their risky possessions into extra chances for our offense.",
+      "intent": {
+        "tactical_posture": "create_turnovers",
+        "confidence": "high"
+      }
+    },
+    {
+      "key": "base",
+      "text": "We respect what they do, but we are not rebuilding the defense for one opponent. We trust our rules.",
+      "intent": {
+        "tactical_posture": "trust_base_defense",
+        "confidence": "measured"
+      }
+    }
+  ],
+  "rivalry": [
+    {
+      "key": "personal",
+      "text": "It matters more. I am not going to pretend this one feels like every other game.",
+      "intent": {
+        "rivalry_posture": "personal",
+        "intensity": "high"
+      }
+    },
+    {
+      "key": "history",
+      "text": "The history matters because the people in this league remember these games. We want our side of it to look different.",
+      "intent": {
+        "rivalry_posture": "history_aware",
+        "intensity": "high"
+      }
+    },
+    {
+      "key": "business",
+      "text": "I understand what it means, but once the game starts it still comes down to execution.",
+      "intent": {
+        "rivalry_posture": "businesslike",
+        "intensity": "measured"
+      }
+    },
+    {
+      "key": "respect",
+      "text": "They have earned respect from us. That does not mean we want them comfortable for one snap.",
+      "intent": {
+        "rivalry_posture": "respectful_competitive",
+        "intensity": "high"
+      }
+    },
+    {
+      "key": "one_game",
+      "text": "I am not giving the rivalry more power than it deserves. We need the win because of where we are in the season.",
+      "intent": {
+        "rivalry_posture": "season_first",
+        "intensity": "measured"
+      }
+    }
+  ],
+  "generic": [
+    {
+      "key": "confident",
+      "text": "I like where we are, but we still have to prove it when the games matter.",
+      "intent": {
+        "confidence": "high"
+      }
+    },
+    {
+      "key": "measured",
+      "text": "There are good signs. I am not getting ahead of the results.",
+      "intent": {
+        "confidence": "measured"
+      }
+    },
+    {
+      "key": "critical",
+      "text": "We are not where we need to be yet. There is still real work to do.",
+      "intent": {
+        "confidence": "guarded"
+      }
+    },
+    {
+      "key": "adaptive",
+      "text": "The plan can change if the information changes. I am not forcing one answer just to sound certain.",
+      "intent": {
+        "certainty": "conditional"
+      }
+    },
+    {
+      "key": "accountable",
+      "text": "Whatever we decide, we have to own the decision and the result that follows it.",
+      "intent": {
+        "accountability": "shared"
+      }
+    }
+  ],
+  "scoring_overall": [
+    {
+      "key": "tempo",
+      "text": "We need to play with pace and make them defend the whole field. I do not want us waiting until late to find our rhythm.",
+      "intent": {
+        "offensive_emphasis": "tempo"
+      }
+    },
+    {
+      "key": "finish",
+      "text": "Moving the ball is not enough. We have to finish drives and turn good possessions into touchdowns.",
+      "intent": {
+        "offensive_emphasis": "finish_drives"
+      }
+    },
+    {
+      "key": "balance",
+      "text": "I want them defending everything. If they can sit on one answer all game, we are making their job easier.",
+      "intent": {
+        "offensive_emphasis": "balance"
+      }
+    },
+    {
+      "key": "protect",
+      "text": "The easiest way to kill a good offensive day is giving possessions away. Ball security has to come first.",
+      "intent": {
+        "offensive_emphasis": "ball_security"
+      }
+    },
+    {
+      "key": "explosive",
+      "text": "We need some chunk plays. Sustaining drives matters, but we also have to make them defend the possibility of a quick strike.",
+      "intent": {
+        "offensive_emphasis": "explosives"
+      }
+    }
+  ],
+  "rushing": [
+    {
+      "key": "volume",
+      "text": "We have to stay committed to it. A run game cannot control a matchup if we abandon it after a couple bad carries.",
+      "intent": {
+        "offensive_emphasis": "run_commitment"
+      }
+    },
+    {
+      "key": "physical",
+      "text": "I want us to be the more physical team up front. If we can move people, the rest of the offense gets easier.",
+      "intent": {
+        "offensive_emphasis": "run_physicality"
+      }
+    },
+    {
+      "key": "explosive",
+      "text": "The steady runs matter, but the difference comes when one crease turns into a big play.",
+      "intent": {
+        "offensive_emphasis": "run_explosives"
+      }
+    },
+    {
+      "key": "feature",
+      "text": "We have a back we trust. I am comfortable putting a lot of the game on him if the matchup keeps giving us that look.",
+      "intent": {
+        "offensive_emphasis": "feature_back"
+      }
+    },
+    {
+      "key": "adaptive",
+      "text": "I want the run available, not forced. If they overload the box, we have to punish the adjustment instead of being stubborn.",
+      "intent": {
+        "offensive_emphasis": "adaptive_run"
+      }
+    }
+  ],
+  "passing": [
+    {
+      "key": "rhythm",
+      "text": "The quarterback has to get comfortable early. If we keep him on schedule, the whole passing game opens up.",
+      "intent": {
+        "offensive_emphasis": "qb_rhythm"
+      }
+    },
+    {
+      "key": "vertical",
+      "text": "We cannot let them squeeze the field. We need to make them respect the ball going over their heads.",
+      "intent": {
+        "offensive_emphasis": "vertical_pass"
+      }
+    },
+    {
+      "key": "efficient",
+      "text": "I care more about clean decisions than chasing a yardage number. Stay efficient and the production will come.",
+      "intent": {
+        "offensive_emphasis": "pass_efficiency"
+      }
+    },
+    {
+      "key": "spread",
+      "text": "I do not want one target carrying the whole plan. Make them defend multiple receivers and multiple areas of the field.",
+      "intent": {
+        "offensive_emphasis": "spread_targets"
+      }
+    },
+    {
+      "key": "protect",
+      "text": "The passing game works if we keep the quarterback out of bad situations. Protection and avoiding negative plays come first.",
+      "intent": {
+        "offensive_emphasis": "pass_protection"
+      }
+    }
+  ],
+  "receiving": [
+    {
+      "key": "wr1",
+      "text": "Our top target has a matchup we like. If they do not change the picture, I expect us to keep going back to it.",
+      "intent": {
+        "offensive_emphasis": "feature_receiver"
+      }
+    },
+    {
+      "key": "spread",
+      "text": "I want the ball moving around. The best version of this group makes the defense wrong no matter who it leans toward.",
+      "intent": {
+        "offensive_emphasis": "spread_receivers"
+      }
+    },
+    {
+      "key": "yac",
+      "text": "Catching it is only the start. We need our guys turning completions into extra yards.",
+      "intent": {
+        "offensive_emphasis": "yac"
+      }
+    },
+    {
+      "key": "hands",
+      "text": "We have to make the routine plays. Drops and missed chances are the fastest way to waste a good matchup.",
+      "intent": {
+        "offensive_emphasis": "catch_reliability"
+      }
+    },
+    {
+      "key": "mismatch",
+      "text": "There is a matchup in their coverage we think we can keep finding. The job is identifying it before they adjust.",
+      "intent": {
+        "offensive_emphasis": "coverage_mismatch"
+      }
+    }
+  ],
+  "situational_offense": [
+    {
+      "key": "stakes",
+      "text": "The situation matters, but we cannot play tight because of it. We have to trust the plan that got us here.",
+      "intent": {
+        "game_posture": "trust_plan"
+      }
+    },
+    {
+      "key": "start_fast",
+      "text": "I want us to take control early. Letting the game hang around gives them confidence we do not need to give them.",
+      "intent": {
+        "game_posture": "start_fast"
+      }
+    },
+    {
+      "key": "clean",
+      "text": "In a game like this, the team that avoids the self-inflicted mistake usually has the edge.",
+      "intent": {
+        "game_posture": "clean_game"
+      }
+    },
+    {
+      "key": "star",
+      "text": "Big games are when your best players have to show up. We need our difference-makers involved.",
+      "intent": {
+        "game_posture": "feature_stars"
+      }
+    },
+    {
+      "key": "adjust",
+      "text": "The first plan will not be the last plan. The better adjustment team is probably winning this one.",
+      "intent": {
+        "game_posture": "adjustment_focus"
+      }
+    }
+  ],
+  "points_total_defense": [
+    {
+      "key": "discipline",
+      "text": "No cheap points. Make them put together complete drives and win multiple downs in a row.",
+      "intent": {
+        "defensive_emphasis": "discipline"
+      }
+    },
+    {
+      "key": "field_position",
+      "text": "We have to make them live with long fields. The easier we make every possession for them, the harder this gets.",
+      "intent": {
+        "defensive_emphasis": "field_position"
+      }
+    },
+    {
+      "key": "redzone",
+      "text": "They can move it between the 20s. The game changes if we force field goals instead of touchdowns.",
+      "intent": {
+        "defensive_emphasis": "red_zone"
+      }
+    },
+    {
+      "key": "takeaway",
+      "text": "A good defense can change the scoreboard without scoring itself. We need to steal possessions.",
+      "intent": {
+        "defensive_emphasis": "takeaways"
+      }
+    },
+    {
+      "key": "pressure",
+      "text": "If we can make the quarterback uncomfortable, a lot of the rest takes care of itself.",
+      "intent": {
+        "defensive_emphasis": "pressure"
+      }
+    }
+  ],
+  "rush_defense": [
+    {
+      "key": "box",
+      "text": "We have to own the box first. If they can stay ahead of the chains on the ground, they get to call the game they want.",
+      "intent": {
+        "defensive_emphasis": "stop_run"
+      }
+    },
+    {
+      "key": "star",
+      "text": "Their back is the engine. We cannot let him turn ordinary carries into the plays that tilt the game.",
+      "intent": {
+        "defensive_emphasis": "limit_feature_back"
+      }
+    },
+    {
+      "key": "edges",
+      "text": "The first job is setting the edge and making the ball go where our help is.",
+      "intent": {
+        "defensive_emphasis": "edge_integrity"
+      }
+    },
+    {
+      "key": "tackle",
+      "text": "We cannot turn five-yard runs into fifteen. Tackling has to be clean.",
+      "intent": {
+        "defensive_emphasis": "tackling"
+      }
+    },
+    {
+      "key": "force_pass",
+      "text": "If we make them one-dimensional, I like our chances. The goal is to put the game on the quarterback.",
+      "intent": {
+        "defensive_emphasis": "force_pass"
+      }
+    }
+  ],
+  "pass_defense": [
+    {
+      "key": "pressure",
+      "text": "Coverage gets easier when the quarterback cannot hold the ball forever. We need the rush and coverage working together.",
+      "intent": {
+        "defensive_emphasis": "rush_coverage"
+      }
+    },
+    {
+      "key": "wr1",
+      "text": "They have a primary target we cannot let live in comfortable situations all game.",
+      "intent": {
+        "defensive_emphasis": "limit_wr1"
+      }
+    },
+    {
+      "key": "explosive",
+      "text": "Completions happen. The one thing we cannot do is give away explosives over our heads.",
+      "intent": {
+        "defensive_emphasis": "prevent_pass_explosives"
+      }
+    },
+    {
+      "key": "takeaway",
+      "text": "We need to make him question throws. If the ball is in danger, we have to finish the play.",
+      "intent": {
+        "defensive_emphasis": "interceptions"
+      }
+    },
+    {
+      "key": "base",
+      "text": "I trust our coverage rules. I do not want us chasing one answer so hard that we create another problem.",
+      "intent": {
+        "defensive_emphasis": "coverage_discipline"
+      }
+    }
+  ],
+  "splash_takeaways_pressure": [
+    {
+      "key": "rush",
+      "text": "We need the pocket collapsing. Sacks are great, but the bigger goal is making every dropback uncomfortable.",
+      "intent": {
+        "defensive_emphasis": "pass_rush"
+      }
+    },
+    {
+      "key": "turnovers",
+      "text": "We have to turn pressure into possessions. Getting close is not the same as taking the ball away.",
+      "intent": {
+        "defensive_emphasis": "takeaways"
+      }
+    },
+    {
+      "key": "attack_ball",
+      "text": "When the ball is loose or in the air, we have to finish. Those are game-changing chances.",
+      "intent": {
+        "defensive_emphasis": "attack_ball"
+      }
+    },
+    {
+      "key": "multiple",
+      "text": "I do not want one guy creating everything. The best version of this defense gets splash plays from different places.",
+      "intent": {
+        "defensive_emphasis": "distributed_splash"
+      }
+    },
+    {
+      "key": "timely",
+      "text": "One big defensive play at the right moment can change the whole game. I care about timing as much as volume.",
+      "intent": {
+        "defensive_emphasis": "timely_splash"
+      }
+    }
+  ],
+  "situational_defense": [
+    {
+      "key": "stakes",
+      "text": "We cannot let the stakes make us passive. We still have to play our style.",
+      "intent": {
+        "game_posture": "defensive_identity"
+      }
+    },
+    {
+      "key": "star",
+      "text": "If their best player controls the game, we did not do our job. We have to make somebody else beat us.",
+      "intent": {
+        "game_posture": "remove_star"
+      }
+    },
+    {
+      "key": "start",
+      "text": "I want to make them uncomfortable early. A clean first couple drives can set the tone for everything after it.",
+      "intent": {
+        "game_posture": "defensive_fast_start"
+      }
+    },
+    {
+      "key": "takeaway",
+      "text": "In a close matchup, one extra possession can be the difference. We need to create one.",
+      "intent": {
+        "game_posture": "takeaway_priority"
+      }
+    },
+    {
+      "key": "adjust",
+      "text": "They are going to have answers too. Our adjustments after the first script matter as much as the opening plan.",
+      "intent": {
+        "game_posture": "defensive_adjustment"
+      }
+    }
+  ],
+  "player_confidence": [
+    {
+      "key": "rhythm",
+      "text": "The results are giving him confidence, but I care more about whether the habits behind it are repeatable.",
+      "intent": {
+        "confidence_view": "earned_rhythm",
+        "future_expectation": "sustain"
+      }
+    },
+    {
+      "key": "role",
+      "text": "I think he is getting more comfortable with what we are asking him to do. That clarity matters.",
+      "intent": {
+        "confidence_view": "role_comfort",
+        "future_expectation": "continue_role"
+      }
+    },
+    {
+      "key": "production",
+      "text": "Confidence usually follows production. If he keeps making plays, the rest takes care of itself.",
+      "intent": {
+        "confidence_view": "production_driven",
+        "future_expectation": "produce"
+      }
+    },
+    {
+      "key": "pressure",
+      "text": "A good stretch raises the standard. Now the question is whether he can hold that level when teams adjust.",
+      "intent": {
+        "confidence_view": "raised_expectations",
+        "future_expectation": "prove_it"
+      }
+    },
+    {
+      "key": "caution",
+      "text": "I am not treating a confidence spike like a finished product. We need to see it over a longer stretch.",
+      "intent": {
+        "confidence_view": "cautious",
+        "future_expectation": "longer_sample"
+      }
+    }
+  ],
+  "player_confidence_low": [
+    {
+      "key": "support",
+      "text": "We have to put him in situations where he can stack some good plays and get back into rhythm.",
+      "intent": {
+        "confidence_response": "support_and_simplify"
+      }
+    },
+    {
+      "key": "accountability",
+      "text": "He still has to play through it. Confidence cannot become an excuse for missed opportunities.",
+      "intent": {
+        "confidence_response": "player_accountability"
+      }
+    },
+    {
+      "key": "role",
+      "text": "We need to look at whether the role is helping him or making the problem harder.",
+      "intent": {
+        "confidence_response": "reassess_role"
+      }
+    },
+    {
+      "key": "patience",
+      "text": "I am not overreacting to a rough stretch. Good players work through these periods.",
+      "intent": {
+        "confidence_response": "patience"
+      }
+    },
+    {
+      "key": "competition",
+      "text": "Nothing is guaranteed. If somebody else is playing better, the competition has to stay real.",
+      "intent": {
+        "confidence_response": "competition"
+      }
+    }
+  ],
+  "dev_opportunity": [
+    {
+      "key": "earned",
+      "text": "He has earned a bigger test. The production has been there, and now I want to see how he handles a higher standard.",
+      "intent": {
+        "dev_opportunity_view": "earned_test"
+      }
+    },
+    {
+      "key": "momentum",
+      "text": "The timing makes sense. He is playing with confidence and we should find out how far that momentum can carry.",
+      "intent": {
+        "dev_opportunity_view": "momentum"
+      }
+    },
+    {
+      "key": "prove",
+      "text": "This is the part where a good stretch has to become something more. One more big performance would say a lot.",
+      "intent": {
+        "dev_opportunity_view": "prove_next_level"
+      }
+    },
+    {
+      "key": "cautious",
+      "text": "I like the direction, but the opportunity does not guarantee anything. He still has to earn the result in the game.",
+      "intent": {
+        "dev_opportunity_view": "cautious"
+      }
+    },
+    {
+      "key": "pressure",
+      "text": "The standard just changed. If he wants the next level, this is the kind of game where he has to show it.",
+      "intent": {
+        "dev_opportunity_view": "pressure_test"
+      }
+    }
+  ],
+  "contract_intent": [
+    {
+      "key": "pay",
+      "text": "If the production and fit justify it, I am willing to meet a serious asking price.",
+      "intent": {
+        "contract_intent": "willing_to_pay"
+      }
+    },
+    {
+      "key": "market",
+      "text": "We want him back, but the number still has to make sense against the rest of the roster.",
+      "intent": {
+        "contract_intent": "market_disciplined"
+      }
+    },
+    {
+      "key": "negotiate",
+      "text": "There is a deal to be made, but I am not treating the first asking number as the final answer.",
+      "intent": {
+        "contract_intent": "negotiate"
+      }
+    },
+    {
+      "key": "wait",
+      "text": "I want the season to give us more information before we decide how far to go.",
+      "intent": {
+        "contract_intent": "wait"
+      }
+    },
+    {
+      "key": "move_on",
+      "text": "At that price, I would rather put the resources somewhere else.",
+      "intent": {
+        "contract_intent": "move_on"
+      }
+    }
+  ]
+}

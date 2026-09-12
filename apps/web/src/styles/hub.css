@@ -1166,13 +1166,6 @@ button.poty:disabled {
   box-shadow:inset 0 0 0 2px #070808,0 12px 30px rgba(0,0,0,.75);
 }
 .hub-badge-shelf article:hover::after,.hub-badge-shelf article:focus-visible::after,.hub-badge-shelf article:active::after { opacity:1; visibility:visible; transform:none; }
-.hub-badge-shelf .badge-tier-bronze { background-image:url("/assets/hub/badge-bronze-v2.webp"); }
-.hub-badge-shelf .badge-tier-silver { background-image:url("/assets/hub/badge-silver-v2.webp"); }
-.hub-badge-shelf .badge-tier-gold { background-image:url("/assets/hub/badge-gold-v2.webp"); color:#181006; }
-.hub-badge-shelf .badge-tier-needs-work { background-image:url("/assets/hub/badge-needs-work-v2.webp"); }
-.hub-badge-shelf .badge-tier-warning { background-image:url("/assets/hub/badge-warning-v2.webp"); }
-.hub-badge-shelf .badge-tier-serious-problem { background-image:url("/assets/hub/badge-serious-problem-v2.webp"); }
-.hub-badge-shelf .badge-tier-shit-show { background-image:url("/assets/hub/badge-shit-v2.webp"); }
 
 /* Non-RTI weekly team challenges (Phase 3) -- one row per side, tiers shown as small pips that
    light up once complete. Bronze/silver/gold use fixed medal-associated colors (not themeable
@@ -1191,72 +1184,8 @@ button.poty:disabled {
 .hub-weekly-tier-pip.is-complete.hub-weekly-tier-silver { background:#9aa4ad; color:#12161a; border-color:#9aa4ad; }
 .hub-weekly-tier-pip.is-complete.hub-weekly-tier-gold { background:var(--gold); color:var(--text-on-gold); border-color:var(--gold); }
 
-.hub-badge-shelf .badge-key-perfect-regular-season {
-  background-color:transparent;
-  background-image:url("/assets/badges/perfect-regular-season.webp");
-  background-position:center;
-  background-repeat:no-repeat;
-  background-size:contain;
-}
-
-.hub-badge-shelf .badge-key-prolific-passer { background-image:url("/assets/badges/prolific-passer.webp"); }
-.hub-badge-shelf .badge-key-prolific-rusher { background-image:url("/assets/badges/prolific-rusher.webp"); }
-.hub-badge-shelf .badge-key-balanced-season { background-image:url("/assets/badges/balanced-season.webp"); }
-.hub-badge-shelf .badge-key-fourth-down-menace { background-image:url("/assets/badges/fourth-down-menace.webp"); }
-.hub-badge-shelf .badge-key-dawgin-em { background-image:url("/assets/badges/dawg-in-em.webp"); }
-.hub-badge-shelf .badge-key-two-point-identity { background-image:url("/assets/badges/two-point-identity.webp"); }
-.hub-badge-shelf .badge-key-clock-bleeder { background-image:url("/assets/badges/clock-bleeder.webp"); }
-.hub-badge-shelf .badge-key-perfect-regular-season {
-  background-image:url("/assets/badges/perfect-regular-season.webp");
-  background-position:center;
-  background-repeat:no-repeat;
-  background-size:contain;
-  color:#161718;
-}
-.hub-badge-shelf .badge-key-winning-season { background-image:url("/assets/badges/winning-season.webp"); color:#181818; }
-.hub-badge-shelf .badge-key-return-threat { background-image:url("/assets/badges/return-threat.webp"); color:#151719; }
-.hub-badge-shelf .badge-key-veteran-coach { background-image:url("/assets/badges/rec-league-veteran.webp"); }
-.hub-badge-shelf .badge-key-fourth-down-legend { background-image:url("/assets/badges/fourth-down-legend.webp"); }
-.hub-badge-shelf .badge-key-red-zone-legend { background-image:url("/assets/badges/red-zone-legend.webp"); }
-.hub-badge-shelf .badge-key-ground-and-pound-veteran { background-image:url("/assets/badges/run-game-veteran.webp"); }
-.hub-badge-shelf .badge-key-air-raid-veteran { background-image:url("/assets/badges/pass-game-veteran.webp"); }
-.hub-badge-shelf .badge-key-playoff-winner { background-image:url("/assets/badges/playoff-winner.webp"); color:#171717; }
-.hub-badge-shelf .badge-key-dynasty-builder { background-image:url("/assets/badges/dynasty-builder.webp"); }
-.hub-badge-shelf .badge-key-super-bowl-champion { background-image:url("/assets/badges/reigning-sb-champ.webp"); color:#171717; }
-.hub-badge-shelf .badge-key-conf-champion { background-image:url("/assets/badges/reigning-conference-champ.webp"); color:#171717; }
-.hub-badge-shelf .badge-key-div-champion { background-image:url("/assets/badges/divisional-round-winner.webp"); color:#171717; }
-.hub-badge-shelf .badge-key-national-champion { background-image:url("/assets/badges/reigning-national-champ.webp"); color:#231500; }
-.hub-badge-shelf .badge-key-bowl-winner { background-image:url("/assets/badges/bowl-winner.webp"); color:#231500; }
-
-/* Baked badge textures are all rendered to the same transparent 960x250 canvas.
-   Keep the shelf geometry uniform so no source art can stretch a single badge or
-   leave a rectangular matte behind it.  The inline image supplied by BadgeShelf
-   intentionally wins over the legacy key/tier rules above. */
-.hub-badge-shelf {
-  grid-template-columns:repeat(auto-fit,minmax(190px,220px));
-  gap:16px;
-  align-items:center;
-}
-.hub-badge-shelf article:not(.hub-badge-award) {
-  width:100%;
-  aspect-ratio:960 / 250;
-  min-height:0;
-  padding:0;
-  border:0;
-  border-radius:0;
-  background-color:transparent !important;
-  background-position:center;
-  background-repeat:no-repeat;
-  background-size:100% 100%;
-  box-shadow:none;
-  overflow:visible;
-}
-.hub-badge-shelf article:not(.hub-badge-award) > div,
-.hub-badge-shelf article:not(.hub-badge-award) strong { display:none !important; }
-
 @media (max-width:700px) {
   .hub-badge-shelf { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-  .hub-badge-shelf article:not(.hub-badge-award) { width:100%; }
 }
 
 /* Global card/panel headings center by default; matchup geometry is purpose-built. */

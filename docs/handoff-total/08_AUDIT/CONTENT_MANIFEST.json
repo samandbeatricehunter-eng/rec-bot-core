@@ -1,0 +1,367 @@
+[
+  {
+    "path": "00_MASTER/ACCEPTANCE_MATRIX.json",
+    "bytes": 1876,
+    "sha256": "5c5c5b0d01da5d4b1252052f602a0381641a019bf72c3c0227ef79e11b990946"
+  },
+  {
+    "path": "00_MASTER/COPY_ERRORS_ACCESSIBILITY.md",
+    "bytes": 1836,
+    "sha256": "7725fe4b1a37b6ce301ac3b872232489c5bac8edc6ff7dd97ec12da3bc67c328"
+  },
+  {
+    "path": "00_MASTER/ECONOMY_PROGRESSION.md",
+    "bytes": 2460,
+    "sha256": "aea0664b6d3c70f27660a8c24818d1a37c119b4edcc4af9290f63fac219b51ae"
+  },
+  {
+    "path": "00_MASTER/FINAL_AUDIT.md",
+    "bytes": 4052,
+    "sha256": "7482ce195e0417a0deee85caa81498c0aeda901eb46e6aecdfb48521cd1e7eec"
+  },
+  {
+    "path": "00_MASTER/IMPLEMENTATION_HANDOFF.md",
+    "bytes": 6211,
+    "sha256": "1367371de7c95a091e424d71b3adccc0643c12878681732bd3d399f68930ab16"
+  },
+  {
+    "path": "00_MASTER/LEGENDS_PENDING_ITEMS.md",
+    "bytes": 3975,
+    "sha256": "649bb325c975acd78946619ddf87a4c080de38c3c4e4d4f19dca6f7abb383922"
+  },
+  {
+    "path": "00_MASTER/MASTER_PLAN.md",
+    "bytes": 22827,
+    "sha256": "eb4487f85a33f8ae69ca8f5ccf858e061b4a6f2d43481ba645676037ece970b3"
+  },
+  {
+    "path": "00_MASTER/MATCHUPS_DISCORD_RULES.md",
+    "bytes": 4548,
+    "sha256": "d1667a06b869617c0776c5ff75fed6d0636f19dd2ce08603b638dea80265779f"
+  },
+  {
+    "path": "00_MASTER/MEDIA_SOCIAL_HIGHLIGHTS.md",
+    "bytes": 2599,
+    "sha256": "e5389fa612b402fcfc9dd761f76ecad856562b52692803783818b600ad4ca943"
+  },
+  {
+    "path": "00_MASTER/PACKAGE_MANIFEST.json",
+    "bytes": 985,
+    "sha256": "003ea33c753f6b9e97b35169947841fa33e62ad3b203249358654a5052d5135d"
+  },
+  {
+    "path": "00_MASTER/PLATFORM_DATA_EA.md",
+    "bytes": 2845,
+    "sha256": "ff6d6930d6428bab729c781e87046ded15ec3dbbc689615c4bb64326b7ccd316"
+  },
+  {
+    "path": "00_MASTER/PLAYER_XP_REWARDS.md",
+    "bytes": 14085,
+    "sha256": "8ec3674b6afabcff7a5ab36fd4fa8684ba8fe37bfc14676e4bb88810d9683fec"
+  },
+  {
+    "path": "00_MASTER/UI_ROSTER_PLAYER_CARDS.md",
+    "bytes": 2978,
+    "sha256": "8eb43a4c6eaf4c26b4b7159da00ba8e9e47db7a0843204fb381f5e788cd6b792"
+  },
+  {
+    "path": "01_CONTENT_BANKS/ANSWERS/ANSWER_BANK_SPEC.md",
+    "bytes": 3176,
+    "sha256": "8eb5761e8589e9fea445d0b0ceafa8fac43432f0e7fad602b4835739f31de3d0"
+  },
+  {
+    "path": "01_CONTENT_BANKS/ANSWERS/SEMANTIC_SCHEMA.md",
+    "bytes": 2045,
+    "sha256": "404d020e6c439ebe788e3569cf7c1fa9e1f2b036605992dd6d1eba67c784e97a"
+  },
+  {
+    "path": "01_CONTENT_BANKS/ANSWERS/answer_bank.json",
+    "bytes": 7196,
+    "sha256": "a423fbd3e3638a7c931e1a47ec53f45a9b8c16bbf2054bbaadb4164581ee8d8a"
+  },
+  {
+    "path": "01_CONTENT_BANKS/ANSWERS/answer_families.json",
+    "bytes": 32045,
+    "sha256": "97d85a5e7199efc91c0a4756ddab71887b37fef2312d9ea16e0bd2307309b52b"
+  },
+  {
+    "path": "01_CONTENT_BANKS/ANSWERS/clarifiers.json",
+    "bytes": 14214,
+    "sha256": "ec4e53730f91c2e6a6dd06ce2eb73fe462aa56b487b6a19d580f23bd48ba30f4"
+  },
+  {
+    "path": "01_CONTENT_BANKS/ANSWERS/tone_followups.json",
+    "bytes": 2450,
+    "sha256": "983a4ca76440d4c7ad0d1712249c6bb3a41a50a546904b1c7ca0c20fd254fc46"
+  },
+  {
+    "path": "01_CONTENT_BANKS/CHALLENGES/weekly_challenge_catalog.json",
+    "bytes": 76862,
+    "sha256": "41d2a56c75a27bb3a36edde879631d20770ac4880b62dfc31dbd8fad13bd2d3f"
+  },
+  {
+    "path": "01_CONTENT_BANKS/CONFIDENCE_CONTRACT_DEV/confidence_contract_dev_media_questions.json",
+    "bytes": 102748,
+    "sha256": "9c16aee53191b8a589868792ce9c402ee143b4049b68ba046eb73c4c8a294cbe"
+  },
+  {
+    "path": "01_CONTENT_BANKS/CONFIDENCE_CONTRACT_DEV/confidence_contract_dev_tweet_hooks.json",
+    "bytes": 2136,
+    "sha256": "ba9d0e2ed16240bbe972f8d67d4af65657db42f89ee11a949321720861b236a2"
+  },
+  {
+    "path": "01_CONTENT_BANKS/MEDIA_DAY/MEDIA_DAY_CARRY_FORWARD_QUEUE.md",
+    "bytes": 1870,
+    "sha256": "320713626eb7ef69ce824700d049f165135611b73b23b569ac2c9ff4c799c52a"
+  },
+  {
+    "path": "01_CONTENT_BANKS/MEDIA_DAY/MEDIA_DAY_SELECTION_RULES.md",
+    "bytes": 4455,
+    "sha256": "dbff12ecbc1253f348bad3ac7dafe4c502425dccf17d31fc76b5a5ec7c36cdbd"
+  },
+  {
+    "path": "01_CONTENT_BANKS/MEDIA_DAY/PLACEHOLDERS.md",
+    "bytes": 1184,
+    "sha256": "b29134610b5df627c0130d47ad5f07b8fa372efafb2f815f0ad6db1b1d5ed938"
+  },
+  {
+    "path": "01_CONTENT_BANKS/MEDIA_DAY/offseason_media_day_questions.json",
+    "bytes": 2923817,
+    "sha256": "ad71641248bd322651b456f7314dff80e50da2d109ff9933d0350490f1033259"
+  },
+  {
+    "path": "01_CONTENT_BANKS/MEDIA_DAY/rti_media_day_questions.json",
+    "bytes": 1455938,
+    "sha256": "8e7e8f098f339e9f1e5a60b651acecbc82b7f35e40934fe9b74d403a5e625c2b"
+  },
+  {
+    "path": "01_CONTENT_BANKS/MEDIA_DAY/weekly_challenge_media_questions.json",
+    "bytes": 1610519,
+    "sha256": "a3816f3eb92fc535dd7421d00b0ae9564a0c8666a065f0e4e9c71a09bd94c437"
+  },
+  {
+    "path": "01_CONTENT_BANKS/README.md",
+    "bytes": 1075,
+    "sha256": "f228a83657bec2354fc2ddd784b1801fe4a331f043e94ac259ba1c0e92b859fc"
+  },
+  {
+    "path": "02_TWEETS_MEDIA/SOCIAL_SYSTEM_ARCHITECTURE.md",
+    "bytes": 3560,
+    "sha256": "01ee1322f51c14dd415868dacb8a67ba5cac37f8a05bd48a62aa75d978f7031f"
+  },
+  {
+    "path": "02_TWEETS_MEDIA/TWEETS_SETUP.md",
+    "bytes": 2070,
+    "sha256": "2887d946db688bd7a69fd8937a0eab98af6afb4576e3d80cef6fda5d84be303f"
+  },
+  {
+    "path": "02_TWEETS_MEDIA/media_personality_profiles.json",
+    "bytes": 15654,
+    "sha256": "f14802d1329324ddb683918e7e302af8830175af69dd4b4d8cb89b4d85073e4c"
+  },
+  {
+    "path": "02_TWEETS_MEDIA/random_fan_hater_accounts.json",
+    "bytes": 6529,
+    "sha256": "bd87548bb969b908cedc32d3288b2aa52c147602547929f4e076ae853df40aed"
+  },
+  {
+    "path": "02_TWEETS_MEDIA/random_fan_hater_tweet_angles.json",
+    "bytes": 4655,
+    "sha256": "548459af918fb3a77c0fcbe439b580d87f6eb3200448002d99ade250ffc7498f"
+  },
+  {
+    "path": "02_TWEETS_MEDIA/social_event_playbooks.json",
+    "bytes": 28628,
+    "sha256": "335736826a820f8f66d9da3f5437fe74d2f181fc79e001b379cc6fd20aee79eb"
+  },
+  {
+    "path": "02_TWEETS_MEDIA/social_relationship_matrix.json",
+    "bytes": 1755,
+    "sha256": "045f8a6202da8ada6f79930e32d6aa5f28fb70250f265685afc03e5d55cda745"
+  },
+  {
+    "path": "02_TWEETS_MEDIA/tweet_blueprints_contextual.json",
+    "bytes": 2165400,
+    "sha256": "7ffe71394f76217269148e8f30226aed362a7d16176ead61a0b5e2d85b364e8e"
+  },
+  {
+    "path": "02_TWEETS_MEDIA/tweet_personalities.json",
+    "bytes": 5287,
+    "sha256": "f7c4cf36ed8695ba29833354a0e113c9c0cdb2b7a8fc2c50a445323f5830a15b"
+  },
+  {
+    "path": "03_PERSONA_RTI/PERSONA_SYSTEM.md",
+    "bytes": 1498,
+    "sha256": "05a05bff0844b07c3570ab1b51b186712ee1103fb4edf3f36e88c095f664cb6c"
+  },
+  {
+    "path": "03_PERSONA_RTI/characteristic_synergies.json",
+    "bytes": 2481,
+    "sha256": "815857ae7408fd59416285160e0514440eb5744ce1eb823607978aa879a4392f"
+  },
+  {
+    "path": "03_PERSONA_RTI/characteristics_DB.json",
+    "bytes": 6917,
+    "sha256": "fd09796f69ed73422f6e43f0117dc1133e8802c350e2d53995b11c4831aaaabf"
+  },
+  {
+    "path": "03_PERSONA_RTI/characteristics_HB.json",
+    "bytes": 7075,
+    "sha256": "a22e8f0f04b0e4d4c81ff4bfd37ed27bf90e7f74b86b8568316b16ae26123f16"
+  },
+  {
+    "path": "03_PERSONA_RTI/characteristics_LB.json",
+    "bytes": 6903,
+    "sha256": "9badddd7468252e5723d2ffdbb90c3d5cd804dfd5931e933dc31dd9bcf414a2c"
+  },
+  {
+    "path": "03_PERSONA_RTI/characteristics_QB.json",
+    "bytes": 7529,
+    "sha256": "a5e3b1465243675421de8495fb71ae97ce0a655b8836198fa2c4d9f03f94b544"
+  },
+  {
+    "path": "03_PERSONA_RTI/characteristics_WR_TE.json",
+    "bytes": 7183,
+    "sha256": "8c9a06b663895095f4afa3b4c8d7cabeb92f125b8409b94d104e33b5fbb15d79"
+  },
+  {
+    "path": "03_PERSONA_RTI/characteristics_all.csv",
+    "bytes": 19023,
+    "sha256": "a0e1cf8760df5d2f6146da1133f4f55c080d75f9e8fb5b99cd71e0c5272898d1"
+  },
+  {
+    "path": "03_PERSONA_RTI/contracts.json",
+    "bytes": 1940,
+    "sha256": "7460c721f5a8cb047ebbce76d130e96f932af9f9d9ef4aac71e0a1c92657de55"
+  },
+  {
+    "path": "03_PERSONA_RTI/core_config.json",
+    "bytes": 2592,
+    "sha256": "12c67cd900b1859b6478ed9b5ed8b7cadbefaee581ce1be94b430fef30b6a312"
+  },
+  {
+    "path": "03_PERSONA_RTI/iq_tests.json",
+    "bytes": 11924,
+    "sha256": "ce16fb5dafccfa2ab6403c5a9ed7c15544e455f773f53a91b509a3f73e905274"
+  },
+  {
+    "path": "03_PERSONA_RTI/milestones.json",
+    "bytes": 6104,
+    "sha256": "70d29bf260035e9f04a4701d855a4dcc4884b31b91bf6603dc9926e1bb0f89fb"
+  },
+  {
+    "path": "03_PERSONA_RTI/persona_dna.json",
+    "bytes": 16015,
+    "sha256": "dedc6d9fa13c40038c193932ee40bfe6dd6e3893fc301ecb581dca25ba832c8f"
+  },
+  {
+    "path": "03_PERSONA_RTI/persona_interview.json",
+    "bytes": 9669,
+    "sha256": "61bedff5785bac2d224ecbe65f934a53a105423a34cffcf8663aef6b183d405f"
+  },
+  {
+    "path": "03_PERSONA_RTI/player_traits.json",
+    "bytes": 15702,
+    "sha256": "6e0f9fa4826d67b5ac328a131ff776314c5b66a55d1a02c729831ef1a9eaebb6"
+  },
+  {
+    "path": "03_PERSONA_RTI/playstyle_interview.json",
+    "bytes": 16430,
+    "sha256": "19dbc66731627d552893d15eb14c991af29362e5202aca0a92215e2e768f6fe8"
+  },
+  {
+    "path": "04_SCHEMA_DATA/DATA_ACCURACY_RULES.md",
+    "bytes": 1443,
+    "sha256": "23fb2ee96a7993c5fd70c943024f061dc1c504dd269533123f31ad1419c0f32c"
+  },
+  {
+    "path": "04_SCHEMA_DATA/RAW_PAYLOAD_UTILIZATION.md",
+    "bytes": 3481,
+    "sha256": "88540b7fb8f5d585cee3885ec8184e77954ac72f32111a2df0eccd64e9145e37"
+  },
+  {
+    "path": "04_SCHEMA_DATA/data_capability_registry.json",
+    "bytes": 7197,
+    "sha256": "e29cff859accfcf90fa251fb66e28947eb3c7ec1680ac0915cecb8ef41d0cdcd"
+  },
+  {
+    "path": "04_SCHEMA_DATA/media_schema_blueprint.json",
+    "bytes": 5285,
+    "sha256": "12bfd97a43eaa04cd5005b002bd24d5188f8c278d0e46e4103628af4fa59f4f2"
+  },
+  {
+    "path": "04_SCHEMA_DATA/media_week_posture_schema.json",
+    "bytes": 1107,
+    "sha256": "7db21e07608a2d90577bc898b09fecef90caabbf111b4f6c5a2df0da1003f5f1"
+  },
+  {
+    "path": "04_SCHEMA_DATA/progression_media_mapping.json",
+    "bytes": 5036,
+    "sha256": "41204974cb9a6a7352bbb21b5cc03f34b2418529525444e340650b8eeb03e5cb"
+  },
+  {
+    "path": "05_UI/MEDIA_DAY_GATE_ORCHESTRATION.md",
+    "bytes": 3853,
+    "sha256": "31e159a9d7af81678c8070169110b916e1b10ac55dba950cf7377ca5b97f8b15"
+  },
+  {
+    "path": "05_UI/MEDIA_DAY_UI.md",
+    "bytes": 859,
+    "sha256": "8229be22f644f74c2c513323286741da0bd1e7437ecaa93fdfcc8fb3a9457d54"
+  },
+  {
+    "path": "05_UI/POST_ADVANCE_EXPERIENCE.md",
+    "bytes": 4248,
+    "sha256": "979059ac7206e4198d39871cd543fc9fbb2455fbb2293e1a525ee5b86bd2e578"
+  },
+  {
+    "path": "05_UI/RTI_MEDIA_DAY_UI.md",
+    "bytes": 1186,
+    "sha256": "cb648364210e79ef744cf5bab36fed3cd6e8e2db3688406fe4c6795b6cff0e6a"
+  },
+  {
+    "path": "06_LEGEND_CATALOG/Player_Builds_Full_Catalog.xlsx",
+    "bytes": 351218,
+    "sha256": "217bfaa4b540cabd52715a144df01db79bc72cdd70bbd754a4483004e90aac2f"
+  },
+  {
+    "path": "07_ASSETS/card_texture_reference.png",
+    "bytes": 349927,
+    "sha256": "2656afa7ad61193ba33033d9e6d74770972476e0d8d3d4de8e8786894a7e9d45"
+  },
+  {
+    "path": "07_ASSETS/universal_site_background.png",
+    "bytes": 2668716,
+    "sha256": "eb07ece7677f4704fe552612ecb9433443a9d99da89649b61a6c9f75cb5f6937"
+  },
+  {
+    "path": "08_AUDIT/CONTENT_VALIDATION.json",
+    "bytes": 1065,
+    "sha256": "f8877ad67018a34066335d844a9b5631ad73063a8c10b729da44b55892fbd2e1"
+  },
+  {
+    "path": "08_AUDIT/FINAL_CONTENT_AUDIT.md",
+    "bytes": 917,
+    "sha256": "d7df5fe1b41aae5624d5547ed16487db458ef2de596c6692502079df5a4a789c"
+  },
+  {
+    "path": "08_AUDIT/MEDIA_SOCIAL_QA.json",
+    "bytes": 663,
+    "sha256": "97bee84903ad6b342e18ff72140a8f62ecbf565009074f26a36425063fe9054b"
+  },
+  {
+    "path": "08_AUDIT/MEDIA_SOCIAL_QA_REPORT.md",
+    "bytes": 2474,
+    "sha256": "b4b255f01a7a534ae33714d7ede691bae29d57b479a36474bbccfdabd64941c4"
+  },
+  {
+    "path": "08_AUDIT/PLAN_ITERATION_MARKER_SCAN.json",
+    "bytes": 37,
+    "sha256": "1620d0146cb708d36c64cd7c5139d42916989b0857b99f31ab811b63a341d916"
+  },
+  {
+    "path": "README.md",
+    "bytes": 2466,
+    "sha256": "df765b69e441f996e958781c811377db6f9fc08abe61434661051711cfd3d2ce"
+  }
+]

@@ -1,0 +1,52 @@
+{
+  "purpose": "Summarize what the team/RTI subject publicly established in the current Media Day session.",
+  "dimensions": {
+    "confidence": [
+      "guarded",
+      "neutral",
+      "confident",
+      "very_confident"
+    ],
+    "aggression": [
+      "conservative",
+      "measured",
+      "aggressive",
+      "all_in"
+    ],
+    "accountability": [
+      "self",
+      "shared",
+      "staff",
+      "players",
+      "circumstance",
+      "none"
+    ],
+    "urgency": [
+      "low",
+      "normal",
+      "high"
+    ],
+    "respect": [
+      "high",
+      "neutral",
+      "dismissive"
+    ],
+    "approach": [
+      "patient",
+      "balanced",
+      "attack_early",
+      "defense_first",
+      "offense_first",
+      "takeaway_hunting",
+      "ball_security",
+      "explosive_play",
+      "situational"
+    ]
+  },
+  "rules": [
+    "Use only dimensions supported by submitted answers.",
+    "Never infer a private psychological trait from the posture.",
+    "Mixed answers may produce mixed/qualified language rather than a forced label.",
+    "Freeze the posture when Media Day completes."
+  ]
+}

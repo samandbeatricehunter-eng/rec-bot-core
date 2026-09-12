@@ -1,0 +1,208 @@
+{
+  "position_group": "QB",
+  "available_slots": 6,
+  "characteristics": [
+    {
+      "name": "Born With Quick Feet",
+      "slot_cost": 1,
+      "effect": "AGI and COD cost 15% less during creation and future Player-XP upgrades.",
+      "why_it_costs_that": "Useful but not a premier QB rating pair.",
+      "tags": "athletic",
+      "synergy": []
+    },
+    {
+      "name": "Naturally Fast",
+      "slot_cost": 3,
+      "effect": "SPD and ACC cost 12% less during creation and future upgrades.",
+      "why_it_costs_that": "Speed/acceleration are extremely valuable and expensive.",
+      "tags": "athletic",
+      "synergy": []
+    },
+    {
+      "name": "Explosive First Step",
+      "slot_cost": 1,
+      "effect": "ACC costs 18% less during creation and future upgrades.",
+      "why_it_costs_that": "Narrow one-attribute discount.",
+      "tags": "athletic",
+      "synergy": []
+    },
+    {
+      "name": "Natural Athlete",
+      "slot_cost": 2,
+      "effect": "AGI, COD, JMP and ACC each cost 8% less.",
+      "why_it_costs_that": "Broad multi-rating discount.",
+      "tags": "athletic",
+      "synergy": []
+    },
+    {
+      "name": "Born With an Arm",
+      "slot_cost": 2,
+      "effect": "THP costs 15% less.",
+      "why_it_costs_that": "Throw power is a premium QB attribute.",
+      "tags": "passing",
+      "synergy": []
+    },
+    {
+      "name": "Natural Accuracy",
+      "slot_cost": 2,
+      "effect": "SAC and MAC cost 10% less; DAC costs 6% less.",
+      "why_it_costs_that": "Touches three core passing ratings.",
+      "tags": "passing",
+      "synergy": []
+    },
+    {
+      "name": "Pocket Sense",
+      "slot_cost": 1,
+      "effect": "BSK costs 15% less and TUP costs 8% less.",
+      "why_it_costs_that": "Improves pocket survival without raw speed.",
+      "tags": "passing",
+      "synergy": []
+    },
+    {
+      "name": "Off-Platform Thrower",
+      "slot_cost": 1,
+      "effect": "TOR costs 15% less and TUP 8% less.",
+      "why_it_costs_that": "Specialized improvisational value.",
+      "tags": "passing",
+      "synergy": []
+    },
+    {
+      "name": "Play-Action Savant",
+      "slot_cost": 1,
+      "effect": "PAC costs 18% less.",
+      "why_it_costs_that": "One situational but useful rating.",
+      "tags": "passing",
+      "synergy": []
+    },
+    {
+      "name": "Deep Ball Artist",
+      "slot_cost": 2,
+      "effect": "DAC costs 12% less and THP 6% less.",
+      "why_it_costs_that": "Cascades with Born With an Arm for vertical QBs; discount cap still applies.",
+      "tags": "passing",
+      "synergy": [
+        "Born With an Arm"
+      ]
+    },
+    {
+      "name": "Rhythm Passer",
+      "slot_cost": 1,
+      "effect": "SAC and MAC each cost 8% less.",
+      "why_it_costs_that": "Smaller accuracy discount than Natural Accuracy.",
+      "tags": "passing",
+      "synergy": []
+    },
+    {
+      "name": "Pressure Proof",
+      "slot_cost": 2,
+      "effect": "TUP costs 18% less. Gold weekly challenges completed with 0 turnovers grant +1 bonus XP.",
+      "why_it_costs_that": "Premium due to attribute + XP component.",
+      "tags": "mental",
+      "synergy": []
+    },
+    {
+      "name": "Escape Artist",
+      "slot_cost": 2,
+      "effect": "BSK, COD and ACC each cost 10% less.",
+      "why_it_costs_that": "Broad mobility/survival package.",
+      "tags": "athletic",
+      "synergy": []
+    },
+    {
+      "name": "Designed Runner",
+      "slot_cost": 1,
+      "effect": "CAR, JKM and BCV each cost 10% less.",
+      "why_it_costs_that": "Only valuable for run-heavy QBs.",
+      "tags": "runner",
+      "synergy": []
+    },
+    {
+      "name": "Ball Security",
+      "slot_cost": 1,
+      "effect": "CAR costs 18% less.",
+      "why_it_costs_that": "Narrow protection against fumbles.",
+      "tags": "runner",
+      "synergy": []
+    },
+    {
+      "name": "Clutch Processor",
+      "slot_cost": 2,
+      "effect": "AWR upgrades cost 10% less; playoff weekly challenge XP +20%.",
+      "why_it_costs_that": "Mental + postseason benefit.",
+      "tags": "mental",
+      "synergy": []
+    },
+    {
+      "name": "Command at the Line",
+      "slot_cost": 1,
+      "effect": "If the player earns 120+ IQ, his first AWR upgrade each season costs 25% less XP.",
+      "why_it_costs_that": "Conditional IQ synergy keeps it from being universally optimal.",
+      "tags": "mental",
+      "synergy": []
+    },
+    {
+      "name": "Two-Minute Specialist",
+      "slot_cost": 1,
+      "effect": "Weekly challenges involving completion percentage, zero turnovers, or passing TDs pay +1 XP when completed in a win, max +1/week.",
+      "why_it_costs_that": "Performance conditional.",
+      "tags": "xp",
+      "synergy": []
+    },
+    {
+      "name": "Faster Developer",
+      "slot_cost": 3,
+      "effect": "Earn +15% Player XP from all eligible sources. Dev-trait promotion challenge checks occur 50% more often until the player reaches X-Factor. Does not guarantee promotion; the challenge still must be completed.",
+      "why_it_costs_that": "Directly accelerates both ratings growth and access to development promotions, so it consumes half the build.",
+      "tags": "progression",
+      "synergy": []
+    },
+    {
+      "name": "Team Player",
+      "slot_cost": 2,
+      "effect": "Team XP functionality is unlocked from Season 1. The player may convert his earned Player XP to Team XP at the normal 4:3 rate even before reaching his personal ceiling. XP already spent on teammates cannot be reclaimed.",
+      "why_it_costs_that": "Creates roster-wide value years earlier than normal.",
+      "tags": "team",
+      "synergy": []
+    },
+    {
+      "name": "Great Negotiator",
+      "slot_cost": 2,
+      "effect": "All REC Coin contract offers are increased by 20% after the normal contract-value calculation. Applies to Contracts II and III; Rookie Contract remains draft-slot based unless league configuration enables rookie negotiation bonuses.",
+      "why_it_costs_that": "Meaningful recurring economy bonus.",
+      "tags": "contract",
+      "synergy": []
+    },
+    {
+      "name": "Known Commodity",
+      "slot_cost": 3,
+      "effect": "For Contracts II and III, the player's performance component can never produce an offer below the 'Elite' salary band. The contract engine values him as an established ceiling-level asset even after a poor contract window.",
+      "why_it_costs_that": "Removes most downside risk from the career economy.",
+      "tags": "contract",
+      "synergy": []
+    },
+    {
+      "name": "Competitive Drive",
+      "slot_cost": 1,
+      "effect": "Completing all three issued weekly challenges grants +2 bonus Player XP, once per league week.",
+      "why_it_costs_that": "Requires performance rather than granting passive ratings.",
+      "tags": "xp",
+      "synergy": []
+    },
+    {
+      "name": "Film Junkie",
+      "slot_cost": 2,
+      "effect": "Future AWR upgrades cost 20% less Player XP. Defensive players also receive 20% cheaper PRC upgrades. Does not change IQ-test results.",
+      "why_it_costs_that": "Permanent discount on highly valuable mental attributes.",
+      "tags": "mental",
+      "synergy": []
+    },
+    {
+      "name": "Generational Ceiling",
+      "slot_cost": 3,
+      "effect": "Starting development trait is Star rather than Normal. The player is eligible for future Superstar/X-Factor promotion challenges through performance. No direct ratings are added.",
+      "why_it_costs_that": "A major career-long ceiling advantage.",
+      "tags": "dev",
+      "synergy": []
+    }
+  ]
+}

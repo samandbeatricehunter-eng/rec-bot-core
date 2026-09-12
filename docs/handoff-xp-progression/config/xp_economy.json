@@ -1,0 +1,91 @@
+{
+  "conversion": {
+    "points_per_xp": 6000
+  },
+  "player": {
+    "weekly_stat_tier_points": {
+      "good": 1200,
+      "great": 2400,
+      "elite": 3600
+    },
+    "weekly_position_finish_points": {
+      "top_25": 600,
+      "top_10": 1200,
+      "rank_1": 1800
+    },
+    "splash_points_each": 600,
+    "splash_points_cap": 1200,
+    "base_game_cap_regular": 5400,
+    "base_game_cap_postseason": 6600,
+    "streak_points": {
+      "3": 600,
+      "5": 1200,
+      "8": 1800
+    },
+    "season_position_finish_points": {
+      "top_25": 1200,
+      "top_10": 2400,
+      "rank_1": 3600
+    },
+    "challenge_points": {
+      "bronze": 600,
+      "silver": 1200,
+      "gold": 1800
+    },
+    "dev_multiplier_bps": {
+      "normal": 10000,
+      "star": 10500,
+      "superstar": 11000,
+      "xfactor": 11500
+    },
+    "rivalry_multiplier_bps": 12500,
+    "season_cap_regular_points": 120000,
+    "season_cap_full_points": 150000
+  },
+  "franchise": {
+    "challenge_points": {
+      "bronze": 900,
+      "silver": 1800,
+      "gold": 3000
+    },
+    "player_performance_dividend_rate_bps": 1500,
+    "player_performance_dividend_top_n": 5,
+    "player_performance_dividend_cap": 2400,
+    "media_commitment_points": {
+      "standard": 600,
+      "strong": 1200,
+      "high_risk": 1800
+    },
+    "game_derived_cap_regular": 6000
+  },
+  "challenge_targeting": {
+    "expected_team_share_min": 0.75,
+    "expected_team_share_max": 0.85,
+    "ordinary_target_max_in_rolling_6_weeks": 2,
+    "cooldown_overrides": [
+      "dev_opportunity",
+      "record_chase",
+      "active_rivalry_beef_rematch",
+      "explicit_unresolved_storyline"
+    ]
+  },
+  "competitive_balance": {
+    "bottom_25_bonus_bps": 2000,
+    "percentile_25_to_40_bonus_bps": 1000,
+    "season_bonus_cap_points": 18000,
+    "recalculate_every_advances": 4,
+    "eligible_sources": [
+      "weekly_challenge",
+      "media_commitment"
+    ],
+    "excluded_sources": [
+      "win",
+      "playoff",
+      "championship",
+      "upset",
+      "annual_award",
+      "player_xp",
+      "xp_conversion"
+    ]
+  }
+}

@@ -1,0 +1,180 @@
+{
+  "fixed_accounts": [
+    {
+      "key": "marcus",
+      "display": "Marcus Vale",
+      "correspondent_name": "Marcus Vale",
+      "kind": "headline_personality",
+      "handle": "@MarcusValeREC",
+      "verified": true,
+      "headshot_catalog_key": "media_marcus_vale",
+      "outlet": "REC Network",
+      "role": "The Veteran",
+      "core_belief": "Good football eventually exposes bad habits.",
+      "primary_beats": [
+        "roster construction",
+        "situational football",
+        "coaching decisions",
+        "team discipline",
+        "sustainability",
+        "veteran leadership",
+        "front-office process"
+      ]
+    },
+    {
+      "key": "vaughn",
+      "display": "Vaughn Price",
+      "correspondent_name": "Vaughn Price",
+      "kind": "headline_personality",
+      "handle": "@VaughnPriceREC",
+      "verified": true,
+      "headshot_catalog_key": "media_vaughn_price",
+      "outlet": "REC Network",
+      "role": "The Instigator",
+      "core_belief": "If you make a public claim, winning is the cleanest way to defend it.",
+      "primary_beats": [
+        "receipts",
+        "rivalries",
+        "failed guarantees",
+        "controversial roster moves",
+        "collapses",
+        "upsets",
+        "stars under pressure",
+        "public confidence"
+      ]
+    },
+    {
+      "key": "elliot",
+      "display": "Elliot Mercer",
+      "correspondent_name": "Elliot Mercer",
+      "kind": "headline_personality",
+      "handle": "@ElliotMercerREC",
+      "verified": true,
+      "headshot_catalog_key": "media_elliot_mercer",
+      "outlet": "REC Network",
+      "role": "The Strategist",
+      "core_belief": "The result matters, but the pattern behind the result predicts what happens next.",
+      "primary_beats": [
+        "efficiency",
+        "matchup fit",
+        "strength of schedule",
+        "turnovers",
+        "scoring margins",
+        "scheme usage",
+        "before/after splits",
+        "playoff probability"
+      ]
+    },
+    {
+      "key": "darius",
+      "display": "Darius King",
+      "correspondent_name": "Darius King",
+      "kind": "headline_personality",
+      "handle": "@DariusKingREC",
+      "verified": true,
+      "headshot_catalog_key": "media_darius_king",
+      "outlet": "REC Network",
+      "role": "The Showman",
+      "core_belief": "Big games become part of league history because people feel the stakes before the result.",
+      "primary_beats": [
+        "stars",
+        "rivalries",
+        "Game of the Week",
+        "momentum",
+        "playoff moments",
+        "breakouts",
+        "comebacks",
+        "fan energy"
+      ]
+    },
+    {
+      "key": "rec_insider",
+      "display": "REC Insider",
+      "correspondent_name": "Adrian Cole",
+      "kind": "reporter_account",
+      "handle": "@RECInsider",
+      "verified": true,
+      "headshot_catalog_key": "media_adrian_cole",
+      "outlet": "REC Insider",
+      "role": "The Insider",
+      "core_belief": "The fastest report is useless if the underlying transaction is not real.",
+      "primary_beats": [
+        "signings",
+        "trade block",
+        "finalized trades",
+        "contract movement",
+        "roster cuts",
+        "front-office intent"
+      ]
+    },
+    {
+      "key": "nfl_front_office",
+      "display": "NFL Front Office",
+      "correspondent_name": "Nolan Brooks",
+      "kind": "reporter_account",
+      "handle": "@FrontOfficeREC",
+      "verified": true,
+      "headshot_catalog_key": "media_nolan_brooks",
+      "outlet": "NFL Front Office",
+      "role": "The Personnel Executive",
+      "core_belief": "Every roster move has an opportunity cost.",
+      "primary_beats": [
+        "personnel value",
+        "contracts",
+        "depth",
+        "roster age",
+        "team needs",
+        "transaction cost",
+        "draft capital"
+      ]
+    },
+    {
+      "key": "gridiron_gospel",
+      "display": "Gridiron Gospel",
+      "correspondent_name": "Isaiah Grant",
+      "kind": "reporter_account",
+      "handle": "@GridironGospel",
+      "verified": true,
+      "headshot_catalog_key": "media_isaiah_grant",
+      "outlet": "Gridiron Gospel",
+      "role": "The Film Columnist",
+      "core_belief": "There is usually a football reason behind the headline.",
+      "primary_beats": [
+        "matchup tendencies",
+        "player usage",
+        "scheme fit",
+        "position production",
+        "challenge context",
+        "film-style explanation"
+      ]
+    },
+    {
+      "key": "tmz",
+      "display": "TMZ",
+      "correspondent_name": "Tessa Monroe",
+      "kind": "reporter_account",
+      "handle": "@RECTMZ",
+      "verified": true,
+      "headshot_catalog_key": "media_tessa_monroe",
+      "outlet": "TMZ",
+      "role": "The Public-Drama Reporter",
+      "core_belief": "Public words matter because everyone else can hear them too.",
+      "primary_beats": [
+        "public friction",
+        "quote reactions",
+        "rivalry heat",
+        "social replies",
+        "receipts",
+        "fan reaction"
+      ]
+    }
+  ],
+  "random_accounts": {
+    "verified": false,
+    "headshot": null,
+    "rule": "Random fan/hater/community accounts never receive a verified badge or media headshot."
+  },
+  "slash_command": {
+    "commissioner_identity_source": "fixed_accounts"
+  }
+}

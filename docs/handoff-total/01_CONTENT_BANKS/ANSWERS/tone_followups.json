@@ -1,0 +1,55 @@
+{
+  "rule": "Ask a second question only when the first answer leaves a useful semantic dimension unresolved. A follow-up counts toward that subject's question limit.",
+  "non_rti_team": {
+    "confidence": [
+      "How strongly does {team_name} believe that going into this game?",
+      "Is that confidence, caution, or somewhere in between for your team?"
+    ],
+    "certainty": [
+      "Is that the plan you are committing to this week, or something you are willing to change once the game starts?",
+      "How firm is that approach for {team_name}?"
+    ],
+    "aggression": [
+      "How aggressive do you want your team to be in chasing that from the opening possession?",
+      "Do you want to force that issue early, or let the game come to you?"
+    ],
+    "accountability": [
+      "If that approach does not work, where should the responsibility fall?",
+      "Who has to own it if the plan does not produce the result?"
+    ],
+    "respect": [
+      "How much of that answer is about what {opponent_team} does well?",
+      "Does your approach change because of the opponent, or is this mainly about your own identity?"
+    ],
+    "expectation": [
+      "What result would make you leave this week saying the team met that expectation?",
+      "What does success actually look like for your team this week?"
+    ]
+  },
+  "rti_subject": {
+    "confidence": [
+      "{subject_name}, how strongly do you believe that?",
+      "{subject_name}, is that confidence or caution talking?"
+    ],
+    "certainty": [
+      "{subject_name}, are you committing to that approach, or will you let the game change it?",
+      "{subject_name}, how firm is that plan for you?"
+    ],
+    "aggression": [
+      "{subject_name}, how aggressively do you want to chase that opportunity?",
+      "{subject_name}, do you want to force the issue early or stay patient?"
+    ],
+    "accountability": [
+      "{subject_name}, if it does not work, what part of that belongs to you?",
+      "{subject_name}, what are you personally willing to own after the game?"
+    ],
+    "respect": [
+      "{subject_name}, how much respect does this matchup demand from you?",
+      "{subject_name}, what does the opponent do that makes this a real test?"
+    ],
+    "expectation": [
+      "{subject_name}, what would make you leave this game satisfied with your own performance?",
+      "{subject_name}, what is the standard you are setting for yourself this week?"
+    ]
+  }
+}

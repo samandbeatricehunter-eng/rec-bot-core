@@ -1,0 +1,371 @@
+{
+  "dimensions": [
+    "Leadership",
+    "Competitive Fire",
+    "Team First",
+    "Showmanship",
+    "Composure",
+    "Legacy Drive"
+  ],
+  "resolution": {
+    "Leadership+Competitive Fire": "Field General",
+    "Leadership+Team First": "Captain",
+    "Leadership+Showmanship": "Vocal Leader",
+    "Leadership+Composure": "Professional",
+    "Leadership+Legacy Drive": "Standard Bearer",
+    "Competitive Fire+Team First": "Warrior",
+    "Competitive Fire+Showmanship": "Showstopper",
+    "Competitive Fire+Composure": "Silent Assassin",
+    "Competitive Fire+Legacy Drive": "Alpha",
+    "Team First+Showmanship": "Sparkplug",
+    "Team First+Composure": "Steady Hand",
+    "Team First+Legacy Drive": "Dynasty Builder",
+    "Showmanship+Composure": "Cool Operator",
+    "Showmanship+Legacy Drive": "Icon",
+    "Composure+Legacy Drive": "Perfectionist"
+  },
+  "offense": [
+    {
+      "number": 1,
+      "question": "Your offense struggles badly in a loss and reporters ask who is responsible.",
+      "options": [
+        {
+          "text": "Put it on me. I have to be better.",
+          "dna_points": {
+            "Leadership": 2,
+            "Composure": 1
+          }
+        },
+        {
+          "text": "We win and lose together.",
+          "dna_points": {
+            "Team First": 2,
+            "Leadership": 1
+          }
+        },
+        {
+          "text": "There were opportunities out there we didn't capitalize on.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Legacy Drive": 1
+          }
+        },
+        {
+          "text": "One game doesn't change anything. We'll handle it.",
+          "dna_points": {
+            "Composure": 2,
+            "Competitive Fire": 1
+          }
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "question": "Which career would mean the most to you?",
+      "options": [
+        {
+          "text": "Multiple championships even if my statistics aren't historic.",
+          "dna_points": {
+            "Team First": 2,
+            "Leadership": 1
+          }
+        },
+        {
+          "text": "Becoming the greatest statistical player ever at my position.",
+          "dna_points": {
+            "Legacy Drive": 2,
+            "Competitive Fire": 1
+          }
+        },
+        {
+          "text": "Being remembered as the player everyone wanted the ball going to when it mattered.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Legacy Drive": 1
+          }
+        },
+        {
+          "text": "Becoming the unquestioned face of the league.",
+          "dna_points": {
+            "Showmanship": 2,
+            "Legacy Drive": 1
+          }
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "question": "A defender tells reporters before your matchup that you're overrated.",
+      "options": [
+        {
+          "text": "Say nothing and remember it.",
+          "dna_points": {
+            "Composure": 2,
+            "Competitive Fire": 1
+          }
+        },
+        {
+          "text": "Tell him he's going to find out personally.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Showmanship": 1
+          }
+        },
+        {
+          "text": "Laugh it off.",
+          "dna_points": {
+            "Composure": 2,
+            "Team First": 1
+          }
+        },
+        {
+          "text": "Publicly defend your r\u00e9sum\u00e9.",
+          "dna_points": {
+            "Showmanship": 2,
+            "Legacy Drive": 1
+          }
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "question": "A teammate makes the mistake that costs your team a playoff game.",
+      "options": [
+        {
+          "text": "Defend him publicly and address it privately.",
+          "dna_points": {
+            "Leadership": 2,
+            "Team First": 1
+          }
+        },
+        {
+          "text": "Say everyone\u2014including yourself\u2014could have done more.",
+          "dna_points": {
+            "Team First": 2,
+            "Leadership": 1
+          }
+        },
+        {
+          "text": "Answer honestly about what happened without attacking anyone.",
+          "dna_points": {
+            "Composure": 2,
+            "Leadership": 1
+          }
+        },
+        {
+          "text": "Forget the blame and immediately start preparing for next season.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Composure": 1
+          }
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "question": "It's the biggest offensive possession of your season. What do you want?",
+      "options": [
+        {
+          "text": "Give me the opportunity to make the play.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Leadership": 1
+          }
+        },
+        {
+          "text": "Run whatever gives the team the best chance.",
+          "dna_points": {
+            "Team First": 2,
+            "Composure": 1
+          }
+        },
+        {
+          "text": "I want everyone in the stadium knowing the ball is coming to me.",
+          "dna_points": {
+            "Showmanship": 2,
+            "Competitive Fire": 1
+          }
+        },
+        {
+          "text": "Execute the offense exactly as we've practiced it.",
+          "dna_points": {
+            "Composure": 2,
+            "Leadership": 1
+          }
+        }
+      ]
+    }
+  ],
+  "defense": [
+    {
+      "number": 1,
+      "question": "Your defense allows the game-winning touchdown. What do you say afterward?",
+      "options": [
+        {
+          "text": "Put it on me.",
+          "dna_points": {
+            "Leadership": 2,
+            "Competitive Fire": 1
+          }
+        },
+        {
+          "text": "Eleven guys own that result.",
+          "dna_points": {
+            "Team First": 2,
+            "Leadership": 1
+          }
+        },
+        {
+          "text": "They made one more play than us.",
+          "dna_points": {
+            "Composure": 2,
+            "Team First": 1
+          }
+        },
+        {
+          "text": "Remember it. We're going to see them again.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Legacy Drive": 1
+          }
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "question": "Which accomplishment would mean the most?",
+      "options": [
+        {
+          "text": "Winning championships.",
+          "dna_points": {
+            "Team First": 2,
+            "Leadership": 1
+          }
+        },
+        {
+          "text": "Becoming the greatest ever at my position.",
+          "dna_points": {
+            "Legacy Drive": 2,
+            "Competitive Fire": 1
+          }
+        },
+        {
+          "text": "Being the defender offenses specifically game-plan around.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Legacy Drive": 1
+          }
+        },
+        {
+          "text": "Leading one of the best defenses in league history.",
+          "dna_points": {
+            "Leadership": 2,
+            "Legacy Drive": 1
+          }
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "question": "An offensive star celebrates directly in front of you.",
+      "options": [
+        {
+          "text": "Walk away and remember it.",
+          "dna_points": {
+            "Composure": 2,
+            "Competitive Fire": 1
+          }
+        },
+        {
+          "text": "Tell him he's going to pay for it.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Showmanship": 1
+          }
+        },
+        {
+          "text": "Smile. I enjoy that kind of competition.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Composure": 1
+          }
+        },
+        {
+          "text": "Make the next play and return the celebration.",
+          "dna_points": {
+            "Showmanship": 2,
+            "Competitive Fire": 1
+          }
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "question": "A teammate blows an assignment and gives up a touchdown.",
+      "options": [
+        {
+          "text": "Get him lined up correctly next time.",
+          "dna_points": {
+            "Leadership": 2,
+            "Team First": 1
+          }
+        },
+        {
+          "text": "Tell him immediately what he did wrong.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Leadership": 1
+          }
+        },
+        {
+          "text": "Encourage him and move on.",
+          "dna_points": {
+            "Team First": 2,
+            "Composure": 1
+          }
+        },
+        {
+          "text": "Stay focused on your own responsibility.",
+          "dna_points": {
+            "Composure": 2,
+            "Leadership": 1
+          }
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "question": "Fourth-and-goal. One stop wins the championship.",
+      "options": [
+        {
+          "text": "I want the responsibility.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Leadership": 1
+          }
+        },
+        {
+          "text": "Trust the call and execute my assignment.",
+          "dna_points": {
+            "Composure": 2,
+            "Team First": 1
+          }
+        },
+        {
+          "text": "I'm looking to end the game with a turnover.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Showmanship": 1
+          }
+        },
+        {
+          "text": "I'm looking to physically dominate whoever enters my area.",
+          "dna_points": {
+            "Competitive Fire": 2,
+            "Legacy Drive": 1
+          }
+        }
+      ]
+    }
+  ]
+}

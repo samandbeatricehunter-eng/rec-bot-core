@@ -1,0 +1,27 @@
+{
+  "status": "PASS",
+  "counts": {
+    "primary_weekly_challenges": 190,
+    "special_teams_challenges": 10,
+    "offseason_media_questions": 1120,
+    "weekly_challenge_media_questions": 950,
+    "weekly_special_teams_postgame": 10,
+    "rti_offense_questions": 160,
+    "rti_defense_questions": 160,
+    "rti_owner_questions": 160,
+    "tweet_personality_slots": 10,
+    "tweet_blueprints": 984,
+    "fan_accounts": 10,
+    "hater_accounts": 10,
+    "fan_angles": 12,
+    "hater_angles": 12,
+    "confidence_contract_dev_questions": 50,
+    "persona_dna_traits": 60,
+    "mindset_focus_options": 4
+  },
+  "count_failures": {},
+  "json_parse_errors": [],
+  "free_agent_frenzy_rule": "Free Agency Open fires on REC advance into Free Agency; Madden internal bidding rounds have no REC/site state; on REC advance out of Free Agency, Free Agency Exit is generated post-advance from the completed roster diff and prepended to the next stage's Media Day queue.",
+  "canonical_weekly_question_bank": 950,
+  "canonical_challenge_bank": "190 primary + 10 Special Teams"
+}

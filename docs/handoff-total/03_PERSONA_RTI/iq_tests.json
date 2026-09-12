@@ -1,0 +1,308 @@
+{
+  "rules": {
+    "iq_start": 80,
+    "iq_max": 140,
+    "iq_questions": 12,
+    "iq_points_per_correct": 5,
+    "seconds_per_question": 25,
+    "timeout_behavior": "record_no_answer_zero_points_and_auto_advance",
+    "back_navigation": false,
+    "characteristic_slots": 6,
+    "characteristics_selected_before_creation_points": true,
+    "baseline_ovr_target": "68-72, centered near 70, derived from active Madden 27 baseline dataset",
+    "post_creation_typical_ovr_target": "76-82",
+    "post_creation_exceptional_target": "83-84; 85+ should be rare"
+  },
+  "offense": [
+    {
+      "number": 1,
+      "question": "Against a defense showing two high safeties before the snap, which clue is generally most useful for distinguishing Cover 2 from Cover 4 after the play begins?",
+      "options": [
+        "The quarterback's depth on his drop",
+        "Whether the cornerbacks sink into deep-quarter responsibility or squat underneath",
+        "Whether the defensive line slants left or right",
+        "Whether the middle linebacker blitzes"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 2,
+      "question": "An offense uses motion and a defender follows the receiver completely across the formation. What does that most strongly suggest?",
+      "options": [
+        "The defense must be playing Cover 3",
+        "The defense is likely using some form of man or match responsibility",
+        "The defense is definitely blitzing",
+        "The defense is playing prevent coverage"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 3,
+      "question": "A quarterback sees a single-high safety with both outside cornerbacks aligned with inside leverage. Which coverage family is most likely being threatened?",
+      "options": [
+        "Cover 1 or Cover 3",
+        "Cover 2 or Cover 6",
+        "Quarters only",
+        "Tampa 2 only"
+      ],
+      "correct_index": 0,
+      "correct_letter": "A"
+    },
+    {
+      "number": 4,
+      "question": "Against Cover 2, why can a route attacking the deep middle be effective?",
+      "options": [
+        "Both cornerbacks abandon the flats",
+        "The two deep safeties divide the field, potentially creating space between them",
+        "The middle linebacker is prohibited from dropping deep",
+        "Cover 2 always sends six rushers"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 5,
+      "question": "In a standard zone-read concept, the quarterback typically leaves which defender unblocked and reads his reaction?",
+      "options": [
+        "Play-side defensive tackle",
+        "Backside edge defender",
+        "Middle linebacker",
+        "Boundary cornerback"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 6,
+      "question": "A defense crowds six defenders near the line of scrimmage, but the offense only has five linemen and a running back involved in protection. What is the quarterback primarily trying to determine before the snap?",
+      "options": [
+        "Which receiver has the highest speed rating",
+        "Which potential rusher the protection cannot account for",
+        "Which defensive tackle is strongest",
+        "Whether the defense is playing inside or outside leverage"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 7,
+      "question": "Why is a high-low passing concept effective against zone coverage?",
+      "options": [
+        "It forces a zone defender to choose between routes attacking different depths",
+        "It prevents the defense from blitzing",
+        "It automatically converts zone coverage into man coverage",
+        "It creates an extra offensive blocker"
+      ],
+      "correct_index": 0,
+      "correct_letter": "A"
+    },
+    {
+      "number": 8,
+      "question": "Against Cover 3, an offense runs a vertical route from the outside receiver and an out-breaking route underneath from the slot. What is the offense primarily trying to stress?",
+      "options": [
+        "The deep middle safety",
+        "The curl-flat defender",
+        "The backside defensive end",
+        "The nose tackle"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 9,
+      "question": "The defense shows a double-A-gap pressure look with linebackers threatening both sides of the center. Why is this especially difficult for an offense?",
+      "options": [
+        "It prevents the quarterback from using play action",
+        "It can create uncertainty over the protection's declaration and which linebacker actually rushes",
+        "It forces every receiver to run a hot route",
+        "It makes outside zone impossible to run"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 10,
+      "question": "Against man coverage, why is a shallow crossing route often effective?",
+      "options": [
+        "It forces a defensive lineman into coverage",
+        "It uses traffic and horizontal separation to make a defender chase across the field",
+        "It prevents safeties from playing deep",
+        "It automatically creates a double team"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 11,
+      "question": "An offense runs four verticals against Cover 3. Which route commonly creates the biggest conflict for the single-high safety?",
+      "options": [
+        "The outside vertical nearest the sideline",
+        "One of the inside seam routes",
+        "The running back checkdown",
+        "A backside flat route"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 12,
+      "question": "Against match quarters, the offense aligns three receivers to one side. Receiver #2 releases vertically while #3 immediately crosses underneath. Why can this route distribution be difficult for the defense?",
+      "options": [
+        "It can force defenders to exchange responsibilities based on post-snap route releases instead of simply guarding fixed zones",
+        "Quarters coverage prohibits defenders from following receivers vertically",
+        "The defense automatically loses one pass rusher against trips",
+        "Match quarters requires all linebackers to blitz when #3 crosses"
+      ],
+      "correct_index": 0,
+      "correct_letter": "A"
+    }
+  ],
+  "defense": [
+    {
+      "number": 1,
+      "question": "An offense aligns three receivers to one side and one receiver isolated on the opposite side. What is this formation commonly called?",
+      "options": [
+        "Empty",
+        "Trips",
+        "Ace",
+        "Split backs"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 2,
+      "question": "Why is offensive motion useful to a quarterback before the snap?",
+      "options": [
+        "It can reveal clues about whether defenders are playing man, zone, or match responsibilities",
+        "It prevents defensive linemen from changing gaps",
+        "It forces the defense into Cover 2",
+        "It eliminates blitzes"
+      ],
+      "correct_index": 0,
+      "correct_letter": "A"
+    },
+    {
+      "number": 3,
+      "question": "What is the primary responsibility of a force or edge defender against an outside run?",
+      "options": [
+        "Chase the ball carrier from behind",
+        "Prevent the runner from freely reaching the outside and force the play back toward pursuit",
+        "Cover the deepest receiver",
+        "Blitz through the opposite A-gap"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 4,
+      "question": "In Cover 3, how is the deep portion of the field generally divided?",
+      "options": [
+        "Two deep halves",
+        "Three deep zones",
+        "Four equal deep quarters",
+        "One deep zone"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 5,
+      "question": "Why is play-action especially effective against linebackers?",
+      "options": [
+        "It can influence defenders responsible for run fits to step toward the line before recognizing the pass",
+        "It prevents linebackers from blitzing",
+        "It makes man coverage illegal",
+        "It forces linebackers to cover offensive linemen"
+      ],
+      "correct_index": 0,
+      "correct_letter": "A"
+    },
+    {
+      "number": 6,
+      "question": "A defense wants to disguise Cover 3 as Cover 2 before the snap. Which technique could help accomplish this?",
+      "options": [
+        "Align two safeties high, then rotate one down after the snap",
+        "Remove both safeties from the field",
+        "Put every cornerback in press alignment",
+        "Blitz all linebackers"
+      ],
+      "correct_index": 0,
+      "correct_letter": "A"
+    },
+    {
+      "number": 7,
+      "question": "In man coverage, why is inside versus outside leverage important?",
+      "options": [
+        "It determines which portion of the receiver's release or route the defender is trying to take away",
+        "It determines which defensive lineman blitzes",
+        "It changes the down and distance",
+        "It controls whether the offense can use motion"
+      ],
+      "correct_index": 0,
+      "correct_letter": "A"
+    },
+    {
+      "number": 8,
+      "question": "An offense repeatedly attacks a Cover 2 defense with corner routes and underneath flat routes on the same side. Which defender is being placed in conflict?",
+      "options": [
+        "The deep middle safety",
+        "The cornerback responsible for the underneath flat area",
+        "The nose tackle",
+        "The backside defensive end"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 9,
+      "question": "Why can a robber defender be dangerous against intermediate crossing or in-breaking routes?",
+      "options": [
+        "He is positioned to read the quarterback and potentially jump routes developing underneath the deep coverage",
+        "He automatically rushes untouched",
+        "He is responsible for both outside receivers deep",
+        "He prevents all quarterback scrambles"
+      ],
+      "correct_index": 0,
+      "correct_letter": "A"
+    },
+    {
+      "number": 10,
+      "question": "Against a zone-read offense, the quarterback reads the backside edge defender. If that defender aggressively crashes toward the running back, what is the offense generally trying to make the quarterback do?",
+      "options": [
+        "Hand the ball off",
+        "Keep the football and attack the space vacated by the edge defender",
+        "Throw the ball away",
+        "Check into a punt"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    },
+    {
+      "number": 11,
+      "question": "In Cover 3, the offense runs four vertical routes. Why do the seam routes create particular stress?",
+      "options": [
+        "They can attack the space between the outside deep-third defenders and the middle-third safety",
+        "They force every linebacker to blitz",
+        "They eliminate the outside cornerbacks from the play",
+        "Cover 3 cannot defend routes past 10 yards"
+      ],
+      "correct_index": 0,
+      "correct_letter": "A"
+    },
+    {
+      "number": 12,
+      "question": "In match quarters, what primarily determines whether a defender continues carrying a receiver like man coverage or passes him into another defender's responsibility?",
+      "options": [
+        "The quarterback's cadence",
+        "The route distribution and releases of eligible receivers after the snap",
+        "The offensive line's pass set",
+        "The location of the running back before the snap"
+      ],
+      "correct_index": 1,
+      "correct_letter": "B"
+    }
+  ]
+}
