@@ -36,11 +36,45 @@ const TYPE_LABELS: Record<CommissionerNotificationType, string> = {
   force_win_request: "Force Win Request", autopilot_request: "AutoPilot Request",
   matchup_issue_report: "Matchup Issue", trade: "Trade",
 };
-const ALL_TYPES = Object.keys(TYPE_LABELS) as CommissionerNotificationType[];
-// EOS Payout and Stream get their own tab regardless of whether anything is pending right
-// now, since they're recurring commissioner workflows worth always being able to find —
-// unlike the other types, which only earn a pill when something's actually waiting.
-const ALWAYS_VISIBLE_TYPES: CommissionerNotificationType[] = ["eos_payout", "stream"];
+const CATEGORIES = ["streams", "highlights", "upgrades", "dev_traits", "age_resets", "contracts", "custom_players", "legends", "other"] as const;
+type PendingCategory = typeof CATEGORIES[number];
+const CATEGORY_LABELS: Record<PendingCategory, string> = {
+  streams: "Streams", highlights: "Highlights", upgrades: "Upgrades", dev_traits: "Dev Traits",
+  age_resets: "Age Resets", contracts: "Contracts", custom_players: "Custom Players",
+  legends: "Legends", other: "Other",
+};
+
+function categoryFor(notification: CommissionerNotification): PendingCategory {
+  switch (notification.type) {
+    case "stream": return "streams";
+    case "highlight": return "highlights";
+    case "immortality_upgrade_batch":
+    case "immortality_tree_purchase":
+    case "immortality_owner_tree_purchase":
+    case "immortality_xp_conversion":
+    case "immortality_ability_change": return "upgrades";
+    case "immortality_dev_promotion": return "dev_traits";
+    case "custom_player":
+    case "immortality_prospect": return "custom_players";
+    case "legend": return "legends";
+    case "purchase": {
+      const purchaseType = String(notification.payload?.purchaseType ?? notification.payload?.purchase_type ?? "");
+      if (purchaseType === "attribute") return "upgrades";
+      if (purchaseType === "dev_upgrade") return "dev_traits";
+      if (purchaseType === "age_reset") return "age_resets";
+      if (purchaseType === "contract") return "contracts";
+      if (purchaseType === "custom_player") return "custom_players";
+      if (purchaseType === "legend") return "legends";
+      return "other";
+    }
+    default: return "other";
+  }
+}
+
+function categoryFromInitialFilter(initialFilter: CommissionerNotificationType | "all"): PendingCategory {
+  if (initialFilter === "all") return "streams";
+  return categoryFor({ type: initialFilter, payload: null } as CommissionerNotification);
+}
 
 // Trade cards render a structured breakdown (teams, assets, evaluator verdict) from the
 // inbox payload — the same value snapshot the trade was evaluated with. Works for rows
@@ -100,7 +134,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
   const [completed, setCompleted] = useState<CompletedCommissionerTransaction[] | null>(null);
   const [view, setView] = useState<"pending" | "completed">("pending");
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<CommissionerNotificationType | "all">(initialFilter);
+  const [filter, setFilter] = useState<PendingCategory>(() => categoryFromInitialFilter(initialFilter));
   const [activeActiveCheckId, setActiveActiveCheckId] = useState<string | null>(null);
   const [activeEosAwardId, setActiveEosAwardId] = useState<string | null>(null);
   const [activeResolve, setActiveResolve] = useState<CommissionerNotification | null>(null);
@@ -114,6 +148,10 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
       .then(([pendingResult, completedResult]) => {
         setNotifications(pendingResult.notifications);
         setCompleted(completedResult.transactions);
+        if (initialFilter === "all" && notifications === null) {
+          const firstPopulated = CATEGORIES.find((category) => pendingResult.notifications.some((item) => categoryFor(item) === category));
+          if (firstPopulated) setFilter(firstPopulated);
+        }
         setError(null);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load notifications."));
@@ -121,11 +159,9 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
 
   useEffect(load, [guildId]);
   // EOS Payout rows open the ledger UI rather than a notification card.
-  const eosNotifications = notifications?.filter((notification) => notification.type === "eos_payout") ?? [];
   const cardNotifications = notifications?.filter((notification) => notification.type !== "eos_payout") ?? [];
-  const visible = cardNotifications.filter((notification) => filter === "all" || notification.type === filter);
-  const typesPresent = new Set(notifications?.map((notification) => notification.type) ?? []);
-  const showEosLedgers = filter === "eos_payout" || (filter === "all" && eosNotifications.length > 0);
+  const visible = cardNotifications.filter((notification) => categoryFor(notification) === filter);
+  const showEosLedgers = filter === "other";
 
   function openNotification(notification: CommissionerNotification) {
     // Custom-player review needs the full identity/attribute-edit UI, not the generic
@@ -203,8 +239,7 @@ export function PendingItemsPanel({ initialFilter = "all" }: { initialFilter?: C
 
       {view === "pending" ? <>
         <div className="pending-items-category-row" role="group" aria-label="Pending item categories">
-          <button type="button" className={filter === "all" ? "pending-items-category is-active" : "pending-items-category"} aria-pressed={filter === "all"} onClick={() => setFilter("all")}>All ({notifications.length})</button>
-          {ALL_TYPES.filter((type) => typesPresent.has(type) || ALWAYS_VISIBLE_TYPES.includes(type)).map((type) => <button key={type} type="button" className={filter === type ? "pending-items-category is-active" : "pending-items-category"} aria-pressed={filter === type} onClick={() => setFilter(type)}>{TYPE_LABELS[type]} ({notifications.filter((notification) => notification.type === type).length})</button>)}
+          {CATEGORIES.map((category) => <button key={category} type="button" className={filter === category ? "pending-items-category is-active" : "pending-items-category"} aria-pressed={filter === category} onClick={() => setFilter(category)}>{CATEGORY_LABELS[category]} ({notifications.filter((notification) => categoryFor(notification) === category).length})</button>)}
         </div>
         {showEosLedgers && <EosPayoutLedgers onResolved={(message) => { setNotice(message); load(); window.dispatchEvent(new Event("rec:notifications-changed")); }} />}
         {visible.length > 0 ? <div className="pending-items-scroll-list">{visible.map(renderNotificationCard)}</div> : !showEosLedgers && <Card><p style={{ margin: 0, color: "var(--text-secondary)" }}>Nothing pending here.</p></Card>}
