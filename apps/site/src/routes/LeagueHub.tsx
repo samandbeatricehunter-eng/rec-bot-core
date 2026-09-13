@@ -27,6 +27,8 @@ import {
   RolesHome,
   RulesHome,
   SettingsHome,
+  StatsMiniNav,
+  type StatsNavId,
   TeamOwnershipTable,
   TeamRosterForm,
   TeamScheduleForm,
@@ -278,6 +280,41 @@ async function composeHubContextFromLists(leagueId: string): Promise<{ guildId: 
   return { guildId, discordId };
 }
 
+type StatsFamilyView = "stats" | "standings" | "records" | "history" | "career-stats" | "playoff-bracket";
+
+function isStatsFamilyView(view: HubView): view is StatsFamilyView {
+  return view === "stats" || view === "standings" || view === "records"
+    || view === "history" || view === "career-stats" || view === "playoff-bracket";
+}
+
+const STATS_FAMILY_NAV_ID: Record<Exclude<StatsFamilyView, "stats">, StatsNavId> = {
+  standings: "standings",
+  records: "records",
+  history: "history",
+  "career-stats": "career",
+  "playoff-bracket": "bracket",
+};
+
+/** Persistent chassis for the Stats-family destinations (League Stats / Division Standings /
+ * League Records / League History / Career Stats / Playoff Bracket): renders StatsMiniNav
+ * exactly once here rather than once per destination page, so switching between these six no
+ * longer unmounts/remounts the nav along with the page content (they were separate top-level
+ * components at the same ternary position below -- same problem class as a hub tab switch,
+ * just one level up). `active` is derived from the URL, not passed in by each page, so removing
+ * each page's own <StatsMiniNav> render is a pure extraction with no behavior change. */
+function StatsSectionLayout({ view, leagueId, children }: { view: StatsFamilyView; leagueId: string; children: ReactNode }) {
+  const [searchParams] = useSearchParams();
+  const active: StatsNavId = view === "stats"
+    ? (searchParams.get("view") === "season" || searchParams.get("view") === "team" ? (searchParams.get("view") as StatsNavId) : "leaders")
+    : STATS_FAMILY_NAV_ID[view];
+  return (
+    <>
+      <StatsMiniNav active={active} leagueId={leagueId} />
+      {children}
+    </>
+  );
+}
+
 /**
  * Renders the Discord hub panels inside the site shell (no iframe).
  * Uses the site BrowserRouter only — never nest MemoryRouter.
@@ -445,20 +482,17 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
                     <FantasyDraftBoardPage />
                   ) : view === "mgmt" ? (
                     <HubMgmtRoutes />
-                  ) : view === "playoff-bracket" ? (
-                    <NflPlayoffBracket />
+                  ) : isStatsFamilyView(view) ? (
+                    <StatsSectionLayout view={view} leagueId={leagueId}>
+                      {view === "playoff-bracket" ? <NflPlayoffBracket />
+                        : view === "history" ? <LeagueHistoryHome />
+                        : view === "records" ? <LeagueRecordsHome />
+                        : view === "stats" ? <LeagueStatsHome />
+                        : view === "standings" ? <LeagueStandingsHome />
+                        : <LeagueCareerStatsHome />}
+                    </StatsSectionLayout>
                   ) : view === "rules" ? (
                     <RulesHome />
-                  ) : view === "history" ? (
-                    <LeagueHistoryHome />
-                  ) : view === "records" ? (
-                    <LeagueRecordsHome />
-                  ) : view === "stats" ? (
-                    <LeagueStatsHome />
-                  ) : view === "standings" ? (
-                    <LeagueStandingsHome />
-                  ) : view === "career-stats" ? (
-                    <LeagueCareerStatsHome />
                   ) : (
                     <HubHomeBridge key={leagueId} view={view} leagueId={leagueId} />
                   )}

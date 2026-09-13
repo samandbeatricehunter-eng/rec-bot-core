@@ -11,7 +11,7 @@ export { LeagueStatsHome } from "../../../apps/web/src/routes/hub/LeagueStatsHom
 export { LeagueRecordsHome } from "../../../apps/web/src/routes/hub/LeagueRecordsHome.js";
 export { LeagueStandingsHome } from "../../../apps/web/src/routes/hub/LeagueStandingsHome.js";
 export { LeagueCareerStatsHome } from "../../../apps/web/src/routes/hub/LeagueCareerStatsHome.js";
-export { StatsMiniNav } from "../../../apps/web/src/components/hub/StatsMiniNav.js";
+export { StatsMiniNav, type StatsNavId } from "../../../apps/web/src/components/hub/StatsMiniNav.js";
 export { TeamMiniNav } from "../../../apps/web/src/components/hub/TeamMiniNav.js";
 export { SectionMiniNav } from "../../../apps/web/src/components/hub/SectionMiniNav.js";
 export { StandingsMiniNav } from "../../../apps/web/src/components/hub/StandingsMiniNav.js";

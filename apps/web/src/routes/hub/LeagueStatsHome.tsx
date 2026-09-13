@@ -18,8 +18,6 @@ import { PageHeader } from "../../components/ui/PageHeader.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { TeamLogo } from "../../components/ui/TeamLogo.js";
 import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
-import { StatsMiniNav, type StatsNavId } from "../../components/hub/StatsMiniNav.js";
-import { useHubChrome } from "../../lib/hub-chrome-context.js";
 
 type StatsResponse = Awaited<ReturnType<typeof recApi.getLeagueStats>>;
 type StatsPlayer = StatsResponse["players"][number];
@@ -267,15 +265,12 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
 
 export function LeagueStatsHome() {
   const { guildId } = useReadyAuth();
-  const { currentLeague } = useHubChrome();
   const [searchParams] = useSearchParams();
   const rawView = searchParams.get("view");
   const view: "leaders" | "season" | "team" =
     rawView === "season" || rawView === "team" ? rawView : "leaders";
-  const activeNav: StatsNavId = view;
 
   return <div className="hub-section">
-    {currentLeague?.id ? <StatsMiniNav active={activeNav} leagueId={currentLeague.id} /> : null}
     {view === "leaders" && <LeagueLeadersView guildId={guildId} />}
     {view === "season" ? (
       <>

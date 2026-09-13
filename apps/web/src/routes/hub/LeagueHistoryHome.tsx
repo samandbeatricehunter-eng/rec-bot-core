@@ -9,7 +9,6 @@ import { Button } from "../../components/ui/Button.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
-import { StatsMiniNav } from "../../components/hub/StatsMiniNav.js";
 
 function isCfbGame(game: string | null) {
   return (game ?? "").startsWith("cfb");
@@ -205,7 +204,6 @@ export function LeagueHistoryHome({ embedded = false }: { embedded?: boolean } =
 
   return (
     <div className="hub-page">
-      {currentLeague?.id ? <StatsMiniNav active="history" leagueId={currentLeague.id} /> : null}
       {!embedded && <PageHeader title="League History" subtitle={history.league.name} actions={backAction} />}
       {history.seasons.length === 0 ? (
         <p className="hub-empty">No completed seasons yet — check back after Season {history.currentSeason} wraps up.</p>

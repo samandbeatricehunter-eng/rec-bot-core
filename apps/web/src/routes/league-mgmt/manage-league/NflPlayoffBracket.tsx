@@ -1,10 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { useLocation } from "react-router-dom";
 import { recApi } from "../../../lib/rec-api-client.js";
 import { useReadyAuth } from "../../../lib/auth-context.js";
-import { useHubChrome } from "../../../lib/hub-chrome-context.js";
 import type { NflPlayoffMatchup, NflPlayoffPicture, NflTeamSummary } from "../../../types/api.js";
-import { StatsMiniNav } from "../../../components/hub/StatsMiniNav.js";
 import { Card } from "../../../components/ui/Card.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
@@ -360,11 +357,6 @@ export function PlayoffPictureBoard({ picture }: { picture: NflPlayoffPicture })
 
 export function NflPlayoffBracket() {
   const { guildId } = useReadyAuth();
-  const location = useLocation();
-  const leagueId = useHubChrome().currentLeague?.id
-    ?? readBracketCache(guildId)?.picture.league.leagueId
-    ?? "";
-  const showStandingsNav = location.pathname.includes("/playoff-bracket") && !location.pathname.includes("/mgmt/");
   const [view, setView] = useState<CachedBracketView | null>(() => readBracketCache(guildId));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(() => !readBracketCache(guildId));
@@ -415,13 +407,8 @@ export function NflPlayoffBracket() {
     return () => { cancelled = true; };
   }, [guildId]);
 
-  const resolvedLeagueId = leagueId || view?.picture.league.leagueId || "";
-
   return (
     <div className="nfl-bracket-page">
-      {showStandingsNav && resolvedLeagueId ? (
-        <StatsMiniNav active="bracket" leagueId={resolvedLeagueId} bracketAvailable />
-      ) : null}
       {error && <ErrorState message={error} />}
       {loading && !view && <LoadingState label="Loading the playoff picture…" />}
 

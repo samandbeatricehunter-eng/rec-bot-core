@@ -1,10 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { getTeamByAbbreviation, nflPlayoffPictureLive, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
+import { getTeamByAbbreviation, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import { readStandingsBoardCache, writeStandingsBoardCache, type StandingsBoardResponse } from "../../lib/standings-board-cache.js";
-import { StatsMiniNav } from "../../components/hub/StatsMiniNav.js";
 import { ErrorState } from "../../components/ui/ErrorState.js";
 import { LoadingState } from "../../components/ui/LoadingState.js";
 import { TeamLogo } from "../../components/ui/TeamLogo.js";
@@ -403,18 +402,6 @@ export function LeagueStandingsHome() {
   }, [guildId]);
 
   const teams = board?.powerRankings?.teams ?? [];
-  // Live from Week 12 through postseason/offseason; also keep the button available once a
-  // prior season exists (snapshot fallback) or the league is in preseason/TC so members can
-  // still open last season's settled bracket until the next Week 12 projection.
-  const bracketAvailable = board
-    ? nflPlayoffPictureLive({
-      weekNumber: Number(board.league.weekNumber ?? 0),
-      seasonStage: String(board.league.seasonStage ?? ""),
-      game: board.league.game,
-    })
-      || Number(board.league.seasonNumber ?? 1) > 1
-      || ["preseason", "preseason_training_camp"].includes(String(board.league.seasonStage ?? ""))
-    : false;
   const sosByTeam = useMemo(() => {
     const map = new Map<string, SosTeam>();
     for (const team of board?.sos?.teams ?? []) map.set(team.teamId, team);
@@ -426,18 +413,11 @@ export function LeagueStandingsHome() {
   return (
     <div className="hub-section hub-standings-page">
       {hubError ? <ErrorState message={hubError} /> : loading && !board ? <LoadingState label="Loading standings…" /> : !board ? null : (
-        <>
-          <StatsMiniNav
-            active="standings"
-            leagueId={board.league.id}
-            bracketAvailable={bracketAvailable}
-          />
-          <div className="hub-standings-board-wrap">
-            <h2>{boardTitle}</h2>
-            {view === "division" ? <PlayoffMarkerKey className="hub-standings-key" /> : null}
-            <DivisionStandingsBoard teams={teams} view={view} sosByTeam={sosByTeam} />
-          </div>
-        </>
+        <div className="hub-standings-board-wrap">
+          <h2>{boardTitle}</h2>
+          {view === "division" ? <PlayoffMarkerKey className="hub-standings-key" /> : null}
+          <DivisionStandingsBoard teams={teams} view={view} sosByTeam={sosByTeam} />
+        </div>
       )}
     </div>
   );
