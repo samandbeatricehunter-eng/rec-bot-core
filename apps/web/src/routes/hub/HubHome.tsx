@@ -1474,45 +1474,9 @@ export function HubHome() {
     <div className="hub-body">
       <main className="hub-content">
     {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><TeamMiniNav active="team" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{coachName}</p></div></div>
-      {isCfbLeague && <DefenseNicknamePrompt />}
-      {isCfbLeague ? <>
-      <div className="hub-gameday-card hub-quick-actions-card hub-my-team-quick-actions">
-        <p className="hub-eyebrow">Quick actions</p>
-        <div className="hub-gameday-actions hub-quick-actions-row hub-quick-actions-row-compact">
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => void viewMySchedule()}><IconWell size="sm" icon={<ScheduleIcon size={16} />} /><div><strong>Schedule</strong><span>Full season</span></div></button>
-          {!isRise ? <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => setMediaDayOpen(true)}><IconWell size="sm" icon={<InterviewMicIcon size={16} />} /><div><strong>Media Day</strong><span>Weekly interview</span></div></button> : null}
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => openSportsbook()}><IconWell size="sm" icon={<Coins size={16} />} /><div><strong>Place a Wager</strong><span>Sportsbook</span></div></button>
-          <button type="button" className="hub-shortcut-card hub-quick-action" onClick={() => selectSection("roster")}><IconWell size="sm" icon={<ManageTeamIcon size={16} />} /><div><strong>Manage Team</strong><span>Roster &amp; players</span></div></button>
-        </div>
-      </div>
-      <div className="hub-stat-grid">
-      <article><span>Coach</span><strong>{coachName}</strong></article><article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article><article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article><article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article><article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article><article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article>
-    </div><div className="hub-profile-sections">
-      <details open><summary><WalletCards size={18} /> Funds &amp; Savings</summary><div className="hub-profile-panel"><WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} /></div></details>
-      <details open><summary><Trophy size={18} /> Records</summary><div className="hub-profile-panel hub-record-grid"><article><span>Current season</span><strong>{profile.seasonRecord?.text ?? my.leagueSeasonRecordText ?? "0-0-0"}</strong><small>PD {Number(profile.seasonRecord?.pointDifferential ?? 0) >= 0 ? "+" : ""}{profile.seasonRecord?.pointDifferential ?? 0} · Streak {profile.seasonRecord?.activeStreak ?? "—"}</small></article><article><span>All-time (this league)</span><strong>{profile.leagueCareerRecord?.text ?? profile.seasonRecord?.text ?? "0-0-0"}</strong><small>PD {Number(profile.leagueCareerRecord?.pointDifferential ?? 0) >= 0 ? "+" : ""}{profile.leagueCareerRecord?.pointDifferential ?? 0} · Streak {profile.leagueCareerRecord?.activeStreak ?? profile.careerStats?.activeStreak ?? "—"}</small></article><article><span>Power ranking</span><strong>{heroRank}</strong><small>{profile.powerRank?.rank ? `Score ${heroUserScore}` : "Pending"}</small></article></div></details>
-      {!isRise && auth.status === "ready" ? <details open><summary><Award size={18} /> Team Challenges</summary><div className="hub-profile-panel"><WeeklyChallengesCard guildId={auth.guildId} /></div></details> : null}
-      <details><summary><TrendingUp size={18} /> EOS Payout Progress</summary><div className="hub-profile-panel"><EosPayoutProgressPanel /></div></details>
-      <details><summary><Landmark size={18} /> Current Season Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.seasonStats} /></div></details>
-      <details><summary><Landmark size={18} /> All-Time Stats</summary><div className="hub-profile-panel"><ProfileStats values={profile.careerStats} /><p className="hub-muted">League career only — global totals live on My Account.</p></div></details>
-      <details><summary><Award size={18} /> League Awards</summary><div className="hub-profile-panel">{(profile.leagueAwards ?? profile.globalAwards)?.length ? <div className="hub-badge-group"><div className="hub-badge-shelf">{(profile.leagueAwards ?? profile.globalAwards).map((award: any) => <article key={award.awardName} className="hub-badge-award"><Trophy size={18} /><div><strong>{award.awardName}</strong><span>Won {award.count}×</span></div></article>)}</div></div> : <p className="hub-muted">No league awards yet.</p>}</div></details>
-      <details><summary><WalletCards size={18} /> Financial Profile</summary><div className="hub-profile-panel"><FinancialLedger summary={profile.financialSummary} /></div></details>
-    </div></> : <MaddenMyTeamGrid
-        coachName={coachName}
-        my={my}
-        profile={profile}
-        heroRank={heroRank}
-        heroUserScore={heroUserScore}
-        selectSection={selectSection}
-        viewMySchedule={viewMySchedule}
-        openMediaDay={() => setMediaDayOpen(true)}
-        setPowerRankingsModalOpen={setPowerRankingsModalOpen}
-        setBankModalOpen={setBankModalOpen}
-        setFinancialModalOpen={setFinancialModalOpen}
-        setCareerStatsModalOpen={setCareerStatsModalOpen}
-        onOpenWagers={() => openSportsbook("board")}
-        leagueId={hub.league.id}
-        isRise={isRise}
-      />}
+      {/* Body intentionally cleared for a redesign -- was MaddenMyTeamGrid (stat grid + quick
+          action cards) on the live (non-CFB) path, CFB-only dead code before that. TeamMiniNav
+          and the heading above stay; rebuild the content below them fresh. */}
       {!isCfbLeague && careerStatsModalOpen && <Modal title="Career Stats" onClose={() => setCareerStatsModalOpen(false)}>
         <ProfileStats values={profile.careerStats} hideBoxScoresUploaded />
         <p className="hub-muted">League career only — global totals live on My Account. Player-level career stats aren't tracked yet — League Stats has a per-player season breakdown.</p>
