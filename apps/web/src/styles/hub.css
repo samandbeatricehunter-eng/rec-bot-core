@@ -3812,8 +3812,11 @@ button.poty:disabled {
   width: 100%;
   /* Horizontal padding here would shrink .hub-season-snapshot's min(100%,980px) basis below
      every mini-nav's (they sit directly in .hub-page with no padded ancestor), making League
-     Home's chassis render narrower than every other page's at in-between viewport widths. */
-  padding-block: clamp(16px, 3vw, 34px);
+     Home's chassis render narrower than every other page's at in-between viewport widths.
+     Top spacing lives on .hub-season-snapshot-box itself now (below), not here, so every page's
+     box gets the same gap under the header -- only the bottom gap before the Rise media card
+     stays local to this wrapper. */
+  padding-bottom: clamp(16px, 3vw, 34px);
   overflow: visible;
 }
 .hub-hero-centered-header {
@@ -3912,7 +3915,9 @@ button.poty:disabled {
   grid-template-columns:repeat(4, minmax(0,1fr));
   gap:8px;
   width:min(980px, 100%);
-  margin:0 auto 14px;
+  /* Same top gap under the header as .hub-season-snapshot-box (League Home/League Mgmt) --
+     this nav is always the first thing on its page too, so it needs the identical margin. */
+  margin: clamp(16px, 3vw, 34px) auto 14px;
   padding:7px;
   border:1px solid rgba(255,70,70,.28);
   border-radius:12px;
@@ -4464,6 +4469,11 @@ button.poty:disabled {
    row (.hub-season-snapshot-grid) carried its own border/background/shadow, so the two rows
    read as two separate boxes stacked on top of each other instead of one unified panel. */
 .hub-season-snapshot-box {
+  /* Same gap under the header on every page -- this used to live on .hub-hero-rebuilt, which
+     only wrapped League Home's own snapshot, so every other mini-nav sat flush against the
+     header instead. Living on the box itself, it applies uniformly wherever this class is used
+     (League Home, League Mgmt's merged status/nav box). */
+  margin-top: clamp(16px, 3vw, 34px);
   padding:7px;
   border:1px solid rgba(255,70,70,.28);
   border-radius:12px;

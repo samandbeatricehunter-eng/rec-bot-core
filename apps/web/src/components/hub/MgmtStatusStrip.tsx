@@ -73,7 +73,7 @@ export function MgmtStatusStrip({ leagueId, active }: { leagueId: string; active
         <article><span>Stage</span><strong>{stage}</strong></article>
         <article title={gamesTitle || undefined}><span>Games</span><strong>{scheduledCount}/{scheduledTotal || "—"} · {completedCount}/{completedTotal || "—"}</strong></article>
         <article title={healthTitle}><span>League Health</span><strong>{health ? `${health.percent}%` : "—"}</strong></article>
-        <Link to={`/l/${leagueId}/mgmt/publishing`}><span>Media</span><strong>Generate</strong></Link>
+        <Link to={`/l/${leagueId}/mgmt/publishing`}><span>Media</span><strong>Create</strong></Link>
       </div>
       <div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="League Mgmt views">
         {navItem("inbox", "Pending", "Inbox", `${base}/inbox`)}
