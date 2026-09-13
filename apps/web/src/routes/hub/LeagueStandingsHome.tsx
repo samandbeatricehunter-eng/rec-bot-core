@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useSearchParams } from "react-router-dom";
 import { getTeamByAbbreviation, nflPlayoffPictureLive, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
 import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
@@ -181,7 +180,7 @@ function fitLabelToWidth(el: HTMLElement, maxPx: number, minPx: number) {
 /** City is always capped below the nick size so long cities never visually outrank short nicks. */
 const CITY_TO_NICK_RATIO = 0.52;
 
-function StandingIdentity({ city, nick }: { city: string; nick: string }) {
+function StandingIdentity({ city, nick, rank, eaUsername }: { city: string; nick: string; rank: number | null; eaUsername: string | null }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const cityRef = useRef<HTMLElement | null>(null);
   const nickRef = useRef<HTMLElement | null>(null);
@@ -216,7 +215,11 @@ function StandingIdentity({ city, nick }: { city: string; nick: string }) {
   return (
     <div className="hub-div-standing-identity" ref={wrapRef}>
       {city ? <small ref={(node) => { cityRef.current = node; }} className="hub-div-standing-city">{city}</small> : null}
-      <strong ref={(node) => { nickRef.current = node; }} className="hub-div-standing-nick">{nick}</strong>
+      <span className="hub-div-standing-nick-row">
+        <strong ref={(node) => { nickRef.current = node; }} className="hub-div-standing-nick">{nick}</strong>
+        {rank != null ? <span className="hub-div-standing-rank">(#{rank})</span> : null}
+      </span>
+      {eaUsername ? <small className="hub-div-standing-ea">{eaUsername}</small> : null}
     </div>
   );
 }
@@ -249,14 +252,18 @@ function StandingTeamBlock({
     ) : "—";
   }
 
+  // SoS is no longer its own page (see StatsMiniNav) -- surfaced as a hover tooltip on the
+  // card instead, appended to the existing team-name title.
+  const sosTitle = sos ? ` · SoS ${sos.sosFull.toFixed(2)} (remaining ${sos.sosRemaining.toFixed(2)})` : "";
+
   return (
     <article
       className={`hub-div-standing-team${showPlayoff && (team.playoffMarker === "Y" || team.playoffMarker === "Z") ? " is-division-leader" : ""}`}
       style={{ ["--team-color" as string]: color, ["--team-ink" as string]: ink }}
-      title={team.teamName}
+      title={`${team.teamName}${sosTitle}`}
     >
       <TeamLogo abbreviation={team.abbr} alt="" className="hub-div-standing-logo" priority />
-      <StandingIdentity city={city} nick={nick} />
+      <StandingIdentity city={city} nick={nick} rank={team.rank ?? null} eaUsername={team.eaUsername ?? null} />
       <strong className="hub-div-standing-record">{metric}</strong>
       {conferenceRank != null ? <span className="hub-div-standing-conf-rank">{conferenceRank}</span> : null}
       {showPlayoff && team.playoffMarker ? <span className="hub-div-standing-marker">{team.playoffMarker}</span> : null}
@@ -356,12 +363,14 @@ function PlayoffMarkerKey({ className }: { className: string }) {
 
 export function LeagueStandingsHome() {
   const { guildId } = useReadyAuth();
-  const [searchParams] = useSearchParams();
   const [board, setBoard] = useState<StandingsBoardResponse | null>(() => readStandingsBoardCache(guildId));
   const [hubError, setHubError] = useState<string | null>(null);
   const [loading, setLoading] = useState(() => !readStandingsBoardCache(guildId));
-  const viewParam = String(searchParams.get("view") ?? "division");
-  const view: StandingsView = viewParam === "power" || viewParam === "sos" ? viewParam : "division";
+  // Power Rankings and Strength of Schedule are no longer separate destinations (see
+  // StatsMiniNav) -- this is always the division view now; power rank shows inline per team
+  // and SoS is a hover tooltip. StandingsView/the power/sos branches below are harmless dead
+  // paths kept so an old bookmarked ?view=power/sos link still renders instead of erroring.
+  const view: StandingsView = "division";
 
   useEffect(() => {
     let cancelled = false;
@@ -412,14 +421,14 @@ export function LeagueStandingsHome() {
     return map;
   }, [board?.sos?.teams]);
 
-  const boardTitle = view === "division" ? "Division Standings" : view === "power" ? "Power Rankings" : "Strength of Schedule";
+  const boardTitle = "Division Standings";
 
   return (
     <div className="hub-section hub-standings-page">
       {hubError ? <ErrorState message={hubError} /> : loading && !board ? <LoadingState label="Loading standings…" /> : !board ? null : (
         <>
           <StatsMiniNav
-            active={view === "division" ? "standings" : view}
+            active="standings"
             leagueId={board.league.id}
             bracketAvailable={bracketAvailable}
           />

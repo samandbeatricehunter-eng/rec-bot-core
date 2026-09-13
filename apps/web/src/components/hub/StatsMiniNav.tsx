@@ -15,9 +15,14 @@ export type StatsNavId =
   | "stats";
 
 /**
- * Desktop rows (5 + 5):
- * 1) League Leaders · Season Stats · Career Stats · Team Stats · League Records
- * 2) Division Standings · Power Rankings · Strength of Schedule · Playoff Bracket · League History
+ * Desktop rows (4 + 4):
+ * 1) League Leaders · Season Stats · Career Stats · Team Stats
+ * 2) League Records · Division Standings · Playoff Bracket · League History
+ *
+ * Power Rankings and Strength of Schedule are no longer separate destinations -- Division
+ * Standings shows each team's power rank inline (next to its nickname) and SoS as a hover
+ * tooltip, so those two nav buttons were trimmed rather than duplicating the same data behind
+ * a second click.
  */
 export function StatsMiniNav({
   active,
@@ -42,8 +47,6 @@ export function StatsMiniNav({
         { id: "team", top: "Team", bottom: "Stats", to: `${base}/stats?view=team` },
         { id: "records", top: "League", bottom: "Records", to: `${base}/records` },
         { id: "standings", top: "Division", bottom: "Standings", to: `${base}/standings` },
-        { id: "power", top: "Power", bottom: "Rankings", to: `${base}/standings?view=power` },
-        { id: "sos", top: "Strength of", bottom: "Schedule", to: `${base}/standings?view=sos` },
         {
           id: "bracket",
           top: "Playoff",

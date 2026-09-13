@@ -4212,6 +4212,36 @@ button.poty:disabled {
     3px 6px 7px rgba(0,0,0,.55);
 }
 .hub-div-standing-power { display:none; }
+.hub-div-standing-nick-row { display:flex; align-items:baseline; gap:5px; min-width:0; }
+.hub-div-standing-nick-row .hub-div-standing-nick { width:auto; flex:0 1 auto; }
+/* Power rank, inline next to the nickname -- replaces the separate Power Rankings page. */
+.hub-div-standing-rank {
+  flex:none;
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-weight:700;
+  font-size:13px;
+  color:#ffe27a;
+  text-shadow:0 1px 0 #000,1px 2px 3px rgba(0,0,0,.6);
+}
+/* Each coach's EA username, in black per spec -- backed by a light chip so it stays readable
+   against every team color, including the darkest ones. */
+.hub-div-standing-ea {
+  display:inline-block;
+  align-self:flex-start;
+  margin-top:2px;
+  padding:1px 6px;
+  border-radius:4px;
+  background:rgba(255,255,255,.72);
+  color:#000;
+  font-family:"Arial Narrow",Arial,sans-serif;
+  font-weight:600;
+  font-size:10.5px;
+  letter-spacing:.02em;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:100%;
+}
 .hub-div-standing-record {
   justify-self:end;
   z-index:1;
