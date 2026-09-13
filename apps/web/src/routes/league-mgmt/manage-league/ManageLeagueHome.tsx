@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Database, Inbox, ListOrdered, Newspaper, Settings, UserPlus, Wrench } from "lucide-react";
+import { Database, Inbox, Newspaper, Settings, UserPlus, Wrench } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { useLeagueTheme } from "../../../lib/league-theme-context.js";
@@ -18,10 +18,8 @@ import { RosterEditProposalQueue } from "./RosterEditProposalQueue.js";
 import { ImportDataModal } from "./ImportDataModal.js";
 import { ManualEntryPage } from "./ManualEntryPage.js";
 import { TroubleshootModal } from "./TroubleshootModal.js";
-import { ReportIssueModal } from "./ReportIssueModal.js";
 import { TeamDropdown } from "./TeamDropdown.js";
 import { AnnualDraftCard } from "../../hub/AnnualDraftCard.js";
-import { DraftPickBoardModal } from "./DraftPickBoardModal.js";
 
 type OwnershipFilter = "all" | "linked" | "unlinked";
 type ScheduleFilter = "all" | "empty" | "partial" | "complete";
@@ -53,8 +51,6 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
   const [importDataOpen, setImportDataOpen] = useState(false);
   const [manualEntry, setManualEntry] = useState(false);
   const [troubleshootOpen, setTroubleshootOpen] = useState(false);
-  const [reportIssueOpen, setReportIssueOpen] = useState(false);
-  const [draftPicksOpen, setDraftPicksOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [ownership, setOwnership] = useState<OwnershipFilter>("all");
   const [scheduleStatus, setScheduleStatus] = useState<ScheduleFilter>("all");
@@ -150,7 +146,6 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
                   <Database size={16} /> Manual Entry
                 </Button>
               )}
-              {isMadden && summary && <Button variant="secondary" onClick={() => setDraftPicksOpen(true)}><ListOrdered size={16} /> Draft Picks</Button>}
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/notifications")}>
                 <Inbox size={16} /> Pending Items
               </Button>
@@ -162,9 +157,6 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
               </Button>
               <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings")}>
                 <Settings size={16} /> Settings
-              </Button>
-              <Button variant="secondary" onClick={() => setReportIssueOpen(true)}>
-                <AlertTriangle size={16} /> Report Issue
               </Button>
             </div>
           )
@@ -303,7 +295,7 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
                                     </Badge>
                                   )}
                                   {mode === "schedule" && team.missingBoxScoreCount > 0 && (
-                                    <Badge status="denied">{team.missingBoxScoreCount} missing</Badge>
+                                    <Badge status="denied">{team.missingBoxScoreCount} not imported</Badge>
                                   )}
                                 </div>
                               </div>
@@ -345,10 +337,6 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
           onClose={() => setTroubleshootOpen(false)}
         />
       )}
-      {reportIssueOpen && (
-        <ReportIssueModal guildId={guildId} onClose={() => setReportIssueOpen(false)} />
-      )}
-      {draftPicksOpen && <DraftPickBoardModal guildId={guildId} onClose={() => setDraftPicksOpen(false)} />}
     </div>
   );
 }
