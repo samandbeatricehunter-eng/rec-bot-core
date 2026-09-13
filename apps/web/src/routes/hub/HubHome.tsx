@@ -1735,6 +1735,7 @@ export function HubHome() {
         <div className="hub-buzz-top">
           <section className="hub-hero hub-hero-rebuilt">
             <section className="hub-season-snapshot">
+              <div className="hub-season-snapshot-box">
               <div className="hub-season-snapshot-grid" aria-label="Season snapshot">
                 {isRise ? <article><span>Matchup</span><strong className="hub-season-snapshot-opponent">{heroOpponent ? <TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /> : "—"}</strong></article>
                   : <Link to={`/l/${hub.league.id}/matchups`} aria-label="Open my game day matchup"><span>Matchup</span><strong className="hub-season-snapshot-opponent">{heroOpponent ? heroMatchup?.viewerSide === "home" ? <><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /><em>AT</em><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /></> : <><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /><em>AT</em><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /></> : <><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /><em>—</em></>}</strong></Link>}
@@ -1742,13 +1743,13 @@ export function HubHome() {
                 {isRise ? <article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article> : <button type="button" onClick={() => setSnapshotFundsKind("wallet")}><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></button>}
                 {isRise ? <article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article> : <button type="button" onClick={() => setSnapshotFundsKind("savings")}><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></button>}
               </div>
-              {!isRise ? <><div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="Team progression snapshot">
+              {!isRise ? <div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="Team progression snapshot">
                 <Link to={`/l/${hub.league.id}/standings?view=power`}><span>Power ranking</span><strong>{heroRank}</strong></Link>
                 <Link className="hub-season-form-card" to={`/l/${hub.league.id}/standings`}><span>Streak · Recent form</span><strong><em>{my.userStreakText ?? "—"}</em>{recentForm.length ? recentForm.map((game, index) => <span className={`hub-season-form-game is-${game.result.toLowerCase()}`} key={`${game.opponentName}-${index}`} title={`${game.result} vs ${game.opponentName}`}><TeamLogo abbreviation={game.opponentAbbr} logoUrl={game.opponentLogoUrl} alt={game.opponentName} /><b>{game.result}</b></span>) : <small>—</small>}</strong></Link>
                 <Link to={`/l/${hub.league.id}/player-progression`}><span>Player XP</span><strong>{playerXpTotal.toLocaleString()}</strong></Link>
                 <Link className="hub-season-team-xp" to={`/l/${hub.league.id}/owner-progression`}><span>Team XP</span><strong>{teamXpTotal.toLocaleString()} <Shield size={17} aria-label="Steel shield" /></strong><div className="hub-season-team-xp-track" aria-label={`${teamXpTotal} Team XP toward steel shield`}><i style={{ width: `${teamXpProgress}%` }} /></div></Link>
+              </div> : null}
               </div>
-              </> : null}
               {isRise && rtiGates?.playerSnapshots?.length ? (() => {
                 const bannerTeam = rtiGates.playerSnapshots.find((player) => player.teamLogoUrl) ?? rtiGates.playerSnapshots[0];
                 return bannerTeam.teamName ? (

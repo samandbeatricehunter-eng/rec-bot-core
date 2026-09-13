@@ -158,8 +158,15 @@ function fitLabelToWidth(el: HTMLElement, maxPx: number, minPx: number) {
   el.style.fontSize = `${size}px`;
   el.style.transform = "";
   const gutter = 1;
+  // Step size was 0.5px -- each iteration forces a synchronous layout read (scrollWidth) right
+  // after a style write, and this runs per team row (city label + nick label, called up to 3x
+  // each for font-load/resize timing) on every Standings/Power Rankings/SOS page load. At up to
+  // ~32 rows that's easily 1000+ forced reflows blocking the very first paint -- a real,
+  // CPU-bound page-load stall invisible to any server-side latency metric. A 2px step still
+  // lands within a pixel of the same final size (imperceptible for a label) but cuts iteration
+  // count (and forced reflows) by 4x.
   while (el.scrollWidth > el.clientWidth - gutter && size > minPx) {
-    size -= 0.5;
+    size -= 2;
     el.style.fontSize = `${size}px`;
   }
   // If still overflowing at the floor, keep the readable size and compress horizontally.

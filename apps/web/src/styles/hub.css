@@ -4416,16 +4416,21 @@ button.poty:disabled {
 .hub-hero-score-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
 .hub-season-snapshot { width:min(100%,980px); margin:0 auto; text-align:center; }
-.hub-season-snapshot-grid {
-  display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:8px;
-  width:100%;
+/* Single shared container for both snapshot rows (primary + progression) -- previously each
+   row (.hub-season-snapshot-grid) carried its own border/background/shadow, so the two rows
+   read as two separate boxes stacked on top of each other instead of one unified panel. */
+.hub-season-snapshot-box {
   padding:7px;
   border:1px solid rgba(255,70,70,.28);
   border-radius:12px;
   background:linear-gradient(180deg,rgba(28,12,12,.96),rgba(10,8,8,.98));
   box-shadow:inset 0 1px 0 rgba(255,120,90,.12),0 10px 28px rgba(0,0,0,.45);
+}
+.hub-season-snapshot-grid {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+  width:100%;
 }
 .hub-season-snapshot-grid > :is(article,a,button) {
   position:relative;
@@ -4545,7 +4550,8 @@ button.poty:disabled {
   .hub-hero-breakdown-head > span { grid-column: 1 / -1; grid-row: 1; }
   .hub-hero-comparison-row { grid-template-columns: minmax(0, 1fr) minmax(112px, 1.2fr) minmax(0, 1fr); gap: 7px; padding-inline: 10px; }
   .hub-hero-comparison-row > div strong { font-size: 18px; }
-  .hub-season-snapshot-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; padding:5px; }
+  .hub-season-snapshot-box { padding:5px; }
+  .hub-season-snapshot-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; }
   .hub-season-snapshot-grid > :is(article,a,button) { min-height:50px; padding:6px 3px; }
   .hub-season-snapshot-grid > :is(article,a,button) > span { font-size:.5rem; letter-spacing:.04em; }
   .hub-season-snapshot-grid > :is(article,a,button) > strong { max-width:100%; font-size:clamp(.66rem,3.2vw,.82rem); letter-spacing:0; }
