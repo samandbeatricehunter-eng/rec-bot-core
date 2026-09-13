@@ -748,14 +748,26 @@ async function loadHub(guildId: string, discordId: string) {
   const seasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
-  const myAssignment = userId ? await activeAssignment(context.leagueId, userId) : null;
-  const teamId = myAssignment?.team_id ?? null;
-  const emptyWeekly = { data: [] as any[] };
+  // myAssignment used to be a solo `await` here, blocking seasonIdP/membershipP/baselineP from
+  // even starting until it finished -- but none of the four depend on each other (each only
+  // needs context/userId/discordId, all already known above). teamId is the only one needed
+  // synchronously (the big Promise.all below is built from it), so fire all four together and
+  // only block on the one we actually need before that point.
+  const myAssignmentP = userId ? activeAssignment(context.leagueId, userId) : Promise.resolve(null);
   const seasonIdP = resolveSeasonId(context.leagueId, seasonNumber);
   const membershipP = userId
     ? supabase.from("rec_league_memberships").select("role").eq("league_id", context.leagueId).eq("user_id", userId).eq("status", "active").maybeSingle()
     : Promise.resolve({ data: null as { role?: string | null } | null, error: null });
   const baselineP = getUserBaselineByDiscordId(discordId);
+  const myAssignment = await myAssignmentP;
+  const teamId = myAssignment?.team_id ?? null;
+  const emptyWeekly = { data: [] as any[] };
+  // Whether this is even an RTI league (isRise) isn't known until storeConfig resolves way
+  // down in the big Promise.all below -- firing this unconditionally here (a single
+  // league_id-indexed maybeSingle lookup, trivial for the common non-RTI case that never uses
+  // the result) trades that for removing a full extra sequential round trip on every RTI hub
+  // load, where this previously ran only after everything else had already finished.
+  const immortalityChapterP = supabase.from("rec_immortality_leagues").select("chapter_state").eq("league_id", context.leagueId).maybeSingle();
 
   const [announcements, headlines, highlights, matchups, myTeam, powerRankings, sos, userRatings, storeConfig, economy, weeklyBundle, currentStreamLogs, seasonId, membership] = await Promise.all([
     // 60 covers a full season's worth of weekly announcements (even with several posts some
@@ -935,7 +947,7 @@ async function loadHub(guildId: string, discordId: string) {
   let riseChapterState: string | null = null;
   let hubUnlocked = true;
   if (isRise) {
-    const immortality = await supabase.from("rec_immortality_leagues").select("chapter_state").eq("league_id", context.leagueId).maybeSingle();
+    const immortality = await immortalityChapterP;
     riseChapterState = immortality.data?.chapter_state ? String(immortality.data.chapter_state) : "REGISTRATION";
     hubUnlocked = riseHubUnlocked(riseChapterState as ImmortalityState);
   }
@@ -1804,6 +1816,13 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   const currentWeek = Number(context.rec_leagues.current_week ?? 1);
   const selectedWeek = input.weekNumber ?? (seasonNumber === currentSeasonNumber ? currentWeek : 1);
   const seasonStage = context.rec_leagues.season_stage ?? context.rec_leagues.current_phase ?? "preseason";
+  // Whether the no-scheduled-slate early return below fires is fully decidable right now (none
+  // of its inputs come from seasonsRows or resolveSeasonId) -- only start resolveSeasonId
+  // concurrently with seasonsRows when we're actually going to reach the code that needs it, so
+  // the early-return path still does zero extra work (resolveSeasonId can create a season row
+  // as a side effect, which that path never needed).
+  const takesEarlySlateReturn = !input.weekNumber && seasonNumber === currentSeasonNumber && !stageHasScheduledGames(seasonStage, context.rec_leagues.game);
+  const seasonIdP = takesEarlySlateReturn ? null : resolveSeasonId(context.leagueId, seasonNumber);
   const seasonsRows = await supabase
     .from("rec_seasons")
     .select("display_season_number")
@@ -1819,7 +1838,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   // for that stage, so skip the games query entirely and tell the client there's no slate to
   // show instead of falling through to whatever week-1 CPU games are still sitting in the DB.
   // Past seasons always browse archived weeks even if the live league is in offseason.
-  if (!input.weekNumber && seasonNumber === currentSeasonNumber && !stageHasScheduledGames(seasonStage, context.rec_leagues.game)) {
+  if (takesEarlySlateReturn) {
     return {
       seasonNumber,
       currentSeasonNumber,
@@ -1834,7 +1853,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       offseasonStageLabel: stageLabel(seasonStage, currentWeek, context.rec_leagues.game),
     };
   }
-  const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
+  const seasonId = await seasonIdP!;
   if (String(context.rec_leagues.game ?? "").startsWith("madden_")) {
     const leagueTeams = await supabase.from("rec_teams").select("id,abbreviation,is_relocated,primary_color").eq("league_id", context.leagueId);
     if (leagueTeams.error) throw new ApiError(500, "We couldn't load matchup team colors. Please try again.", leagueTeams.error);
@@ -1892,9 +1911,17 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     ? loadedPolls.slice(0, 1)
     : loadedPolls;
   const pollIds = polls.map((row: any) => row.id);
-  const allVoteRows = pollIds.length
-    ? await supabase.from("rec_game_of_week_votes").select("poll_id,selected_team_id,discord_id").in("poll_id", pollIds)
-    : { data: [], error: null };
+  const assignmentUserIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))] as string[];
+  // Neither depends on the other's result -- both only need data already resolved above
+  // (polls/assignments) -- so run them concurrently instead of one after the other.
+  const [allVoteRows, accounts] = await Promise.all([
+    pollIds.length
+      ? supabase.from("rec_game_of_week_votes").select("poll_id,selected_team_id,discord_id").in("poll_id", pollIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    assignmentUserIds.length
+      ? supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", assignmentUserIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+  ]);
   if (allVoteRows.error) throw new ApiError(500, "We couldn't load GOTW votes right now. Please try again.", allVoteRows.error);
   const votesByPollId = new Map<string, any[]>();
   for (const vote of allVoteRows.data ?? []) {
@@ -1904,10 +1931,6 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   }
   const pollForGame = (game: any) => polls.find((row: any) =>
     row.game_id === game.id || (row.home_team_id === game.home_team?.id && row.away_team_id === game.away_team?.id));
-  const assignmentUserIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))] as string[];
-  const accounts = assignmentUserIds.length
-    ? await supabase.from("rec_discord_accounts").select("user_id,discord_id,username,global_name").in("user_id", assignmentUserIds)
-    : { data: [], error: null };
   if (accounts.error) throw new ApiError(500, "We couldn't load matchup user names. Please try again.", accounts.error);
   const accountByUserId = new Map((accounts.data ?? []).map((account: any) => [account.user_id, account]));
   const isSnowflake = (value: unknown) => /^\d{15,}$/.test(String(value ?? ""));

@@ -17,7 +17,15 @@ export type LeagueStatsResult = {
 // the Stats page's category/team/leaders pills, or per hit on the public unauthenticated demo
 // preview (see demo-league.service.ts, which calls this same function with no auth/rate limit).
 const statsCache = new Map<string, { value: LeagueStatsResult; expiresAt: number }>();
-const STATS_CACHE_MS = 60_000;
+// Real changes are never waited out -- every write path that touches weekly stats (EA import,
+// Companion import, manual score entry, HOF milestone processing) already calls
+// invalidateLeagueStatsCache explicitly right after writing, so this TTL only bounds
+// worst-case staleness if some future write path forgets to invalidate. Raised from 60s: the
+// underlying query is a full jsonb_each_text scan over every weekly stat cell for the whole
+// season (see the `combined` query below) -- one real production hit measured at 3.27s even
+// on a routine request -- so a short TTL bought little correctness benefit while guaranteeing
+// that heavy query re-runs on almost every distinct click during a normal browsing session.
+const STATS_CACHE_MS = 300_000;
 
 /** Drop cached season/career leaderboards after an import (or any write to weekly stats)
  * so the next Stats page read isn't serving a stale snapshot. */
@@ -35,14 +43,17 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
   const cached = statsCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
-  const leagueResult = await getPgPool().query<{ id: string; name: string; game: string; season_number: number }>(
-    "select id,name,game,season_number from rec_leagues where id=$1", [leagueId],
-  );
+  // teamsResult doesn't depend on league at all (both only need leagueId) -- run together.
+  const [leagueResult, teamsResult] = await Promise.all([
+    getPgPool().query<{ id: string; name: string; game: string; season_number: number }>(
+      "select id,name,game,season_number from rec_leagues where id=$1", [leagueId],
+    ),
+    getPgPool().query<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null }>(
+      "select id,name,abbreviation,conference,division from rec_teams where league_id=$1 and coalesce(is_schedule_placeholder,false)=false order by name", [leagueId],
+    ),
+  ]);
   const league = leagueResult.rows[0];
   if (!league) throw new ApiError(404, "League not found.");
-  const teamsResult = await getPgPool().query<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null }>(
-    "select id,name,abbreviation,conference,division from rec_teams where league_id=$1 and coalesce(is_schedule_placeholder,false)=false order by name", [leagueId],
-  );
   const params: unknown[] = [leagueId];
   // "season" scope (the default -- Season Stats / League Leaders / the Team Stats browser) is a
   // single regular season's production only: preseason is roster evaluation, never real

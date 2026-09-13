@@ -293,12 +293,15 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
   const humanTeamIds = new Set((assignmentsRes.data ?? []).map((r) => r.team_id).filter(Boolean));
   const userIdByTeam = new Map((assignmentsRes.data ?? []).map((r) => [r.team_id, r.user_id]));
   const assignedUserIds = [...new Set([...userIdByTeam.values()].filter(Boolean).map(String))];
-  const usersRes = assignedUserIds.length
-    ? await supabase.from("rec_users").select("id,display_name,username").in("id", assignedUserIds)
-    : { data: [] as Array<{ id: string; display_name: string | null; username: string | null }> };
-  const discordRes = assignedUserIds.length
-    ? await supabase.from("rec_discord_accounts").select("user_id,username,global_name").in("user_id", assignedUserIds)
-    : { data: [] as Array<{ user_id: string; username: string | null; global_name: string | null }> };
+  // Both only need assignedUserIds, just computed above -- independent, previously sequential.
+  const [usersRes, discordRes] = await Promise.all([
+    assignedUserIds.length
+      ? supabase.from("rec_users").select("id,display_name,username").in("id", assignedUserIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; display_name: string | null; username: string | null }> }),
+    assignedUserIds.length
+      ? supabase.from("rec_discord_accounts").select("user_id,username,global_name").in("user_id", assignedUserIds)
+      : Promise.resolve({ data: [] as Array<{ user_id: string; username: string | null; global_name: string | null }> }),
+  ]);
   const userById = new Map<string, { display_name?: string | null; username?: string | null }>(
     (usersRes.data ?? []).map((row: any) => [String(row.id), row]),
   );
@@ -388,11 +391,17 @@ async function computePowerRankingsBase(guildId: string, completedWeekNumber: nu
 export async function computePowerRankings(guildId: string, viewerDiscordId?: string | null, options: ComputePowerRankingsOptions = {}) {
   const completedWeekNumber = options.completedWeekNumber ?? null;
   const cacheKey = `power-rankings:${guildId}:${completedWeekNumber ?? "current"}`;
+  // acct only needs viewerDiscordId (known immediately) -- only the for-loop below needs
+  // `base`'s result, so fire this concurrently with the (potentially uncached, expensive)
+  // base computation instead of waiting for it to finish first.
+  const acctP = viewerDiscordId
+    ? supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle()
+    : null;
   const base = await withComputeCache(cacheKey, POWER_RANKINGS_CACHE_TTL_MS, () => computePowerRankingsBase(guildId, completedWeekNumber));
 
   let viewerTeamId: string | null = null;
-  if (viewerDiscordId) {
-    const acct = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle();
+  if (acctP) {
+    const acct = await acctP;
     const userId = (acct.data?.user_id as string | undefined) ?? null;
     if (userId) {
       for (const [teamId, uId] of base.userIdByTeam.entries()) {

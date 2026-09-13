@@ -188,26 +188,36 @@ export async function getTeamScheduleManualState(input: {
   const leagueId = context.leagueId;
   const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
 
-  const teams = await supabase
+  // teams and season are independent (leagueId/seasonNumber already known) -- previously
+  // sequential. byeRows only needs leagueId/seasonNumber/teamId, also already known, but used
+  // to be fetched dead last after everything else -- started concurrently here instead, and
+  // awaited further down at the point it's actually used.
+  const teamsP = supabase
     .from("rec_teams")
     .select("id,name,abbreviation,display_abbr,display_city,display_nick,conference,is_relocated,primary_color,logo_url,original_abbreviation")
     .eq("league_id", leagueId);
+  const seasonP = listScheduleSeason(input.guildId, seasonNumber);
+  const byeRowsP = supabase.from("rec_team_byes").select("week_number,bye_type").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
+
+  const [teams, season] = await Promise.all([teamsP, seasonP]);
   if (teams.error) throw new ApiError(500, "Failed to load league teams.", teams.error);
   const teamRows = teams.data ?? [];
   const team = teamRows.find((t: any) => t.id === input.teamId);
   if (!team) throw new ApiError(404, "Team was not found in the current league.");
 
-  const season = await listScheduleSeason(input.guildId, seasonNumber);
   const confirmedByWeek = buildConfirmedByWeekMap(season, input.teamId);
   const gameDescriptors = [...confirmedByWeek.values()].map((c) => ({ id: c.gameId, weekNumber: c.weekNumber, homeTeamId: c.homeTeamId, awayTeamId: c.awayTeamId }));
-  const resultsAndSubmissions = await loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors);
-  const rivalries = await loadGameRivalries(gameDescriptors.map((game) => game.id));
-
-  // Force Win + confirmed kickoff time for the mini matchup card each week renders -- same
-  // rec_game_scheduling source getHubMatchupSchedule reads for the Matchups page.
-  const gameScheduling = gameDescriptors.length
-    ? await supabase.from("rec_game_scheduling").select("game_id,scheduled_for,fw_flagged,fw_flagged_for_user_id").in("game_id", gameDescriptors.map((g) => g.id))
-    : { data: [] as any[], error: null };
+  // resultsAndSubmissions/rivalries/gameScheduling are mutually independent -- each only needs
+  // gameDescriptors, just computed above -- previously three separate sequential round trips.
+  const [resultsAndSubmissions, rivalries, gameScheduling] = await Promise.all([
+    loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors),
+    loadGameRivalries(gameDescriptors.map((game) => game.id)),
+    // Force Win + confirmed kickoff time for the mini matchup card each week renders -- same
+    // rec_game_scheduling source getHubMatchupSchedule reads for the Matchups page.
+    gameDescriptors.length
+      ? supabase.from("rec_game_scheduling").select("game_id,scheduled_for,fw_flagged,fw_flagged_for_user_id").in("game_id", gameDescriptors.map((g) => g.id))
+      : Promise.resolve({ data: [] as any[], error: null }),
+  ]);
   if (gameScheduling.error) throw new ApiError(500, "Failed to load matchup scheduling status.", gameScheduling.error);
   const schedulingByGameId = new Map<string, any>((gameScheduling.data ?? []).map((row: any) => [row.game_id, row]));
   const teamById = new Map<string, any>(teamRows.map((row: any) => [row.id, row]));
@@ -221,7 +231,7 @@ export async function getTeamScheduleManualState(input: {
     return { abbr: row.is_relocated ? row.original_abbreviation ?? row.abbreviation ?? null : row.abbreviation ?? null, logoUrl: null };
   };
 
-  const byeRows = await supabase.from("rec_team_byes").select("week_number,bye_type").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
+  const byeRows = await byeRowsP;
   if (byeRows.error) throw new ApiError(500, "Failed to load bye weeks.", byeRows.error);
   const byeByWeek = new Map((byeRows.data ?? []).map((row: any) => [row.week_number, row.bye_type ?? "regular_season"]));
 

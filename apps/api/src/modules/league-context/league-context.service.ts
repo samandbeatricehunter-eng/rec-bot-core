@@ -174,6 +174,17 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
   const ownerCheck = isSiteOnlyGuildId(guildId)
     ? Promise.resolve(context.rec_leagues.owner_user_id === (isSiteOnlyDiscordId(discordId) ? recUserIdFromSiteOnlyDiscordId(discordId) : null))
     : isGuildOwner(guildId, discordId);
+  // This runs on every page load for every member -- none of these three need identityUserId
+  // (only leagueId, already known), but the identityUserId lookup below used to be a solo
+  // `await` that blocked them from even starting until it finished. Fire them now instead.
+  const totalResP = supabase.from("rec_teams").select("id", { count: "exact", head: true }).eq("league_id", leagueId);
+  const linkedResP = supabase
+    .from("rec_team_assignments")
+    .select("id", { count: "exact", head: true })
+    .eq("league_id", leagueId)
+    .eq("assignment_status", "active")
+    .is("ended_at", null);
+  const configResP = supabase.from("rec_league_configuration").select("data_mode,roster_type").eq("league_id", leagueId).maybeSingle();
 
   const identityUserId = isSiteOnlyDiscordId(discordId)
     ? recUserIdFromSiteOnlyDiscordId(discordId)
@@ -182,16 +193,11 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
     ? supabase.from("rec_league_memberships").select("role").eq("league_id", leagueId).eq("user_id", identityUserId).eq("status", "active").maybeSingle()
     : Promise.resolve({ data: null, error: null });
   const [totalRes, linkedRes, isOwner, membershipRes, configRes] = await Promise.all([
-    supabase.from("rec_teams").select("id", { count: "exact", head: true }).eq("league_id", leagueId),
-    supabase
-      .from("rec_team_assignments")
-      .select("id", { count: "exact", head: true })
-      .eq("league_id", leagueId)
-      .eq("assignment_status", "active")
-      .is("ended_at", null),
+    totalResP,
+    linkedResP,
     ownerCheck,
     membershipPromise,
-    supabase.from("rec_league_configuration").select("data_mode,roster_type").eq("league_id", leagueId).maybeSingle(),
+    configResP,
   ]);
   if (membershipRes.error) throw new ApiError(500, "Failed to resolve league permission.", membershipRes.error);
   const membershipRole = String(membershipRes.data?.role ?? "");

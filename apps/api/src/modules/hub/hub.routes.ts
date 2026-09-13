@@ -470,8 +470,12 @@ export async function hubRoutes(app: FastifyInstance) {
     try {
       const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      const records = await getGotwGuessingRecordsForHub(body.guildId);
-      const mine = auth.mode === "user" ? await getMyGotwGuessingRecord(body.guildId, auth.discordId) : null;
+      // Independent of each other -- `mine` doesn't depend on `records`, just on guildId/discordId
+      // which are already known -- so fetch both concurrently instead of one after the other.
+      const [records, mine] = await Promise.all([
+        getGotwGuessingRecordsForHub(body.guildId),
+        auth.mode === "user" ? getMyGotwGuessingRecord(body.guildId, auth.discordId) : Promise.resolve(null),
+      ]);
       return reply.send({ records, mine });
     } catch (error) {
       return sendError(reply, error);

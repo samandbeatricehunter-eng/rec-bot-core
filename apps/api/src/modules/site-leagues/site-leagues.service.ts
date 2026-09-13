@@ -754,31 +754,36 @@ export async function joinRiseToImmortalityPool(input: {
 export type SiteLeagueHubView = "buzz" | "matchups" | "team" | "store" | "mgmt";
 
 async function assertSiteLeagueAccess(recUserId: string, leagueId: string): Promise<void> {
-  const banned = await getPgPool().query(
-    `select 1 from rec_league_bans b join rec_leagues l on l.id=$2
-     where b.banned_user_id=$1 and b.active=true and (b.expires_at is null or b.expires_at>now())
-       and ((b.scope='league' and b.league_id=$2) or (b.scope='owner_all_leagues' and b.owner_user_id=l.owner_user_id))
-     limit 1`,
-    [recUserId, leagueId],
-  );
+  // banned/access are independent (both only need recUserId/leagueId) -- being banned is rare,
+  // so this trades one wasted query in that uncommon case for one fewer round trip in the
+  // overwhelmingly common allowed case.
+  const [banned, access] = await Promise.all([
+    getPgPool().query(
+      `select 1 from rec_league_bans b join rec_leagues l on l.id=$2
+       where b.banned_user_id=$1 and b.active=true and (b.expires_at is null or b.expires_at>now())
+         and ((b.scope='league' and b.league_id=$2) or (b.scope='owner_all_leagues' and b.owner_user_id=l.owner_user_id))
+       limit 1`,
+      [recUserId, leagueId],
+    ),
+    getPgPool().query(
+      `
+        select 1
+        from rec_team_assignments ta
+        where ta.user_id = $1
+          and ta.league_id = $2
+          and ta.assignment_status = 'active'
+          and ta.ended_at is null
+        union all
+        select 1
+        from rec_league_memberships m
+        where m.user_id = $1
+          and m.league_id = $2
+        limit 1
+      `,
+      [recUserId, leagueId],
+    ),
+  ]);
   if (banned.rows[0]) throw new ApiError(403, "You no longer have access to this league.");
-  const access = await getPgPool().query(
-    `
-      select 1
-      from rec_team_assignments ta
-      where ta.user_id = $1
-        and ta.league_id = $2
-        and ta.assignment_status = 'active'
-        and ta.ended_at is null
-      union all
-      select 1
-      from rec_league_memberships m
-      where m.user_id = $1
-        and m.league_id = $2
-      limit 1
-    `,
-    [recUserId, leagueId],
-  );
   if (!access.rows[0]) {
     throw new ApiError(403, "You are not a member of that league.");
   }
@@ -812,9 +817,12 @@ async function loadSiteLeagueHubContext(input: {
   recUserId: string;
   leagueId: string;
 }): Promise<{ guildId: string; discordId: string; leagueId: string }> {
-  await assertSiteLeagueAccess(input.recUserId, input.leagueId);
-
-  const [profile, guild] = await Promise.all([
+  // assertSiteLeagueAccess only needs recUserId/leagueId, same as profile/guild below -- it
+  // used to gate them entirely (denial is rare, so this trades two wasted reads in that
+  // uncommon case for one fewer round trip in the common allowed case; a thrown rejection here
+  // still rejects the whole Promise.all exactly as before).
+  const [, profile, guild] = await Promise.all([
+    assertSiteLeagueAccess(input.recUserId, input.leagueId),
     getPgPool().query(
       `
         select u.username, d.discord_id

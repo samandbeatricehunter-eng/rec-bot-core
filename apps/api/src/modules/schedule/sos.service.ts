@@ -328,11 +328,17 @@ async function computeLeagueSosBase(guildId: string) {
 }
 
 export async function computeLeagueSos(guildId: string, viewerDiscordId?: string | null) {
+  // acct only needs viewerDiscordId (known immediately) -- only the for-loop below needs
+  // `base`'s result, so fire this concurrently with the (potentially uncached, expensive)
+  // base computation instead of waiting for it to finish first.
+  const acctP = viewerDiscordId
+    ? supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle()
+    : null;
   const base = await withComputeCache(`sos:${guildId}`, SOS_CACHE_TTL_MS, () => computeLeagueSosBase(guildId));
 
   let viewerTeamId: string | null = null;
-  if (viewerDiscordId) {
-    const acct = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", viewerDiscordId).maybeSingle();
+  if (acctP) {
+    const acct = await acctP;
     const userId = (acct.data?.user_id as string | undefined) ?? null;
     if (userId) {
       for (const [teamId, uId] of base.userIdByTeam.entries()) {

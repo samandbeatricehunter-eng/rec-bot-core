@@ -176,8 +176,11 @@ export async function weeklyChallengesForUser(input: {
     .select("id,side,position,first_name,last_name,player_id")
     .eq("immortality_league_id", immortality.id)
     .eq("user_id", input.userId);
-  const views: WeeklyChallengeView[] = [];
-  for (const prospect of prospects.data ?? []) {
+  // Each prospect's work is independent -- a user has at most a couple of RTI prospects
+  // (offense/defense), so this is always a small, bounded fan-out, safe as a plain Promise.all
+  // (unlike a full-roster loop, this can't burst into dozens of simultaneous connections).
+  // .map preserves prospects.data's order in the output, matching the previous for-loop's push order.
+  const views: WeeklyChallengeView[] = await Promise.all((prospects.data ?? []).map(async (prospect) => {
     const stats = prospect.player_id
       ? await weeklyStatsForPlayer({
         leagueId: input.leagueId,
@@ -194,14 +197,14 @@ export async function weeklyChallengesForUser(input: {
       prospectId: String(prospect.id), position: String(prospect.position), seed,
       seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, stats,
     });
-    views.push({
+    return {
       prospectId: String(prospect.id),
       side: String(prospect.side),
       name: `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Player",
       position: String(prospect.position),
       challenges,
-    });
-  }
+    };
+  }));
   return views;
 }
 
