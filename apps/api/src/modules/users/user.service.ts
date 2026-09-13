@@ -1412,11 +1412,15 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       leagueUserRecordText: recordText(displayRecord ?? seasonRecord),
       leagueSeasonRecordText: recordText(displayRecord ?? seasonRecord),
       leagueSeasonPointDifferential: (displayRecord ?? seasonRecord)?.point_differential ?? 0,
+      // rec_season_user_display_records (displayRecord) has no playoff columns -- postseason
+      // record for the current season only ever comes from the raw rec_season_user_records row.
+      leagueSeasonPlayoffText: seasonRecord ? playoffText(seasonRecord) : "0-0",
       currentMatchupText: currentMatchup,
       currentGameId: currentGame?.id ?? null,
       gotwStatus,
       gotwVotingRecordText: gotwVotingRecord ? `${gotwVotingRecord.correct}-${gotwVotingRecord.total - gotwVotingRecord.correct} (${gotwVotingRecord.accuracy}%)` : "No votes yet",
       globalRecordText: recordText(globalRecord),
+      globalPlayoffText: playoffText(globalRecord),
       globalChampionships: Number(globalRecord?.superbowl_wins ?? 0),
       globalPointDifferential: globalRecord?.point_differential ?? 0,
       gameGlobalRecord: league?.id

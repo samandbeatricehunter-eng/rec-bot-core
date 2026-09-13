@@ -270,83 +270,20 @@ function RankingListSearch<T>({
   </>;
 }
 
-// Madden's My Team page: a 2x2 grid of cards, each holding four buttons that either jump to
-// an existing section (Trade Center/Roster/Store/Wagers), open a modal (Schedule/Power
-// Rankings/SOS/Bank/Financial Profile/Season+Career Stats), or navigate to a dedicated page
-// (League Records/League History). Trade Center/Roster/League History dropped out of the top
-// nav for Madden (see LeagueTopNav.tsx) — this grid is now the only path to them.
-function MaddenMyTeamGrid({
-  coachName, my, profile, heroRank, heroUserScore, selectSection, viewMySchedule,
-  openMediaDay, setPowerRankingsModalOpen, setBankModalOpen,
-  setFinancialModalOpen, setCareerStatsModalOpen, onOpenWagers, leagueId, isRise,
-}: {
-  coachName: string;
-  my: any;
-  profile: any;
-  heroRank: string;
-  heroUserScore: string;
-  selectSection: (next: HubSection) => void;
-  viewMySchedule: () => void | Promise<void>;
-  openMediaDay: () => void;
-  setPowerRankingsModalOpen: (value: boolean) => void;
-  setBankModalOpen: (value: boolean) => void;
-  setFinancialModalOpen: (value: boolean) => void;
-  setCareerStatsModalOpen: (value: boolean) => void;
-  onOpenWagers: () => void;
-  leagueId: string;
-  isRise?: boolean;
-}) {
-  return <>
-    <div className="hub-stat-grid">
-      <article><span>Coach</span><strong>{coachName}</strong></article>
-      <article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "—"}</strong></article>
-      <article><span>Point differential</span><strong>{Number(my.leagueSeasonPointDifferential ?? 0) >= 0 ? "+" : ""}{my.leagueSeasonPointDifferential ?? 0}</strong></article>
-      <article><span>Current matchup</span><strong>{my.currentMatchupText ?? "None"}</strong></article>
-      <article><span>Power rank / User score</span><strong>{heroRank}</strong><small>Score {heroUserScore}</small></article>
-      <article><span>Wallet / Savings</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong><small>Savings <CoinAmount amount={Number(my.savings ?? 0)} /></small></article>
+/** My Team page's read-only records row: season / current-season postseason / career (global,
+ * all-time) / career postseason (global, all-time). Not buttons -- just info, per the redesign
+ * spec. Season and career come from fields already returned by the hub response; postseason
+ * (both scopes) reads playoff_wins/playoff_losses columns the API only recently started
+ * exposing (leagueSeasonPlayoffText on `my`, globalRecord.playoffText on `profile`). */
+function MyTeamRecordRow({ my, profile }: { my: any; profile: any }) {
+  return (
+    <div className="hub-my-team-record-row">
+      <article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "0-0-0"}</strong></article>
+      <article><span>Post-season record</span><strong>{my.leagueSeasonPlayoffText ?? "0-0"}</strong></article>
+      <article><span>Career record</span><strong>{profile.globalRecord?.text ?? "0-0-0"}</strong></article>
+      <article><span>Career post-season record</span><strong>{profile.globalRecord?.playoffText ?? "0-0"}</strong></article>
     </div>
-    <div className="hub-my-team-grid">
-      <div className="hub-my-team-card">
-        <p className="hub-eyebrow">Matchup Center</p>
-        <div className="hub-my-team-card-buttons">
-          <button type="button" className="hub-my-team-btn" onClick={() => void viewMySchedule()}><strong>Schedule</strong><span>Full season</span></button>
-          {!isRise ? <button type="button" className="hub-my-team-btn" onClick={() => openMediaDay()}><strong>Media Day</strong><span>Weekly interview</span></button> : null}
-        </div>
-      </div>
-      <div className="hub-my-team-card">
-        <p className="hub-eyebrow">Team</p>
-        <div className="hub-my-team-card-buttons">
-          {!isRise ? (
-            <button type="button" className="hub-my-team-btn" onClick={() => selectSection("trades")}><strong>Trade Center</strong><span>Propose &amp; review</span></button>
-          ) : null}
-          <button type="button" className="hub-my-team-btn" onClick={() => selectSection("roster")}><strong>Roster</strong><span>Manage players</span></button>
-          <Link className="hub-my-team-btn" to={`/l/${leagueId}/stats`}><strong>League Stats</strong><span>By category &amp; leaders</span></Link>
-          <button type="button" className="hub-my-team-btn" onClick={() => setCareerStatsModalOpen(true)}><strong>Career Stats</strong><span>League career</span></button>
-        </div>
-      </div>
-      <div className="hub-my-team-card">
-        <p className="hub-eyebrow">League</p>
-        <div className="hub-my-team-card-buttons">
-          <button type="button" className="hub-my-team-btn" onClick={() => setPowerRankingsModalOpen(true)}><strong>Power Rankings</strong><span>Full league</span></button>
-          <Link className="hub-my-team-btn" to={`/l/${leagueId}/records`}><strong>League Records</strong><span>Statistical bests</span></Link>
-          <Link className="hub-my-team-btn" to={`/l/${leagueId}/history`}><strong>League History</strong><span>Past seasons</span></Link>
-        </div>
-      </div>
-      <div className="hub-my-team-card">
-        <p className="hub-eyebrow">Finance</p>
-        <div className="hub-my-team-card-buttons">
-          {!isRise ? (
-            <button type="button" className="hub-my-team-btn" onClick={() => selectSection("store")}><strong>Store</strong><span>Franchise marketplace</span></button>
-          ) : null}
-          <button type="button" className="hub-my-team-btn" onClick={() => setBankModalOpen(true)}><strong>Bank</strong><span>Wallet &amp; transfers</span></button>
-          {isRise ? null : (
-            <button type="button" className="hub-my-team-btn" onClick={onOpenWagers}><strong>Wagers</strong><span>Sportsbook</span></button>
-          )}
-          <button type="button" className="hub-my-team-btn" onClick={() => setFinancialModalOpen(true)}><strong>Financial Profile</strong><span>Earnings &amp; ledger</span></button>
-        </div>
-      </div>
-    </div>
-  </>;
+  );
 }
 
 function DefenseNicknamePrompt() {
@@ -1480,9 +1417,10 @@ export function HubHome() {
     <div className="hub-body">
       <main className="hub-content">
     {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><TeamMiniNav active="team" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{coachName}</p></div></div>
+      <MyTeamRecordRow my={my} profile={profile} />
       {/* Body intentionally cleared for a redesign -- was MaddenMyTeamGrid (stat grid + quick
-          action cards) on the live (non-CFB) path, CFB-only dead code before that. TeamMiniNav
-          and the heading above stay; rebuild the content below them fresh. */}
+          action cards) on the live (non-CFB) path, CFB-only dead code before that. TeamMiniNav,
+          the heading above, and the record row stay; rebuild the rest fresh. */}
       {!isCfbLeague && careerStatsModalOpen && <Modal title="Career Stats" onClose={() => setCareerStatsModalOpen(false)}>
         <ProfileStats values={profile.careerStats} hideBoxScoresUploaded />
         <p className="hub-muted">League career only — global totals live on My Account. Player-level career stats aren't tracked yet — League Stats has a per-player season breakdown.</p>
