@@ -301,17 +301,20 @@ const STATS_FAMILY_NAV_ID: Record<Exclude<StatsFamilyView, "stats">, StatsNavId>
  * longer unmounts/remounts the nav along with the page content (they were separate top-level
  * components at the same ternary position below -- same problem class as a hub tab switch,
  * just one level up). `active` is derived from the URL, not passed in by each page, so removing
- * each page's own <StatsMiniNav> render is a pure extraction with no behavior change. */
+ * each page's own <StatsMiniNav> render is a pure extraction with no behavior change.
+ * Wrapped in .hub-page (the same universal frame HubHome/RulesHome use at their own top level)
+ * so the outer position/width/vertical-rhythm of this whole section never shifts when the view
+ * changes -- only the nav's active button and the page content below it do. */
 function StatsSectionLayout({ view, leagueId, children }: { view: StatsFamilyView; leagueId: string; children: ReactNode }) {
   const [searchParams] = useSearchParams();
   const active: StatsNavId = view === "stats"
     ? (searchParams.get("view") === "season" || searchParams.get("view") === "team" ? (searchParams.get("view") as StatsNavId) : "leaders")
     : STATS_FAMILY_NAV_ID[view];
   return (
-    <>
+    <div className="hub-page">
       <StatsMiniNav active={active} leagueId={leagueId} />
       {children}
-    </>
+    </div>
   );
 }
 
@@ -481,7 +484,7 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
                   {location.pathname.endsWith("/draft-board") ? (
                     <FantasyDraftBoardPage />
                   ) : view === "mgmt" ? (
-                    <HubMgmtRoutes />
+                    <div className="hub-page"><HubMgmtRoutes /></div>
                   ) : isStatsFamilyView(view) ? (
                     <StatsSectionLayout view={view} leagueId={leagueId}>
                       {view === "playoff-bracket" ? <NflPlayoffBracket />

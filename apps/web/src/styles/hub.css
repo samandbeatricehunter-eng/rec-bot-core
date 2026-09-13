@@ -3891,11 +3891,11 @@ button.poty:disabled {
 .hub-standings-marker { color:var(--accent-bright); font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
 .hub-standings-open-pill { display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px; background:color-mix(in srgb,var(--danger,var(--error)) 24%,transparent); color:var(--danger,var(--error)); font-size:9px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; vertical-align:middle; }
 .hub-standings-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
+/* width/box-sizing/padding removed -- this now sits inside StatsSectionLayout's shared
+   .hub-page frame (LeagueHub.tsx), same as every other Stats-family page; its own competing
+   width/padding was what made Standings sit differently from its siblings. */
 .hub-standings-page {
   font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
-  width: 100%;
-  box-sizing: border-box;
-  padding: clamp(20px, 3.2vw, 40px) clamp(16px, 3vw, 40px);
 }
 /* Universal nav chassis: every SectionMiniNav (Stats/Standings/Game Day/Team/...) renders as
    the same bordered box-of-cards structure as League Home's own header

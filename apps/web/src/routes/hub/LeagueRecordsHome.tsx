@@ -74,7 +74,7 @@ export function LeagueRecordsHome({ embedded = false }: { embedded?: boolean } =
   const backAction = currentLeague?.id ? <Button variant="ghost" size="compact" onClick={() => navigate(-1)}>← Back</Button> : undefined;
 
   return (
-    <div className="hub-page">
+    <div className="hub-section">
       {!embedded && <PageHeader title="League Records" subtitle="Statistical bests, by game, season, or career." actions={backAction} />}
 
       <div className="hub-modal-pill-row">

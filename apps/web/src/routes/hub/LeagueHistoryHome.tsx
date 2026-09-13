@@ -192,7 +192,7 @@ export function LeagueHistoryHome({ embedded = false }: { embedded?: boolean } =
 
   if (error && !history) {
     return (
-      <div className="hub-page">
+      <div className="hub-section">
         {!embedded && <PageHeader title="League History" subtitle="Every completed season, one tab each." actions={backAction} />}
         <ErrorState message={error} />
       </div>
@@ -203,7 +203,7 @@ export function LeagueHistoryHome({ embedded = false }: { embedded?: boolean } =
   const season = history.seasons.find((s) => s.seasonNumber === activeSeason) ?? null;
 
   return (
-    <div className="hub-page">
+    <div className="hub-section">
       {!embedded && <PageHeader title="League History" subtitle={history.league.name} actions={backAction} />}
       {history.seasons.length === 0 ? (
         <p className="hub-empty">No completed seasons yet — check back after Season {history.currentSeason} wraps up.</p>
