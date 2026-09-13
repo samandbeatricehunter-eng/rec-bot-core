@@ -144,7 +144,7 @@ export function ProfileChip() {
       <Panel className="site-account-drawer" role="dialog" ariaLabel="Account and notifications">
         <section className="site-notif-section">
           <header className="site-notif-panel-header">
-            <h2>Notifications</h2>
+            <h2>Notifications{unreadCount > 0 ? ` (${unreadCount > 99 ? "99+" : unreadCount})` : ""}</h2>
             {notifLoading ? (
               <span className="site-muted">Updating…</span>
             ) : regular.length > 0 ? (

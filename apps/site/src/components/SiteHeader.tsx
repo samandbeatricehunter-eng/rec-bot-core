@@ -20,24 +20,8 @@ function sortLeagues(leagues: SiteLeagueSummary[]) {
   });
 }
 
-/** Brand + account strip. ProfileChip is the one account control -- its drawer holds
- * notifications (top section) and account actions (My Account / Help / Sign Out) together. */
-function HeaderRow1() {
-  return (
-    <div className="site-header-row1">
-      <NavLink to="/home" className="site-header-brand" aria-label="REC Leagues home">
-        <img src="/assets/rec-leagues-branding.png" alt="" className="site-header-brand-img" />
-        <span className="site-header-brand-text">REC-Leagues.com</span>
-      </NavLink>
-      <div className="site-header-row1-end">
-        <ProfileChip />
-      </div>
-    </div>
-  );
-}
-
 /** Active league selector — universal switcher + exit to REC Home. Not duplicated in the footer. */
-function HeaderRow2() {
+function LeagueSwitcher() {
   const hub = useHub();
   const navigate = useNavigate();
   const { triggerRef, open, setOpen, Panel } = useHeaderMenu<HTMLButtonElement>();
@@ -99,12 +83,22 @@ function HeaderRow2() {
   );
 }
 
-/** Global chrome header: brand, league selector, notifications, profile. Primary destinations live in the sticky footer. */
+/** Single-row header: brand, league switcher, and the account drawer (notifications + account
+ * actions) all together -- previously a two-row header with the league switcher on its own
+ * row underneath. */
 export function SiteHeader() {
   return (
-    <header className="site-header">
-      <HeaderRow1 />
-      <HeaderRow2 />
+    <header className="site-header site-header--single-row">
+      <div className="site-header-row1">
+        <NavLink to="/home" className="site-header-brand" aria-label="REC Leagues home">
+          <img src="/assets/rec-leagues-branding.png" alt="" className="site-header-brand-img" />
+          <span className="site-header-brand-text">REC-Leagues.com</span>
+        </NavLink>
+        <LeagueSwitcher />
+        <div className="site-header-row1-end">
+          <ProfileChip />
+        </div>
+      </div>
     </header>
   );
 }

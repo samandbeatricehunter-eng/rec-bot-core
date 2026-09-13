@@ -4390,8 +4390,10 @@ h1, h2, h3, .site-wordmark {
 .site-header-icon-btn svg { width: 20px; height: 20px; }
 .site-header-gear { position: relative; }
 
-/* Row 2 — My Leagues / active league switcher */
-.site-header-row2 { justify-content: center; }
+/* League switcher — now lives inline in the single header row alongside the brand and
+   ProfileChip (previously its own full-width second row), so it needs to shrink instead of
+   forcing the row to overflow. */
+.site-header-row2 { flex: 1 1 auto; min-width: 0; overflow: hidden; }
 .site-header-row2-trigger {
   display: flex;
   align-items: center;
