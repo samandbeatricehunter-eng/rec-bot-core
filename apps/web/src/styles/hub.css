@@ -1,4 +1,4 @@
-/* Universal League Hub */
+﻿/* Universal League Hub */
 .hub-page {
   position: relative;
   display: flex;
@@ -3892,10 +3892,16 @@ button.poty:disabled {
   box-sizing: border-box;
   padding: clamp(20px, 3.2vw, 40px) clamp(16px, 3vw, 40px);
 }
+/* Universal nav chassis: every SectionMiniNav (Stats/Standings/Game Day/Team/...) renders as
+   the same bordered box-of-cards structure as League Home's own header
+   (.hub-season-snapshot-box/-grid) -- same outer border/background/shadow, same 4-column
+   grid, same card treatment per item -- so no page's top nav looks, sizes, or positions
+   itself differently from any other's. A fixed 4-column grid (not flex-wrap) keeps this
+   consistent regardless of how many buttons a given page has (4 items -> one row, 8 -> two
+   rows) instead of each page wrapping its own way at its own width. */
 .hub-standings-mini-nav {
-  display:flex;
-  flex-wrap:wrap;
-  justify-content:center;
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0,1fr));
   gap:8px;
   width:min(980px, 100%);
   margin:0 auto 14px;
@@ -3909,12 +3915,14 @@ button.poty:disabled {
     0 10px 28px rgba(0,0,0,.45);
 }
 .hub-standings-mini-nav button {
+  position:relative;
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  gap:0;
-  min-width:118px;
+  gap:3px;
+  min-width:0;
+  min-height:54px;
   padding:8px 12px;
   border:1px solid rgba(255,255,255,.1);
   border-radius:8px;
@@ -3936,13 +3944,13 @@ button.poty:disabled {
 }
 .hub-standings-mini-nav button strong {
   font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
-  font-size:.92rem;
+  font-size:clamp(.86rem, 2vw, 1.05rem);
   font-weight:700;
-  line-height: .92;
-  letter-spacing:.04em;
+  line-height: 1;
+  letter-spacing:.02em;
   text-transform:uppercase;
   color:#fff;
-  margin:-1px 0 0;
+  margin:0;
 }
 .hub-standings-mini-nav button:hover:not(:disabled) {
   border-color:rgba(255,90,90,.55);
@@ -3955,33 +3963,6 @@ button.poty:disabled {
   box-shadow:inset 0 0 0 1px rgba(255,120,90,.25), 0 0 14px rgba(255,40,40,.22);
 }
 .hub-standings-mini-nav button:disabled { opacity:.42; cursor:not-allowed; }
-
-/* Stats mini-nav: fixed 5+5 desktop rows (Leadersâ¦Records / Standingsâ¦History). */
-@media (min-width: 901px) {
-  .hub-section-mini-nav--stats {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    justify-content: stretch;
-    width: min(1100px, 100%);
-  }
-  .hub-section-mini-nav--stats button {
-    min-width: 0;
-    width: 100%;
-  }
-}
-
-/* Game Day mini-nav: deliberate 2x2 grid (My Matchup / My Schedule top row, Game of the Week /
-   League Schedule bottom row) at every size, not just incidental flex-wrap. */
-.hub-section-mini-nav--gameday {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  justify-content: stretch;
-  width: min(560px, 100%);
-}
-.hub-section-mini-nav--gameday button {
-  min-width: 0;
-  width: 100%;
-}
 
 .hub-standings-key {
   display:flex;
@@ -4332,8 +4313,8 @@ button.poty:disabled {
   }
 }
 @media (max-width: 640px) {
-  .hub-standings-mini-nav { gap:6px; padding:6px; }
-  .hub-standings-mini-nav button { min-width:0; flex:1 1 40%; padding:8px 8px; }
+  .hub-standings-mini-nav { grid-template-columns:repeat(2, minmax(0,1fr)); gap:6px; padding:6px; }
+  .hub-standings-mini-nav button { min-width:0; padding:8px 8px; }
   .hub-standings-mini-nav button span { font-size:.58rem; }
   .hub-standings-mini-nav button strong { font-size:.8rem; }
   .hub-div-standings-side-grid { grid-template-columns:1fr; }

@@ -39,7 +39,6 @@ export function StatsMiniNav({
     <SectionMiniNav
       ariaLabel="Stats views"
       active={resolved}
-      className="hub-section-mini-nav--stats"
       items={[
         { id: "leaders", top: "League", bottom: "Leaders", to: `${base}/stats` },
         { id: "season", top: "Season", bottom: "Stats", to: `${base}/stats?view=season` },
