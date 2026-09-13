@@ -2,7 +2,7 @@ import { SectionMiniNav } from "./SectionMiniNav.js";
 
 export type TeamNavId = "team" | "roster" | "progression" | "trades" | "store";
 
-/** Plan order: My Team → Roster Search → Progression → Trade Center → Store. */
+/** Plan order: My Team → View Rosters → Progression → Trade Center → Store. */
 export function TeamMiniNav({
   active,
   leagueId,
@@ -22,7 +22,7 @@ export function TeamMiniNav({
   const base = `/l/${leagueId}`;
   const items = [
     { id: "team", top: "My", bottom: "Team", to: `${base}/team` },
-    { id: "roster", top: "Roster", bottom: "Search", to: `${base}/roster` },
+    { id: "roster", top: "View", bottom: "Rosters", to: `${base}/roster` },
     progressionAvailable
       ? {
           id: "progression",
