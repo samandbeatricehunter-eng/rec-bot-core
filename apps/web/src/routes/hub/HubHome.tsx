@@ -1454,7 +1454,10 @@ export function HubHome() {
     : null;
   const playerXpTotal = Number(rtiGates?.playerXpTotal ?? my.progressionSummary?.playerXpTotal ?? rtiGates?.playerSnapshots?.reduce((total, player) => total + Number(player.playerXpTotal ?? 0), 0) ?? 0);
   const teamXpTotal = Number(rtiGates?.teamXpTotal ?? my.progressionSummary?.teamXpTotal ?? 0);
-  const teamXpProgress = Math.max(0, Math.min(100, teamXpTotal));
+  // Real progress toward the next steel shield (FPP remainder mod 6000, computed server-side) --
+  // previously this clamped the whole-shield COUNT itself into 0-100, which only looked right
+  // by coincidence while teamXpTotal happened to stay under 100.
+  const teamXpProgress = Math.max(0, Math.min(100, Number(my.progressionSummary?.teamXpProgressPct ?? 0)));
   const recentForm = (my.recentForm ?? []) as Array<{ result: "W" | "L" | "T"; opponentName: string; opponentAbbr: string | null; opponentLogoUrl: string | null }>;
   const activeHighlight = highlights[activeHighlightIndex] ?? null;
   const highlightOwnerId = (activeHighlight as { user_id?: string | null; userId?: string | null } | null)?.user_id
@@ -1536,7 +1539,7 @@ export function HubHome() {
               </div>
               {!isRise ? <div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="Team progression snapshot">
                 <Link to={`/l/${hub.league.id}/standings?view=power`}><span>Power ranking</span><strong>{heroRank}</strong></Link>
-                <Link className="hub-season-form-card" to={`/l/${hub.league.id}/standings`}><span>Streak · Recent form</span><strong><em>{my.userStreakText ?? "—"}</em>{recentForm.length ? recentForm.map((game, index) => <span className={`hub-season-form-game is-${game.result.toLowerCase()}`} key={`${game.opponentName}-${index}`} title={`${game.result} vs ${game.opponentName}`}><TeamLogo abbreviation={game.opponentAbbr} logoUrl={game.opponentLogoUrl} alt={game.opponentName} /><b>{game.result}</b></span>) : <small>—</small>}</strong></Link>
+                <Link className="hub-season-form-card" to={`/l/${hub.league.id}/matchups?view=myschedule`}><span>Recent form · Streak</span><strong>{recentForm.length ? [...recentForm].reverse().map((game, index) => <span className={`hub-season-form-game is-${game.result.toLowerCase()}`} key={`${game.opponentName}-${index}`} title={`${game.result} vs ${game.opponentName}`}><TeamLogo abbreviation={game.opponentAbbr} logoUrl={game.opponentLogoUrl} alt={game.opponentName} /><b>{game.result}</b></span>) : <small>—</small>}<em>{my.userStreakText ?? "—"}</em></strong></Link>
                 <Link to={`/l/${hub.league.id}/player-progression`}><span>Player XP</span><strong>{playerXpTotal.toLocaleString()}</strong></Link>
                 <Link className="hub-season-team-xp" to={`/l/${hub.league.id}/owner-progression`}><span>Team XP</span><strong>{teamXpTotal.toLocaleString()} <Shield size={17} aria-label="Steel shield" /></strong><div className="hub-season-team-xp-track" aria-label={`${teamXpTotal} Team XP toward steel shield`}><i style={{ width: `${teamXpProgress}%` }} /></div></Link>
               </div> : null}
