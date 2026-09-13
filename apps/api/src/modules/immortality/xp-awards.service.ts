@@ -20,6 +20,7 @@ import {
   type LeagueGame,
 } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
+import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { loadImmortalityLeague } from "./immortality.service.js";
 import { resolveSeasonId } from "../league-context/season.service.js";
 import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
@@ -615,9 +616,15 @@ export async function loadRtiMemberGates(input: {
   // prospects each cost a separate sequential rec_immortality_prospect_characteristics round
   // trip, and this whole function sits on getHub's critical path (loadHub awaits it directly
   // for every RTI hub view), so a ~20-prospect roster alone added multiple seconds to every
-  // hub load. Each prospect's modifiers are independent, so fetch them concurrently instead.
-  const allModifiers = await Promise.all(
-    (prospects.data ?? []).map((prospect) => modifiersForProspect({ id: String(prospect.id), position: String(prospect.position) })),
+  // hub load. Each prospect's modifiers are independent, so fetch them concurrently -- but
+  // bounded (not a bare Promise.all): an unbounded burst of one query per prospect landing on
+  // Supabase at once, on top of this API's already-heavy background polling load, briefly
+  // tipped shared connection-pool contention badly enough to make *other* endpoints' requests
+  // slower too. mapWithConcurrency caps how many are ever in flight together.
+  const allModifiers = await mapWithConcurrency(
+    prospects.data ?? [],
+    5,
+    (prospect: any) => modifiersForProspect({ id: String(prospect.id), position: String(prospect.position) }),
   );
   let tradesUnlocked = false;
   let teammateDevUnlocked = false;
