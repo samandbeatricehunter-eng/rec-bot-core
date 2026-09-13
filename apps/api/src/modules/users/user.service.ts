@@ -1103,6 +1103,12 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   const userId = baseline.user.id;
   const server: any = context?.rec_discord_servers ?? null;
   const league: any = context?.rec_leagues ?? null;
+  // Independent of every league/team/matchup lookup below (only needs userId) -- this whole
+  // function is one long mostly-sequential chain (each wave below depends on the previous
+  // one's result), and getHub awaits it directly on every hub load, so an extra tail query
+  // here is a full round trip added to every request. Starting it now lets its latency
+  // overlap with that chain instead of tacking on at the end where it was previously awaited.
+  const gotwH2hP = supabase.from("rec_global_gotw_h2h_records").select("wins,losses,ties").eq("user_id", userId).maybeSingle();
 
   let assignment: any = null;
   let membership: any = null;
@@ -1120,6 +1126,11 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   if (league?.id) {
     const seasonNumber = league.season_number ?? league.display_season_number ?? 1;
     const currentWeek = league.current_week ?? 1;
+    // Only actually consumed deep in the gameplay-stage branch below, but it has no
+    // dependency on the assignment/membership/records wave that follows -- start it now so
+    // its round trip (usually a compute-cache hit anyway) overlaps with that wave instead of
+    // adding a fully sequential extra hop after it.
+    const seasonIdP = resolveSeasonId(league.id, seasonNumber);
     const stage = String(league.season_stage ?? league.current_phase ?? "regular_season");
     const isPostseason = postseasonPayoutStages(league.game).has(stage);
     const isPreseason = stage === "preseason" || stage === "preseason_training_camp";
@@ -1186,7 +1197,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
         // last season's game at the same week number instead of the current one once a league
         // is on its second (or later) season â€” the exact bug behind the hero card showing a
         // stale opponent from a prior season.
-        const seasonId = await resolveSeasonId(league.id, seasonNumber);
+        const seasonId = await seasonIdP;
         const games = await leagueWeekGamesQuery(supabase, { leagueId: league.id, seasonId, weekNumber: currentWeek },
           "*, home_team:rec_teams!rec_games_home_team_id_fkey(name,abbreviation), away_team:rec_teams!rec_games_away_team_id_fkey(name,abbreviation)")
           .or(`home_team_id.eq.${assignment.team_id},away_team_id.eq.${assignment.team_id}`)
@@ -1257,9 +1268,12 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   }
 
   const leagueGame = String(league?.game ?? "madden_26");
-  const [globalRecordResult, gameGlobalRecordResult] = await Promise.all([
+  // gotwRecord is independent of the two global-record lookups (all three only need userId) --
+  // folded into the same round trip instead of a separate awaited call after.
+  const [globalRecordResult, gameGlobalRecordResult, gotwGuessingResult] = await Promise.all([
     supabase.from("rec_global_user_records").select("*").eq("user_id", userId).maybeSingle(),
     supabase.from("rec_global_user_game_records").select("*").eq("user_id", userId).eq("game", leagueGame).maybeSingle(),
+    supabase.from("rec_global_gotw_guessing_records").select("correct_guesses,wrong_guesses").eq("user_id", userId).maybeSingle(),
   ]);
   const globalRecord = globalRecordResult.data ?? baseline.globalRecord ?? {};
   const gameGlobalRecord = buildGameRecordForDisplay(
@@ -1272,11 +1286,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   // during advance). The raw rec_game_of_week_votes table can have null user_id when the
   // Discordâ†’user lookup fails at vote-cast time, so the aggregate is more reliable.
   let gotwVotingRecord: { correct: number; total: number; accuracy: number } | null = null;
-  const { data: gotwRecord } = await supabase
-    .from("rec_global_gotw_guessing_records")
-    .select("correct_guesses,wrong_guesses")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const gotwRecord = gotwGuessingResult.data;
 
   if (gotwRecord) {
     const correct = gotwRecord.correct_guesses ?? 0;
@@ -1341,11 +1351,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
 
   // All-time GOTW head-to-head record (populated during advance once GOTW games are settled).
   let gotwH2hRecordText = "No GOTW games yet";
-  const { data: gotwH2h } = await supabase
-    .from("rec_global_gotw_h2h_records")
-    .select("wins,losses,ties")
-    .eq("user_id", userId)
-    .maybeSingle();
+  const { data: gotwH2h } = await gotwH2hP;
   if (gotwH2h) {
     const w = gotwH2h.wins ?? 0, l = gotwH2h.losses ?? 0, t = gotwH2h.ties ?? 0;
     if (w + l + t > 0) gotwH2hRecordText = t > 0 ? `${w}-${l}-${t}` : `${w}-${l}`;
