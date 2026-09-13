@@ -1357,7 +1357,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     if (w + l + t > 0) gotwH2hRecordText = t > 0 ? `${w}-${l}-${t}` : `${w}-${l}`;
   }
 
-  let progressionSummary = { playerXpTotal: 0, teamXpTotal: 0, teamXpProgressPct: 0 };
+  let progressionSummary = { playerXpTotal: 0, playerXpProgressPct: 0, teamXpTotal: 0, teamXpProgressPct: 0 };
   if (league?.id && assignment?.team_id) {
     const [rosterResult, franchiseXpResult] = await Promise.all([
       supabase.from("rec_players").select("id").eq("league_id", league.id).eq("team_id", assignment.team_id),
@@ -1369,8 +1369,11 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       ? await supabase.from("rec_player_xp_state").select("balance_xp").eq("league_id", league.id).in("player_id", playerIds)
       : { data: [] as any[] };
     const balanceFpp = Number(franchiseXpResult.data?.balance_fpp ?? 0);
+    const balanceXp = (playerXpResult.data ?? []).reduce((total: number, row: any) => total + Number(row.balance_xp ?? 0), 0);
     progressionSummary = {
-      playerXpTotal: (playerXpResult.data ?? []).reduce((total: number, row: any) => total + Number(row.balance_xp ?? 0), 0),
+      // Same 6000-per-point conversion as Team XP below -- 1 Player XP point = 6000 raw balance_xp.
+      playerXpTotal: Math.floor(balanceXp / 6000),
+      playerXpProgressPct: Math.max(0, Math.min(100, ((balanceXp % 6000) / 6000) * 100)),
       teamXpTotal: Math.floor(balanceFpp / 6000),
       // Progress toward the *next* steel shield -- balance_fpp is the running FPP total, not
       // per-shield, so the remainder after the last completed shield (mod 6000) is what's
