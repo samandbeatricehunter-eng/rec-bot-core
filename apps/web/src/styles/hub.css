@@ -3960,7 +3960,7 @@ button.poty:disabled {
 @media (min-width: 901px) {
   .hub-section-mini-nav--stats {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     justify-content: stretch;
     width: min(1100px, 100%);
   }
@@ -3968,6 +3968,19 @@ button.poty:disabled {
     min-width: 0;
     width: 100%;
   }
+}
+
+/* Game Day mini-nav: deliberate 2x2 grid (My Matchup / My Schedule top row, Game of the Week /
+   League Schedule bottom row) at every size, not just incidental flex-wrap. */
+.hub-section-mini-nav--gameday {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: stretch;
+  width: min(560px, 100%);
+}
+.hub-section-mini-nav--gameday button {
+  min-width: 0;
+  width: 100%;
 }
 
 .hub-standings-key {

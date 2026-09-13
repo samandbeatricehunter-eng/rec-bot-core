@@ -1937,7 +1937,7 @@ export function HubHome() {
 
       {subTab === "matchups" && (
         <>
-          <GameDayMiniNav active={gameDayView} leagueId={hub.league.id} />
+          <GameDayMiniNav active={gameDayView} leagueId={hub.league.id} onMySchedule={() => void viewMySchedule()} />
 
           {gameDayView === "mine" ? (
             <SectionFrame eyebrow="This week" title="My Matchup" className="hub-matchup-section">

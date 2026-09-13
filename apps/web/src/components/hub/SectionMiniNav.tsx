@@ -4,7 +4,10 @@ export type SectionMiniNavItem = {
   id: string;
   top: string;
   bottom: string;
-  to: string;
+  /** Route items navigate; omit `to` and pass `onClick` for an item that opens something
+   * in place (a modal) instead of changing the page (e.g. Game Day's "My Schedule"). */
+  to?: string;
+  onClick?: () => void;
   disabled?: boolean;
   disabledTitle?: string;
 };
@@ -41,7 +44,8 @@ export function SectionMiniNav({
             aria-pressed={selected}
             onClick={() => {
               if (selected || disabled) return;
-              navigate(item.to);
+              if (item.onClick) { item.onClick(); return; }
+              if (item.to) navigate(item.to);
             }}
           >
             <span>{item.top}</span>
