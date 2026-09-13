@@ -232,7 +232,7 @@ function AdvanceReadinessSection() {
     let progressTimer: number | null = null;
     try {
       progressTimer = window.setInterval(() => {
-        void recApi.getAdvanceProgress({ guildId, runId: advanceRunId }).then((response) => {
+        void recApi.getAdvanceProgress({ guildId }).then((response) => {
           if (response.progress) setAdvanceProgress(response.progress);
         }).catch(() => undefined);
       }, 600);

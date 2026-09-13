@@ -875,7 +875,7 @@ export async function completeAdvanceWeek(input: {
     }
   });
 
-  updateAdvanceProgress(input.advanceRunId, "Advancing league week and processing awards");
+  updateAdvanceProgress(context.leagueId, "Advancing league week and processing awards");
 
   const advanceResult = await setLeagueWeek({
     guildId: input.guildId,
@@ -1001,7 +1001,7 @@ export async function completeAdvanceWeek(input: {
     }).catch((err) => console.error("[ERROR] NFL standings/bracket sync failed after advance (non-fatal):", err));
   }
 
-  updateAdvanceProgress(input.advanceRunId, "Publishing the playoff picture and bracket");
+  updateAdvanceProgress(context.leagueId, "Publishing the playoff picture and bracket");
   await publishMaddenPlayoffPicture({
     guildId: input.guildId,
     leagueId: context.leagueId,
@@ -1167,7 +1167,7 @@ export async function completeAdvanceWeek(input: {
     const hour12 = hour % 12 === 0 ? 12 : hour % 12;
     nextAdvanceLabel = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")} ${hour12}:${String(minute).padStart(2, "0")} ${ampm} ${tzLabel}`;
   }
-  updateAdvanceProgress(input.advanceRunId, "Posting league announcements and rankings");
+  updateAdvanceProgress(context.leagueId, "Posting league announcements and rankings");
   await publishLeagueAdvanceAnnouncement({
     guildId: input.guildId,
     leagueId: context.leagueId,
@@ -1188,7 +1188,7 @@ export async function completeAdvanceWeek(input: {
   // months-old) week's scores as if they just happened. Only the advance OUT of a stage that
   // actually has games (regular_season or a postseason round) should trigger this recap.
   if (!isOffseasonPipelineStage(currentStage)) {
-    updateAdvanceProgress(input.advanceRunId, "Posting weekly final-results recap");
+    updateAdvanceProgress(context.leagueId, "Posting weekly final-results recap");
     await postWeeklyFinalResultsRecap({ guildId: input.guildId, leagueId: context.leagueId, seasonNumber, weekNumber: currentWeek, game: context.rec_leagues.game })
       .catch((err) => console.error("[ERROR] Weekly final-results recap failed after advance (non-fatal):", err));
   }

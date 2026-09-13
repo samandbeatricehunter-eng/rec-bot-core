@@ -986,8 +986,10 @@ export const recApi = {
     recApiFetch<{ ok: true; notifiedUserIds: string[] }>("/v1/league-week/notify-missing", { method: "POST", body: JSON.stringify(input) }),
   completeAdvanceWeek: (input: { guildId: string; nextWeekNumber: number; nextSeasonStage: string; results: AdvanceResultInput[]; advanceRunId?: string; nextGotwGameId?: string | null; nextAdvance?: { year: number; month: number; day: number; hour: number; minute: number; tzLabel: string } | null }) =>
     recApiFetch<{ nextAdvanceLabel: string; discord?: { announcementPosted: boolean; error?: string } | null; gameChannels?: { created: unknown[]; deleted: number; eligible: number; error?: string } }>("/v1/league-week/advance-complete", { method: "POST", body: JSON.stringify({ ...input, advancedByDiscordId: "web-dashboard" }), signal: AbortSignal.timeout(REC_API_ADVANCE_TIMEOUT_MS) }),
-  getAdvanceProgress: (input: { guildId: string; runId: string }) =>
-    recApiFetch<{ progress: { runId: string; stage: string; completed: string[]; status: "running" | "complete" | "error"; error?: string } | null }>("/v1/league-week/advance-progress", { method: "POST", body: JSON.stringify(input) }),
+  // Keyed by leagueId server-side (see advance-progress.service.ts) -- no runId needed, so a
+  // freshly-mounted AdvanceStatusDrawer can discover an in-progress advance after navigation.
+  getAdvanceProgress: (input: { guildId: string }) =>
+    recApiFetch<{ progress: { runId: string | null; stage: string; completed: string[]; status: "running" | "complete" | "error"; error?: string } | null }>("/v1/league-week/advance-progress", { method: "POST", body: JSON.stringify(input) }),
   setNextAdvanceTime: (input: { guildId: string; year: number; month: number; day: number; hour: number; minute: number; tzLabel: string }) =>
     recApiFetch<unknown>("/v1/league-week/set-next-advance", { method: "POST", body: JSON.stringify(input) }),
   setGamePostseasonFlags: (input: { guildId: string; gameId: string; isBowlGame: boolean; isNationalChampionship: boolean }) =>

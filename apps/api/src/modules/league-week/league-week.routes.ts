@@ -53,11 +53,14 @@ const SetLeagueWeekSchema = z.object({
 });
 
 export async function leagueWeekRoutes(app: FastifyInstance) {
+  // Polled by AdvanceStatusDrawer, keyed by leagueId (not a client-remembered runId) so a
+  // freshly-mounted drawer can discover an in-progress advance after navigating away and back.
   app.post("/v1/league-week/advance-progress", async (request, reply) => {
     try {
-      const body = z.object({ guildId: z.string().min(1), runId: z.string().uuid() }).parse(request.body);
+      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
-      return reply.send({ progress: getAdvanceProgress(body.runId) });
+      const context = await getCurrentLeagueContext(body.guildId);
+      return reply.send({ progress: getAdvanceProgress(context.leagueId) });
     } catch (error) { return sendError(reply, error); }
   });
   app.post("/v1/league-week/view", async (request, reply) => {
@@ -177,6 +180,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
   });
 
   app.post("/v1/league-week/advance-complete", async (request, reply) => {
+    let progressLeagueId: string | null = null;
     try {
       const body = z.object({
         guildId: z.string().min(1),
@@ -204,9 +208,11 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       }).parse(request.body);
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "user") body.advancedByDiscordId = auth.discordId;
-      if (body.advanceRunId) startAdvanceProgress(body.advanceRunId);
+      const progressContext = await getCurrentLeagueContext(body.guildId);
+      progressLeagueId = progressContext.leagueId;
+      startAdvanceProgress(progressLeagueId, body.advanceRunId);
       const result = await completeAdvanceWeek(body);
-      const gameChannels = await createGameChannelsForCurrentWeek(body.guildId, (stage) => updateAdvanceProgress(body.advanceRunId, stage === "removing" ? "Removing old game channels" : "Creating new game channels"))
+      const gameChannels = await createGameChannelsForCurrentWeek(body.guildId, (stage) => updateAdvanceProgress(progressLeagueId, stage === "removing" ? "Removing old game channels" : "Creating new game channels"))
         .catch((error) => ({ created: [], deleted: 0, eligible: 0, error: error instanceof Error ? error.message : "Game-channel refresh failed." }));
       if (gameChannels.created.length) {
         const context = await getCurrentLeagueContext(body.guildId);
@@ -226,16 +232,24 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
           });
         }
       }
-      updateAdvanceProgress(body.advanceRunId, "Refreshing the new weekly matchup board");
+      updateAdvanceProgress(progressLeagueId, "Refreshing the new weekly matchup board");
       await refreshMatchupsChannel(body.guildId).catch((error) => console.error("[ERROR] Failed to post weekly matchups channel (non-fatal):", error));
       const discord = auth.mode === "user"
         ? await relayWebAdvanceToDiscord(body.guildId).catch((error) => ({ announcementPosted: false, error: error instanceof Error ? error.message : "Discord relay failed." }))
         : null;
-      finishAdvanceProgress(body.advanceRunId);
+      finishAdvanceProgress(progressLeagueId);
       return reply.send({ ...result, discord, gameChannels });
     } catch (error) {
-      const runId = (request.body as any)?.advanceRunId;
-      failAdvanceProgress(typeof runId === "string" ? runId : null, error);
+      if (progressLeagueId) {
+        failAdvanceProgress(progressLeagueId, error);
+      } else {
+        // Failed before we resolved leagueId (e.g. bad guildId) -- best-effort resolve so the
+        // drawer still sees the failure instead of silently showing nothing.
+        const guildId = (request.body as any)?.guildId;
+        if (typeof guildId === "string" && guildId) {
+          await getCurrentLeagueContext(guildId).then((ctx) => failAdvanceProgress(ctx.leagueId, error)).catch(() => undefined);
+        }
+      }
       return sendError(reply, error);
     }
   });
