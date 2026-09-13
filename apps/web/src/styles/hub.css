@@ -3610,7 +3610,12 @@ button.poty:disabled {
     background-image:
       linear-gradient(180deg, rgba(5, 7, 10, 0.32) 0%, rgba(5, 7, 10, 0.58) 55%, rgba(5, 7, 10, 0.8) 100%),
       url("/assets/backgrounds/master-background.png");
-    background-size: cover;
+    /* The source art is wide (1672x941) -- on a narrow/tall phone viewport, `cover` (which
+       scales to fill height) blows the width up to ~4x the viewport just to cover the full
+       height, cropping down to a thin vertical sliver and cutting off the stamped logo
+       entirely. Sizing off width instead shows the whole logo; any leftover space below
+       fades into the solid background color the gradient already settles into. */
+    background-size: 200% auto;
     background-position: center top;
     background-repeat: no-repeat;
   }
