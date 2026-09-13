@@ -3810,7 +3810,10 @@ button.poty:disabled {
 .hub-hero-rebuilt {
   display: block;
   width: 100%;
-  padding: clamp(16px, 3vw, 34px);
+  /* Horizontal padding here would shrink .hub-season-snapshot's min(100%,980px) basis below
+     every mini-nav's (they sit directly in .hub-page with no padded ancestor), making League
+     Home's chassis render narrower than every other page's at in-between viewport widths. */
+  padding-block: clamp(16px, 3vw, 34px);
   overflow: visible;
 }
 .hub-hero-centered-header {
