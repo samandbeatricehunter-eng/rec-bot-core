@@ -17,7 +17,6 @@ import {
   LeagueThemeProvider,
   LinkTeamForm,
   ManageLeagueHome,
-  MgmtMiniNav,
   type MgmtNavId,
   MgmtStatusStrip,
   NflPlayoffBracket,
@@ -233,8 +232,7 @@ function MgmtSubPage({ children }: { children: ReactNode }) {
 function MgmtSectionLayout({ active, leagueId, children }: { active: MgmtNavId; leagueId: string; children: ReactNode }) {
   return (
     <>
-      <MgmtStatusStrip leagueId={leagueId} />
-      <MgmtMiniNav active={active} leagueId={leagueId} />
+      <MgmtStatusStrip leagueId={leagueId} active={active} />
       {children}
     </>
   );

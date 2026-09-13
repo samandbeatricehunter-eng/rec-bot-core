@@ -4322,7 +4322,10 @@ button.poty:disabled {
 }
 @media (max-width: 640px) {
   .hub-standings-mini-nav { grid-template-columns:repeat(2, minmax(0,1fr)); gap:6px; padding:6px; }
-  .hub-standings-mini-nav button { min-width:0; padding:8px 8px; }
+  /* Desktop's per-row column-span (SectionMiniNav.tsx) is relative to a 4-column grid --
+     override back to a plain 1-column span on this 2-column mobile grid so every nav still
+     wraps 2-per-row here, regardless of how few items it has on desktop. */
+  .hub-standings-mini-nav button { grid-column: span 1 !important; min-width:0; padding:8px 8px; }
   .hub-standings-mini-nav button span { font-size:.58rem; }
   .hub-standings-mini-nav button strong { font-size:.8rem; }
   .hub-div-standings-side-grid { grid-template-columns:1fr; }
@@ -4534,6 +4537,13 @@ button.poty:disabled {
   .hub-my-team-record-row { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }
 .hub-season-snapshot-secondary { margin-top:8px; }
+/* League Mgmt's bottom row lives in this same grid (MgmtStatusStrip) so its active destination
+   needs a selected-state highlight -- the primary row's items are read-only info, never active. */
+.hub-season-snapshot-grid > a.is-active {
+  border-color: rgba(255,70,70,.75);
+  background: linear-gradient(180deg, rgba(90,18,18,.95), rgba(40,10,10,.98));
+  box-shadow: inset 0 0 0 1px rgba(255,120,90,.25), 0 0 14px rgba(255,40,40,.22);
+}
 .hub-season-form-card strong { gap:4px; }
 .hub-season-form-card strong > em { margin-right:2px; color:#fff; font-size:.8rem; font-style:normal; }
 .hub-season-form-card strong > small { color:rgba(255,255,255,.55); }
