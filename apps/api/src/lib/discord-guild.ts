@@ -502,6 +502,16 @@ export async function purgeDiscordChannelMessages(channelId: string): Promise<{ 
 
 export async function deleteGuildChannel(channelId: string, reason: string): Promise<boolean> {
   const res = await discordBotFetch(`/channels/${channelId}`, { method: "DELETE", headers: { "X-Audit-Log-Reason": auditReason(reason) } });
+  // A failure here used to be swallowed silently -- the caller's rec_game_channels row stayed
+  // "active" forever with no log of why, so the exact same channel would be re-attempted (and
+  // fail again, for the same reason) every subsequent week, accumulating as orphaned channels
+  // that never get cleaned up. 404 means the channel is already gone (a mod deleted it by hand,
+  // or a previous attempt actually succeeded but the response was lost) -- that's the deletion's
+  // actual goal already met, so treat it as success instead of retrying forever.
+  if (res.status === 404) return true;
+  if (!res.ok) {
+    console.error(`[ERROR] Failed to delete Discord channel ${channelId}: HTTP ${res.status} ${await res.text().catch(() => "")}`);
+  }
   return res.ok;
 }
 

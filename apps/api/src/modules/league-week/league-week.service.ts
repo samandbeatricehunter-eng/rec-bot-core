@@ -35,7 +35,14 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
   // the ONE rule for when the season number advances, so it applies regardless of which
   // caller (Advance wizard, manual Set Week, etc.) triggers the transition. An explicit
   // input.seasonNumber (e.g. the Discord "Set Season" override) still wins when given.
-  const enteringPreseason = input.seasonStage === "preseason" && previousStage !== "preseason";
+  // Madden's actual stage name here is "preseason_training_camp" (league-stage.ts's "draft" ->
+  // "preseason_training_camp" transition), not "preseason" -- CFB uses "preseason" directly.
+  // Checking only the literal "preseason" string meant season_number NEVER advanced for any
+  // Madden league: the season "reset" to Week 1 but stayed tagged under the same season_id,
+  // so schedule regeneration doubled up Week 1 (old completed games + new ones sharing a
+  // season) and every season-scoped stat/record silently mixed the two seasons together.
+  const isPreseasonStageName = (stage: string) => stage === "preseason" || stage === "preseason_training_camp";
+  const enteringPreseason = isPreseasonStageName(input.seasonStage) && !isPreseasonStageName(previousStage);
   const effectiveSeasonNumber = input.seasonNumber ?? (enteringPreseason ? previousSeasonNumber + 1 : undefined);
   const payload = {
     current_week: input.weekNumber,
