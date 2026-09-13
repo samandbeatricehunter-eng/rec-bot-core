@@ -1237,6 +1237,25 @@ h1, h2, h3, .site-wordmark {
   margin: 0;
   font-size: 18px;
 }
+/* Consolidated username drawer: notifications (site-notif-section, reused as-is) on top,
+   the account actions that used to live behind a separate gear icon below a divider. Same
+   floating-card treatment as .site-notif-panel, just taller to hold both. */
+.site-account-drawer {
+  z-index: 320;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(80vh, 560px);
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: rgba(10, 10, 12, 0.97); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+.site-account-drawer .site-notif-section { display: flex; flex-direction: column; gap: 12px; }
+.site-account-drawer-divider { height: 1px; margin: 10px 0; background: var(--border); }
 .site-notif-section h3 {
   margin: 0 0 6px;
   font-size: 12px;

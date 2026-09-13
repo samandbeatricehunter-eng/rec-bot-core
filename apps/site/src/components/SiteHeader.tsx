@@ -1,7 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useHub } from "../lib/hub-context.js";
 import type { SiteLeagueSummary } from "../lib/site-api.js";
-import { NotificationsBell } from "./NotificationsBell.js";
 import { ProfileChip } from "./ProfileChip.js";
 import { TeamLogo } from "@rec/hub-ui";
 import { IconChevronDown } from "./icons.js";
@@ -21,7 +20,8 @@ function sortLeagues(leagues: SiteLeagueSummary[]) {
   });
 }
 
-/** Brand + account strip. Notifications sit immediately left of profile per nav plan. */
+/** Brand + account strip. ProfileChip is the one account control -- its drawer holds
+ * notifications (top section) and account actions (My Account / Help / Sign Out) together. */
 function HeaderRow1() {
   return (
     <div className="site-header-row1">
@@ -30,7 +30,6 @@ function HeaderRow1() {
         <span className="site-header-brand-text">REC-Leagues.com</span>
       </NavLink>
       <div className="site-header-row1-end">
-        <NotificationsBell />
         <ProfileChip />
       </div>
     </div>
