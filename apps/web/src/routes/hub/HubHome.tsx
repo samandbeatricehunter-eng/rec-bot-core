@@ -597,7 +597,7 @@ export function HubHome() {
   const gotwGames = useMemo(() => (matchupSchedule?.games ?? []).filter((game) => Boolean(game.gotw)), [matchupSchedule]);
   const gameDayView: GameDayNavId = (() => {
     const raw = searchParams.get("view");
-    if (raw === "gotw" || raw === "schedule") return raw;
+    if (raw === "gotw" || raw === "schedule" || raw === "myschedule") return raw;
     return "mine";
   })();
   const homeMediaView = (() => {
@@ -662,7 +662,6 @@ export function HubHome() {
   const [retireError, setRetireError] = useState<string | null>(null);
   const [retireNickname, setRetireNickname] = useState("");
   const [retireStep, setRetireStep] = useState<1 | 2>(1);
-  const [showMySchedule, setShowMySchedule] = useState(false);
   const [mySchedule, setMySchedule] = useState<TeamScheduleManualState | null>(null);
   const [myScheduleError, setMyScheduleError] = useState<string | null>(null);
   const [myHighlightCounts, setMyHighlightCounts] = useState<Record<number, number> | null>(null);
@@ -1174,7 +1173,7 @@ export function HubHome() {
   }
   async function viewMySchedule() {
     if (auth.status !== "ready") return;
-    setShowMySchedule(true); setMyScheduleError(null);
+    setMyScheduleError(null);
     if (mySchedule) return;
     try {
       const [schedule, highlightCounts] = await Promise.all([
@@ -1187,6 +1186,10 @@ export function HubHome() {
       setMyScheduleError(cause instanceof Error ? cause.message : "Your schedule could not be loaded.");
     }
   }
+  useEffect(() => {
+    if (gameDayView === "myschedule") void viewMySchedule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameDayView, auth.status === "ready" ? auth.guildId : null]);
 
   async function loadScheduleLeagueWeek(weekNumber?: number) {
     if (auth.status !== "ready") return;
@@ -1761,7 +1764,7 @@ export function HubHome() {
 
       {subTab === "matchups" && (
         <>
-          <GameDayMiniNav active={gameDayView} leagueId={hub.league.id} onMySchedule={() => void viewMySchedule()} />
+          <GameDayMiniNav active={gameDayView} leagueId={hub.league.id} />
 
           {gameDayView === "mine" ? (
             <SectionFrame eyebrow="This week" title="My Matchup" className="hub-matchup-section">
@@ -1942,6 +1945,18 @@ export function HubHome() {
               })()}
             </SectionFrame>
           ) : null}
+          {gameDayView === "myschedule" ? (
+            <SectionFrame eyebrow="Full season" title="My Schedule" className="hub-matchup-section">
+              {myScheduleError ? <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div>
+                : !mySchedule ? <p className="hub-empty">Loading your schedule...</p>
+                : <ScheduleWeekList
+                    weeks={mySchedule.weeks}
+                    game={mySchedule.game as LeagueGame}
+                    currentWeek={hub.league.weekNumber}
+                    highlightCounts={myHighlightCounts ?? undefined}
+                  />}
+            </SectionFrame>
+          ) : null}
         </>
       )}
 
@@ -2045,52 +2060,6 @@ export function HubHome() {
         {mediaDay.complete && <p className="hub-muted">This week's Media Day is complete.</p>}
       </>}
     </div></Modal> : null}
-    {showMySchedule && <Modal title="Full Season Schedule" onClose={() => setShowMySchedule(false)} panelClassName="hub-schedule-modal"><div className="hub-my-schedule">
-      {!isCfbLeague && hub.myTeam && (
-        <div className="hub-schedule-relocate-row">
-          <Button variant="secondary" onClick={() => setRelocateWizardOpen(true)}>Relocate/Custom Team</Button>
-        </div>
-      )}
-      {relocateNotice && <p className="hub-transfer-status">{relocateNotice}</p>}
-      <div className="hub-modal-pill-row">
-        <button type="button" className={scheduleModalTab === "my" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => setScheduleModalTab("my")}>My Schedule</button>
-        <button type="button" className={scheduleModalTab === "league" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => { setScheduleModalTab("league"); if (!scheduleLeagueData) void loadScheduleLeagueWeek(); }}>League Schedule</button>
-      </div>
-      {scheduleModalTab === "my" ? (
-        myScheduleError ? <div className="hub-empty"><p>{myScheduleError}</p><Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button></div>
-        : !mySchedule ? <p className="hub-empty">Loading your schedule...</p>
-        // Box score upload is CFB-only (Madden results come from the EA import, not a manual
-        // box-score screenshot) — but highlight posting is just video clips, unrelated to how
-        // results get recorded, so it's available for both games.
-        : <ScheduleWeekList
-            weeks={mySchedule.weeks}
-            game={mySchedule.game as LeagueGame}
-            currentWeek={hub.league.weekNumber}
-            highlightCounts={myHighlightCounts ?? undefined}
-          />
-      ) : (
-        <div className="hub-schedule-league-week">
-          <label className="form-field">
-            <span className="form-label">Week</span>
-            <select className="form-input" value={scheduleLeagueWeek ?? ""} onChange={(event) => void loadScheduleLeagueWeek(Number(event.target.value))} disabled={scheduleLeagueLoading || !scheduleLeagueData}>
-              {(scheduleLeagueData?.weekNumbers ?? (scheduleLeagueWeek ? [scheduleLeagueWeek] : [])).map((week) => <option key={week} value={week}>Week {week}</option>)}
-            </select>
-          </label>
-          {scheduleLeagueError ? <div className="hub-empty"><p>{scheduleLeagueError}</p><Button variant="secondary" onClick={() => void loadScheduleLeagueWeek(scheduleLeagueWeek ?? undefined)}>Try again</Button></div>
-            : scheduleLeagueLoading || !scheduleLeagueData ? <p className="hub-empty">Loading league schedule...</p>
-            : scheduleLeagueData.isOffseason ? <p className="hub-empty">No games this week — the league is in the offseason ({scheduleLeagueData.offseasonStageLabel ?? "Offseason"}).</p>
-            : !scheduleLeagueData.games.length ? <p className="hub-empty">No games scheduled for Week {scheduleLeagueData.selectedWeek}.</p>
-            : <div className="hub-schedule-week-list-cards">{scheduleLeagueData.games.map((game) => (
-                <div key={game.gameId} className="hub-schedule-mini-card">
-                  <MatchupCard game={game} showReactions={false} passive />
-                  {game.displayStatus === "awaiting_result" && game.homeScore != null && game.awayScore != null ? (
-                    <span className="hub-muted hub-score-unofficial">{game.awayScore}-{game.homeScore} (unofficial)</span>
-                  ) : null}
-                </div>
-              ))}</div>}
-        </div>
-      )}
-    </div></Modal>}
     {relocateWizardOpen && auth.status === "ready" && (
       <Modal title="Relocate / Custom Team" onClose={() => setRelocateWizardOpen(false)}>
         <Suspense fallback={<HubSurfaceFallback />}>
