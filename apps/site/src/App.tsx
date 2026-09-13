@@ -30,10 +30,6 @@ const Terms = lazy(() => import("./routes/Terms.js").then((m) => ({ default: m.T
 const DevBypass = lazy(() => import("./routes/DevBypass.js").then((m) => ({ default: m.DevBypass })));
 const DiscordGuildPicker = lazy(() => import("./routes/DiscordGuildPicker.js").then((m) => ({ default: m.DiscordGuildPicker })));
 const DiscordGuildTokenPopup = lazy(() => import("./routes/DiscordGuildTokenPopup.js").then((m) => ({ default: m.DiscordGuildTokenPopup })));
-function LegacyCommissionerInboxRedirect() {
-  const { leagueId = "" } = useParams();
-  return <Navigate replace to={`/l/${leagueId}/mgmt/notifications`} />;
-}
 function LegacyMatchupRedirect() {
   const { leagueId = "" } = useParams();
   return <Navigate replace to={`/l/${leagueId}/buzz`} />;
@@ -302,7 +298,6 @@ function Routed() {
         <Route path="/l/:leagueId/history" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/records" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/draft-board" element={<LeagueHubPage />} />
-        <Route path="/l/:leagueId/mgmt/inbox" element={<LegacyCommissionerInboxRedirect />} />
         <Route path="/l/:leagueId/mgmt/*" element={<LeagueHubPage />} />
         <Route path="/league-mgmt/*" element={<LegacyLeagueMgmtRedirect />} />
       </Route>
