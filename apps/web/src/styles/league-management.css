@@ -620,8 +620,13 @@
    big single-panel hub sections that intentionally go chrome-less over the page's themed
    backdrop (see hub.css's "Free-standing blocks" rule, which this class is deliberately excluded
    from), a transparent card here left consecutive notifications with no border between them,
-   reading as one run-on block of overlapping badges/text. */
-.pending-item-card {
+   reading as one run-on block of overlapping badges/text.
+   Compound selector (not just `.pending-item-card`) is deliberate: the Card component always
+   also applies base class "card" (surfaces.css, background:transparent/border:0), which has the
+   same specificity as a lone `.pending-item-card` -- whichever stylesheet happens to load later
+   would silently win. `.card.pending-item-card` has strictly higher specificity, so this always
+   wins regardless of CSS import order. */
+.card.pending-item-card {
   cursor: pointer;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -649,8 +654,10 @@
 }
 .completed-transaction-list { display: grid; gap: var(--space-3); }
 /* Same fix as .pending-item-card above -- a list of many similar items needs its own visible
-   per-item boundary rather than the transparent free-standing-block default. */
-.completed-transaction-card {
+   per-item boundary rather than the transparent free-standing-block default. Compound selector
+   for the same reason: beats the Card component's own equal-specificity base `.card` rule
+   regardless of stylesheet import order. */
+.card.completed-transaction-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
