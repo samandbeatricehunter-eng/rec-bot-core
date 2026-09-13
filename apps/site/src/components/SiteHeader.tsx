@@ -53,7 +53,6 @@ function LeagueSwitcher() {
             <span className="site-header-row2-name">{selected.name}</span>
             {selected.seasonRecordText ? <span className="site-header-row2-detail">{selected.seasonRecordText}</span> : null}
             <span className="site-header-row2-detail">{selected.gameLabel}</span>
-            <span className="site-header-row2-detail">{selected.seasonStageLabel}</span>
           </span>
         ) : (
           <span className="site-header-row2-active">My Leagues</span>

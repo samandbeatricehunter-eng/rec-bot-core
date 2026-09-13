@@ -2477,19 +2477,18 @@ h1, h2, h3, .site-wordmark {
   gap: 10px;
   min-width: 0;
 }
-/* Plain text trigger -- no pill/background, no icon. The username itself (with the unread
-   badge as a small inline number) is the whole control; a solid accent-gradient pill for just
-   a name read as oversized next to everything else in the row. */
+/* Plain icon trigger -- a settings gear, no username text and no pill background. The
+   drawer it opens shows the username as its own row instead. */
 .site-profile-avatar-btn {
   position: relative;
   height: 36px;
-  padding: 0 4px;
+  width: 36px;
+  padding: 0;
   border-radius: 8px;
   border: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-width: 0;
+  justify-content: center;
   color: var(--text-primary);
   background: transparent;
   cursor: pointer;
@@ -2499,13 +2498,23 @@ h1, h2, h3, .site-wordmark {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   outline: none;
 }
-.site-profile-avatar-btn strong {
-  font-size: 13px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 120px;
+.site-profile-avatar-btn svg {
+  width: 20px;
+  height: 20px;
+}
+.site-account-drawer-user {
+  padding: 6px 10px 10px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.site-account-menu-item-notif {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.site-account-menu-item-notif .site-notif-bell-badge {
+  position: static;
 }
 
 /* —— Home dashboard —— */
