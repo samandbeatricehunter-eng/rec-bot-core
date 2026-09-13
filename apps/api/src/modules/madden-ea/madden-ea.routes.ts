@@ -11,6 +11,7 @@ import {
   importEaDatasets,
   importEaDatasetsWithProgress,
   getImportProgress,
+  getLeagueImportHealth,
   beginImportProgress,
   pushProgress,
   listEaImportJobs,
@@ -234,6 +235,18 @@ export async function maddenEaRoutes(app: FastifyInstance) {
       const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid() }).parse(request.body);
       await requireLeagueCommissioner(request, body.guild_id, body.league_id);
       return reply.send(getImportProgress(body.league_id));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // League Mgmt's "League Health" info tile — % of this season's weeks with a clean import,
+  // per-week dataset gaps, and a small wallet/Team XP spread for the hover-only balance note.
+  app.post("/v1/import/madden/ea/import-health", async (request, reply) => {
+    try {
+      const body = z.object({ guild_id: z.string().min(1), league_id: z.string().uuid() }).parse(request.body);
+      await requireLeagueCommissioner(request, body.guild_id, body.league_id);
+      return reply.send(await getLeagueImportHealth(body.league_id));
     } catch (error) {
       return sendError(reply, error);
     }

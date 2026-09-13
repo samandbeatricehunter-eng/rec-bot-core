@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { apiBaseUrl, recApi, type EaConnection, type EaDataset, type EaFranchise, type EaImportProgressEvent, type EaImportResult } from "../../../lib/rec-api-client.js";
 import { useImportStatus } from "../../../lib/import-status-context.js";
 import { ImportProgressLines } from "../../../components/import/ImportProgressLines.js";
@@ -48,10 +48,16 @@ export function ImportDataModal({
   guildId,
   leagueId,
   onClose,
+  embedded = false,
 }: {
   guildId: string;
   leagueId: string;
+  // Embedded (Advance step 1) treats onClose as "done importing, move on to score review" --
+  // the same action every internal "Close"/"Skip" control already triggers, so no separate
+  // embedded-only skip logic is needed here; the Advance page just labels its own button
+  // differently ("Skip — enter scores manually" vs. the modal's plain "Close").
   onClose: () => void;
+  embedded?: boolean;
 }) {
   const [mode, setMode] = useState<"choose" | "ea" | "companion">("choose");
   const [companion, setCompanion] = useState<{ url: string; connectionId: string } | null>(null);
@@ -366,9 +372,21 @@ export function ImportDataModal({
     }
   }
 
+  function Frame({ title, children }: { title: string; children: ReactNode }) {
+    if (embedded) {
+      return (
+        <div className="advance-import-embedded">
+          <h3 style={{ marginTop: 0 }}>{title}</h3>
+          {children}
+        </div>
+      );
+    }
+    return <Modal title={title} onClose={onClose}>{children}</Modal>;
+  }
+
   if (mode === "choose") {
     return (
-      <Modal title="Import Data" onClose={onClose}>
+      <Frame title="Import Data">
         <p className="form-hint">Choose how to get this league's data into REC.</p>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
           <Button variant="secondary" onClick={() => setMode("ea")}>Import via EA OAuth</Button>
@@ -376,13 +394,13 @@ export function ImportDataModal({
           <Button variant="secondary" onClick={() => { setMode("companion"); void generateCompanionUrl(); }}>Import via Companion App</Button>
           <p className="form-hint" style={{ margin: "-6px 0 0" }}>Generate this league's unique URL to enter in the Madden Companion App for exports.</p>
         </div>
-      </Modal>
+      </Frame>
     );
   }
 
   if (mode === "companion") {
     return (
-      <Modal title="Import via Companion App" onClose={onClose}>
+      <Frame title="Import via Companion App">
         {companionError && <ErrorState message={companionError} />}
         {companionBusy && <LoadingState label="Generating league URL…" />}
         {companion && (
@@ -400,14 +418,14 @@ export function ImportDataModal({
         )}
         <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
           <Button variant="ghost" onClick={() => setMode("choose")}>Back</Button>
-          <Button variant="ghost" onClick={onClose}>Close</Button>
+          <Button variant="ghost" onClick={onClose}>{embedded ? "Continue to scores" : "Close"}</Button>
         </div>
-      </Modal>
+      </Frame>
     );
   }
 
   return (
-    <Modal title="Import via EA OAuth" onClose={onClose}>
+    <Frame title="Import via EA OAuth">
       <div style={{ marginBottom: "var(--space-3)" }}>
         <Button variant="ghost" size="compact" onClick={() => setMode("choose")}>← All import options</Button>
       </div>
@@ -563,6 +581,7 @@ export function ImportDataModal({
                           {result.label}: {result.recordsStored} record{result.recordsStored === 1 ? "" : "s"}{result.duplicate ? " (already up to date)" : ""}
                         </p>
                       ))}
+                      {embedded && <Button onClick={onClose} style={{ marginTop: "var(--space-2)" }}>Continue to score review</Button>}
                     </Card>
                   )}
 
@@ -616,11 +635,11 @@ export function ImportDataModal({
                   </div>
                 </>
               )}
-              <Button variant="secondary" onClick={onClose}>Close</Button>
+              <Button variant="secondary" onClick={onClose}>{embedded ? "Continue to scores" : "Close"}</Button>
             </div>
           )}
         </>
       )}
-    </Modal>
+    </Frame>
   );
 }

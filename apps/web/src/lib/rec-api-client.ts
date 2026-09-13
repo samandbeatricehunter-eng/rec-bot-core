@@ -268,6 +268,14 @@ export const recApi = {
     recApiFetch<ImportAuditReport>("/v1/import/madden/ea/audit", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   getImportProgress: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ events: EaImportProgressEvent[]; running: boolean; source: "manual" | "auto" | null; weekLabel: string | null }>("/v1/import/madden/ea/import-progress", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
+  getLeagueImportHealth: (input: { guildId: string; leagueId: string }) =>
+    recApiFetch<{
+      percent: number;
+      weeksTotal: number;
+      weeksClean: number;
+      gaps: Array<{ weekNumber: number; missingDatasets: string[] }>;
+      balance: { walletHigh: number; walletLow: number; walletAvg: number; teamXpHigh: number; teamXpLow: number } | null;
+    }>("/v1/import/madden/ea/import-health", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   listMaddenEaImportJobs: (input: { guildId: string; leagueId: string }) =>
     recApiFetch<{ jobs: Array<{ id: string; task_key: string; status: string; completed_at: string | null; record_count: number; rolled_back_at: string | null; duplicate_of_job_id: string | null }> }>("/v1/import/madden/ea/jobs", { method: "POST", body: JSON.stringify({ guild_id: input.guildId, league_id: input.leagueId }) }),
   disconnectMaddenEaConnection: (input: { guildId: string; leagueId: string; connectionId: string }) =>

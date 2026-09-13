@@ -653,6 +653,63 @@ export function clearImportProgress(leagueId: string) {
   importProgressStore.delete(leagueId);
 }
 
+/** League Mgmt's "League Health" info tile: % of this season's weeks (through the current one)
+ *  that got a clean schedule import, plus which weekly datasets are missing per gap week --
+ *  read from rec_import_log (written by writeImportedDataset above). The wallet/Team XP spread
+ *  is a small, separate, hover-only addition -- not the tile's headline number. */
+export async function getLeagueImportHealth(leagueId: string) {
+  const leagueRow = await getPgPool().query<{ season_number: number | null; current_week: number | null }>(
+    `select season_number, current_week from rec_leagues where id=$1`,
+    [leagueId],
+  );
+  const seasonNumber = leagueRow.rows[0]?.season_number ?? 1;
+  const currentWeek = Math.max(1, leagueRow.rows[0]?.current_week ?? 1);
+
+  const logRows = await getPgPool().query<{ week_number: number | null; dataset: string }>(
+    `select distinct week_number, dataset from rec_import_log
+     where league_id=$1 and season_number=$2 and week_number is not null and week_number <= $3`,
+    [leagueId, seasonNumber, currentWeek],
+  );
+  const importedByWeek = new Map<number, Set<string>>();
+  for (const row of logRows.rows) {
+    if (row.week_number == null) continue;
+    const set = importedByWeek.get(row.week_number) ?? new Set<string>();
+    set.add(row.dataset);
+    importedByWeek.set(row.week_number, set);
+  }
+
+  const weeklyDatasetList = [...WEEKLY_DATASETS];
+  const gaps: Array<{ weekNumber: number; missingDatasets: string[] }> = [];
+  let weeksWithSchedule = 0;
+  for (let week = 1; week <= currentWeek; week++) {
+    const present = importedByWeek.get(week) ?? new Set<string>();
+    if (present.has("schedule")) weeksWithSchedule += 1;
+    const missing = weeklyDatasetList.filter((dataset) => !present.has(dataset));
+    if (missing.length) gaps.push({ weekNumber: week, missingDatasets: missing.map((dataset) => EA_DATASET_LABELS[dataset]) });
+  }
+  const percent = currentWeek > 0 ? Math.round((weeksWithSchedule / currentWeek) * 100) : 100;
+
+  const balanceRows = await getPgPool().query<{ wallet_balance: number | null; balance_fpp: number | null }>(
+    `select w.wallet_balance, f.balance_fpp
+     from rec_team_assignments a
+     join rec_wallets w on w.user_id = a.user_id
+     left join rec_franchise_xp_state f on f.user_id = a.user_id and f.league_id = a.league_id
+     where a.league_id = $1 and a.assignment_status = 'active' and a.ended_at is null`,
+    [leagueId],
+  );
+  const wallets = balanceRows.rows.map((row) => Number(row.wallet_balance ?? 0));
+  const teamXp = balanceRows.rows.map((row) => Number(row.balance_fpp ?? 0));
+  const balance = wallets.length ? {
+    walletHigh: Math.max(...wallets),
+    walletLow: Math.min(...wallets),
+    walletAvg: Math.round(wallets.reduce((sum, value) => sum + value, 0) / wallets.length),
+    teamXpHigh: Math.floor(Math.max(...teamXp) / 6000),
+    teamXpLow: Math.floor(Math.min(...teamXp) / 6000),
+  } : null;
+
+  return { percent, weeksTotal: currentWeek, weeksClean: weeksWithSchedule, gaps, balance };
+}
+
 export async function importEaDatasetsWithProgress(
   connectionId: string,
   leagueId: string,
@@ -753,6 +810,8 @@ export async function importEaDatasetsWithProgress(
   };
 
   const eaLeagueId = Number(row.ea_league_id);
+  const leagueRow = await getPgPool().query<{ season_number: number | null }>(`select season_number from rec_leagues where id=$1`, [leagueId]);
+  const recSeasonNumber = leagueRow.rows[0]?.season_number ?? 1;
   const info = await runWithFreshSession((c) => c.getLeagueInfo(eaLeagueId));
   const seasonYear = info.careerHubInfo?.seasonInfo?.seasonYear ?? row.ea_season_year ?? new Date().getFullYear();
   const seasonInfo = info.careerHubInfo?.seasonInfo;
@@ -887,6 +946,14 @@ export async function importEaDatasetsWithProgress(
     const label = isWeekly
       ? `${EA_DATASET_LABELS[dataset]} — ${weekDesc.label}`
       : EA_DATASET_LABELS[dataset];
+    // League Health tile (League Mgmt) reads rec_import_log for % of weeks with a clean import
+    // and per-week dataset gaps -- best-effort, never blocks or fails the import itself.
+    const logImport = () => {
+      void getPgPool().query(
+        `insert into rec_import_log (league_id, season_number, week_number, dataset) values ($1,$2,$3,$4)`,
+        [leagueId, recSeasonNumber, isWeekly ? weekDesc.recWeek : null, dataset],
+      ).catch((err) => console.error("[EA] Failed to record import log (non-fatal):", err));
+    };
     let records = 0;
 
     if (dataset === "schedule") {
@@ -895,10 +962,12 @@ export async function importEaDatasetsWithProgress(
     } else if (dataset === "rosters") {
       const roster = await directWriteRoster(leagueId, raw, false);
       collectImportedPlayerIds(raw, importedPlayerIds);
+      logImport();
       return { dataset, label, records: roster.records, duplicate: roster.duplicate };
     } else if (dataset === "free_agents") {
       const roster = await directWriteRoster(leagueId, raw, true);
       collectImportedPlayerIds(raw, importedPlayerIds);
+      logImport();
       return { dataset, label, records: roster.records, duplicate: roster.duplicate };
     } else {
       const envelope = toIngestEnvelope({ dataset, raw, eaLeagueId, seasonYear, stage: week.stageIndex, weekIndex: week.weekIndex });
@@ -908,6 +977,7 @@ export async function importEaDatasetsWithProgress(
         statsImported = true;
       }
     }
+    logImport();
     return { dataset, label, records, duplicate: false };
   };
 

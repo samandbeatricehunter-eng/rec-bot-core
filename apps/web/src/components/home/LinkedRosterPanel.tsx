@@ -4,7 +4,7 @@ import { recApi } from "../../lib/rec-api-client.js";
 import type { LinkedRosterEntry } from "../../types/api.js";
 import { LoadingState } from "../ui/LoadingState.js";
 import { ErrorState } from "../ui/ErrorState.js";
-import { CollapsibleSection } from "../league-mgmt/CommandCenterDashboard.js";
+import { CollapsibleSection } from "../ui/CollapsibleSection.js";
 
 // Home page's left column — "who's linked to what team, and how's their season going," at a
 // glance. Ordered by power ranking (see getLinkedRoster in team-schedule-summary.service.ts,

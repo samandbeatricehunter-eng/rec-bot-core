@@ -6,15 +6,20 @@ import { persistCachedHubOpen, readCachedHubOpen, siteApi } from "../lib/site-ap
 import { DiscordServerSettings } from "../components/DiscordServerSettings.js";
 import { IconBack } from "../components/icons.js";
 import {
+  AdvanceHome,
+  AdvanceStatusDrawer,
+  AdvanceStatusProvider,
   FantasyDraftBoardPage,
   DeleteLeagueHome,
   HubChromeProvider,
   HubHome,
   InjectedAuthProvider,
-  LeagueMgmtHome,
   LeagueThemeProvider,
   LinkTeamForm,
   ManageLeagueHome,
+  MgmtMiniNav,
+  type MgmtNavId,
+  MgmtStatusStrip,
   NflPlayoffBracket,
   NotificationsHome,
   PlayerStatsReview,
@@ -32,6 +37,7 @@ import {
   TeamOwnershipTable,
   TeamRosterForm,
   TeamScheduleForm,
+  ToolsHome,
   ImportStatusDrawer,
   ImportStatusProvider,
   HighlightUploadDrawer,
@@ -222,13 +228,30 @@ function MgmtSubPage({ children }: { children: ReactNode }) {
   );
 }
 
-function HubMgmtRoutes() {
+/** Top status strip + bottom nav, persistent across the four League Mgmt destinations --
+ * same relationship StatsSectionLayout has to StatsMiniNav/{children} below. */
+function MgmtSectionLayout({ active, leagueId, children }: { active: MgmtNavId; leagueId: string; children: ReactNode }) {
+  return (
+    <>
+      <MgmtStatusStrip leagueId={leagueId} />
+      <MgmtMiniNav active={active} leagueId={leagueId} />
+      {children}
+    </>
+  );
+}
+
+function HubMgmtRoutes({ leagueId }: { leagueId: string }) {
   return (
     <Routes>
-      <Route index element={<LeagueMgmtHome />} />
-      <Route path="notifications" element={<MgmtSubPage><NotificationsHome /></MgmtSubPage>} />
-      <Route path="commissioner-chat" element={<Navigate replace to="../notifications" />} />
-      <Route path="manage-league" element={<MgmtSubPage><ManageLeagueHome /></MgmtSubPage>} />
+      <Route index element={<MgmtSectionLayout active="teams" leagueId={leagueId}><ManageLeagueHome /></MgmtSectionLayout>} />
+      <Route path="inbox" element={<MgmtSectionLayout active="inbox" leagueId={leagueId}><NotificationsHome /></MgmtSectionLayout>} />
+      <Route path="teams" element={<MgmtSectionLayout active="teams" leagueId={leagueId}><ManageLeagueHome /></MgmtSectionLayout>} />
+      <Route path="advance" element={<MgmtSectionLayout active="advance" leagueId={leagueId}><AdvanceHome /></MgmtSectionLayout>} />
+      <Route path="tools" element={<MgmtSectionLayout active="tools" leagueId={leagueId}><ToolsHome /></MgmtSectionLayout>} />
+      {/* Legacy paths some links/bookmarks may still point at. */}
+      <Route path="notifications" element={<Navigate replace to="../inbox" />} />
+      <Route path="commissioner-chat" element={<Navigate replace to="../inbox" />} />
+      <Route path="manage-league" element={<Navigate replace to="../teams" />} />
       <Route path="manage-league/roles" element={<MgmtSubPage><RolesHome /></MgmtSubPage>} />
       <Route path="manage-league/player-stats" element={<MgmtSubPage><PlayerStatsReview /></MgmtSubPage>} />
       <Route path="manage-league/playoff-bracket" element={<MgmtSubPage><NflPlayoffBracket /></MgmtSubPage>} />
@@ -247,7 +270,7 @@ function HubMgmtRoutes() {
         }
       />
       <Route path="publishing" element={<MgmtSubPage><PublishingHome /></MgmtSubPage>} />
-      <Route path="*" element={<LeagueMgmtHome />} />
+      <Route path="*" element={<MgmtSectionLayout active="teams" leagueId={leagueId}><ManageLeagueHome /></MgmtSectionLayout>} />
     </Routes>
   );
 }
@@ -478,13 +501,14 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
         >
           <HubChromeProvider embedded>
             <ImportStatusProvider>
+            <AdvanceStatusProvider>
             <HighlightUploadProvider>
               <LeagueThemeProvider game={gameTheme}>
                 <HubErrorBoundary>
                   {location.pathname.endsWith("/draft-board") ? (
                     <FantasyDraftBoardPage />
                   ) : view === "mgmt" ? (
-                    <div className="hub-page"><HubMgmtRoutes /></div>
+                    <div className="hub-page"><HubMgmtRoutes leagueId={leagueId} /></div>
                   ) : isStatsFamilyView(view) ? (
                     <StatsSectionLayout view={view} leagueId={leagueId}>
                       {view === "playoff-bracket" ? <NflPlayoffBracket />
@@ -501,9 +525,11 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
                   )}
                 </HubErrorBoundary>
                 <ImportStatusDrawer />
+                <AdvanceStatusDrawer />
                 <HighlightUploadDrawer />
               </LeagueThemeProvider>
             </HighlightUploadProvider>
+            </AdvanceStatusProvider>
             </ImportStatusProvider>
           </HubChromeProvider>
         </InjectedAuthProvider>

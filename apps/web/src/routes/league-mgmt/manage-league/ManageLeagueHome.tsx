@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Database, Inbox, Newspaper, Settings, UserPlus, Wrench } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { CONFERENCE_ORDER } from "@rec/shared";
 import { useReadyAuth } from "../../../lib/auth-context.js";
 import { useLeagueTheme } from "../../../lib/league-theme-context.js";
@@ -9,15 +9,11 @@ import type { TeamManagementSummary, TeamManagementSummaryRow } from "../../../t
 import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { SearchInput } from "../../../components/ui/SearchInput.js";
 import { Card } from "../../../components/ui/Card.js";
-import { Button } from "../../../components/ui/Button.js";
 import { Badge, type BadgeStatus } from "../../../components/ui/Badge.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { PendingRosterAddRequests } from "./PendingRosterAddRequests.js";
 import { RosterEditProposalQueue } from "./RosterEditProposalQueue.js";
-import { ImportDataModal } from "./ImportDataModal.js";
-import { ManualEntryPage } from "./ManualEntryPage.js";
-import { TroubleshootModal } from "./TroubleshootModal.js";
 import { TeamDropdown } from "./TeamDropdown.js";
 import { AnnualDraftCard } from "../../hub/AnnualDraftCard.js";
 
@@ -48,9 +44,6 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
   const [summary, setSummary] = useState<TeamManagementSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [importDataOpen, setImportDataOpen] = useState(false);
-  const [manualEntry, setManualEntry] = useState(false);
-  const [troubleshootOpen, setTroubleshootOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [ownership, setOwnership] = useState<OwnershipFilter>("all");
   const [scheduleStatus, setScheduleStatus] = useState<ScheduleFilter>("all");
@@ -123,44 +116,11 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
       });
   }, [filtered]);
 
-  // Manual entry replaces the division-card view until the user navigates back.
-  if (manualEntry && summary) {
-    return <ManualEntryPage summary={summary} onBack={() => setManualEntry(false)} />;
-  }
-
   return (
     <div>
       <PageHeader
-        title={mode === "roster" ? "Edit Rosters" : "Manage League"}
-        subtitle={mode === "roster" ? "Find a team and add or review players on its roster." : "Find a team, see its schedule and box-score health, and enter its games and scores."}
-        actions={
-          mode === "roster" ? undefined : (
-            <div className="manage-league-header-actions">
-              {isMadden && dataMode === "import" && summary && (
-                <Button variant="secondary" onClick={() => setImportDataOpen(true)}>
-                  <Database size={16} /> Import Data
-                </Button>
-              )}
-              {dataMode === "manual" && summary && (
-                <Button variant="secondary" onClick={() => setManualEntry(true)}>
-                  <Database size={16} /> Manual Entry
-                </Button>
-              )}
-              <Button variant="secondary" onClick={() => navigate("/league-mgmt/notifications")}>
-                <Inbox size={16} /> Pending Items
-              </Button>
-              <Button variant="secondary" onClick={() => navigate("/league-mgmt/publishing")}>
-                <Newspaper size={16} /> Generate Media
-              </Button>
-              <Button variant="secondary" onClick={() => setTroubleshootOpen(true)}>
-                <Wrench size={16} /> Tools
-              </Button>
-              <Button variant="secondary" onClick={() => navigate("/league-mgmt/settings")}>
-                <Settings size={16} /> Settings
-              </Button>
-            </div>
-          )
-        }
+        title={mode === "roster" ? "Edit Rosters" : "Teams"}
+        subtitle={mode === "roster" ? "Find a team and add or review players on its roster." : "Every team's site, Discord, and EA name, schedule status, and record."}
       />
       {mode === "roster" && <PendingRosterAddRequests guildId={guildId} />}
       {mode === "roster" && dataMode === "manual" && <RosterEditProposalQueue guildId={guildId} />}
@@ -320,22 +280,6 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
             ))}
           </div>
         </>
-      )}
-      {importDataOpen && summary && (
-        <ImportDataModal
-          guildId={guildId}
-          leagueId={summary.league.id}
-          onClose={() => setImportDataOpen(false)}
-        />
-      )}
-      {troubleshootOpen && (
-        <TroubleshootModal
-          guildId={guildId}
-          leagueId={summary?.league.id}
-          game={game}
-          showImportAudit={isMadden && dataMode === "import"}
-          onClose={() => setTroubleshootOpen(false)}
-        />
       )}
     </div>
   );

@@ -338,6 +338,15 @@
 .advance-card-primary {
   border-color: color-mix(in srgb, var(--accent) 28%, transparent);
 }
+/* ImportDataModal rendered inline (Advance's step 1) instead of inside its own <Modal>. */
+.advance-import-embedded {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.advance-import-embedded h3 {
+  margin: 0;
+}
 .advance-card-heading {
   display: flex;
   align-items: flex-start;

@@ -36,12 +36,16 @@ export function TroubleshootModal({
   game,
   showImportAudit = false,
   onClose,
+  embedded = false,
 }: {
   guildId: string;
   leagueId?: string | null;
   game?: string | null;
   showImportAudit?: boolean;
   onClose: () => void;
+  /** Renders the tools panel as plain page content instead of inside its own <Modal> --
+   *  used by the Tools bottom-tab (League Mgmt rebuild) so it isn't a modal-over-modal. */
+  embedded?: boolean;
 }) {
   const [repairOpen, setRepairOpen] = useState(false);
   const [wagersOpen, setWagersOpen] = useState(false);
@@ -76,8 +80,8 @@ export function TroubleshootModal({
     );
   }
 
-  return (
-    <Modal title="Tools" onClose={onClose}>
+  const body = (
+    <>
       {notice && (
         <p className="form-hint" style={{ color: "var(--gold)", marginBottom: "var(--space-3)" }}>
           {notice}
@@ -172,8 +176,10 @@ export function TroubleshootModal({
           </ToolGroup>
         )}
       </div>
-    </Modal>
+    </>
   );
+
+  return embedded ? body : <Modal title="Tools" onClose={onClose}>{body}</Modal>;
 }
 
 function DiscordRolesPanel({ guildId }: { guildId: string }) {

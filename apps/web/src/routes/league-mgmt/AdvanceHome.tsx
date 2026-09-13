@@ -2,16 +2,17 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { firstOffseasonStage, isTerminalSeasonStage, stageLabel, type LeagueGame } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
+import { useHubChrome } from "../../lib/hub-chrome-context.js";
 import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
+import { useAdvanceStatus } from "../../lib/advance-status-context.js";
 import type { AdvanceGame, AdvanceResultInput, AdvanceWeekGames, GotwCandidate, GotwPollStatus } from "../../types/api.js";
-import { Card } from "../ui/Card.js";
-import { Badge } from "../ui/Badge.js";
-import { Button } from "../ui/Button.js";
-import { LoadingState } from "../ui/LoadingState.js";
-import { ErrorState } from "../ui/ErrorState.js";
-import { Modal } from "../ui/Modal.js";
-import { ManageLeagueHome } from "../../routes/league-mgmt/manage-league/ManageLeagueHome.js";
+import { Badge } from "../../components/ui/Badge.js";
+import { Button } from "../../components/ui/Button.js";
+import { LoadingState } from "../../components/ui/LoadingState.js";
+import { ErrorState } from "../../components/ui/ErrorState.js";
+import { Modal } from "../../components/ui/Modal.js";
+import { ImportDataModal } from "./manage-league/ImportDataModal.js";
 
 const TZ_LABELS = ["EST", "CST", "MST", "PST", "AKST"];
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
@@ -74,68 +75,14 @@ function SectionHeading({ children, className = "" }: { children: React.ReactNod
   return <h2 className={`section-heading ${className}`} style={{ margin: "0 0 var(--space-3)", fontSize: "var(--text-lg)" }}>{children}</h2>;
 }
 
-export function CollapsibleSection({
-  title,
-  children,
-  defaultOpen = false,
-  icon,
-}: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean; icon?: React.ReactNode }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <Card>
-      <button
-        type="button"
-        className={`collapsible-header ${open ? "open" : ""}`}
-        onClick={() => setOpen(!open)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          width: "100%",
-          background: "none",
-          border: "none",
-          padding: 0,
-          cursor: "pointer",
-        }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-          {icon && <span style={{ color: "var(--text-secondary)" }}>{icon}</span>}
-          {title}
-        </span>
-        <span
-          style={{
-            transition: "transform 0.2s ease",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
-            fontSize: "var(--text-xs)",
-            color: "var(--text-muted)",
-          }}
-        >
-          ▼
-        </span>
-      </button>
-      <div
-        className="collapsible-content"
-        style={{
-          overflow: "hidden",
-          maxHeight: open ? "none" : "0",
-          opacity: open ? 1 : 0,
-          transition: "max-height 0.25s ease, opacity 0.2s ease",
-          marginTop: open ? "var(--space-3)" : 0,
-        }}
-      >
-        {open && children}
-      </div>
-    </Card>
-  );
-}
-
-// Everything the old standalone Advance page (/league-mgmt/advance) had, minus "Jump Ahead"
-// (removed per Samuel's request — catching up several weeks at once wasn't worth the extra
-// surface area once this section already fronts the weekly workflow directly). That page and
-// its "Advance" League Actions button are gone; this is now the only place to advance a week.
-function AdvanceReadinessSection() {
+// The score-review + Complete Advance step -- unchanged in substance from the old "Advance
+// Readiness" collapsible (CommandCenterDashboard.tsx), just top-level on its own destination
+// now instead of nested in an accordion. Reports live progress into AdvanceStatusContext so
+// AdvanceStatusDrawer knows not to duplicate it while this page's own review modal is open.
+function AdvanceScoreReview() {
   const { guildId } = useReadyAuth();
   const { game } = useLeagueTheme();
+  const advanceStatus = useAdvanceStatus();
   const isMadden = game === "madden_26" || game === "madden_27";
   const [data, setData] = useState<AdvanceWeekGames | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -156,6 +103,11 @@ function AdvanceReadinessSection() {
   const [rolloverWarningLoading, setRolloverWarningLoading] = useState(false);
   const [schedulingByGameId, setSchedulingByGameId] = useState<Record<string, string>>({});
   const [advanceProgress, setAdvanceProgress] = useState<AdvanceProgress | null>(null);
+
+  useEffect(() => {
+    advanceStatus?.setModalOpen(showAdvanceModal);
+    return () => advanceStatus?.setModalOpen(false);
+  }, [showAdvanceModal]);
 
   function load() {
     recApi
@@ -378,10 +330,6 @@ function AdvanceReadinessSection() {
               <div className="advance-game-actions">
                 <label className="advance-score-field"><span>Result type</span><select className="form-input" value={entry?.designation ?? g.approvedDesignation ?? "played"} onChange={(e) => setEntry(g.gameId, { designation: e.target.value as GameEntry["designation"] })}><option value="played">Played — payouts enabled</option><option value="fair_sim">Fair Sim — no payout + clear EA force</option><option value="force_win">Force Win — no payout + set winner in EA</option></select></label>
                 {(entry?.designation ?? g.approvedDesignation) === "force_win" && <label className="advance-score-field"><span>Force win for</span><select className="form-input" value={entry?.forceWinSide ?? ""} onChange={(e) => setEntry(g.gameId, { forceWinSide: e.target.value as "home" | "away" })}><option value="">Choose winner</option><option value="away">{g.awayTeamName} (Away)</option><option value="home">{g.homeTeamName} (Home)</option></select></label>}
-                {/* This league gets its scores from EA import, not box-score submissions — nudging a
-                    coach to submit one doesn't apply here (they can't stop a game "missing" a score
-                    until the next import runs). The score-entry fields above stay available either way
-                    as the commissioner's manual override. */}
                 {g.needsInput && g.isH2h && data.dataMode !== "import" && (
                   <>
                     <Button variant="secondary" size="compact" disabled={notifyBusyGameId === g.gameId} onClick={() => setNotifyPrompt({ gameId: g.gameId, target: "home" })}>Notify Home</Button>
@@ -521,44 +469,26 @@ function AdvanceReadinessSection() {
   );
 }
 
-// Manage League used to be a Link straight to its own routed page; it's now an inline
-// collapsible so the whole team list + header actions (including Settings and Media, moved
-// here from the old League Actions button row) live directly on the Command Center. Clicking
-// into a specific team still navigates away normally (ManageLeagueHome's own useNavigate calls
-// are unaffected by where the component happens to be mounted).
-function ManageLeagueSection() {
+/** Advance bottom-tab: EA data-import step first (with a skip control), then the score-review
+ * + Complete Advance step. Both stages report into AdvanceStatusContext/AdvanceStatusDrawer so
+ * navigating away mid-run doesn't lose all feedback -- the drawer discovers the in-progress
+ * advance by leagueId, not a client-remembered id (see advance-progress.service.ts). */
+export function AdvanceHome() {
   const { guildId } = useReadyAuth();
-  const { game } = useLeagueTheme();
-  const [currentStageLabel, setCurrentStageLabel] = useState<string | null>(null);
+  const chrome = useHubChrome();
+  const leagueId = chrome.currentLeague?.id ?? null;
+  const [showImportStep, setShowImportStep] = useState(true);
 
-  useEffect(() => {
-    recApi
-      .getAdvanceWeekGames(guildId)
-      .then((data) => setCurrentStageLabel(stageLabel(data.currentStage, data.currentWeek, game)))
-      .catch(() => setCurrentStageLabel(null));
-  }, [guildId, game]);
+  if (showImportStep && leagueId) {
+    return (
+      <div className="advance-card advance-card-primary">
+        <ImportDataModal guildId={guildId} leagueId={leagueId} embedded onClose={() => setShowImportStep(false)} />
+        <div style={{ marginTop: "var(--space-3)", textAlign: "center" }}>
+          <Button variant="ghost" onClick={() => setShowImportStep(false)}>Skip — enter scores manually</Button>
+        </div>
+      </div>
+    );
+  }
 
-  return (
-    <CollapsibleSection
-      title={<span>Manage League{currentStageLabel ? ` — ${currentStageLabel}` : ""}</span>}
-      icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>}
-    >
-      <ManageLeagueHome />
-    </CollapsibleSection>
-  );
-}
-
-// Urgency-ordered Commissioner Command Center dashboard:
-// Advance Readiness (collapsible, collapsed by default) → Manage League (collapsible)
-// The old "Awaiting Review" panel moved to the Pending Items button in Manage League's
-// header (it routes to /league-mgmt/notifications, which hosts the same panel).
-export function CommandCenterDashboard() {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-      <CollapsibleSection title="Advance Readiness" defaultOpen={false} icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>}>
-        <AdvanceReadinessSection />
-      </CollapsibleSection>
-      <ManageLeagueSection />
-    </div>
-  );
+  return <AdvanceScoreReview />;
 }
