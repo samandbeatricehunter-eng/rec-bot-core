@@ -4140,7 +4140,12 @@ button.poty:disabled {
 .rec-leaders-category { min-width:0; }
 .rec-leaders-category h2 { margin:0 0 9px; color:var(--text-primary); font:700 16px/1.2 "REC Quantico","Arial Narrow",Impact,sans-serif; letter-spacing:.08em; text-align:center; text-transform:uppercase; }
 .rec-leaders-list { display:grid; gap:5px; }
-.rec-leader-block { width:100%; min-height:78px; border-radius:0; grid-template-columns:minmax(0,1fr) auto; gap:12px; color:#fff; font:inherit; text-align:left; cursor:pointer; background:linear-gradient(90deg,color-mix(in srgb,var(--team-color) 78%,#090b10 22%),color-mix(in srgb,var(--team-color) 73%,#090b10 27%)); }
+/* Extra left padding beyond the shared .hub-div-standing-team base (46px) -- the League
+   Leaders watermark logo is bigger and bleeds further right (128px, scaled 1.28x, from
+   left:-8%) than the standings page's, so the headshot at the base padding sat almost on top
+   of it. Shifting the whole headshot+name cluster right clears the logo and reads as
+   logo / headshot / name instead of logo+headshot overlapping. */
+.rec-leader-block { width:100%; min-height:78px; padding-left:84px; border-radius:0; grid-template-columns:minmax(0,1fr) auto; gap:12px; color:#fff; font:inherit; text-align:left; cursor:pointer; background:linear-gradient(90deg,color-mix(in srgb,var(--team-color) 78%,#090b10 22%),color-mix(in srgb,var(--team-color) 73%,#090b10 27%)); }
 .rec-leader-block:hover:not(:disabled), .rec-leader-block:focus-visible { border-color:rgba(255,255,255,.65); filter:brightness(1.12); }
 .rec-leader-block:disabled { cursor:default; }
 .rec-leader-block .hub-div-standing-logo { opacity:.65; }
@@ -4291,6 +4296,10 @@ button.poty:disabled {
   .hub-div-standings-side-grid { grid-template-columns:1fr; }
   .hub-div-standing-team { min-height:52px; padding-left:44px; }
   .hub-div-standing-logo { width:108px !important; height:108px !important; left:-12%; }
+  /* Mobile has a smaller watermark logo (108px vs 128px) than desktop, so scale the extra
+     League Leaders clearance down to match -- same reasoning as the desktop .rec-leader-block
+     rule above. */
+  .rec-leader-block { padding-left:76px; }
   .hub-div-standing-record { font-size:22px; }
   .hub-div-standings-side-label { font-size:30px; }
 }
