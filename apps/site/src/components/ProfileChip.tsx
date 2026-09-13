@@ -4,7 +4,6 @@ import { useAuth } from "../lib/auth-context.js";
 import { siteApi, type LinkProfileResponse, type SiteNotificationItem } from "../lib/site-api.js";
 import { useSiteActivity } from "../lib/site-activity-context.js";
 import { useHeaderMenu } from "./HeaderMenu.js";
-import { IconSliders } from "./icons.js";
 
 /** Username + account drawer. Consolidates what used to be three separate header controls
  * (a far-right settings gear, the notifications bell, and this profile chip) into one: the
@@ -135,12 +134,9 @@ export function ProfileChip() {
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        <IconSliders />
+        <strong>{name}</strong>
         {unreadCount > 0 ? <span className="site-notif-bell-badge">{unreadCount > 99 ? "99+" : unreadCount}</span> : null}
       </button>
-      <span className="site-profile-meta">
-        <strong>{name}</strong>
-      </span>
       <Panel className="site-account-drawer" role="dialog" ariaLabel="Account and notifications">
         <section className="site-notif-section">
           <header className="site-notif-panel-header">

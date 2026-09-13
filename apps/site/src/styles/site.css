@@ -2476,13 +2476,18 @@ h1, h2, h3, .site-wordmark {
   align-items: center;
   gap: 10px;
 }
+/* One button: username text is the whole trigger now (previously a separate round icon button
+   plus a username label beside it -- consolidated to a single control). */
 .site-profile-avatar-btn {
-  width: 36px;
+  position: relative;
   height: 36px;
+  padding: 0 14px;
   border-radius: 999px;
   border: none;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   color: var(--btn-primary-text);
   background: var(--accent-gradient);
   flex-shrink: 0;
@@ -2493,21 +2498,12 @@ h1, h2, h3, .site-wordmark {
   filter: brightness(1.1);
   outline: none;
 }
-.site-profile-avatar-btn svg {
-  width: 18px;
-  height: 18px;
-}
-.site-profile-meta {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1.2;
-}
-.site-profile-meta strong {
+.site-profile-avatar-btn strong {
   font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 160px;
 }
 
 /* —— Home dashboard —— */
@@ -4344,6 +4340,21 @@ h1, h2, h3, .site-wordmark {
 }
 .site-header-row1 { padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
 .site-header-row2 { border-bottom: none; }
+/* Single-row header: grid instead of flex so the league switcher centers on the row
+   regardless of how wide the brand vs. the account button are (a flex `margin:auto` trick
+   can't center against two unequal-width siblings the way a 3-column grid can). */
+.site-header--single-row .site-header-row1 {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+}
+.site-header--single-row .site-header-row2 {
+  justify-self: center;
+}
+.site-header--single-row .site-header-row1-end {
+  justify-self: end;
+  margin-left: 0;
+}
 
 .site-header-brand {
   display: inline-flex;

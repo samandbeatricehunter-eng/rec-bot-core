@@ -152,21 +152,40 @@ function fitLabelToWidth(el: HTMLElement, maxPx: number, minPx: number) {
     el.style.transform = "";
     return maxPx;
   }
-  let size = maxPx;
+  const gutter = 1;
+  // Was a linear 0.5px-at-a-time scan -- each iteration forces a synchronous layout read
+  // (scrollWidth) right after a style write, and this runs per team row (city + nick label,
+  // called up to 3x each for font-load/resize timing) on every Standings/Power Rankings/SOS
+  // page load. At up to ~32 rows that's easily 1000+ forced reflows blocking the very first
+  // paint. A coarser step size was tried here first, but with ~32 rows all running this same
+  // effect within one React commit, cross-row layout timing noise could land on a visibly
+  // different rounded size on different passes (the 3 invocations of `fit` below), producing
+  // visible size-glitching between them. Binary search removes that risk entirely: it's an
+  // EXACT equivalent of the original scan (same 0.5px-quantized precision, same final answer
+  // for identical inputs), just O(log n) forced-layout reads instead of O(n).
+  const steps = Math.round((maxPx - minPx) / 0.5);
+  const sizeAtStep = (step: number) => Math.max(minPx, maxPx - step * 0.5);
+  const fitsAtStep = (step: number) => {
+    el.style.fontSize = `${sizeAtStep(step)}px`;
+    return el.scrollWidth <= el.clientWidth - gutter;
+  };
+  let bestStep: number;
+  if (fitsAtStep(0)) {
+    bestStep = 0;
+  } else if (!fitsAtStep(steps)) {
+    bestStep = steps;
+  } else {
+    let lo = 0;
+    let hi = steps;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (fitsAtStep(mid)) hi = mid; else lo = mid + 1;
+    }
+    bestStep = lo;
+  }
+  const size = sizeAtStep(bestStep);
   el.style.fontSize = `${size}px`;
   el.style.transform = "";
-  const gutter = 1;
-  // Step size was 0.5px -- each iteration forces a synchronous layout read (scrollWidth) right
-  // after a style write, and this runs per team row (city label + nick label, called up to 3x
-  // each for font-load/resize timing) on every Standings/Power Rankings/SOS page load. At up to
-  // ~32 rows that's easily 1000+ forced reflows blocking the very first paint -- a real,
-  // CPU-bound page-load stall invisible to any server-side latency metric. A 2px step still
-  // lands within a pixel of the same final size (imperceptible for a label) but cuts iteration
-  // count (and forced reflows) by 4x.
-  while (el.scrollWidth > el.clientWidth - gutter && size > minPx) {
-    size -= 2;
-    el.style.fontSize = `${size}px`;
-  }
   // If still overflowing at the floor, keep the readable size and compress horizontally.
   if (el.scrollWidth > el.clientWidth - gutter && el.clientWidth > 0) {
     const scale = Math.max(0.72, (el.clientWidth - gutter) / el.scrollWidth);
