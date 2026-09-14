@@ -16,7 +16,7 @@ import { userFacingError } from "../lib/errors.js";
 import { recApi } from "../lib/rec-api.js";
 import { teamDisplayAbbr, teamDisplayLabel, teamDisplayName } from "../lib/team-display.js";
 import { buildAdminPanelEmbed, buildAdminPanelRows, buildScheduleEmbed, buildScheduleRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type RosterConference, type RosterTeam } from "../ui/menu.js";
-import { canonicalConferenceName, CONFERENCE_ORDER, isCfb, isRegularSeasonWeek, maxSeasonWeek, regularSeasonWeeks, stageForWeek, stageLabel } from "@rec/shared";
+import { canonicalConferenceName, CONFERENCE_ORDER, isRegularSeasonWeek, maxSeasonWeek, regularSeasonWeeks, stageForWeek, stageLabel } from "@rec/shared";
 
 export const SCHEDULE_MGMT_CUSTOM_IDS = {
   manualWeekSelect: "rec:schedule_manual:week",
@@ -685,7 +685,7 @@ export async function handleScheduleViewBack(interaction: ButtonInteraction) {
 }
 
 function filterPostSetupWeeks(weeks: ScheduleViewSession["weeks"], game: string | null) {
-  const firstWeek = isCfb(game) ? 0 : 1;
+  const firstWeek = 1;
   const lastWeek = regularSeasonWeeks(game);
   const byWeek = new Map(
     weeks
@@ -700,17 +700,11 @@ function filterPostSetupWeeks(weeks: ScheduleViewSession["weeks"], game: string 
 
 function renderPostSetupScheduleInputChoice(game: string | null) {
   const lastWeek = regularSeasonWeeks(game);
-  const description = isCfb(game)
-    ? [
-        "REC does not seed a default schedule for College Football dynasties.",
-        "",
-        `Enter matchups manually for Weeks 1–${lastWeek} now, or finish setup and add the schedule later from **League Mgmt → Schedule**.`,
-      ]
-    : [
-        "Your franchise is **not in Year 1**, so REC did not seed a default NFL schedule.",
-        "",
-        `Enter matchups manually for Weeks 1–${lastWeek} now, or finish setup and add the schedule later from **League Mgmt → Schedule**.`,
-      ];
+  const description = [
+    "Your franchise is **not in Year 1**, so REC did not seed a default NFL schedule.",
+    "",
+    `Enter matchups manually for Weeks 1–${lastWeek} now, or finish setup and add the schedule later from **League Mgmt → Schedule**.`,
+  ];
   return {
     embeds: [
       new EmbedBuilder()
@@ -915,19 +909,6 @@ async function maybeCreateImmediateGameChannel(interaction: ButtonInteraction, s
 }
 
 function expectedGamesForWeek(session: ManualScheduleSession) {
-  if (isCfb(session.game)) {
-    // 12-team CFP: 4 first-round games, 4 quarterfinals, 2 semifinals, then the
-    // national championship — 4 straight bowl weeks, no bye. Conference Championship
-    // is advisory only — roughly one title game per conference large enough to hold one.
-    switch (session.weekNumber) {
-      case 15: return 9; // Conference Championship
-      case 16: return 4; // CFP First Round
-      case 17: return 4; // CFP Quarterfinals
-      case 18: return 2; // CFP Semifinals
-      case 19: return 1; // National Championship
-      default: return Math.floor(session.teams.length / 2);
-    }
-  }
   // Playoff rounds have a fixed number of games per conference; everything else
   // is a full slate (one game per pair of teams).
   switch (session.weekNumber) {
@@ -956,15 +937,12 @@ function conferencesPresent(teams: ManualTeam[]): string[] {
 function manualWeekLabel(session: ManualScheduleSession, week: number): string {
   const lastRegularWeek = regularSeasonWeeks(session.game ?? null);
   if (week <= lastRegularWeek) return `Week ${week}`;
-  const postseasonLabels = isCfb(session.game)
-    ? ["Conference Championship", "CFP First Round", "CFP Quarterfinals", "CFP Semifinals", "National Championship"]
-    : ["Wild Card", "Divisional", "Conference Championship", "Super Bowl"];
+  const postseasonLabels = ["Wild Card", "Divisional", "Conference Championship", "Super Bowl"];
   return postseasonLabels[week - lastRegularWeek - 1] ?? `Week ${week}`;
 }
 
 function renderManualWeekPicker(session: ManualScheduleSession) {
-  const isCfbGame = isCfb(session.game);
-  const firstWeek = isCfbGame ? 0 : 1;
+  const firstWeek = 1;
   const totalWeeks = maxSeasonWeek(session.game ?? null);
   const options = Array.from({ length: totalWeeks - firstWeek + 1 }, (_, idx) => firstWeek + idx)
     .map((week) => new StringSelectMenuOptionBuilder().setLabel(manualWeekLabel(session, week)).setValue(String(week)));

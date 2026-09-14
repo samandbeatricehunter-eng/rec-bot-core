@@ -13,7 +13,7 @@
 //  - CFB leagues (no imported rosters) are skipped by callers; an empty roster yields a
 //    neutral 0.5 edge either way.
 
-import { isMadden, type LeagueGame } from "@rec/shared";
+import type { LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 
@@ -258,8 +258,8 @@ export async function computeMatchupScores(
 }
 
 /** Whether the roster-based matchup calculator applies to this league (Madden only). */
-export function matchupCalculatorEnabled(game: LeagueGame | null | undefined): boolean {
-  return isMadden(game);
+export function matchupCalculatorEnabled(_game: LeagueGame | null | undefined): boolean {
+  return true;
 }
 
 export { UNITS };

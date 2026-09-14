@@ -5,7 +5,6 @@
 // the league has played — the number carries forward over season turnover instead of
 // resetting to baseline, so a coach's body of work in Season 1 still shows up when
 // Season 2 starts.
-import { isCfb } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
@@ -81,7 +80,7 @@ async function computeUserRatingsBase(guildId: string) {
   if (assignmentsRes.error) throw new ApiError(500, "We couldn't load assignments for user rating. Please try again.", assignmentsRes.error);
 
   const userIds = [...new Set((assignmentsRes.data ?? []).map((a: any) => a.user_id).filter(Boolean))] as string[];
-  if (!userIds.length) return { displayAsGrade: isCfb(game), users: [] };
+  if (!userIds.length) return { displayAsGrade: false, users: [] };
 
   // Aggregated server-side (rec_user_rating_stat_totals, see supabase/migrations) instead
   // of pulling every rec_team_game_stats row for the league over the wire — this returns
@@ -94,7 +93,7 @@ async function computeUserRatingsBase(guildId: string) {
     p_league_id: leagueId,
     p_season_number: 0,
     p_user_ids: userIds,
-    p_is_cfb: isCfb(game),
+    p_is_cfb: false,
   });
   if (statTotalsRes.error) throw new ApiError(500, "We couldn't load stats for user rating. Please try again.", statTotalsRes.error);
 
@@ -166,7 +165,7 @@ async function computeUserRatingsBase(guildId: string) {
   rows.sort((x, y) => y.rating - x.rating || x.displayName.localeCompare(y.displayName));
   rows.forEach((r, i) => { r.rank = i + 1; });
 
-  return { displayAsGrade: isCfb(game), users: rows };
+  return { displayAsGrade: false, users: rows };
 }
 
 export async function computeUserRatings(guildId: string, viewerDiscordId?: string | null) {

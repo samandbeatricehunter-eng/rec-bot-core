@@ -1,4 +1,4 @@
-import { isCfb, isMadden, type LeagueGame } from "@rec/shared";
+import type { LeagueGame } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -118,9 +118,9 @@ type ComputePowerRankingsOptions = {
  *  Blends team average OVR (60%) with starting QB OVR (40%) — QB play is the single
  *  biggest differentiator in Madden outcomes. Returns 0 for non-Madden or when no
  *  player data is available (early pre-roster-import). */
-async function computeTeamOvrBonus(leagueId: string, teamIds: string[], game: LeagueGame): Promise<Map<string, number>> {
+async function computeTeamOvrBonus(leagueId: string, teamIds: string[], _game: LeagueGame): Promise<Map<string, number>> {
   const result = new Map<string, number>();
-  if (!isMadden(game) || !teamIds.length) return result;
+  if (!teamIds.length) return result;
 
   const { data: players, error } = await supabase
     .from("rec_players")
@@ -159,24 +159,9 @@ async function rankTeams(guildId: string, leagueId: string, seasonNumber: number
   ]);
   if (teamsRes.error) throw new ApiError(500, "Failed to load teams for power rankings.", teamsRes.error);
 
-  // CFB leagues can have 100+ CPU-only teams across conferences that would swamp the
-  // rankings with noise; only rank the user-controlled teams there, regardless of
-  // conference. Madden leagues (typically fully human-controlled) keep ranking every team.
-  let teamIds = (teamsRes.data ?? []).map((t) => t.id);
-  if (isCfb(game)) {
-    const assignments = await supabase
-      .from("rec_team_assignments")
-      .select("team_id")
-      .eq("league_id", leagueId)
-      .eq("assignment_status", "active")
-      .is("ended_at", null);
-    if (assignments.error) throw new ApiError(500, "Failed to load team assignments for power rankings.", assignments.error);
-    const humanTeamIds = new Set((assignments.data ?? []).map((r) => r.team_id));
-    teamIds = teamIds.filter((id) => humanTeamIds.has(id));
-  }
+  const teamIds = (teamsRes.data ?? []).map((t) => t.id);
 
-  // For Madden leagues, fetch OVR data with the actual team IDs
-  const maddenOvrBonuses = isMadden(game) ? await computeTeamOvrBonus(leagueId, teamIds, game) : new Map<string, number>();
+  const maddenOvrBonuses = await computeTeamOvrBonus(leagueId, teamIds, game);
 
   const sosByTeam = new Map((sos?.teams ?? []).map((row) => [row.teamId, row.sosFull]));
   const statsByTeam = new Map((userRatings?.users ?? []).filter((row) => row.teamId).map((row) => [row.teamId!, row.statScore]));

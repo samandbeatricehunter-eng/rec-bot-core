@@ -10,7 +10,7 @@
 // home-field edge. The projected score blends each offense's scoring rate against the
 // other defense's concession rate, then tilts toward the favored side so the line agrees
 // with the odds.
-import { isCfb, NFL_TEAM_SECONDARY_COLORS } from "@rec/shared";
+import { NFL_TEAM_SECONDARY_COLORS } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -479,7 +479,7 @@ export async function getMatchupPreview(input: {
     gameId: game.id,
     weekNumber: Number(game.week_number),
     matchupType,
-    displayAsGrade: isCfb(context.rec_leagues.game),
+    displayAsGrade: false,
     hasSeasonData,
     away,
     home,

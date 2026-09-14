@@ -15,7 +15,7 @@ import {
 import { isFullLeagueAdminInteraction, replyFullAdminOnly } from "../lib/admin.js";
 import { COLORS } from "../lib/colors.js";
 import { userFacingError } from "../lib/errors.js";
-import { isCfb, regularSeasonWeeks, stageForWeek, stageLabel, type LeagueGame } from "../lib/league-stage.js";
+import { regularSeasonWeeks, stageForWeek, stageLabel, type LeagueGame } from "../lib/league-stage.js";
 import { formatCoins } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { MENU_CUSTOM_IDS } from "../ui/menu.js";
@@ -33,46 +33,27 @@ async function currentLeagueGame(guildId: string): Promise<LeagueGame> {
   return (current?.league?.game as LeagueGame) ?? null;
 }
 
-// CFB's postseason is conference_championship/cfp_first_round/cfp_quarterfinals/cfp_semifinals/
-// national_championship at weeks 15-19 (no bye week), and it starts at "preseason" (no training
-// camp). Madden's postseason is wild_card/divisional/conference_championship/super_bowl at weeks
-// 19-22, starting at "preseason_training_camp". CFB's offseason is its own dynasty-mode pipeline
-// (players_leaving -> transfer_portal -> signing_day -> training_results); Madden's is franchise
-// mode (coach_hiring -> final_resigning -> free_agency -> draft) — see
-// packages/shared/src/league-stage.ts.
+// Postseason is wild_card/divisional/conference_championship/super_bowl at weeks 19-22,
+// starting at "preseason_training_camp". Offseason is franchise mode (coach_hiring ->
+// final_resigning -> free_agency -> draft) — see packages/shared/src/league-stage.ts.
 function buildSetWeekRows(game: LeagueGame) {
-  const cfb = isCfb(game);
-  const firstRegularWeek = cfb ? 0 : 1;
+  const firstRegularWeek = 1;
   const lastRegularWeek = regularSeasonWeeks(game);
   const regularOptions = Array.from({ length: lastRegularWeek - firstRegularWeek + 1 }, (_, idx) => {
     const week = firstRegularWeek + idx;
     return new StringSelectMenuOptionBuilder().setLabel(`Week ${week}`).setValue(`regular:${week}`);
   });
-  const stageOptions = (cfb
-    ? [
-        ["Conference Championship", "conference_championship:15"],
-        ["CFP First Round", "cfp_first_round:16"],
-        ["CFP Quarterfinals", "cfp_quarterfinals:17"],
-        ["CFP Semifinals", "cfp_semifinals:18"],
-        ["National Championship", "national_championship:19"],
-        ["Players Leaving", "players_leaving:1"],
-        ["Transfer Portal", "transfer_portal:1"],
-        ["National Signing Day", "signing_day:1"],
-        ["Training Results", "training_results:1"],
-        ["Preseason", "preseason:1"],
-      ]
-    : [
-        ["Wild Card", "wild_card:19"],
-        ["Divisional", "divisional:20"],
-        ["Conference Championship", "conference_championship:21"],
-        ["Super Bowl", "super_bowl:22"],
-        ["Coach Hiring", "coach_hiring:1"],
-        ["Final Re-Signing", "final_resigning:1"],
-        ["Free Agency", "free_agency:1"],
-        ["Draft", "draft:1"],
-        ["Training Camp", "preseason_training_camp:1"],
-      ]
-  ).map(([label, value]) => new StringSelectMenuOptionBuilder().setLabel(label).setValue(value));
+  const stageOptions = ([
+    ["Wild Card", "wild_card:19"],
+    ["Divisional", "divisional:20"],
+    ["Conference Championship", "conference_championship:21"],
+    ["Super Bowl", "super_bowl:22"],
+    ["Coach Hiring", "coach_hiring:1"],
+    ["Final Re-Signing", "final_resigning:1"],
+    ["Free Agency", "free_agency:1"],
+    ["Draft", "draft:1"],
+    ["Training Camp", "preseason_training_camp:1"],
+  ] as const).map(([label, value]) => new StringSelectMenuOptionBuilder().setLabel(label).setValue(value));
 
   return [
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
@@ -97,11 +78,10 @@ export async function handleSetWeek(interaction: ButtonInteraction) {
   if (!interaction.inCachedGuild()) return interaction.reply({ content: "Guild context required.", flags: MessageFlags.Ephemeral });
   if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "set the league week");
   const game = await currentLeagueGame(interaction.guildId);
-  const firstRegularWeek = isCfb(game) ? 0 : 1;
   return interaction.update({
     embeds: [new EmbedBuilder()
       .setTitle("Set Week")
-      .setDescription(`Choose a regular season week, postseason week, or offseason stage. Regular season weeks use Week ${firstRegularWeek}-${regularSeasonWeeks(game)}; postseason and offseason stages are listed separately.`)],
+      .setDescription(`Choose a regular season week, postseason week, or offseason stage. Regular season weeks use Week 1-${regularSeasonWeeks(game)}; postseason and offseason stages are listed separately.`)],
     components: buildSetWeekRows(game)
   });
 }
@@ -121,9 +101,7 @@ export async function handleSetWeekSelect(interaction: any, buildAdvanceMgmtRows
   const game = await currentLeagueGame(interaction.guildId);
   const [rawStage, rawWeek] = String(interaction.values[0] ?? "regular:1").split(":");
   const parsedWeek = Number(rawWeek);
-  // Math.max(0, ...) — not Math.max(1, ...) — so CFB's Week 0 survives; only Madden's options
-  // start at 1 anyway, so this never pulls a Madden week below its real minimum.
-  const weekNumber = Number.isFinite(parsedWeek) ? Math.max(0, parsedWeek) : 1;
+  const weekNumber = Number.isFinite(parsedWeek) ? Math.max(1, parsedWeek) : 1;
   const seasonStage = rawStage === "regular" ? stageForWeek(weekNumber, game) : rawStage;
   let result: any;
   try {

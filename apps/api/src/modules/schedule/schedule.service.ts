@@ -1,7 +1,6 @@
 import {
   DEFAULT_NFL_SEASON_BY_GAME,
   getDefaultNflScheduleForGame,
-  isCfb,
   isRegularSeasonWeek,
   maxSeasonWeek,
   type LeagueGame,
@@ -100,13 +99,10 @@ function phaseForWeek(weekNumber: number, game: LeagueGame) {
 
 function assertWeekSlot(input: { weekNumber: number; slotNumber?: number }, game: LeagueGame) {
   const lastWeek = maxSeasonWeek(game);
-  // CFB's regular season starts at Week 0; Madden's starts at Week 1.
-  const firstWeek = isCfb(game) ? 0 : 1;
-  if (!Number.isInteger(input.weekNumber) || input.weekNumber < firstWeek || input.weekNumber > lastWeek) {
-    throw new ApiError(400, `Week must be between ${firstWeek} and ${lastWeek}.`);
+  if (!Number.isInteger(input.weekNumber) || input.weekNumber < 1 || input.weekNumber > lastWeek) {
+    throw new ApiError(400, `Week must be between 1 and ${lastWeek}.`);
   }
-  // CFB's larger 136-team catalog can produce a fuller weekly slate than Madden's 32 teams.
-  const maxSlot = isCfb(game) ? 100 : 32;
+  const maxSlot = 32;
   if (input.slotNumber != null && (!Number.isInteger(input.slotNumber) || input.slotNumber < 1 || input.slotNumber > maxSlot)) {
     throw new ApiError(400, `Matchup slot must be between 1 and ${maxSlot}.`);
   }
@@ -198,8 +194,8 @@ export async function listScheduleSeason(guildId: string, seasonNumber?: number 
       currentWeek: Number(context.rec_leagues.current_week ?? 1),
       game: context.rec_leagues.game ?? null,
     },
-    weeks: Array.from({ length: maxSeasonWeek(context.rec_leagues.game) - (isCfb(context.rec_leagues.game) ? 0 : 1) + 1 }, (_, idx) => {
-      const weekNumber = idx + (isCfb(context.rec_leagues.game) ? 0 : 1);
+    weeks: Array.from({ length: maxSeasonWeek(context.rec_leagues.game) }, (_, idx) => {
+      const weekNumber = idx + 1;
       return {
         weekNumber,
         phase: phaseForWeek(weekNumber, context.rec_leagues.game),

@@ -1,4 +1,4 @@
-import { CFB_POSITION_GROUPS, MADDEN_POSITION_GROUPS, normalizeCfbPosition, overallToGrade, isCfb, getRecEditableAttributes, REC_DEV_TRAITS } from "@rec/shared";
+import { MADDEN_POSITION_GROUPS, normalizeCfbPosition, overallToGrade, getRecEditableAttributes, REC_DEV_TRAITS } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { ApiError } from "../../lib/errors.js";
 import { uploadImageToCloudflare } from "../../lib/cloudflare-images.js";
@@ -157,10 +157,8 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     playerSource: p.player_source ?? null,
   }));
 
-  const isMadden = context.rec_leagues.game?.startsWith("madden") ?? false;
   const activeRows = rows.filter((r) => r.rosterStatus === "active" || r.rosterStatus === "transferred_in");
-  const groupList: readonly string[] = isMadden ? MADDEN_POSITION_GROUPS : CFB_POSITION_GROUPS;
-  const groups: RosterPositionGroup[] = groupList.map((group) => {
+  const groups: RosterPositionGroup[] = MADDEN_POSITION_GROUPS.map((group) => {
     const inGroup = activeRows.filter((r) => r.positionGroup === group);
     const withOverall = inGroup.filter((r) => r.overallRating != null);
     const avgOverall = withOverall.length
@@ -174,34 +172,24 @@ export async function getTeamRoster(input: { guildId: string; discordId: string;
     };
   });
 
-  // Draft picks are a Madden-only asset (CFB leagues use recruiting/transfer portal instead)
-  // shown as their own "position group" alongside the real position groups, per how coaches
-  // already browse rosters here.
-  const draftPicks = isMadden ? await listDraftPicksForTeam(input.guildId, teamId) : [];
-  const positionGroups = isMadden
-    ? [...groups, { group: "Draft Picks", grade: "—", avgOverall: null, playerCount: draftPicks.length }]
-    : groups;
+  // Draft picks shown as their own "position group" alongside the real position groups, per
+  // how coaches already browse rosters here.
+  const draftPicks = await listDraftPicksForTeam(input.guildId, teamId);
+  const positionGroups = [...groups, { group: "Draft Picks", grade: "—", avgOverall: null, playerCount: draftPicks.length }];
 
-  // CFB leagues let coaches mark departures (Went Pro / Graduated-Retired / Transferred) any
-  // time — including mid-season, so a coach catching up on a missed change isn't blocked.
-  // Exposed here so the roster UI can show the per-player status selector without a round trip.
-  const canEditRosterStatus = isCfb(context.rec_leagues.game);
+  const canEditRosterStatus = false;
 
-  // Cap room is Madden-only (EA import populates it onto each week's standings snapshot, not a
-  // live figure) and purely informational for the trade builder -- best-effort, non-fatal if
-  // the league has never had a snapshot yet (e.g. a brand-new Madden league before its first
-  // import) or isn't Madden at all.
-  let capRoom: number | null = null;
-  if (isMadden) {
-    const snapshot = await supabase.from("rec_team_standings_snapshots")
-      .select("cap_room")
-      .eq("team_id", teamId)
-      .order("season_number", { ascending: false })
-      .order("week_number", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    capRoom = snapshot.data?.cap_room ?? null;
-  }
+  // Cap room is populated onto each week's standings snapshot by EA import, not a live figure
+  // -- best-effort, non-fatal if the league has never had a snapshot yet (e.g. a brand-new
+  // league before its first import).
+  const snapshot = await supabase.from("rec_team_standings_snapshots")
+    .select("cap_room")
+    .eq("team_id", teamId)
+    .order("season_number", { ascending: false })
+    .order("week_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const capRoom: number | null = snapshot.data?.cap_room ?? null;
 
   return {
     team: {
@@ -568,9 +556,7 @@ export async function listRosterPool(input: { guildId: string; discordId: string
     abilities: normalizeRosterAbilities(p.abilities),
   }));
 
-  const isMadden = context.rec_leagues.game?.startsWith("madden") ?? false;
-  const groupList: readonly string[] = isMadden ? MADDEN_POSITION_GROUPS : CFB_POSITION_GROUPS;
-  const positionGroups: RosterPositionGroup[] = groupList.map((group) => {
+  const positionGroups: RosterPositionGroup[] = MADDEN_POSITION_GROUPS.map((group) => {
     const inGroup = players.filter((r) => r.positionGroup === group);
     const withOverall = inGroup.filter((r) => r.overallRating != null);
     const avgOverall = withOverall.length
@@ -638,9 +624,8 @@ export async function releaseRosterPlayer(input: { guildId: string; discordId: s
 }
 
 /** Edit a player's identity + attributes in place — the league editor's full edit modal
- * (all fields, including the full attribute grid). Game-aware: dev trait is a Madden
- * concept and is ignored for CFB leagues; class year is a CFB concept and is ignored for
- * Madden. Attributes are validated against the shared editable set (all 53 Madden codes). */
+ * (all fields, including the full attribute grid). Attributes are validated against the
+ * shared editable set (all 53 Madden codes). */
 export async function updateRosterPlayer(input: {
   guildId: string;
   discordId: string;
@@ -661,7 +646,6 @@ export async function updateRosterPlayer(input: {
   const context = await getCurrentLeagueContext(input.guildId);
   const leagueId = context.leagueId;
   const userId = await userIdForDiscord(input.discordId);
-  const isMadden = context.rec_leagues.game?.startsWith("madden") ?? false;
 
   const player = await supabase.from("rec_players").select("id,full_name").eq("id", input.playerId).eq("league_id", leagueId).maybeSingle();
   if (player.error) throw new ApiError(500, "Failed to load that player.", player.error);
@@ -688,15 +672,10 @@ export async function updateRosterPlayer(input: {
     patch.jersey_number = input.jerseyNumber;
   }
   if (input.archetype !== undefined) patch.archetype = input.archetype || null;
-  if (isMadden && input.devTrait !== undefined) {
+  if (input.devTrait !== undefined) {
     const valid = REC_DEV_TRAITS.MADDEN.some((t) => t.key === input.devTrait);
     if (input.devTrait && !valid) throw new ApiError(400, "That development trait isn't valid for Madden.");
     patch.dev_trait = input.devTrait || null;
-  }
-  if (!isMadden && input.classYear !== undefined) {
-    const valid = ["FR", "SO", "JR", "SR", "RS-FR", "RS-SO", "RS-JR", "RS-SR"].includes(input.classYear ?? "");
-    if (input.classYear && !valid) throw new ApiError(400, "That class year isn't valid.");
-    patch.class_year = input.classYear || null;
   }
   if (input.overallRating !== undefined) {
     if (input.overallRating != null && (input.overallRating < 0 || input.overallRating > 99)) throw new ApiError(400, "Overall rating must be 0-99.");
@@ -716,7 +695,7 @@ export async function updateRosterPlayer(input: {
   }
 
   if (input.attributes !== undefined) {
-    const editable = new Set(getRecEditableAttributes(isMadden ? "MADDEN" : "CFB", "", undefined));
+    const editable = new Set(getRecEditableAttributes("MADDEN", "", undefined));
     const attributes: Record<string, number> = {};
     for (const [key, value] of Object.entries(input.attributes)) {
       const code = key.trim().toLowerCase();

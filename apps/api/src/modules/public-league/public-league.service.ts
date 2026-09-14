@@ -1,4 +1,4 @@
-import { isCfb, stageLabel } from "@rec/shared";
+import { stageLabel } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getPgPool } from "../../db/client.js";
@@ -73,11 +73,10 @@ export async function getPublicLeagueSnapshot(guildId: string) {
     .map((t: any) => ({ teamId: t.id, teamName: teamName(t.id), coachName: identityByUser.get(userIdByTeam.get(t.id)!) ?? "Coach" }))
     .sort((a, b) => a.teamName.localeCompare(b.teamName));
 
-  const isCfbLeague = isCfb(context.rec_leagues.game ?? null);
   const openTeamRows = (teamsResult.data ?? []).filter((t: any) => !userIdByTeam.has(t.id));
   const openGroupsMap = new Map<string, Array<{ teamId: string; teamName: string }>>();
   for (const t of openTeamRows) {
-    const group = isCfbLeague ? (t.conference?.trim() || "Independent") : "Open Teams";
+    const group = "Open Teams";
     if (!openGroupsMap.has(group)) openGroupsMap.set(group, []);
     openGroupsMap.get(group)!.push({ teamId: t.id, teamName: teamName(t.id) });
   }

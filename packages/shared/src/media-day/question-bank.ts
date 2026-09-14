@@ -21,8 +21,7 @@ export type NonRtiMediaDayCategory =
   | "game_of_the_week"
   | "postseason"
   | "championship"
-  | "offseason_madden"
-  | "offseason_cfb";
+  | "offseason_madden";
 
 const RAW_QUESTIONS: Record<NonRtiMediaDayCategory, string[]> = {
   team_identity: [
@@ -440,38 +439,6 @@ const RAW_QUESTIONS: Record<NonRtiMediaDayCategory, string[]> = {
     "How do you approach the draft when you have needs at multiple positions?",
     "What's one thing you want fans to understand about this offseason's approach?",
     "How do you want this program to look different by the time next season starts?",
-  ],
-  offseason_cfb: [
-    "How do you evaluate the season that just wrapped up?",
-    "What's the biggest thing you learned about this program this year?",
-    "How do you handle players leaving for the draft or graduating?",
-    "What's the toughest goodbye your program is facing this offseason?",
-    "How do you approach the transfer portal with your program's identity in mind?",
-    "What's the biggest need the portal has to help you address?",
-    "How do you decide which of your own players to fight to keep from transferring out?",
-    "What's your recruiting philosophy heading into this signing class?",
-    "Which position group are you most focused on through recruiting or the portal?",
-    "How do you balance retaining your locker room's culture with adding new pieces?",
-    "What's the biggest change you're planning heading into next season?",
-    "How do you evaluate a transfer target beyond just their statistics?",
-    "What's the riskiest roster move you're considering this offseason?",
-    "How do you approach training and development during this part of the year?",
-    "What's the identity you want your incoming class to reflect?",
-    "How do you keep your current roster locked in while others are changing teams?",
-    "What's the hardest part of the roster turnover this era of the sport brings?",
-    "How do you decide what type of player fills a leadership void left behind?",
-    "What's the biggest opportunity this offseason presents for your program?",
-    "How aggressive are you being in the transfer portal this cycle?",
-    "What's one thing you want fans to understand about this offseason's approach?",
-    "How do you want this program to look different by next season?",
-    "What's the biggest lesson about roster management this era has taught you?",
-    "How do you evaluate whether training results are actually translating to progress?",
-    "What's the plan for replacing production lost to departures?",
-    "How do you approach signing day with your program's long-term vision in mind?",
-    "What's the biggest thing this offseason has to accomplish before next season?",
-    "How do you keep your program's culture intact through constant roster change?",
-    "What's a signing or portal addition you're most excited about?",
-    "How do you want this recruiting cycle to define your program's next chapter?",
   ],
 };
 

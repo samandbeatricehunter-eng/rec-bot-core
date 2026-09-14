@@ -5,7 +5,7 @@
 // (e.g. "6-12"), so both halves are parsed here rather than read from dedicated
 // columns — only the "made" half was read before 2026-07-16.
 
-import { isCfb, isChampionshipWeek, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
+import { isChampionshipWeek, regularSeasonWeeks, type LeagueGame } from "@rec/shared";
 import { type GameStats, returnYards } from "./types.js";
 
 /** Subset of rec_team_game_stats consumed by the intelligence engine. */
@@ -120,16 +120,14 @@ export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): 
   if (thirdAttempts != null && thirdMade > thirdAttempts) flags.bad = true;
   if (fourthAttempts != null && fourthMade > fourthAttempts) flags.bad = true;
 
-  const cfb = isCfb(game);
-  const rushAttempts = cfb ? jsonNum(row.offensive_stats, "off_rush_attempts") || null : null;
-  const passCompletions = cfb ? jsonNum(row.offensive_stats, "pass_completions") : null;
-  const passAttempts = cfb ? jsonNum(row.offensive_stats, "pass_attempts") : null;
-  if (cfb && passCompletions != null && passAttempts != null && passCompletions > passAttempts) flags.bad = true;
-  const yardsPerPlay = cfb ? sane(jsonFloat(row.offensive_stats, "yards_per_play") || null, 0, 25, flags) : null;
-  const yardsPerRush = cfb ? sane(jsonFloat(row.offensive_stats, "yards_per_rush") || null, 0, 25, flags) : null;
-  const yardsPerPass = cfb ? sane(jsonFloat(row.offensive_stats, "yards_per_pass") || null, 0, 25, flags) : null;
-  const interceptionsThrown = cfb ? sane(jsonNum(row.offensive_stats, "interceptions_thrown") || null, 0, 10, flags) : null;
-  const fumblesLost = cfb ? sane(jsonNum(row.offensive_stats, "fumbles_lost") || null, 0, 10, flags) : null;
+  const rushAttempts = null;
+  const passCompletions = null;
+  const passAttempts = null;
+  const yardsPerPlay = null;
+  const yardsPerRush = null;
+  const yardsPerPass = null;
+  const interceptionsThrown = null;
+  const fumblesLost = null;
 
   return {
     leagueId: row.league_id,
@@ -147,12 +145,11 @@ export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): 
     pointsFor,
     pointsAgainst,
     margin: pointsFor - pointsAgainst,
-    // "Championship" here means the season's final game — week 22 for NFL-style
-    // games (madden_26/27), week 19 (national_championship) for CFB.
+    // "Championship" here means the season's final game — week 22.
     isPlayoff: week > regularSeasonWeeks(game),
     isSuperBowl: isChampionshipWeek(week, game),
     isConferenceChampionshipGame: week === 15,
-    isDivisionalRound: !cfb && week === 20,
+    isDivisionalRound: week === 20,
 
     passingYards: pass,
     rushingYards: rush,
@@ -174,30 +171,30 @@ export function rowToGameStats(row: TeamGameStatsRow, game: LeagueGame = null): 
     opponentFourthDownConversions: oppFourthMade,
     opponentFourthDownAttempts: oppFourthAttempts,
     opponentTurnovers,
-    opponentInterceptionsThrown: cfb ? jsonNum(row.defensive_stats, "interceptions_thrown") : null,
-    opponentFumblesLost: cfb ? jsonNum(row.defensive_stats, "fumbles_lost") : null,
+    opponentInterceptionsThrown: null,
+    opponentFumblesLost: null,
     opponentRedZoneOffensivePct: oppRzFromDef,
 
-    totalPlays: cfb ? jsonNum(row.offensive_stats, "total_plays") || null : null,
+    totalPlays: null,
     yardsPerPlay,
     rushAttempts,
-    rushTDs: cfb ? jsonNum(row.offensive_stats, "off_rush_tds") || null : null,
+    rushTDs: null,
     yardsPerRush,
     passCompletions,
     passAttempts,
-    passTDs: cfb ? jsonNum(row.offensive_stats, "off_pass_tds") || null : null,
+    passTDs: null,
     yardsPerPass,
-    thirdDownAttempts: cfb ? thirdAttempts : null,
-    fourthDownAttempts: cfb ? fourthAttempts : null,
+    thirdDownAttempts: null,
+    fourthDownAttempts: null,
     interceptionsThrown,
     fumblesLost,
-    redZoneTDs: cfb ? jsonNum(row.offensive_stats, "red_zone_tds") || null : null,
-    redZoneFGs: cfb ? jsonNum(row.offensive_stats, "red_zone_fgs") || null : null,
-    punts: cfb ? jsonNum(row.offensive_stats, "punts") || null : null,
-    puntAvgYards: cfb ? jsonFloat(row.offensive_stats, "punt_avg_yards") || null : null,
-    penalties: cfb ? jsonNum(row.offensive_stats, "penalties") || null : null,
-    penaltyYards: cfb ? jsonNum(row.offensive_stats, "penalty_yards") || null : null,
-    timeOfPossessionSeconds: cfb ? jsonClockSeconds(row.offensive_stats, "time_of_possession") : null,
+    redZoneTDs: null,
+    redZoneFGs: null,
+    punts: null,
+    puntAvgYards: null,
+    penalties: null,
+    penaltyYards: null,
+    timeOfPossessionSeconds: null,
 
     statsQuarantined: flags.bad,
   };

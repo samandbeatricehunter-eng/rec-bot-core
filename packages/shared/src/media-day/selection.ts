@@ -3,7 +3,7 @@
 // Interview / Owner Interview pattern (season-stage bucketing, deterministic weekly picks) but
 // scoped to non-RTI leagues, where every user represents a TEAM (there are no player prospects).
 
-import { isCfb, isTerminalSeasonStage, postseasonPayoutStages, regularSeasonWeeks, type LeagueGame } from "../league-stage.js";
+import { isTerminalSeasonStage, postseasonPayoutStages, regularSeasonWeeks, type LeagueGame } from "../league-stage.js";
 import { NON_RTI_MEDIA_DAY_QUESTIONS, nonRtiMediaDayQuestionsByCategory, type NonRtiMediaDayCategory, type NonRtiMediaDayQuestion } from "./question-bank.js";
 
 export const NON_RTI_MEDIA_DAY_SLOTS = 3;
@@ -19,9 +19,6 @@ export type NonRtiMediaDayContext = {
 };
 
 const OFFSEASON_MADDEN_STAGES = new Set(["coach_hiring", "final_resigning", "free_agency", "draft"]);
-const OFFSEASON_CFB_STAGES = new Set([
-  "end_of_season_recap", "players_leaving", "transfer_portal", "signing_day", "training_results", "offseason_phase",
-]);
 const TEAM_LEVEL_CATEGORIES: NonRtiMediaDayCategory[] = ["team_identity", "roster_construction", "coaching_philosophy"];
 
 function candidateCategories(context: NonRtiMediaDayContext): NonRtiMediaDayCategory[] {
@@ -46,9 +43,7 @@ function candidateCategories(context: NonRtiMediaDayContext): NonRtiMediaDayCate
     else if (context.lastResult === "loss") categories.push("postgame_loss");
     if (context.isGameOfTheWeek) categories.push("game_of_the_week");
     categories.push(...TEAM_LEVEL_CATEGORIES);
-  } else if (isCfb(game) && OFFSEASON_CFB_STAGES.has(stage)) {
-    categories.push("offseason_cfb", "offseason_cfb", ...TEAM_LEVEL_CATEGORIES);
-  } else if (!isCfb(game) && OFFSEASON_MADDEN_STAGES.has(stage)) {
+  } else if (OFFSEASON_MADDEN_STAGES.has(stage)) {
     categories.push("offseason_madden", "offseason_madden", ...TEAM_LEVEL_CATEGORIES);
   } else {
     // Unrecognized/legacy stage value -- fall back to the always-safe evergreen pool rather

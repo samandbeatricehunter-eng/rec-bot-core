@@ -1,8 +1,8 @@
 // Season-by-season League History — tabs of completed seasons with each coach's record,
-// postseason results, bowl/championship outcomes, three power-ranking snapshots (start/mid/
-// end), and the final CFB Top 25. Shared by the authenticated site nav page and the public
-// /viewleague page — nothing here is more sensitive than what's already public on standings.
-import { isCfb, type LeagueGame } from "@rec/shared";
+// postseason results, bowl/championship outcomes, and three power-ranking snapshots (start/mid/
+// end). Shared by the authenticated site nav page and the public /viewleague page — nothing
+// here is more sensitive than what's already public on standings.
+import type { LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
 import { supabase } from "../../lib/supabase.js";
@@ -15,11 +15,9 @@ import { getGuildMemberDisplayNameMap } from "../../lib/discord-guild.js";
 // instead of ever showing the number.
 const isRawDiscordSnowflake = (value: string | null | undefined) => Boolean(value && /^\d{17,20}$/.test(value));
 
-// "Midpoint" power-ranking week per game type — CFB's regular season peaks around week 7,
-// Madden's around week 9 (Samuel's call; there's no single neutral "half the season" week
-// that works for both once bye weeks/postseason length are folded in).
-function midSeasonWeek(game: LeagueGame): number {
-  return isCfb(game) ? 7 : 9;
+// "Midpoint" power-ranking week — the regular season peaks around week 9 (Samuel's call).
+function midSeasonWeek(_game: LeagueGame): number {
+  return 9;
 }
 
 function teamName(t: { name?: string | null; display_city?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null | undefined): string {
@@ -128,16 +126,9 @@ async function buildSeasonHistory(leagueId: string, seasonNumber: number, game: 
     };
   }).sort((a, b) => (b.wins - b.losses) - (a.wins - a.losses) || b.wins - a.wins);
 
-  // Postseason: CFB tags bowls/national championship on rec_games (joined via game_id);
-  // Madden's playoff/Super Bowl flags already live directly on rec_game_results.
+  // Playoff/Super Bowl flags live directly on rec_game_results.
   const postseasonResults = results.filter((g) => g.is_playoff || g.is_super_bowl);
-  const gameIds = postseasonResults.map((g) => g.game_id).filter((id): id is string => Boolean(id));
-  let gameMetaById = new Map<string, { is_bowl_game: boolean | null; is_national_championship: boolean | null; bowl_name: string | null; postseason_round: string | null }>();
-  if (isCfb(game) && gameIds.length) {
-    const gamesRes = await supabase.from("rec_games").select("id,is_bowl_game,is_national_championship,bowl_name,postseason_round").in("id", gameIds);
-    if (gamesRes.error) throw new ApiError(500, "Failed to load postseason game metadata for league history.", gamesRes.error);
-    gameMetaById = new Map((gamesRes.data ?? []).map((row: any) => [row.id, row]));
-  }
+  const gameMetaById = new Map<string, { is_bowl_game: boolean | null; is_national_championship: boolean | null; bowl_name: string | null; postseason_round: string | null }>();
 
   const postseasonGames = postseasonResults
     .map((g) => {
@@ -161,7 +152,7 @@ async function buildSeasonHistory(leagueId: string, seasonNumber: number, game: 
     return { bowlName: g.bowlName, winner: g.winner, loser, score };
   });
 
-  const championshipGame = isCfb(game) ? postseasonGames.find((g) => g.isNationalChampionship) : postseasonGames.find((g) => g.isSuperBowl);
+  const championshipGame = postseasonGames.find((g) => g.isSuperBowl);
   const championship = championshipGame
     ? {
         winner: championshipGame.winner,
@@ -195,13 +186,7 @@ async function buildSeasonHistory(leagueId: string, seasonNumber: number, game: 
     end: snapshotFor(endWeek), endWeek,
   };
 
-  let finalTop25: LeagueHistorySeason["finalTop25"] = [];
-  if (isCfb(game)) {
-    const top25Res = await supabase.from("rec_cfp_rankings").select("rank,team_id,conference_champion")
-      .eq("league_id", leagueId).eq("season_number", seasonNumber).lte("rank", 25).order("rank", { ascending: true });
-    if (top25Res.error) throw new ApiError(500, "Failed to load final Top 25 for league history.", top25Res.error);
-    finalTop25 = (top25Res.data ?? []).map((r: any) => ({ rank: Number(r.rank), teamName: teamName(teamById.get(r.team_id) ?? null), conferenceChampion: Boolean(r.conference_champion) }));
-  }
+  const finalTop25: LeagueHistorySeason["finalTop25"] = [];
 
   // Week-by-week: every logged game grouped by week, plus that week's power-ranking movement
   // (this week's snapshot rank vs. the prior available snapshot's rank for the same team —

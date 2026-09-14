@@ -9,7 +9,7 @@ import {
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { canonicalConferenceName, CONFERENCE_ORDER, isCfb, isRegularSeasonWeek, stageForWeek, stageLabel, formatCoins } from "@rec/shared";
+import { canonicalConferenceName, CONFERENCE_ORDER, isRegularSeasonWeek, stageForWeek, stageLabel, formatCoins } from "@rec/shared";
 import { COLORS } from "../lib/colors.js";
 
 /**
@@ -182,7 +182,7 @@ export function buildLeagueMenuEmbed(input: {
     `**PointDiff:** ${input.leagueSeasonPointDifferential ?? 0}`
   ].join("\n");
 
-  const championshipLabel = isCfb(input.game) ? "National Championships" : "Super Bowls";
+  const championshipLabel = "Super Bowls";
   const globalCareerInfo = input.gameGlobalLabel
     ? [
       `**Global (${input.gameGlobalLabel}):** ${input.gameGlobalRecordText ?? "0-0-0"} | PD: ${input.gameGlobalPointDifferential ?? 0}`,
@@ -251,7 +251,7 @@ export function buildAdminPanelEmbed(input: { coCommissionerLimited?: boolean } 
       "**Box Scores** - Commissioner-assisted upload flow for prior or missed box scores.",
     ]
     : [
-      "**New here?** Run your game in-game first (advance Madden/CFB), then come back and advance REC — that order keeps the new week, scores, and playoff bracket ready for the EA import.",
+      "**New here?** Run your game in-game first (advance Madden), then come back and advance REC — that order keeps the new week, scores, and playoff bracket ready for the EA import.",
       "",
       "**Teams / Roles** — Link coaches to teams, edit relocated/custom teams, reset defaults, and manage REC Discord roles.",
       "**Schedule** — Enter the schedule manually or review the current one. Playoff schedules usually need an in-game advance first.",
