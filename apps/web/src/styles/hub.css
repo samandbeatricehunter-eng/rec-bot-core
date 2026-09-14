@@ -3810,12 +3810,7 @@ button.poty:disabled {
 .hub-hero-rebuilt {
   display: block;
   width: 100%;
-  /* Horizontal padding here would shrink .hub-season-snapshot's min(100%,980px) basis below
-     every mini-nav's (they sit directly in .hub-page with no padded ancestor), making League
-     Home's chassis render narrower than every other page's at in-between viewport widths.
-     Top spacing lives on .hub-season-snapshot-box itself now (below), not here, so every page's
-     box gets the same gap under the header -- only the bottom gap before the Rise media card
-     stays local to this wrapper. */
+  /* Top-rail placement is owned by .site-league-top-rail — do not add margin/padding-top here. */
   padding-bottom: clamp(16px, 3vw, 34px);
   overflow: visible;
 }
@@ -3903,21 +3898,15 @@ button.poty:disabled {
 .hub-standings-page {
   font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
 }
-/* Universal nav chassis: every SectionMiniNav (Stats/Standings/Game Day/Team/...) renders as
-   the same bordered box-of-cards structure as League Home's own header
-   (.hub-season-snapshot-box/-grid) -- same outer border/background/shadow, same 4-column
-   grid, same card treatment per item -- so no page's top nav looks, sizes, or positions
-   itself differently from any other's. A fixed 4-column grid (not flex-wrap) keeps this
-   consistent regardless of how many buttons a given page has (4 items -> one row, 8 -> two
-   rows) instead of each page wrapping its own way at its own width. */
+/* Universal nav chassis: SectionMiniNav visual chrome only.
+   Page placement (margin-top / body gap) is owned by .site-league-top-rail — keep outer
+   margins at 0 so League Home snapshot and every mini-nav share one Y baseline. */
 .hub-standings-mini-nav {
   display:grid;
   grid-template-columns:repeat(4, minmax(0,1fr));
   gap:8px;
-  width:min(980px, 100%);
-  /* Same top gap under the header as .hub-season-snapshot-box (League Home/League Mgmt) --
-     this nav is always the first thing on its page too, so it needs the identical margin. */
-  margin: clamp(16px, 3vw, 34px) auto 14px;
+  width:100%;
+  margin:0;
   padding:7px;
   border:1px solid rgba(255,70,70,.28);
   border-radius:12px;
@@ -4268,16 +4257,36 @@ button.hub-div-standing-team:focus-visible {
   margin: 4px 0 0;
   min-width: 0;
 }
+.hub-div-standing-team.is-users-block {
+  padding-right: 12px;
+}
+.hub-div-standing-team.is-users-block .hub-div-standing-identity {
+  justify-self: end;
+  width: min(100%, 11.5rem);
+  margin-left: auto;
+  text-align: right;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .75);
+}
 .hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids {
   margin: 0;
+  margin-left: auto;
+  width: 100%;
 }
-/* Luma-aware ink (--team-ink) so SITE/DISCORD/EA stay readable on dark and light washes. */
+.hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids > div {
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-content: end;
+}
+.hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids dt,
+.hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids dd {
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+}
 .hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids dt {
-  color: color-mix(in srgb, var(--team-ink, #fff) 78%, transparent);
+  text-align: right;
 }
 .hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids dd {
-  color: var(--team-ink, #fff);
   font-weight: 700;
+  text-align: right;
 }
 .hub-div-standing-mgmt-ids > div {
   display: grid;
@@ -4288,7 +4297,7 @@ button.hub-div-standing-team:focus-visible {
 }
 .hub-div-standing-mgmt-ids dt {
   margin: 0;
-  color: color-mix(in srgb, var(--team-ink, #fff) 72%, transparent);
+  color: rgba(255, 255, 255, .78);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .06em;
@@ -4296,7 +4305,7 @@ button.hub-div-standing-team:focus-visible {
 }
 .hub-div-standing-mgmt-ids dd {
   margin: 0;
-  color: var(--team-ink, #fff);
+  color: #fff;
   font-size: 11px;
   font-weight: 600;
   overflow: hidden;
@@ -4523,15 +4532,9 @@ button.hub-div-standing-team:focus-visible {
 .hub-hero-score-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
 .hub-season-snapshot { width:min(100%,980px); margin:0 auto; text-align:center; }
-/* Single shared container for both snapshot rows (primary + progression) -- previously each
-   row (.hub-season-snapshot-grid) carried its own border/background/shadow, so the two rows
-   read as two separate boxes stacked on top of each other instead of one unified panel. */
+/* Snapshot chrome only — vertical page placement is owned by .site-league-top-rail. */
 .hub-season-snapshot-box {
-  /* Same gap under the header on every page -- this used to live on .hub-hero-rebuilt, which
-     only wrapped League Home's own snapshot, so every other mini-nav sat flush against the
-     header instead. Living on the box itself, it applies uniformly wherever this class is used
-     (League Home, League Mgmt's merged status/nav box). */
-  margin-top: clamp(16px, 3vw, 34px);
+  margin:0;
   padding:7px;
   border:1px solid rgba(255,70,70,.28);
   border-radius:12px;

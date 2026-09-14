@@ -2252,8 +2252,10 @@ h1, h2, h3, .site-wordmark {
 .site-league-chassis {
   --league-content-max-width: 1120px;
   --league-rail-max-width: 980px;
-  --league-body-gap: 14px;
+  --league-rail-body-gap: 14px;
   --league-rail-top-gap: clamp(16px, 3vw, 34px);
+  /* Alias kept for older references while rails migrate to --league-rail-body-gap. */
+  --league-body-gap: var(--league-rail-body-gap);
   width: 100%;
   min-height: inherit;
 }
@@ -2261,13 +2263,18 @@ h1, h2, h3, .site-wordmark {
   width: 100%;
   min-height: 0;
 }
+/* Sole owner of league-page top-rail Y + body gap. Children must not add outer offset. */
 .site-league-top-rail {
   width: min(100%, var(--league-rail-max-width));
-  margin: var(--league-rail-top-gap) auto var(--league-body-gap);
+  margin-inline: auto;
+  margin-top: var(--league-rail-top-gap);
+  margin-bottom: var(--league-rail-body-gap);
 }
-.site-league-top-rail > :is(.hub-season-snapshot-box, .hub-standings-mini-nav) {
+.site-league-top-rail > .hub-season-snapshot-box,
+.site-league-top-rail > .hub-standings-mini-nav {
   width: 100%;
-  margin: 0;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 .site-league-chassis-loading {
   width: 100%;
