@@ -22,18 +22,22 @@ import { LeagueHomePage } from "../features/league/home/index.js";
 import {
   AdvanceHome,
   DeleteLeagueHome,
+  ImportGamesPage,
   LinkTeamForm,
   ManageLeagueHome,
+  ManageLeaguePlaceholderPage,
+  ManageMediaPlaceholderPage,
+  ManageTeamsPage,
+  ManageUsersPage,
   MgmtRouteRail,
   NotificationsHome,
   NflPlayoffBracket,
-  PublishingHome,
   RolesHome,
   SettingsHome,
+  TeamManagePlaceholderPage,
   TeamOwnershipTable,
   TeamRosterForm,
   TeamScheduleForm,
-  ToolsHome,
   type MgmtNavId,
 } from "../features/league/management/index.js";
 import {
@@ -182,8 +186,7 @@ function MgmtSubPage({ children }: { children: ReactNode }) {
   );
 }
 
-/** Top status strip + bottom nav, persistent across the four League Mgmt destinations --
- * site owns the rail through features/league/management. */
+/** Top status strip persistent across League Mgmt destinations. */
 function MgmtSectionLayout({ active, leagueId, children }: { active: MgmtNavId; leagueId: string; children: ReactNode }) {
   return (
     <>
@@ -196,14 +199,21 @@ function MgmtSectionLayout({ active, leagueId, children }: { active: MgmtNavId; 
 function HubMgmtRoutes({ leagueId }: { leagueId: string }) {
   return (
     <Routes>
-      <Route index element={<MgmtSectionLayout active="teams" leagueId={leagueId}><ManageLeagueHome /></MgmtSectionLayout>} />
-      <Route path="inbox" element={<MgmtSectionLayout active="inbox" leagueId={leagueId}><NotificationsHome /></MgmtSectionLayout>} />
-      <Route path="teams" element={<MgmtSectionLayout active="teams" leagueId={leagueId}><ManageLeagueHome /></MgmtSectionLayout>} />
+      <Route index element={<Navigate replace to="users" />} />
+      <Route path="games" element={<MgmtSectionLayout active="games" leagueId={leagueId}><ImportGamesPage /></MgmtSectionLayout>} />
       <Route path="advance" element={<MgmtSectionLayout active="advance" leagueId={leagueId}><AdvanceHome /></MgmtSectionLayout>} />
-      <Route path="tools" element={<MgmtSectionLayout active="tools" leagueId={leagueId}><ToolsHome /></MgmtSectionLayout>} />
-      {/* Legacy paths some links/bookmarks may still point at. */}
-      <Route path="notifications" element={<Navigate replace to="../inbox" />} />
-      <Route path="commissioner-chat" element={<Navigate replace to="../inbox" />} />
+      <Route path="pending" element={<MgmtSectionLayout active="pending" leagueId={leagueId}><NotificationsHome /></MgmtSectionLayout>} />
+      <Route path="users" element={<MgmtSectionLayout active="users" leagueId={leagueId}><ManageUsersPage /></MgmtSectionLayout>} />
+      <Route path="teams" element={<MgmtSectionLayout active="teams" leagueId={leagueId}><ManageTeamsPage /></MgmtSectionLayout>} />
+      <Route path="teams/:teamId" element={<MgmtSectionLayout active="teams" leagueId={leagueId}><TeamManagePlaceholderPage /></MgmtSectionLayout>} />
+      <Route path="league" element={<MgmtSectionLayout active="league" leagueId={leagueId}><ManageLeaguePlaceholderPage /></MgmtSectionLayout>} />
+      <Route path="media" element={<MgmtSectionLayout active="media" leagueId={leagueId}><ManageMediaPlaceholderPage /></MgmtSectionLayout>} />
+
+      {/* Legacy paths — keep deep links working while the rail destinations settle. */}
+      <Route path="inbox" element={<Navigate replace to="../pending" />} />
+      <Route path="tools" element={<Navigate replace to="../league" />} />
+      <Route path="notifications" element={<Navigate replace to="../pending" />} />
+      <Route path="commissioner-chat" element={<Navigate replace to="../pending" />} />
       <Route path="manage-league" element={<Navigate replace to="../teams" />} />
       <Route path="manage-league/roles" element={<MgmtSubPage><RolesHome /></MgmtSubPage>} />
       <Route path="manage-league/playoff-bracket" element={<MgmtSubPage><NflPlayoffBracket /></MgmtSubPage>} />
@@ -221,8 +231,8 @@ function HubMgmtRoutes({ leagueId }: { leagueId: string }) {
           </MgmtSubPage>
         }
       />
-      <Route path="publishing" element={<MgmtSubPage><PublishingHome /></MgmtSubPage>} />
-      <Route path="*" element={<MgmtSectionLayout active="teams" leagueId={leagueId}><ManageLeagueHome /></MgmtSectionLayout>} />
+      <Route path="publishing" element={<Navigate replace to="../media" />} />
+      <Route path="*" element={<Navigate replace to="users" />} />
     </Routes>
   );
 }

@@ -8,8 +8,7 @@ import { Button } from "../../../../../web/src/components/ui/Button.js";
 import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
 import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
 import { Modal } from "../../../../../web/src/components/ui/Modal.js";
-import { ImportDataModal } from "./manage-league/ImportDataModal.js";
-import { useReadyAuth, useHubChrome, useLeagueTheme, useAdvanceStatus } from "@rec/hub-ui";
+import { useReadyAuth, useLeagueTheme, useAdvanceStatus } from "@rec/hub-ui";
 
 const TZ_LABELS = ["EST", "CST", "MST", "PST", "AKST"];
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
@@ -466,26 +465,7 @@ function AdvanceScoreReview() {
   );
 }
 
-/** Advance bottom-tab: EA data-import step first (with a skip control), then the score-review
- * + Complete Advance step. Both stages report into AdvanceStatusContext/AdvanceStatusDrawer so
- * navigating away mid-run doesn't lose all feedback -- the drawer discovers the in-progress
- * advance by leagueId, not a client-remembered id (see advance-progress.service.ts). */
+/** Advance tile destination — score review + Complete Advance only (import lives under Games). */
 export function AdvanceHome() {
-  const { guildId } = useReadyAuth();
-  const chrome = useHubChrome();
-  const leagueId = chrome.currentLeague?.id ?? null;
-  const [showImportStep, setShowImportStep] = useState(true);
-
-  if (showImportStep && leagueId) {
-    return (
-      <div className="advance-card advance-card-primary">
-        <ImportDataModal guildId={guildId} leagueId={leagueId} embedded onClose={() => setShowImportStep(false)} />
-        <div style={{ marginTop: "var(--space-3)", textAlign: "center" }}>
-          <Button variant="ghost" onClick={() => setShowImportStep(false)}>Skip — enter scores manually</Button>
-        </div>
-      </div>
-    );
-  }
-
   return <AdvanceScoreReview />;
 }

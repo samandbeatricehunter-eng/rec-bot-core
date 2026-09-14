@@ -3,7 +3,7 @@ import { PendingItemsPanel } from "./PendingItemsPanel.js";
 
 export function NotificationsHome() {
   return <div>
-    <PageHeader title="Notifications" subtitle="Pending decisions and the league's latest approved or issued transactions." />
+    <PageHeader title="Pending" subtitle="Decisions waiting on a commissioner and recent resolved transactions." />
     <PendingItemsPanel />
   </div>;
 }
