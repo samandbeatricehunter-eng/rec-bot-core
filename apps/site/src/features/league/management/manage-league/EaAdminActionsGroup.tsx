@@ -1,0 +1,388 @@
+import { useEffect, useState } from "react";
+import { PlayCircle, ShieldOff, ShieldPlus, UserX, Swords, RotateCcw, Bot, ArrowRightLeft, Search } from "lucide-react";
+import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
+import type { LinkedTeamRow } from "../../../../../../web/src/types/api.js";
+import { Button } from "../../../../../../web/src/components/ui/Button.js";
+
+// Live writes into a commissioner's Madden franchise via EA's Blaze API -- there's no sandbox,
+// so every one of these fires a real in-game action the moment it's confirmed.
+
+function teamLabel(row: LinkedTeamRow): string {
+  const who = row.user?.display_name ?? row.discordAccount?.username ?? "Unknown";
+  return row.team ? `${who} — ${row.team.name}` : who;
+}
+
+/** League-level Franchise permission flags EA reports alongside the connection (whether admins
+ * as a class can Boot/Remove *other* admins) -- not specific to who's asking. Fetched once per
+ * mount so Boot User/Remove Admin can warn up front when the target might be an admin, instead
+ * of only finding out after EA rejects the action. */
+function useEaAdminCapabilities(guildId: string, leagueId: string) {
+  const [capabilities, setCapabilities] = useState<{ canBootAdmins: boolean | null; canRemoveAdmins: boolean | null } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    recApi.getMaddenEaStatus({ guildId, leagueId }).then((result) => {
+      if (!cancelled && result.connection) {
+        setCapabilities({ canBootAdmins: result.connection.canBootAdmins, canRemoveAdmins: result.connection.canRemoveAdmins });
+      }
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [guildId, leagueId]);
+  return capabilities;
+}
+
+function useLinkedTeams(guildId: string) {
+  const [teams, setTeams] = useState<LinkedTeamRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    recApi.listLinkedUsersTeams(guildId).then((result) => {
+      if (!cancelled) setTeams(result.linked.filter((row) => row.team));
+    }).catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load teams."); });
+    return () => { cancelled = true; };
+  }, [guildId]);
+  return { teams, error };
+}
+
+// Only games REC has actually imported from EA can have a result forced -- Force Win/Clear
+// Result need an EA scheduleId, which only exists once a matchup has been pulled from EA
+// (dedicated endpoint, not the hub's matchup schedule, which shows every scheduled game
+// regardless of import status and would let a commish pick one that's guaranteed to fail).
+type ForceableGame = { gameId: string; weekNumber: number; awayTeamName: string; homeTeamName: string; lastForceStatus: "home_win" | "away_win" | "cleared" | null; lastForceAt: string | null };
+
+function useForceableGames(guildId: string, leagueId: string) {
+  const [games, setGames] = useState<ForceableGame[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    recApi.eaAdminListForceableMatches({ guildId, leagueId }).then((result) => {
+      if (!cancelled) { setGames(result.matches); setLoaded(true); }
+    }).catch((cause) => { if (!cancelled) { setError(cause instanceof Error ? cause.message : "Could not load games."); setLoaded(true); } });
+    return () => { cancelled = true; };
+  }, [guildId, leagueId]);
+  return { games, loaded, error };
+}
+
+function TeamActionPanel({
+  guildId, leagueId, description, buttonLabel, icon, run,
+}: {
+  guildId: string;
+  leagueId: string;
+  description: string;
+  buttonLabel: string;
+  icon: React.ReactNode;
+  run: (teamId: string) => Promise<unknown>;
+}) {
+  const { teams, error: loadError } = useLinkedTeams(guildId);
+  const [teamId, setTeamId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  async function submit() {
+    if (!teamId) return;
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    try {
+      await run(teamId);
+      setDone("Sent to EA.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "EA rejected this action.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="form-hint" style={{ marginTop: 0 }}>{description}</p>
+      <label className="form-field">
+        <span className="form-label">Team</span>
+        <select className="form-input" value={teamId} disabled={busy || !teams?.length} onChange={(event) => setTeamId(event.target.value)}>
+          <option value="">{teams ? "Select a team" : "Loading teams…"}</option>
+          {(teams ?? []).map((row) => <option key={row.id} value={row.team!.id}>{teamLabel(row)}</option>)}
+        </select>
+      </label>
+      {(loadError || error) && <p className="hub-transfer-status">{loadError ?? error}</p>}
+      {done && <p className="form-hint" style={{ color: "var(--gold)" }}>{done}</p>}
+      <Button variant="secondary" disabled={busy || !teamId} onClick={() => void submit()}>{icon} {busy ? "Sending…" : buttonLabel}</Button>
+    </div>
+  );
+}
+
+type ForceChoice = "home" | "away" | "clear";
+
+function forceStatusLabel(game: ForceableGame): string {
+  if (game.lastForceStatus === "home_win") return `Forced: ${game.homeTeamName} win`;
+  if (game.lastForceStatus === "away_win") return `Forced: ${game.awayTeamName} win`;
+  if (game.lastForceStatus === "cleared") return "No result forced (last cleared)";
+  return "No force action sent yet";
+}
+
+function ForceResultPanel({ guildId, leagueId }: { guildId: string; leagueId: string }) {
+  const { games, loaded, error: loadError } = useForceableGames(guildId, leagueId);
+  const [gameId, setGameId] = useState("");
+  const [choice, setChoice] = useState<ForceChoice | "">("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  const selectedGame = games.find((game) => game.gameId === gameId) ?? null;
+
+  async function submit() {
+    if (!gameId || !choice) return;
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    try {
+      if (choice === "home") await recApi.eaAdminForceHomeWin({ guildId, leagueId, gameId });
+      else if (choice === "away") await recApi.eaAdminForceAwayWin({ guildId, leagueId, gameId });
+      else await recApi.eaAdminClearForcedResult({ guildId, leagueId, gameId });
+      setDone("Sent to EA.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "EA rejected this action.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="form-hint" style={{ marginTop: 0 }}>
+        Pick a matchup, then force the result for one side or clear a previously forced result —
+        changes the actual game outcome in the franchise. Also fires automatically whenever a
+        Force Win or Fair Sim is granted for this matchup, from Discord or the site. Status shown
+        below reflects REC's own record of the last force command sent for a game -- if EA's own
+        forced-result state was changed some other way (directly in the Companion App), this
+        won't know about it.
+      </p>
+      <label className="form-field">
+        <span className="form-label">Matchup</span>
+        <select className="form-input" value={gameId} disabled={busy || !games.length}
+          onChange={(event) => { setGameId(event.target.value); setChoice(""); }}>
+          <option value="">
+            {games.length ? "Select a matchup" : loaded ? "No EA-imported games for the current week yet" : "Loading matchups…"}
+          </option>
+          {games.map((game) => <option key={game.gameId} value={game.gameId}>{game.awayTeamName} at {game.homeTeamName}{game.lastForceStatus ? ` — ${forceStatusLabel(game)}` : ""}</option>)}
+        </select>
+      </label>
+      {selectedGame && (
+        <p className="form-hint">{forceStatusLabel(selectedGame)}{selectedGame.lastForceAt ? ` (${new Date(selectedGame.lastForceAt).toLocaleString()})` : ""}</p>
+      )}
+      {selectedGame && (
+        <label className="form-field">
+          <span className="form-label">Result</span>
+          <select className="form-input" value={choice} disabled={busy} onChange={(event) => setChoice(event.target.value as ForceChoice)}>
+            <option value="">Select a result</option>
+            <option value="home">Force win — {selectedGame.homeTeamName}</option>
+            <option value="away">Force win — {selectedGame.awayTeamName}</option>
+            <option value="clear">Clear forced result</option>
+          </select>
+        </label>
+      )}
+      {(loadError || error) && <p className="hub-transfer-status">{loadError ?? error}</p>}
+      {done && <p className="form-hint" style={{ color: "var(--gold)" }}>{done}</p>}
+      <Button variant="secondary" disabled={busy || !gameId || !choice} onClick={() => void submit()}>
+        <Swords size={14} /> {busy ? "Sending…" : "Apply Result"}
+      </Button>
+    </div>
+  );
+}
+
+const EA_ADVANCE_ACTIONS = [
+  "Force Advance", "Ready to Advance", "Sim to Playoffs", "Sim to Super Bowl",
+  "Sim to Offseason", "Sim to Draft", "Sim to Next Season", "Sim 10 Years",
+] as const;
+
+function AdvancePanel({ guildId, leagueId }: { guildId: string; leagueId: string }) {
+  const [action, setAction] = useState<string>("Force Advance");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    try {
+      await recApi.eaAdminAdvance({ guildId, leagueId, action });
+      setDone("Sent to EA.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "EA rejected this action.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="form-hint" style={{ marginTop: 0 }}>
+        Submits the chosen response directly in the franchise, the same as tapping it in the
+        Companion App. "Ready to Advance" only readies your own team — it does not move the
+        league forward if other teams haven't readied up. "Force Advance" advances the league
+        regardless, which is why it's the default here.
+      </p>
+      {error && <p className="hub-transfer-status">{error}</p>}
+      {done && <p className="form-hint" style={{ color: "var(--gold)" }}>{done}</p>}
+      <label className="form-field">
+        <span className="form-label">Action</span>
+        <select className="form-input" value={action} disabled={busy} onChange={(event) => setAction(event.target.value)}>
+          {EA_ADVANCE_ACTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>
+      <Button variant="secondary" disabled={busy} onClick={() => void submit()}><PlayCircle size={14} /> {busy ? "Sending…" : "Submit"}</Button>
+    </div>
+  );
+}
+
+function AutoPilotPanel({ guildId, leagueId }: { guildId: string; leagueId: string }) {
+  const { teams, error: loadError } = useLinkedTeams(guildId);
+  const [teamId, setTeamId] = useState("");
+  const [weeks, setWeeks] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  async function submit() {
+    if (!teamId) return;
+    setBusy(true);
+    setError(null);
+    setDone(null);
+    try {
+      await recApi.eaAdminToggleAutoPilot({ guildId, leagueId, teamId, weeks });
+      setDone("Sent to EA.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "EA rejected this action.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="form-hint" style={{ marginTop: 0 }}>
+        Toggles in-game AutoPilot for a team. EA expires it automatically after the given number
+        of weeks — requests through the scheduling system default to 1 week; use this to grant a
+        longer stretch.
+      </p>
+      <label className="form-field">
+        <span className="form-label">Team</span>
+        <select className="form-input" value={teamId} disabled={busy || !teams?.length} onChange={(event) => setTeamId(event.target.value)}>
+          <option value="">{teams ? "Select a team" : "Loading teams…"}</option>
+          {(teams ?? []).map((row) => <option key={row.id} value={row.team!.id}>{teamLabel(row)}</option>)}
+        </select>
+      </label>
+      <label className="form-field">
+        <span className="form-label">Weeks</span>
+        <input className="form-input" type="number" min={1} max={17} value={weeks} disabled={busy}
+          onChange={(event) => setWeeks(Math.max(1, Math.min(17, Number(event.target.value) || 1)))} style={{ maxWidth: "100px" }} />
+      </label>
+      {(loadError || error) && <p className="hub-transfer-status">{loadError ?? error}</p>}
+      {done && <p className="form-hint" style={{ color: "var(--gold)" }}>{done}</p>}
+      <Button variant="secondary" disabled={busy || !teamId} onClick={() => void submit()}><Bot size={14} /> {busy ? "Sending…" : "Toggle AutoPilot"}</Button>
+    </div>
+  );
+}
+
+function BootUserPanel(p: { guildId: string; leagueId: string }) {
+  const capabilities = useEaAdminCapabilities(p.guildId, p.leagueId);
+  const warning = capabilities?.canBootAdmins === false
+    ? " Note: this league's Franchise settings don't let admins boot other admins -- this only works if the target isn't themselves an admin."
+    : "";
+  return <TeamActionPanel {...p} icon={<UserX size={14} />} buttonLabel="Boot User"
+    description={`Removes a team's owner from the franchise in-game. Also fires automatically when a linked member leaves the Discord server.${warning}`}
+    run={(teamId) => recApi.eaAdminBootUser({ ...p, teamId })} />;
+}
+
+function RemoveAdminPanel(p: { guildId: string; leagueId: string }) {
+  const capabilities = useEaAdminCapabilities(p.guildId, p.leagueId);
+  const warning = capabilities?.canRemoveAdmins === false
+    ? " Note: this league's Franchise settings don't let admins remove other admins -- this only works if the target isn't themselves an admin."
+    : "";
+  return <TeamActionPanel {...p} icon={<ShieldOff size={14} />} buttonLabel="Remove Admin"
+    description={`Revokes a team's owner's in-game commissioner/admin status. Also fires automatically when they're demoted from Co-Commish.${warning}`}
+    run={(teamId) => recApi.eaAdminRemoveAdmin({ ...p, teamId })} />;
+}
+
+type AwardProbeHit = { path: string; keyword: string; snippet: string };
+type AwardProbeResultRow = { key: string; commandName: string; description: string; status: "success" | "error"; matchedKeywords: AwardProbeHit[]; errorMessage: string | null };
+
+function ProbeAwardsPanel({ guildId, leagueId }: { guildId: string; leagueId: string }) {
+  const [results, setResults] = useState<AwardProbeResultRow[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await recApi.eaAdminProbeAwards({ guildId, leagueId });
+      setResults(response.results);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "EA rejected the probe.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <p className="form-hint" style={{ marginTop: 0 }}>
+        Diagnostic only -- never writes to the franchise. Re-fetches the League Hub in full (to
+        check for native award/state fields REC doesn't currently parse) and tries a small
+        hardcoded list of speculative award/news commandNames, so we can tell whether EA's Blaze
+        backend exposes native Player of the Week / league award winners separate from REC's own
+        stat-computed Player of the Week. Every attempt is logged to <code>rec_ea_award_probes</code>{" "}
+        for full raw-response inspection via SQL.
+      </p>
+      {error && <p className="hub-transfer-status">{error}</p>}
+      <Button variant="secondary" disabled={busy} onClick={() => void run()}>
+        <Search size={14} /> {busy ? "Probing…" : "Run Probe"}
+      </Button>
+      {results && (
+        <ul style={{ marginTop: "0.75rem", paddingLeft: "1.1rem" }}>
+          {results.map((result) => (
+            <li key={result.key} style={{ marginBottom: "0.4rem" }}>
+              <strong>{result.commandName}</strong> —{" "}
+              {result.status === "success" ? (
+                result.matchedKeywords.length > 0
+                  ? <span style={{ color: "var(--gold)" }}>responded, {result.matchedKeywords.length} award/news keyword hit(s)</span>
+                  : <span>responded, no award/news keywords found</span>
+              ) : (
+                <span className="hub-transfer-status" style={{ display: "inline" }}>failed: {result.errorMessage}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export const EA_ADMIN_TOOLS: Array<{ key: string; title: string; render: (props: { guildId: string; leagueId: string }) => React.ReactNode }> = [
+  { key: "advance", title: "Advance League", render: (p) => <AdvancePanel {...p} /> },
+  {
+    key: "clear-cap", title: "Clear Cap Penalties",
+    render: (p) => <TeamActionPanel {...p} icon={<RotateCcw size={14} />} buttonLabel="Clear Cap Penalties"
+      description="Clears salary-cap penalties for a team directly in the franchise."
+      run={(teamId) => recApi.eaAdminClearCapPenalties({ ...p, teamId })} />,
+  },
+  { key: "boot", title: "Boot User", render: (p) => <BootUserPanel {...p} /> },
+  {
+    key: "add-admin", title: "Add Admin",
+    render: (p) => <TeamActionPanel {...p} icon={<ShieldPlus size={14} />} buttonLabel="Add Admin"
+      description="Grants a team's owner in-game commissioner/admin status. Also fires automatically when they're promoted to Co-Commish."
+      run={(teamId) => recApi.eaAdminAddAdmin({ ...p, teamId })} />,
+  },
+  { key: "remove-admin", title: "Remove Admin", render: (p) => <RemoveAdminPanel {...p} /> },
+  {
+    key: "transfer-admin", title: "Transfer Admin",
+    render: (p) => <TeamActionPanel {...p} icon={<ArrowRightLeft size={14} />} buttonLabel="Transfer Admin"
+      description="Transfers in-game franchise admin/commissioner status to a team's owner."
+      run={(teamId) => recApi.eaAdminTransferAdmin({ ...p, teamId })} />,
+  },
+  { key: "force-result", title: "Force Win / Clear Result", render: (p) => <ForceResultPanel {...p} /> },
+  { key: "autopilot", title: "Toggle AutoPilot", render: (p) => <AutoPilotPanel {...p} /> },
+  { key: "probe-awards", title: "Probe EA Awards (Diagnostic)", render: (p) => <ProbeAwardsPanel {...p} /> },
+];

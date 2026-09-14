@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useReadyAuth } from "@rec/hub-ui";
 import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
 import type { LeagueSettingsDraft } from "../../../../../web/src/types/api.js";
-import { SETTINGS_CATEGORIES, settingsCategoryNavLabel } from "../../../../../web/src/routes/league-mgmt/settings/settings-fields.js";
+import { SETTINGS_CATEGORIES, settingsCategoryNavLabel } from "../management/settings/settings-fields.js";
 import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
 import { Card } from "../../../../../web/src/components/ui/Card.js";
 import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";

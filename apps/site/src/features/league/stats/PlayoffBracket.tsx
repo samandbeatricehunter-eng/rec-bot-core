@@ -1,1 +1,1 @@
-export { NflPlayoffBracket } from "../../../../../web/src/routes/league-mgmt/manage-league/NflPlayoffBracket.js";
+export { NflPlayoffBracket } from "../management/manage-league/NflPlayoffBracket.js";

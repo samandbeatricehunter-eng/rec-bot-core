@@ -1,5 +1,5 @@
 // Curated rules categories for /rules -- deliberately NOT a 1:1 mirror of the site's ~90-field
-// Settings schema (apps/web/src/routes/league-mgmt/settings/settings-fields.ts, not importable
+// Settings schema (apps/site/src/features/league/management/settings/settings-fields.ts, not importable
 // from this package); this covers the subset a coach actually needs to check mid-season,
 // grouped for a Discord embed. Custom Rules (free-text, commissioner-authored) come from the
 // same draft and get their own category per the draft's own `category` field.

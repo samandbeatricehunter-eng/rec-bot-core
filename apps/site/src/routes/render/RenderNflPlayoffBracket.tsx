@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { NflPlayoffBracketDesktop, PlayoffPictureBoard, type NflPlayoffPicture } from "@rec/hub-ui";
+import type { NflPlayoffPicture } from "@rec/hub-ui";
+import { NflPlayoffBracketDesktop, PlayoffPictureBoard } from "../../features/league/management/index.js";
 import { siteApi } from "../../lib/site-api.js";
 
 // Chromeless page Playwright screenshots for the Discord playoff-picture post's image

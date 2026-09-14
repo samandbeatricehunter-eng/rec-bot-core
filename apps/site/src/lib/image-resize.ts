@@ -1,5 +1,5 @@
 // Client-side headshot resize before upload, mirroring
-// apps/web/src/routes/league-mgmt/manage-league/TeamRosterForm.tsx's readImageAsResizedBase64.
+// apps/site/src/features/league/management/manage-league/TeamRosterForm.tsx's readImageAsResizedBase64.
 const HEADSHOT_MAX_DIMENSION = 600;
 const HEADSHOT_MAX_BASE64 = 6_000_000; // ~4.5 MB binary, safely under the server's 5 MB cap
 
