@@ -245,7 +245,6 @@ export async function completeDiscordPostInviteSetup(input: { leagueId: string; 
   const routes = await supabase.from("rec_server_routes").select("*").eq("server_id", link.data.server_id).maybeSingle();
   const routeRow = (routes.data ?? {}) as Record<string, unknown>;
   const channels = Object.entries(REC_ROUTE_CHANNELS)
-    .filter(([, config]) => !("madden_only" in config && config.madden_only) || league.data.game !== "cfb_27")
     .map(([key, config]) => ({
       key,
       label: config.label,

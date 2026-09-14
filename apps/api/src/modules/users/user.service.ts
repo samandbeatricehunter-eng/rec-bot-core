@@ -23,8 +23,6 @@ import {
   resolveTeamSubtitle,
 } from "./user-profile-stats.service.js";
 
-const CFB_27_ONLY = ["cfb_27"];
-
 // Badges were removed app-wide; the identity inference below now scores purely on tracked
 // stats (each group's old `badges` set â€” used to match earned badge keys â€” is gone, since
 // there's nothing left to match against).
@@ -106,34 +104,6 @@ const IDENTITY_GROUPS = [
     label: "Grinder",
     summary: "Lives in lower-scoring, close-margin games where every possession matters.",
     statScore: (s: any) => scoreAbove(s?.closeGameRate, 40, 80, 18) + scoreBelow(s?.pointsForAvg, 30, 18, 7) + scoreBelow(s?.pointsAgainstAvg, 24, 15, 10),
-  },
-  {
-    key: "option_program",
-    label: "Option Program Builder",
-    summary: "Builds the offense through heavy rushing volume, option-style yardage splits, and drive control.",
-    games: CFB_27_ONLY,
-    statScore: (s: any) => scoreAbove(s?.rushingYardsAvg, 150, 260, 30) + scoreAbove(rushShare(s), 0.46, 0.66, 22) + scoreAbove(s?.firstDownsAvg, 19, 28, 8),
-  },
-  {
-    key: "campus_power",
-    label: "Campus Power",
-    summary: "Looks like a weekly favorite: big margins, bowl-level wins, and enough season consistency to separate from the pack.",
-    games: CFB_27_ONLY,
-    statScore: (s: any) => scoreAbove(s?.pointsForAvg - s?.pointsAgainstAvg, 10, 28, 26) + scoreAbove(s?.pointsForAvg, 30, 45, 10) + scoreBelow(s?.pointsAgainstAvg, 24, 14, 10),
-  },
-  {
-    key: "home_field",
-    label: "Home-Field Hammer",
-    summary: "Turns home games into pressure spots, pairing home wins with defensive stands and low-scoring control.",
-    games: CFB_27_ONLY,
-    statScore: (s: any) => scoreBelow(s?.pointsAgainstAvg, 21, 13, 18) + scoreBelow(s?.redZoneDefPct, 55, 36, 10),
-  },
-  {
-    key: "special_teams",
-    label: "Special Teams Catalyst",
-    summary: "Changes field position with return production and forces opponents to defend more than the normal offensive script.",
-    games: CFB_27_ONLY,
-    statScore: (s: any) => scoreAbove(s?.returnYardsAvg, 100, 190, 28),
   },
 ];
 
@@ -385,10 +355,6 @@ function statEvidence(stats: any, keys: string[]) {
   if (keys.includes("chaos")) evidence.push(`${(stats.turnoversCommittedAvg + stats.turnoversGeneratedAvg).toFixed(1)} combined turnovers/G`);
   if (keys.includes("red_zone")) evidence.push(`${stats.redZoneOffPct}% red-zone offense`);
   if (keys.includes("field_position")) evidence.push(`${stats.returnYardsAvg} return yards/G`);
-  if (keys.includes("option_program")) evidence.push(`${stats.rushingYardsAvg} rushing YPG, ${Math.round(rushShare(stats) * 100)}% rush-yard share`);
-  if (keys.includes("campus_power")) evidence.push(`${(stats.pointsForAvg - stats.pointsAgainstAvg).toFixed(1)} point differential/G`);
-  if (keys.includes("home_field")) evidence.push(`${stats.pointsAgainstAvg} points allowed/G with ${stats.redZoneDefPct}% opponent red-zone offense`);
-  if (keys.includes("special_teams")) evidence.push(`${stats.returnYardsAvg} return yards/G`);
   if (keys.includes("bend_dont_break")) evidence.push(`${stats.yardsAllowedAvg} yards allowed/G but ${stats.pointsAgainstAvg} points allowed/G`);
   if (keys.includes("grinder")) evidence.push(`${stats.closeGameRate}% close games`);
   return [...new Set(evidence)];
@@ -456,7 +422,7 @@ function styleSummary(parts: Array<{ key: string; label: string; summary: string
   return `${lead}${detail}`;
 }
 
-function buildIdentityFromSignals(seasonStats: any, game?: string | null) {
+function buildIdentityFromSignals(seasonStats: any) {
   if (!seasonStats || seasonStats.gamesLogged === 0) {
     return {
       identityKey: "unscouted",
@@ -471,8 +437,7 @@ function buildIdentityFromSignals(seasonStats: any, game?: string | null) {
     };
   }
 
-  const availableGroups = IDENTITY_GROUPS.filter((group) => !group.games?.length || group.games.includes(String(game ?? "madden_26")));
-  const groupScores = availableGroups.map((group) => {
+  const groupScores = IDENTITY_GROUPS.map((group) => {
     const score = group.statScore(seasonStats);
     return { group, score };
   }).sort((a, b) => b.score - a.score);
@@ -530,7 +495,7 @@ export async function getLeagueUserIdentities(guildId: string) {
     const seasonStats = assignment.user_id
       ? await bestEffort("users.season_box_score_stats", () => loadSeasonBoxScoreStats(assignment.user_id, leagueId, seasonNumber), { leagueId, userId: assignment.user_id }) ?? null
       : null;
-    const identity = buildIdentityFromSignals(seasonStats, league?.game);
+    const identity = buildIdentityFromSignals(seasonStats);
     const isDiscordOnly = !assignment.user?.supabase_auth_user_id;
     return {
       userId: assignment.user_id,
@@ -1001,11 +966,7 @@ function recordText(record: any) {
 }
 
 export function formatLeagueGameLabel(game?: string | null) {
-  switch (String(game ?? "madden_26")) {
-    case "madden_27": return "Madden NFL 27";
-    case "cfb_27": return "College Football 27";
-    default: return "Madden NFL 26";
-  }
+  return String(game ?? "madden_26") === "madden_27" ? "Madden NFL 27" : "Madden NFL 26";
 }
 
 function recordTotalGames(record: Record<string, unknown> | null | undefined) {
@@ -1403,7 +1364,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
       teamName: resolveTeamProgramName(assignment?.team) ?? assignment?.team?.name ?? null,
       teamAbbr: assignment?.team?.is_relocated ? assignment?.team?.original_abbreviation ?? assignment?.team?.abbreviation ?? null : assignment?.team?.abbreviation ?? null,
       teamLogoUrl: assignment?.team?.logo_url ?? null,
-      schoolName: league?.game === "cfb_27" ? null : resolveTeamSubtitle(assignment?.team, league?.game),
+      schoolName: resolveTeamSubtitle(assignment?.team, league?.game),
       highestRole: membership?.role ?? null,
       wallet: baseline.wallet?.wallet_balance ?? 0,
       savings: baseline.wallet?.savings_balance ?? 0,

@@ -331,7 +331,6 @@ export async function adminRoutes(app: FastifyInstance) {
             .object({
               madden_26: optionalDiscordSnowflake,
               madden_27: optionalDiscordSnowflake,
-              cfb_27: optionalDiscordSnowflake,
             })
             .partial()
             .optional(),

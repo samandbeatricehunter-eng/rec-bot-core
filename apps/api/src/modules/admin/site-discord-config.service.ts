@@ -5,10 +5,10 @@ import { supabase } from "../../lib/supabase.js";
 
 export type SiteDiscordConfig = {
   managementGuildId: string | null;
-  leaguePostChannels: { madden_26: string | null; madden_27: string | null; cfb_27: string | null };
+  leaguePostChannels: { madden_26: string | null; madden_27: string | null };
 };
 
-const LEAGUE_POST_GAMES = ["madden_26", "madden_27", "cfb_27"] as const;
+const LEAGUE_POST_GAMES = ["madden_26", "madden_27"] as const;
 
 function emptyToNull(value: string | null | undefined): string | null | undefined {
   if (value === undefined) return undefined;
@@ -25,7 +25,6 @@ export async function getSiteDiscordConfig(): Promise<SiteDiscordConfig> {
     leaguePostChannels: {
       madden_26: data?.league_post_channel_madden_26 ?? null,
       madden_27: data?.league_post_channel_madden_27 ?? null,
-      cfb_27: data?.league_post_channel_cfb_27 ?? null,
     },
   };
 }
@@ -42,9 +41,6 @@ export async function updateSiteDiscordConfig(patch: {
   if (patch.leaguePostChannels?.madden_27 !== undefined) {
     update.league_post_channel_madden_27 = emptyToNull(patch.leaguePostChannels.madden_27);
   }
-  if (patch.leaguePostChannels?.cfb_27 !== undefined) {
-    update.league_post_channel_cfb_27 = emptyToNull(patch.leaguePostChannels.cfb_27);
-  }
 
   // onConflict must be explicit -- this project's Postgres-shim client does NOT default a bare
   // .upsert() to the table's primary key like real supabase-js/PostgREST. Without it, this
@@ -59,7 +55,6 @@ export async function updateSiteDiscordConfig(patch: {
     leaguePostChannels: {
       madden_26: data.league_post_channel_madden_26 ?? null,
       madden_27: data.league_post_channel_madden_27 ?? null,
-      cfb_27: data.league_post_channel_cfb_27 ?? null,
     },
   };
 

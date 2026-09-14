@@ -781,7 +781,6 @@ function DiscordConfigPanel() {
   const [managementGuildId, setManagementGuildId] = useState("");
   const [madden26Channel, setMadden26Channel] = useState("");
   const [madden27Channel, setMadden27Channel] = useState("");
-  const [cfb27Channel, setCfb27Channel] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -791,7 +790,6 @@ function DiscordConfigPanel() {
     setManagementGuildId(next.managementGuildId ?? "");
     setMadden26Channel(next.leaguePostChannels.madden_26 ?? "");
     setMadden27Channel(next.leaguePostChannels.madden_27 ?? "");
-    setCfb27Channel(next.leaguePostChannels.cfb_27 ?? "");
   }
 
   useEffect(() => {
@@ -808,7 +806,6 @@ function DiscordConfigPanel() {
         leaguePostChannels: {
           madden_26: madden26Channel.trim() || null,
           madden_27: madden27Channel.trim() || null,
-          cfb_27: cfb27Channel.trim() || null,
         },
       });
       applyConfig(next);
@@ -863,10 +860,6 @@ function DiscordConfigPanel() {
       <label className="site-field">
         <span>Madden 27 league-post channel ID</span>
         <input value={madden27Channel} onChange={(e) => setMadden27Channel(e.target.value)} />
-      </label>
-      <label className="site-field">
-        <span>CFB 27 league-post channel ID</span>
-        <input value={cfb27Channel} onChange={(e) => setCfb27Channel(e.target.value)} />
       </label>
       <div className="site-profile-actions">
         <button className="site-btn site-btn-primary" type="button" disabled={busy} onClick={() => void save()}>

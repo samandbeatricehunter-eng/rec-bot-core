@@ -30,7 +30,6 @@ type LeagueAdvanceContext = {
 const STAGE_ORDER = [
   "preseason_training_camp", "preseason", "regular_season",
   ...postseasonPayoutStages(null),
-  ...postseasonPayoutStages("cfb_27"),
   "offseason",
 ];
 

@@ -2548,7 +2548,7 @@ export type AdminUserSummary = {
 
 export type AdminDiscordConfig = {
   managementGuildId: string | null;
-  leaguePostChannels: { madden_26: string | null; madden_27: string | null; cfb_27: string | null };
+  leaguePostChannels: { madden_26: string | null; madden_27: string | null };
 };
 export type AdminStats = {
   totalUsers: number;
