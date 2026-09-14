@@ -46,8 +46,7 @@ async function activeTeamForUser(leagueId: string, userId: string) {
   return { teamId: assignment.data.team_id as string, team: team as Record<string, any> };
 }
 
-function shortNick(team: Record<string, any>, isCfb: boolean) {
-  if (isCfb) return String(team.display_city ?? team.name ?? "Team").trim();
+function shortNick(team: Record<string, any>) {
   const nick = String(team.display_nick ?? "").trim();
   if (nick) return nick;
   const name = String(team.name ?? "Team").trim();
@@ -108,7 +107,7 @@ export async function persistTeamCrestBuffer(leagueId: string, buffer: Buffer, c
   return data.publicUrl;
 }
 
-async function resyncDiscordNicknames(guildId: string, leagueId: string, teamId: string, team: Record<string, any>, isCfb: boolean) {
+async function resyncDiscordNicknames(guildId: string, leagueId: string, teamId: string, team: Record<string, any>) {
   const linked = await supabase
     .from("rec_team_assignments")
     .select("user_id")
@@ -124,7 +123,7 @@ async function resyncDiscordNicknames(guildId: string, leagueId: string, teamId:
   // silently strip the city part the next time this team's identity changes.
   const { loadImmortalityLeague } = await import("../immortality/immortality.service.js");
   const immortality = await loadImmortalityLeague(leagueId).catch(() => null);
-  const nick = immortality ? (formatTeamDisplayName(team as any) ?? shortNick(team, isCfb)) : shortNick(team, isCfb);
+  const nick = immortality ? (formatTeamDisplayName(team as any) ?? shortNick(team)) : shortNick(team);
   for (const account of accounts.data ?? []) {
     if (!account.discord_id) continue;
     await setGuildMemberNickname(guildId, account.discord_id, nick, "REC team relocated — nickname updated")
@@ -166,9 +165,7 @@ async function applyIdentity(input: {
     .single();
   if (updated.error) throw new ApiError(500, "We couldn't save that team identity. Please try again.", updated.error);
 
-  const league = await supabase.from("rec_leagues").select("game").eq("id", input.leagueId).maybeSingle();
-  const isCfb = league.data?.game === "cfb_27";
-  await resyncDiscordNicknames(input.guildId, input.leagueId, input.teamId, updated.data, isCfb);
+  await resyncDiscordNicknames(input.guildId, input.leagueId, input.teamId, updated.data);
   const { refreshGameChannelIntrosForTeam } = await import("../game-channels/game-channels.service.js");
   await refreshGameChannelIntrosForTeam(input.guildId, input.teamId).catch((error) => {
     console.error("[ERROR] Failed to refresh game-channel embeds after team identity change (non-fatal):", error);
@@ -206,7 +203,7 @@ export async function relocateHubTeam(input: {
   if (!city) throw new ApiError(400, "Pick a Madden 27 relocation city.");
 
   if (input.keepBranding) {
-    const nick = shortNick(team, false);
+    const nick = shortNick(team);
     const abbr = String(team.display_abbr ?? team.abbreviation ?? "").trim() || "TM";
     const color = String(team.primary_color ?? "#FFFFFF");
     const saved = await applyIdentity({
