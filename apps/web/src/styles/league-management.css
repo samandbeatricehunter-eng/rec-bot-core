@@ -60,6 +60,20 @@
   margin-bottom: var(--space-5);
   text-align: center;
 }
+/* League Mgmt: dark visibility plate so title/subtitle stay readable on textured backgrounds. */
+.league-mgmt-content > .page-header,
+.league-mgmt-content > div > .page-header {
+  width: fit-content;
+  max-width: min(100%, 42rem);
+  margin-left: auto;
+  margin-right: auto;
+  padding: 14px 22px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(8, 10, 14, 0.82), rgba(5, 7, 10, 0.88));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+}
 .page-header-copy {
   width: 100%;
 }

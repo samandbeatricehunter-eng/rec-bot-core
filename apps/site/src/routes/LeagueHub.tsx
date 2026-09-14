@@ -173,7 +173,7 @@ function isTeamFamilyView(view: HubView): view is "team" | "store" | "roster" | 
 function MgmtSubPage({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   return (
-    <div className="site-mgmt-subpage">
+    <div className="site-mgmt-subpage league-mgmt-content">
       <button
         type="button"
         className="site-btn site-btn-ghost site-mgmt-back"
@@ -191,7 +191,7 @@ function MgmtSectionLayout({ active, leagueId, children }: { active: MgmtNavId; 
   return (
     <>
       <MgmtRouteRail active={active} leagueId={leagueId} />
-      {children}
+      <div className="league-mgmt-content">{children}</div>
     </>
   );
 }
