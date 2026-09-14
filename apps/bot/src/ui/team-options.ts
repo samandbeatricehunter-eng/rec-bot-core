@@ -37,9 +37,7 @@ export const TEAM_LINK_CUSTOM_IDS = {
   leagueTeamsEditConferenceSelect: "rec:league_teams:edit_conference",
   leagueTeamsEditTeamSelect: "rec:league_teams:edit_team",
   leagueTeamsEditActionDetails: "rec:league_teams:edit_action_details",
-  leagueTeamsEditActionRelocate: "rec:league_teams:edit_action_relocate",
   leagueTeamsEditActionBack: "rec:league_teams:edit_action_back",
-  leagueTeamsRelocateConferenceSelect: "rec:league_teams:relocate_conference",
   leagueTeamsResetDefaults: "rec:league_teams:reset_defaults",
   leagueTeamsConfirmBack: "rec:league_teams:confirm_back",
   leagueTeamsConfirmUnlink: "rec:league_teams:confirm_unlink",
@@ -481,11 +479,7 @@ export function buildLeagueTeamsEditPanel(rawConferences: any[], selectedConfere
   };
 }
 
-// CFB-only conference list for the relocate flow (matches the League Setup wizard's conference
-// realignment editor) — Madden's AFC/NFC are fixed to each team's real-world identity.
-const CFB_CONFERENCES = CONFERENCE_ORDER.filter((conference) => conference !== "NFC" && conference !== "AFC" && conference !== "Other");
-
-export function buildLeagueTeamsEditActionPanel(team: { id: string; name?: string; abbreviation?: string; conference?: string }, isCfb: boolean) {
+export function buildLeagueTeamsEditActionPanel(team: { id: string; name?: string; abbreviation?: string; conference?: string }) {
   const teamLabel = team.name ?? team.abbreviation ?? "Team";
   const buttons = [
     new ButtonBuilder()
@@ -493,14 +487,6 @@ export function buildLeagueTeamsEditActionPanel(team: { id: string; name?: strin
       .setLabel("Edit Team Details")
       .setStyle(ButtonStyle.Primary)
   ];
-  if (isCfb) {
-    buttons.push(
-      new ButtonBuilder()
-        .setCustomId(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsEditActionRelocate}:${team.id}`)
-        .setLabel("Relocate to Conference")
-        .setStyle(ButtonStyle.Success)
-    );
-  }
   buttons.push(
     new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsEditActionBack).setLabel("Back to Teams").setStyle(ButtonStyle.Secondary)
   );
@@ -512,40 +498,10 @@ export function buildLeagueTeamsEditActionPanel(team: { id: string; name?: strin
         .setDescription([
           `Current conference: **${team.conference || "Unknown"}**`,
           "",
-          "Edit Team Details renames/replaces this team's identity.",
-          ...(isCfb ? ["Relocate to Conference moves it to a different conference without changing its name."] : [])
+          "Edit Team Details renames/replaces this team's identity."
         ].join("\n"))
     ],
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons)]
-  };
-}
-
-export function buildRelocateConferencePanel(team: { id: string; name?: string; abbreviation?: string; conference?: string }) {
-  const teamLabel = team.name ?? team.abbreviation ?? "Team";
-  const options = CFB_CONFERENCES.map((conference) =>
-    new StringSelectMenuOptionBuilder()
-      .setLabel(conference)
-      .setValue(conference)
-      .setDefault(conference === team.conference)
-  );
-
-  return {
-    embeds: [
-      new EmbedBuilder()
-        .setTitle(`Relocate ${teamLabel}`)
-        .setDescription(`Currently in **${team.conference || "Unknown"}**. Select the new conference.`)
-    ],
-    components: [
-      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsRelocateConferenceSelect}:${team.id}`)
-          .setPlaceholder("Select new conference")
-          .addOptions(options)
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(TEAM_LINK_CUSTOM_IDS.leagueTeamsEditActionBack).setLabel("Cancel").setStyle(ButtonStyle.Secondary)
-      )
-    ]
   };
 }
 
@@ -687,7 +643,7 @@ export function buildUserSelectionPanel(
   };
 }
 
-export function buildCustomTeamModal(conference?: string, isCfb?: boolean) {
+export function buildCustomTeamModal(conference?: string) {
   const modal = new ModalBuilder()
     .setCustomId(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:${conference ?? "GEN"}`)
     .setTitle(conference ? `Register ${conference} Custom Team` : "Register Custom Team");
@@ -699,21 +655,19 @@ export function buildCustomTeamModal(conference?: string, isCfb?: boolean) {
     .setRequired(true)
     .setPlaceholder("e.g. DAL, Alabama, Oregon");
 
-  // CFB team identity is University Name + Team Name (e.g. "Texas Longhorns", "Alabama Crimson
-  // Tide") — city/state don't matter there, unlike Madden's City + Mascot convention.
   const cityInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamCityInput)
-    .setLabel(isCfb ? "University name" : "New school or city")
+    .setLabel("New school or city")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
-    .setPlaceholder(isCfb ? "e.g. Texas or Coastal Carolina" : "e.g. San Diego or Coastal Carolina");
+    .setPlaceholder("e.g. San Diego or Coastal Carolina");
 
   const nickInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamNickInput)
-    .setLabel(isCfb ? "Team name (mascot)" : "New mascot or team name")
+    .setLabel("New mascot or team name")
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
-    .setPlaceholder(isCfb ? "e.g. Longhorns or Chanticleers" : "e.g. Chargers or Chanticleers");
+    .setPlaceholder("e.g. Chargers or Chanticleers");
 
   const abbrInput = new TextInputBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamAbbrInput)
@@ -732,7 +686,7 @@ export function buildCustomTeamModal(conference?: string, isCfb?: boolean) {
   return modal;
 }
 
-export function buildEditTeamModal(teamName: string, isCfb?: boolean) {
+export function buildEditTeamModal(teamName: string) {
   return new ModalBuilder()
     .setCustomId(TEAM_LINK_CUSTOM_IDS.editTeamModal)
     .setTitle(`Edit ${teamName}`.slice(0, 45))
@@ -749,18 +703,18 @@ export function buildEditTeamModal(teamName: string, isCfb?: boolean) {
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamCityInput)
-          .setLabel(isCfb ? "University name" : "New team city")
+          .setLabel("New team city")
           .setStyle(TextInputStyle.Short)
           .setRequired(true)
-          .setPlaceholder(isCfb ? "e.g. Texas" : "e.g. San Diego")
+          .setPlaceholder("e.g. San Diego")
       ),
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
           .setCustomId(TEAM_LINK_CUSTOM_IDS.customTeamNickInput)
-          .setLabel(isCfb ? "Team name (mascot)" : "New team name")
+          .setLabel("New team name")
           .setStyle(TextInputStyle.Short)
           .setRequired(true)
-          .setPlaceholder(isCfb ? "e.g. Longhorns" : "e.g. Chargers")
+          .setPlaceholder("e.g. Chargers")
       )
     );
 }

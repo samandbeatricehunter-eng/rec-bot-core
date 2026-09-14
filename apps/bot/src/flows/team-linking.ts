@@ -3,7 +3,6 @@ import type { RecTeamAuthority } from "@rec/shared";
 import { recApi } from "../lib/rec-api.js";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
-import { isCfbLeague } from "../lib/league-game.js";
 import { ensureRecBaseRoles, syncMemberForTeam } from "../lib/role-sync.js";
 import { buildNavigationRow } from "../ui/navigation.js";
 import {
@@ -12,7 +11,6 @@ import {
   buildLeagueMgmtTeamsPanel,
   buildLeagueTeamsEditPanel,
   buildLeagueTeamsEditActionPanel,
-  buildRelocateConferencePanel,
   buildLeagueTeamsConferencePanel,
   buildLeagueTeamsTeamSelectPanel,
   buildLeagueTeamsUnlinkConfirmPanel,
@@ -403,13 +401,12 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
   ) {
     if (value === "CUSTOM_TEAM") {
       const { buildCustomTeamModal } = await import("../ui/team-options.js");
-      const isCfb = await isCfbLeague(interaction.guildId);
       customTeamPendingSessions.set(interaction.user.id, {
         guildId: interaction.guildId,
         conference: draft.conference,
         linkUser: false,
       });
-      await interaction.showModal(buildCustomTeamModal(draft.conference, isCfb));
+      await interaction.showModal(buildCustomTeamModal(draft.conference));
       return;
     }
 
@@ -453,7 +450,6 @@ export async function handleTeamLinkSelect(interaction: Extract<Interaction, { i
       teamName: result.team.name,
       authority: draft.authority,
       team: result.team,
-      isCfb: await isCfbLeague(interaction.guildId),
       isDiscordOnly: Boolean(result.isDiscordOnly),
     });
 
@@ -595,8 +591,7 @@ export async function handleLeagueTeamsEditTeamSelect(interaction: Extract<Inter
   if (!team) {
     return interaction.editReply({ content: "That team could not be found.", embeds: [], components: buildLeagueMgmtTeamsPanel().components });
   }
-  const isCfb = await isCfbLeague(interaction.guildId);
-  return interaction.editReply(buildLeagueTeamsEditActionPanel(team, isCfb));
+  return interaction.editReply(buildLeagueTeamsEditActionPanel(team));
 }
 
 // "Edit Team Details" from the per-team action panel — opens the existing rename/replace modal.
@@ -618,59 +613,10 @@ export async function handleLeagueTeamsEditActionDetails(interaction: Extract<In
     returnToLeagueTeams: true,
     linkUser: false
   });
-  const isCfb = await isCfbLeague(interaction.guildId);
-  return interaction.showModal(buildEditTeamModal(team.name ?? team.abbreviation, isCfb));
+  return interaction.showModal(buildEditTeamModal(team.name ?? team.abbreviation));
 }
 
-// "Relocate to Conference" from the per-team action panel (CFB only) — shows a conference picker
-// instead of forcing a full rename through the custom-team-replacement modal.
-export async function handleLeagueTeamsEditActionRelocate(interaction: Extract<Interaction, { isButton(): boolean }>) {
-  if (!interaction.isButton() || !interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can edit teams.", ephemeral: true });
-    return;
-  }
-  await interaction.deferUpdate();
-  const teamId = interaction.customId.slice(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsEditActionRelocate}:`.length);
-  const conferences = await loadLeagueConferences(interaction.guildId);
-  const team = findConferenceTeam(conferences, "", teamId);
-  if (!team) return interaction.editReply({ content: "That team could not be found.", embeds: [], components: buildLeagueMgmtTeamsPanel().components });
-  return interaction.editReply(buildRelocateConferencePanel(team));
-}
-
-// Commits the conference chosen on the relocate panel via the same live-update endpoint the
-// League Setup wizard's Conference Assignments editor uses for an existing league.
-export async function handleLeagueTeamsRelocateConferenceSelect(interaction: Extract<Interaction, { isStringSelectMenu(): boolean }>) {
-  if (!interaction.isStringSelectMenu() || !interaction.inCachedGuild()) return;
-  if (!isDiscordAdminInteraction(interaction)) {
-    await interaction.reply({ content: "Only authorized admins can edit teams.", ephemeral: true });
-    return;
-  }
-  await interaction.deferUpdate();
-  const teamId = interaction.customId.slice(`${TEAM_LINK_CUSTOM_IDS.leagueTeamsRelocateConferenceSelect}:`.length);
-  const newConference = interaction.values[0];
-  const conferences = await loadLeagueConferences(interaction.guildId);
-  const team = findConferenceTeam(conferences, "", teamId);
-  const abbreviation = team?.originalAbbreviation ?? team?.abbreviation;
-  if (!team || !abbreviation) {
-    return interaction.editReply({ content: "That team could not be found.", embeds: [], components: buildLeagueMgmtTeamsPanel().components });
-  }
-  try {
-    await recApi.updateTeamConference({ guildId: interaction.guildId, abbreviation, conference: newConference, requestedByDiscordId: interaction.user.id });
-  } catch (err) {
-    return interaction.editReply({
-      embeds: [new EmbedBuilder().setTitle("Relocate Failed").setDescription(userFacingError(err))],
-      components: buildLeagueMgmtTeamsPanel().components
-    });
-  }
-  const refreshedConferences = await loadLeagueConferences(interaction.guildId);
-  return interaction.editReply({
-    embeds: [new EmbedBuilder().setTitle("Team Relocated").setDescription(`**${team.name ?? team.abbreviation}** moved from **${team.conference || "Unknown"}** to **${newConference}**.`)],
-    components: buildLeagueTeamsEditPanel(refreshedConferences, newConference).components
-  });
-}
-
-// "Back to Teams" / "Cancel" from the per-team action panel or relocate picker.
+// "Back to Teams" from the per-team action panel.
 export async function handleLeagueTeamsEditActionBack(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton() || !interaction.inCachedGuild()) return;
   await interaction.deferUpdate();
@@ -687,10 +633,8 @@ export async function handleLeagueTeamsResetDefaults(interaction: Extract<Intera
   await interaction.deferUpdate();
   try {
     await recApi.resetDefaultTeams(interaction.guildId, interaction.user.id);
-    const [conferences, isCfb] = await Promise.all([loadLeagueConferences(interaction.guildId), isCfbLeague(interaction.guildId)]);
-    const resetDescription = isCfb
-      ? "The league teams have been restored to the default College Football 27 teams and conferences."
-      : "The league teams have been restored to the default 32 NFL teams across the 8 divisions.";
+    const conferences = await loadLeagueConferences(interaction.guildId);
+    const resetDescription = "The league teams have been restored to the default 32 NFL teams across the 8 divisions.";
     await interaction.editReply({
       embeds: [new EmbedBuilder().setTitle("Teams Reset").setDescription(resetDescription)],
       components: buildLeagueTeamsEditPanel(conferences, conferences[0]?.conference ?? "AFC").components
@@ -793,9 +737,8 @@ export async function handleSimpleTeamLinkSelect(interaction: Extract<Interactio
     // showModal requires an unacknowledged interaction — must branch before deferUpdate
     if (selectedValue === "CUSTOM_TEAM") {
       const { buildCustomTeamModal } = await import("../ui/team-options.js");
-      const isCfb = await isCfbLeague(interaction.guildId);
       customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, conference, linkUser: true });
-      await interaction.showModal(buildCustomTeamModal(conference, isCfb));
+      await interaction.showModal(buildCustomTeamModal(conference));
       return;
     }
 
@@ -1009,7 +952,6 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
           teamName: result.team?.name ?? session.teamName,
           authority: role,
           team: result.team ?? session.team,
-          isCfb: await isCfbLeague(interaction.guildId),
           isDiscordOnly: Boolean(result.isDiscordOnly),
         })
       : null;
@@ -1056,9 +998,8 @@ export async function handleSimpleTeamLinkRoleSelect(interaction: Extract<Intera
 export async function handleCustomTeamNoLink(interaction: Extract<Interaction, { isButton(): boolean }>) {
   if (!interaction.isButton() || !interaction.inCachedGuild()) return;
   const { buildCustomTeamModal } = await import("../ui/team-options.js");
-  const isCfb = await isCfbLeague(interaction.guildId);
   customTeamPendingSessions.set(interaction.user.id, { guildId: interaction.guildId, linkUser: false });
-  await interaction.showModal(buildCustomTeamModal(undefined, isCfb));
+  await interaction.showModal(buildCustomTeamModal(undefined));
 }
 
 export async function handleCustomTeamModal(interaction: Extract<Interaction, { isModalSubmit(): boolean }>) {
@@ -1083,11 +1024,10 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
   await interaction.deferUpdate();
 
   try {
-    const isCfb = await isCfbLeague(interaction.guildId);
     const result = await recApi.createCustomTeamReplacement({
       guildId: pending.guildId,
       replacementTeamAbbreviation: replacedAbbr,
-      customTeamName: isCfb ? newCity : displayName,
+      customTeamName: displayName,
       customDisplayCity: newCity,
       customDisplayNick: newNick,
       customDisplayAbbr: newAbbr,
@@ -1106,7 +1046,6 @@ export async function handleCustomTeamModal(interaction: Extract<Interaction, { 
           teamName: result.customTeam.name,
           authority: linked.authority ?? "member",
           team: result.customTeam,
-          isCfb,
           isDiscordOnly: Boolean(linked.isDiscordOnly),
         }).catch(() => undefined);
       }

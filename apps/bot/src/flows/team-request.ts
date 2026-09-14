@@ -11,7 +11,6 @@ import {
 import type { RecTeamAuthority } from "@rec/shared";
 import { isDiscordAdminInteraction } from "../lib/admin.js";
 import { userFacingError } from "../lib/errors.js";
-import { isCfbLeague } from "../lib/league-game.js";
 import { isMissingDiscordAccountError, recApi } from "../lib/rec-api.js";
 import { ensureRecBaseRoles, formatTeamDisplayName, syncMemberForTeam } from "../lib/role-sync.js";
 import { buildTeamsMenuRows, MENU_CUSTOM_IDS, normalizeRosterConferences, type TeamsMenuPage, type RosterConference } from "../ui/menu.js";
@@ -230,9 +229,7 @@ export async function handleTeamRequestApprove(interaction: ButtonInteraction) {
     const request = result.request;
     const team = result.link?.team;
 
-    let isCfb = false;
     if (interaction.guild) {
-      isCfb = await isCfbLeague(interaction.guild.id);
       await ensureRecBaseRoles(interaction.guild);
       const member = await interaction.guild.members.fetch(request.requester_discord_id).catch(() => null);
       if (member) {
@@ -241,12 +238,11 @@ export async function handleTeamRequestApprove(interaction: ButtonInteraction) {
           teamName: team?.name ?? "Team",
           authority: "member",
           team,
-          isCfb,
           isDiscordOnly: Boolean(result.link?.isDiscordOnly),
         }).catch(() => undefined);
       }
     }
-    const teamDisplayName = formatTeamDisplayName(team, isCfb) ?? team?.name ?? "Team";
+    const teamDisplayName = formatTeamDisplayName(team) ?? team?.name ?? "Team";
     const embed = new EmbedBuilder()
       .setTitle("Team Link Request — Approved")
       .setDescription([
@@ -293,9 +289,7 @@ export async function handleTeamRequestRole(interaction: ButtonInteraction) {
     const request = result.request;
     const team = result.link?.team;
 
-    let isCfb = false;
     if (interaction.guild) {
-      isCfb = await isCfbLeague(interaction.guild.id);
       await ensureRecBaseRoles(interaction.guild);
       const member = await interaction.guild.members.fetch(request.requester_discord_id).catch(() => null);
       if (member) {
@@ -304,12 +298,11 @@ export async function handleTeamRequestRole(interaction: ButtonInteraction) {
           teamName: team?.name ?? "Team",
           authority,
           team,
-          isCfb,
           isDiscordOnly: Boolean(result.link?.isDiscordOnly),
         }).catch(() => undefined);
       }
     }
-    const teamDisplayName = formatTeamDisplayName(team, isCfb) ?? team?.name ?? "Team";
+    const teamDisplayName = formatTeamDisplayName(team) ?? team?.name ?? "Team";
 
     const roleLabel = authority.replace("_", " ");
     const embed = new EmbedBuilder()

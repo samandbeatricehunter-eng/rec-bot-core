@@ -12,55 +12,17 @@ type NickTeam = {
   is_relocated?: boolean | null;
 };
 
-export function formatTeamDisplayName(team: NickTeam, isCfb = false) {
-  if (isCfb) return resolveCfbFullName(team);
+export function formatTeamDisplayName(team: NickTeam) {
   if (team.is_relocated && team.display_city && team.display_nick) {
     return `${team.display_city} ${team.display_nick}`;
   }
   return team.name ?? team.display_nick ?? "Team";
 }
 
-// CFB's "University Mascot" combo (e.g. "Arkansas State Red Wolves") — display_city/display_nick
-// are populated for every CFB team at seed time (not just relocated/custom ones; see
-// createDefaultTeamsForGuild), so the university always comes from display_city when present,
-// falling back to name for older rows that predate that field.
-function resolveCfbFullName(team: NickTeam): string {
-  const university = (team.display_city ?? team.name ?? "").trim();
-  const mascot = (team.display_nick ?? "").trim();
-  const combined = mascot ? `${university} ${mascot}`.trim() : university;
-  return combined || "Team";
-}
-
-// Same team shape a raw rec_teams row (abbreviation + display_abbr) or an already-resolved RPC
-// payload (abbreviation alone, display-preferring) can both provide — mirrors the resolution
-// rule used in rec_roster_league_conferences and createCustomTeamReplacement.
-function resolveTeamAbbreviation(team: NickTeam): string {
-  const abbr = team.is_relocated && team.display_abbr?.trim() ? team.display_abbr : team.abbreviation;
-  return (abbr ?? "TEAM").trim().toUpperCase();
-}
-
-// Commissioner/Co-Commissioner CFB nicknames use "ABBR Mascot" (e.g. "GCU Trojans") instead of
-// the full university name — leaves headroom for the role suffix within Discord's 32-char limit.
-function resolveCfbLeadershipName(team: NickTeam): string {
-  const abbr = resolveTeamAbbreviation(team);
-  const mascot = (team.display_nick ?? "").trim();
-  const combined = mascot ? `${abbr} ${mascot}`.trim() : abbr;
-  return combined || "Team";
-}
-
-function isLeadershipAuthority(authority: RecTeamAuthority) {
-  return authority === "commissioner" || authority === "co_commissioner";
-}
-
 /**
- * Discord @nickname base. Madden: mascot only (never the city). CFB: "University Mascot" for
- * regular members, or "ABBR Mascot" for Commissioners/Co-Commissioners (shorter, to leave room
- * for the role suffix).
+ * Discord @nickname base: the mascot only (never the city).
  */
-export function resolveTeamNick(team: NickTeam, isCfb = false, authority?: RecTeamAuthority) {
-  if (isCfb) {
-    return authority && isLeadershipAuthority(authority) ? resolveCfbLeadershipName(team) : resolveCfbFullName(team);
-  }
+export function resolveTeamNick(team: NickTeam) {
   if (team.is_relocated && team.display_nick?.trim()) {
     return team.display_nick.trim();
   }
@@ -95,9 +57,8 @@ export function buildTeamNicknameFromNick(nick: string, authority: RecTeamAuthor
 export function buildTeamNicknameFromTeam(
   team: NickTeam,
   authority: RecTeamAuthority,
-  isCfb = false,
 ) {
-  return buildTeamNicknameFromNick(resolveTeamNick(team, isCfb, authority), authority);
+  return buildTeamNicknameFromNick(resolveTeamNick(team), authority);
 }
 
 async function ensureRole(guild: Guild, input: { name: string; color: number }) {
@@ -180,8 +141,6 @@ export async function syncMemberForTeam(input: {
   teamName: string;
   authority: RecTeamAuthority;
   team?: NickTeam | null;
-  /** CFB nicknames show "University Mascot"; Madden nicknames show the mascot alone. */
-  isCfb?: boolean;
   /** Linked user has no site account (no supabase_auth_user_id). */
   isDiscordOnly?: boolean;
 }) {
@@ -208,7 +167,7 @@ export async function syncMemberForTeam(input: {
   await input.member.roles.add(rolesToAdd, "REC team ownership link").catch(() => undefined);
 
   let nickname = input.team
-    ? buildTeamNicknameFromTeam(input.team, input.authority, input.isCfb)
+    ? buildTeamNicknameFromTeam(input.team, input.authority)
     : buildTeamNickname(input.teamName, input.authority);
 
   if (input.isDiscordOnly) {
