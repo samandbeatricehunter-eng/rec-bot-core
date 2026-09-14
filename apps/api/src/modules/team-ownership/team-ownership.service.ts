@@ -1,4 +1,4 @@
-import { AFC_TEAMS, CFB_27_TEAMS, NFL_TEAM_PRIMARY_COLORS, NFC_TEAMS, type CfbTeamOption } from "@rec/shared";
+import { AFC_TEAMS, NFL_TEAM_PRIMARY_COLORS, NFC_TEAMS } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { ApiError } from "../../lib/errors.js";
@@ -13,14 +13,12 @@ import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
 import { isHeadCommissionerAssignment, parseAssignmentAuthority, buildManagedTeamNickname, type AssignableRoleKey } from "./assignment-authority.js";
 import type { CreateDefaultTeamsInput, CustomTeamReplacementInput, LinkUserToTeamInput, ResetDefaultTeamsInput, UnlinkAllTeamsInput, UnlinkTeamInput } from "./team-ownership.schemas.js";
 import { releaseBacklogForLeague } from "../economy/economy-backlog.js";
-import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 
-// The nickname a newly-linked member gets tagged with: the school name for CFB (e.g.
-// "Georgia"), or the mascot for Madden (e.g. "Cowboys") — display_nick holds that directly for
-// custom/relocated teams; default catalog teams have it null, so fall back to the last word of
-// the full name ("Dallas Cowboys" -> "Cowboys").
-function shortTeamNickname(team: { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null }, isCfb: boolean): string {
-  if (isCfb) return resolveTeamSchool(team) ?? team.name?.trim() ?? "Team";
+// The nickname a newly-linked member gets tagged with: the mascot (e.g. "Cowboys") —
+// display_nick holds that directly for custom/relocated teams; default catalog teams have it
+// null, so fall back to the last word of the full name ("Dallas Cowboys" -> "Cowboys").
+function shortTeamNickname(team: { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null }): string {
   const nick = team.display_nick?.trim();
   if (nick) return nick;
   const name = (team.name ?? "Team").trim();
@@ -33,13 +31,11 @@ export async function getCurrentLeagueForGuild(guildId: string) {
   return { server: context.rec_discord_servers, league: context.rec_leagues };
 }
 
-function getDefaultTeamCatalog(game?: string | null) {
-  if (game === "cfb_27") return CFB_27_TEAMS;
+function getDefaultTeamCatalog() {
   return [...AFC_TEAMS, ...NFC_TEAMS];
 }
 
 function defaultTeamResetDescription(game?: string | null) {
-  if (game === "cfb_27") return "default College Football 27 teams";
   if (game === "madden_27") return "default Madden NFL 27 teams";
   return "default Madden NFL 26 teams";
 }
@@ -156,17 +152,13 @@ function normalizeAbbreviation(value: string) {
   return value.trim().toUpperCase();
 }
 
-function getDefaultTeamByAbbreviation(game: string | null | undefined, abbreviation: string) {
+function getDefaultTeamByAbbreviation(abbreviation: string) {
   const normalized = normalizeAbbreviation(abbreviation);
-  return getDefaultTeamCatalog(game).find((team) => normalizeAbbreviation(team.abbreviation) === normalized) ?? null;
+  return getDefaultTeamCatalog().find((team) => normalizeAbbreviation(team.abbreviation) === normalized) ?? null;
 }
 
 function normalizeTeamText(value?: string | null) {
   return String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-}
-
-function cfbDisplayCity(team: CfbTeamOption) {
-  return team.isSchedulePlaceholder ? "FCS" : team.name;
 }
 
 function isSchedulePlaceholderTeam(team: { name?: string | null; abbreviation?: string | null } | null | undefined) {
@@ -181,16 +173,15 @@ function isSchedulePlaceholderTeam(team: { name?: string | null; abbreviation?: 
 // (both depend on a real guildId; schedule seeding can be triggered later once Discord is
 // linked, via the existing Reset Default Teams action in League Mgmt).
 export async function createDefaultTeamsForLeague(leagueId: string, game: string | null | undefined) {
-  const isCfbGame = game === "cfb_27";
-  const catalog = getDefaultTeamCatalog(game);
+  const catalog = getDefaultTeamCatalog();
   const rows = catalog.map((team) => ({
     league_id: leagueId,
     name: team.name,
     abbreviation: team.abbreviation,
     conference: team.conference,
     division: team.division,
-    display_city: isCfbGame ? cfbDisplayCity(team as CfbTeamOption) : null,
-    display_nick: isCfbGame ? (team as CfbTeamOption).mascot : null,
+    display_city: null,
+    display_nick: null,
     source: "manual_admin_entry",
     primary_color: NFL_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF",
   }));
@@ -203,18 +194,15 @@ export async function createDefaultTeamsForLeague(leagueId: string, game: string
 
 export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
-  const isCfb = league.game === "cfb_27";
-  const catalog = getDefaultTeamCatalog(league.game);
+  const catalog = getDefaultTeamCatalog();
   const rows = catalog.map((team) => ({
     league_id: league.id,
     name: team.name,
     abbreviation: team.abbreviation,
     conference: input.conferenceOverrides?.[normalizeAbbreviation(team.abbreviation)] ?? team.conference,
     division: team.division,
-    // CFB's real display identity is "University + Mascot" (e.g. "Texas Longhorns"); Madden's
-    // `name` already carries the full "City Mascot" combo, so leave its display fields null.
-    display_city: isCfb ? cfbDisplayCity(team as CfbTeamOption) : null,
-    display_nick: isCfb ? (team as CfbTeamOption).mascot : null,
+    display_city: null,
+    display_nick: null,
     source: "manual_admin_entry",
     primary_color: NFL_TEAM_PRIMARY_COLORS[team.abbreviation] ?? "#FFFFFF"
   }));
@@ -228,7 +216,7 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
   syncRecruitingAd(league.id);
 
   await writeAuditLog({
-    action: league.game === "cfb_27" ? "teams.default_cfb.upserted" : "teams.default_nfl.upserted",
+    action: "teams.default_nfl.upserted",
     entityType: "rec_teams",
     newValue: { guildId: input.guildId, leagueId: league.id, game: league.game, teamCount: rows.length },
     reason: `${defaultTeamResetDescription(league.game)} created for Team Ownership setup.`,
@@ -245,16 +233,15 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
 
 export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
   const { league } = await getCurrentLeagueForGuild(input.guildId);
-  const isCfb = league.game === "cfb_27";
-  const catalog = getDefaultTeamCatalog(league.game);
+  const catalog = getDefaultTeamCatalog();
   const rows = catalog.map((team) => ({
     league_id: league.id,
     name: team.name,
     abbreviation: team.abbreviation,
     conference: team.conference,
     division: team.division,
-    display_city: isCfb ? cfbDisplayCity(team as CfbTeamOption) : null,
-    display_nick: isCfb ? (team as CfbTeamOption).mascot : null,
+    display_city: null,
+    display_nick: null,
     display_abbr: null,
     is_relocated: false,
     original_abbreviation: null,
@@ -271,7 +258,7 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
   syncRecruitingAd(league.id);
 
   await writeAuditLog({
-    action: league.game === "cfb_27" ? "teams.default_cfb.reset" : "teams.default_nfl.reset",
+    action: "teams.default_nfl.reset",
     entityType: "rec_teams",
     newValue: { guildId: input.guildId, leagueId: league.id, game: league.game, teamCount: teams.length },
     reason: `${defaultTeamResetDescription(league.game)} reset through Team Management.`,
@@ -308,20 +295,17 @@ export async function createCustomTeamReplacement(input: CustomTeamReplacementIn
     normalizeTeamText(team.display_abbr) === normalizedLookup ||
     normalizeTeamText(team.name) === normalizedLookup,
   );
-  const fallback = getDefaultTeamByAbbreviation(league.game, replacementAbbr)
-    ?? getDefaultTeamCatalog(league.game).find((team) => normalizeTeamText(team.name) === normalizedLookup)
+  const fallback = getDefaultTeamByAbbreviation(replacementAbbr)
+    ?? getDefaultTeamCatalog().find((team) => normalizeTeamText(team.name) === normalizedLookup)
     ?? null;
   const replaced = existing.data ?? liveMatch ?? fallback;
   if (!replaced) {
-    throw new ApiError(400, league.game === "cfb_27" ? "Replacement CFB team abbreviation was not recognized in this league." : "Replacement NFL team abbreviation was not recognized.");
+    throw new ApiError(400, "Replacement NFL team abbreviation was not recognized.");
   }
 
   const originalAbbreviation = existing.data?.original_abbreviation ?? existing.data?.abbreviation ?? liveMatch?.original_abbreviation ?? liveMatch?.abbreviation ?? fallback?.abbreviation ?? replacementAbbr;
 
-  const isCfb = league.game === "cfb_27";
-  const name = isCfb
-    ? (input.customDisplayCity ?? "").trim() || input.customTeamName.trim()
-    : [input.customDisplayCity, input.customDisplayNick].filter((part) => part && part.trim()).map((part) => part!.trim()).join(" ") || input.customTeamName.trim();
+  const name = [input.customDisplayCity, input.customDisplayNick].filter((part) => part && part.trim()).map((part) => part!.trim()).join(" ") || input.customTeamName.trim();
 
   const updates = {
     name,
@@ -599,7 +583,7 @@ export async function linkUserToTeam(input: LinkUserToTeamInput) {
     .eq("league_id", league.id).maybeSingle();
   const linkedNickname = leagueConfiguration.data?.roster_type === "rise_to_immortality"
     ? (formatTeamDisplayName(team.data) ?? team.data.name ?? "Team")
-    : shortTeamNickname(team.data, league.game === "cfb_27");
+    : shortTeamNickname(team.data);
   await setGuildMemberNickname(
     input.guildId,
     input.discordId,
@@ -676,7 +660,7 @@ export async function syncMemberForGuildJoin(guildId: string, discordId: string)
   const memberRoleId = await ensureManagedRoleId(guildId, "member");
   await addMemberRole(guildId, discordId, memberRoleId, "REC team linked; default Member role (caught up on guild join)")
     .catch((error) => console.error(`[WARN] Failed to add Member role for ${discordId} in guild ${guildId} (non-fatal):`, error));
-  await setGuildMemberNickname(guildId, discordId, shortTeamNickname(team, league.game === "cfb_27"), "REC team linked — nickname set to team (caught up on guild join)")
+  await setGuildMemberNickname(guildId, discordId, shortTeamNickname(team), "REC team linked — nickname set to team (caught up on guild join)")
     .catch((error) => console.error(`[WARN] Failed to set nickname for ${discordId} in guild ${guildId} (non-fatal):`, error));
   return { synced: true };
 }
@@ -720,12 +704,8 @@ export async function resyncDiscordGuildIdentityAfterTransfer(input: {
   if (!rows.length) return { guilds: 0 };
 
   const leagueIds = [...new Set(rows.map((row) => row.league_id).filter(Boolean))];
-  const [links, leagues] = await Promise.all([
-    supabase.from("rec_server_league_links").select("league_id,server:rec_discord_servers(guild_id)").in("league_id", leagueIds).eq("is_primary", true),
-    supabase.from("rec_leagues").select("id,game").in("id", leagueIds),
-  ]);
+  const links = await supabase.from("rec_server_league_links").select("league_id,server:rec_discord_servers(guild_id)").in("league_id", leagueIds).eq("is_primary", true);
   if (links.error) throw new ApiError(500, "We couldn't load league Discord servers for role sync. Please try again.", links.error);
-  if (leagues.error) throw new ApiError(500, "We couldn't load leagues for Discord role sync. Please try again.", leagues.error);
 
   const guildByLeague = new Map<string, string>();
   for (const link of links.data ?? []) {
@@ -733,9 +713,8 @@ export async function resyncDiscordGuildIdentityAfterTransfer(input: {
     const guildId = server?.guild_id ? String(server.guild_id) : "";
     if (guildId) guildByLeague.set(String(link.league_id), guildId);
   }
-  const gameByLeague = new Map((leagues.data ?? []).map((row) => [row.id, String(row.game ?? "")]));
 
-  const byGuild = new Map<string, { authority: string; team: { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null }; isCfb: boolean }>();
+  const byGuild = new Map<string, { authority: string; team: { name?: string | null; display_nick?: string | null; is_relocated?: boolean | null } }>();
   for (const row of rows) {
     const guildId = guildByLeague.get(row.league_id);
     if (!guildId) continue;
@@ -744,7 +723,6 @@ export async function resyncDiscordGuildIdentityAfterTransfer(input: {
     byGuild.set(guildId, {
       authority: String(row.notes ?? ""),
       team,
-      isCfb: gameByLeague.get(row.league_id) === "cfb_27",
     });
   }
 
@@ -775,7 +753,7 @@ export async function resyncDiscordGuildIdentityAfterTransfer(input: {
       await setGuildMemberNickname(
         guildId,
         input.toDiscordId,
-        buildManagedTeamNickname(shortTeamNickname(spec.team, spec.isCfb), spec.authority),
+        buildManagedTeamNickname(shortTeamNickname(spec.team), spec.authority),
         "REC Discord account replaced — nickname set to current team",
       ).catch((error) => console.error(`[WARN] Failed to set nickname on new Discord ${input.toDiscordId} in ${guildId} (non-fatal):`, error));
     }
@@ -796,7 +774,6 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
   skipped: Array<{ discordId: string; reason: string }>;
 }> {
   const { league } = await getCurrentLeagueForGuild(guildId);
-  const isCfb = league.game === "cfb_27";
   const ownerUserId = typeof league.owner_user_id === "string" ? league.owner_user_id : null;
   // Rise to Immortality nicknames the full "City Mascot" at franchise assignment
   // (formatTeamDisplayName), not the short mascot-only convention every other league uses --
@@ -835,7 +812,7 @@ export async function resyncTeamNicknamesForGuild(guildId: string): Promise<{
     }
     const team = row.team as { name?: string | null; display_city?: string | null; display_nick?: string | null; is_relocated?: boolean | null } | null;
     if (!team) { skipped.push({ discordId, reason: "No team on this assignment." }); return; }
-    const baseNick = immortality ? (formatTeamDisplayName(team) ?? shortTeamNickname(team, isCfb)) : shortTeamNickname(team, isCfb);
+    const baseNick = immortality ? (formatTeamDisplayName(team) ?? shortTeamNickname(team)) : shortTeamNickname(team);
     const nickname = buildManagedTeamNickname(baseNick, row.notes);
     try {
       await setGuildMemberNickname(guildId, discordId, nickname, "REC nickname resync (retroactive)");
