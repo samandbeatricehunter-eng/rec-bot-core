@@ -183,7 +183,7 @@ export async function exchangeAppHandoff(
   if (leagueId && (await userHasLeagueAccess(siteUserId, leagueId))) {
     return {
       status: "ready" as const,
-      sitePath: `/l/${leagueId}/buzz`,
+      sitePath: `/l/${leagueId}/home`,
       leagueId,
       guildId: handoff.guildId,
     };

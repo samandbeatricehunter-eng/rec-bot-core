@@ -41,7 +41,7 @@ export async function handleHighlightsSlash(interaction: ChatInputCommandInterac
     return;
   }
 
-  const url = `${base}/l/${profile.league.id}/buzz?openHighlights=1`;
+  const url = `${base}/l/${profile.league.id}/home?openHighlights=1`;
   const embed = new EmbedBuilder()
     .setTitle("Upload a Highlight")
     .setColor(0x1d9bf0);

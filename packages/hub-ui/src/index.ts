@@ -16,7 +16,6 @@ export { TeamMiniNav } from "../../../apps/web/src/components/hub/TeamMiniNav.js
 export { SectionMiniNav } from "../../../apps/web/src/components/hub/SectionMiniNav.js";
 export { StandingsMiniNav } from "../../../apps/web/src/components/hub/StandingsMiniNav.js";
 export { GameDayMiniNav } from "../../../apps/web/src/components/hub/GameDayMiniNav.js";
-export { MediaMiniNav } from "../../../apps/web/src/components/hub/MediaMiniNav.js";
 export { MatchupCard } from "../../../apps/web/src/components/matchups/MatchupCard.js";
 export { HeroMatchupBreakdown } from "../../../apps/web/src/components/hub/HeroMatchupBreakdown.js";
 export { TeamLogo } from "../../../apps/web/src/components/ui/TeamLogo.js";

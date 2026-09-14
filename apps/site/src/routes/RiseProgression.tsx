@@ -3,9 +3,9 @@
 // (formerly its own /team/trust page -- see RiseTrustTree.tsx, now just a redirect here).
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, useParams, useSearchParams } from "react-router-dom";
-import { TeamMiniNav } from "@rec/hub-ui";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi, type ImmortalityProgressionState, type ImmortalityProgressionNode, type OwnerProgressionState } from "../lib/site-api.js";
+import { TeamRouteRail } from "../features/league/team/index.js";
 
 type Side = "offense" | "defense";
 type Identity = Side | "owner";
@@ -73,7 +73,7 @@ export function RiseProgressionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guildId, isRise]);
 
-  if (selected && !isRise) return <Navigate replace to={`/l/${leagueId}/buzz`} />;
+  if (selected && !isRise) return <Navigate replace to={`/l/${leagueId}/home`} />;
   if (selected && !unlocked) return <Navigate replace to={`/l/${leagueId}/rise`} />;
   if (!selected || !guildId) return <div className="site-page site-loading">Loading Build Your Legacy…</div>;
 
@@ -102,12 +102,12 @@ export function RiseProgressionPage() {
   return (
     <div className="site-page rise-page">
       {leagueId ? (
-        <TeamMiniNav
+        <TeamRouteRail
           active="progression"
           leagueId={leagueId}
           isRise
           tradesUnlocked={selected?.rtiTradesUnlocked !== false}
-          storeUnlocked={Boolean(selected?.riseHubUnlocked)}
+          storeUnlocked={!selected || Boolean(selected.rtiStoreUnlocked ?? selected.riseHubUnlocked)}
           progressionAvailable
         />
       ) : null}

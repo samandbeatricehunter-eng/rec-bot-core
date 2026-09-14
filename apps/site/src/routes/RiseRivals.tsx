@@ -53,7 +53,7 @@ export function RiseRivalsPage() {
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load matchup history."));
   }, [guildId, tab, historySide, historySlot]);
 
-  if (selected && !isRise) return <Navigate replace to={`/l/${leagueId}/buzz`} />;
+  if (selected && !isRise) return <Navigate replace to={`/l/${leagueId}/home`} />;
   if (!selected || !guildId) return <div className="site-page site-loading">Loading Rivals…</div>;
 
   const teams = hub?.teamIdentities ?? [];

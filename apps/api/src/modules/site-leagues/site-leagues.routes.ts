@@ -69,7 +69,7 @@ export async function siteLeaguesRoutes(app: FastifyInstance) {
       const body = z
         .object({
           leagueId: z.string().uuid(),
-          view: z.enum(["buzz", "matchups", "team", "store", "mgmt"]).optional(),
+          view: z.enum(["home", "matchups", "team", "store", "mgmt"]).optional(),
           embed: z.boolean().optional(),
         })
         .parse(request.body ?? {});

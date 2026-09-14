@@ -32,11 +32,15 @@ const DiscordGuildPicker = lazy(() => import("./routes/DiscordGuildPicker.js").t
 const DiscordGuildTokenPopup = lazy(() => import("./routes/DiscordGuildTokenPopup.js").then((m) => ({ default: m.DiscordGuildTokenPopup })));
 function LegacyMatchupRedirect() {
   const { leagueId = "" } = useParams();
-  return <Navigate replace to={`/l/${leagueId}/buzz`} />;
+  return <Navigate replace to={`/l/${leagueId}/matchups`} />;
 }
 function LegacyWagersRedirect() {
   const { leagueId = "" } = useParams();
-  return <Navigate replace to={`/l/${leagueId}/buzz`} />;
+  return <Navigate replace to={`/l/${leagueId}/home`} />;
+}
+function LegacyLeagueHomeRedirect() {
+  const { leagueId = "" } = useParams();
+  return <Navigate replace to={`/l/${leagueId}/home`} />;
 }
 function LegacySosRedirect() {
   const { leagueId = "" } = useParams();
@@ -47,7 +51,6 @@ const OnboardingPromo = lazy(() => import("./routes/OnboardingPromo.js").then((m
 const OpenApp = lazy(() => import("./routes/OpenApp.js").then((m) => ({ default: m.OpenApp })));
 const AdminPage = lazy(() => import("./routes/Admin.js").then((m) => ({ default: m.AdminPage })));
 const PublicLeague = lazy(() => import("./routes/PublicLeague.js").then((m) => ({ default: m.PublicLeague })));
-const Demo = lazy(() => import("./routes/Demo.js").then((m) => ({ default: m.Demo })));
 const RenderMatchup = lazy(() => import("./routes/render/RenderMatchup.js").then((m) => ({ default: m.RenderMatchup })));
 const RenderPlayerOfWeek = lazy(() => import("./routes/render/RenderPlayerOfWeek.js").then((m) => ({ default: m.RenderPlayerOfWeek })));
 const RenderNflPlayoffBracket = lazy(() => import("./routes/render/RenderNflPlayoffBracket.js").then((m) => ({ default: m.RenderNflPlayoffBracket })));
@@ -252,7 +255,6 @@ function Routed() {
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/league/:slug" element={<PublicLeague />} />
-      <Route path="/demo" element={<Demo />} />
       <Route path="/render/matchup/:gameId" element={<RenderMatchup />} />
       <Route path="/render/player-of-week/:storyId" element={<RenderPlayerOfWeek />} />
       <Route path="/render/nfl-playoff-bracket/:leagueId" element={<RenderNflPlayoffBracket />} />
@@ -273,7 +275,8 @@ function Routed() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/friends" element={<Friends />} />
-        <Route path="/l/:leagueId/buzz" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/home" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/buzz" element={<LegacyLeagueHomeRedirect />} />
         <Route path="/l/:leagueId/rise" element={<RiseOriginsPage />} />
         <Route path="/l/:leagueId/team/upgrades" element={<RiseXpPage />} />
         <Route path="/l/:leagueId/team/progression" element={<RiseProgressionPage />} />
@@ -281,7 +284,7 @@ function Routed() {
         <Route path="/l/:leagueId/owner-progression" element={<StandardProgression kind="owner" />} />
         <Route path="/l/:leagueId/team/rivals" element={<RiseRivalsPage />} />
         <Route path="/l/:leagueId/team/trust" element={<RiseTrustTreePage />} />
-        <Route path="/l/:leagueId/news" element={<LeagueHubPage />} />
+        <Route path="/l/:leagueId/news" element={<LegacyLeagueHomeRedirect />} />
         <Route path="/l/:leagueId/matchups" element={<LeagueHubPage />} />
         <Route path="/l/:leagueId/matchups/:gameId" element={<LegacyMatchupRedirect />} />
         <Route path="/l/:leagueId/team" element={<LeagueHubPage />} />

@@ -14,8 +14,7 @@ export type LeagueStatsResult = {
 // Season stat totals rarely change mid-request-burst (imports land in discrete batches, not
 // continuously), and the underlying query re-scans every weekly stat cell for the league each
 // time it runs — cheap to compute once and serve for a few seconds than to repeat per click of
-// the Stats page's category/team/leaders pills, or per hit on the public unauthenticated demo
-// preview (see demo-league.service.ts, which calls this same function with no auth/rate limit).
+// the Stats page's category/team/leaders pills.
 const statsCache = new Map<string, { value: LeagueStatsResult; expiresAt: number }>();
 // Real changes are never waited out -- every write path that touches weekly stats (EA import,
 // Companion import, manual score entry, HOF milestone processing) already calls
@@ -36,8 +35,7 @@ export function invalidateLeagueStatsCache(leagueId: string): void {
   }
 }
 
-/** Core query, keyed by leagueId directly — reused by the authenticated guildId-based route
- * and by the public demo-league preview (which has no Discord guild/session context). */
+/** Core query, keyed by leagueId directly — reused by the authenticated guildId-based route. */
 export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamId?: string | null; position?: string | null; scope?: "season" | "career" } = {}): Promise<LeagueStatsResult> {
   const cacheKey = `${leagueId}:${input.scope ?? "season"}:${input.teamId ?? ""}:${input.position ?? ""}`;
   const cached = statsCache.get(cacheKey);

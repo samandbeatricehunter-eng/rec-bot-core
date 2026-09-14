@@ -781,7 +781,7 @@ export function LeaguesPage() {
 
   function openLeague(leagueId: string) {
     hub.selectLeague(leagueId);
-    navigate(`/l/${leagueId}/buzz`);
+    navigate(`/l/${leagueId}/home`);
   }
 
   async function openTeamRequest(league: SiteLeagueSearchHit) {

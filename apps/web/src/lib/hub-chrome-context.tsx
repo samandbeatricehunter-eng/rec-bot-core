@@ -173,7 +173,8 @@ export function HubChromeProvider({
     setScope(next);
     if (!embedded) persistScope(next);
     applyTheme(next, currentLeague, embedded);
-    navigate("/?section=league&subTab=buzz");
+    // Legacy web hub: site path `/home` isn't available here — land on matchups.
+    navigate("/?section=league&subTab=matchups");
   }, [currentLeague, embedded, navigate]);
 
   const retireFromCurrentLeague = useCallback(async () => {
@@ -188,7 +189,8 @@ export function HubChromeProvider({
       window.location.assign("/leagues");
       return;
     }
-    navigate("/?section=league&subTab=buzz");
+    // Legacy web hub: site path `/home` isn't available here — land on matchups.
+    navigate("/?section=league&subTab=matchups");
   }, [auth, embedded, navigate, refreshLeague]);
 
   const value = useMemo<HubChromeContextValue>(

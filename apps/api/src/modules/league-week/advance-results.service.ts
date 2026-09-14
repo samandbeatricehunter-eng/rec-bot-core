@@ -104,7 +104,7 @@ async function notifyLeagueMembersOfAdvance(input: {
       body: input.game.startsWith("madden")
         ? "Open League News for the latest around-the-league news."
         : "Open Campus Buzz for the latest around-the-league news.",
-      href: `/l/${input.leagueId}/buzz`,
+      href: `/l/${input.leagueId}/home`,
     })),
   );
   if (inserted.error) throw inserted.error;

@@ -1475,8 +1475,8 @@ export async function cancelAllWagersForGame(input: { guildId: string; gameId: s
       const amount = refundsByUser.get(userId) ?? 0;
       const title = `Wager refunded — ${reasonLabel}`;
       const body = `${formatCoins(amount)} was returned to your wallet because the matchup was recorded as a ${reasonLabel}. The wager has no win or loss.`;
-      await createSiteNotification({ userId, leagueId: context.leagueId, kind: "wager_refunded", title, body, href: `/l/${context.leagueId}/buzz` }).catch(() => undefined);
-      await sendPushToUsers([userId], { title, body, url: `/l/${context.leagueId}/buzz` }).catch(() => undefined);
+      await createSiteNotification({ userId, leagueId: context.leagueId, kind: "wager_refunded", title, body, href: `/l/${context.leagueId}/home` }).catch(() => undefined);
+      await sendPushToUsers([userId], { title, body, url: `/l/${context.leagueId}/home` }).catch(() => undefined);
       const discordId = discordByUser.get(userId);
       if (discordId) await sendDiscordDirectMessage(discordId, `**${title}**\n${body}`).catch(() => undefined);
     }));

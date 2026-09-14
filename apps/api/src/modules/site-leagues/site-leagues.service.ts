@@ -751,7 +751,7 @@ export async function joinRiseToImmortalityPool(input: {
   }
 }
 
-export type SiteLeagueHubView = "buzz" | "matchups" | "team" | "store" | "mgmt";
+export type SiteLeagueHubView = "home" | "matchups" | "team" | "store" | "mgmt";
 
 async function assertSiteLeagueAccess(recUserId: string, leagueId: string): Promise<void> {
   // banned/access are independent (both only need recUserId/leagueId) -- being banned is rare,

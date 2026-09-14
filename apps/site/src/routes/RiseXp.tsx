@@ -92,7 +92,7 @@ export function RiseXpPage() {
   const overBudget = totalCost > playerXp;
   const changedCount = rows.filter((row) => row.target > row.base).length;
 
-  if (selected && !isRise) return <Navigate replace to={`/l/${leagueId}/buzz`} />;
+  if (selected && !isRise) return <Navigate replace to={`/l/${leagueId}/home`} />;
   if (selected && !unlocked) return <Navigate replace to={`/l/${leagueId}/rise`} />;
   if (!selected || !guildId) return <div className="site-page site-loading">Loading Upgrades…</div>;
 

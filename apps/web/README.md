@@ -10,7 +10,7 @@ There used to be a second, standalone entry point here (`App.tsx`/`main.tsx`, a
 Discord-Activity-style iframe shell reached via a `?token=` JWT link) that was deployed
 as its own Railway service. That's been removed — Discord's `/app` command now opens a
 site deep-link instead. If you're looking for chrome/navigation, see
-`apps/site/src/components/LeagueTopNav.tsx` and `SiteShell.tsx`.
+`apps/site/src/features/league/chassis` and `apps/site/src/components/SiteShell.tsx`.
 
 ## Local development
 

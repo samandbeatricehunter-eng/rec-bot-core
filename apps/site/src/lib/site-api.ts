@@ -1103,7 +1103,7 @@ export const siteApi = {
   },
   openLeagueHub(input: {
     leagueId: string;
-    view?: "buzz" | "matchups" | "team" | "store" | "mgmt";
+    view?: "home" | "matchups" | "team" | "store" | "mgmt";
     embed?: boolean;
   }) {
     return request<{
@@ -1971,66 +1971,11 @@ export const siteApi = {
   skipLotteryPick(tournamentId: string) {
     return request<SiteTournamentLottery>("/v1/tournaments/lottery/skip", { tournamentId });
   },
-  listDemoLeagues() {
-    return publicRequest<{ leagues: Array<{ id: string; name: string; game: string; seasonNumber: number; phases: Array<{ value: DemoPhase; label: string }> }> }>("/v1/demo-league/leagues", { method: "POST" });
-  },
-  listDemoTeams(leagueId: string) {
-    return publicRequest<{ league: { id: string; name: string; game: string }; teams: Array<{ id: string; name: string; abbr: string | null; conference: string | null; coachName: string }> }>(
-      "/v1/demo-league/teams", { method: "POST", body: JSON.stringify({ leagueId }) },
-    );
-  },
-  getDemoNewsFeed(leagueId: string, phase: DemoPhase = "live") {
-    return publicRequest<{ posts: Array<{ id: string; title: string; body: string; createdAt: string }>; demo: boolean; phaseLabel?: string }>(
-      "/v1/demo-league/news", { method: "POST", body: JSON.stringify({ leagueId, phase }) },
-    );
-  },
-  getDemoTeamMatchup(leagueId: string, teamId: string, phase: DemoPhase = "live") {
-    return publicRequest<{
-      weekNumber: number | null;
-      matchup: { homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; status: string; note?: string } | null;
-      draftBoard?: Array<{ round: number; pick: number; team: string; note: string }>;
-      demo: boolean;
-      phaseLabel?: string;
-    }>("/v1/demo-league/matchup", { method: "POST", body: JSON.stringify({ leagueId, teamId, phase }) });
-  },
-  getDemoTeamRoster(leagueId: string, teamId: string) {
-    return publicRequest<{ players: Array<{ id: string; name: string; position: string; overallRating: number | null; devTrait: string | null }> }>(
-      "/v1/demo-league/roster", { method: "POST", body: JSON.stringify({ leagueId, teamId }) },
-    );
-  },
   getAdminEconomyConfig() {
     return request<RecGlobalEconomyConfig>("/v1/admin/economy-config/get", {});
   },
   updateAdminEconomyConfig(config: RecGlobalEconomyConfig) {
     return request<RecGlobalEconomyConfig>("/v1/admin/economy-config/set", config);
-  },
-  getDemoFantasyDraftPool(leagueId: string) {
-    return publicRequest<{ players: Array<{ id: string; name: string; position: string; jerseyNumber: number | null; overallRating: number; photoUrl: string | null; devTrait: string | null; attributes: Record<string, number | null> }> }>(
-      "/v1/demo-league/fantasy-draft-pool", { method: "POST", body: JSON.stringify({ leagueId }) },
-    );
-  },
-  getDemoLeagueStats(leagueId: string, teamId?: string | null, position?: string | null) {
-    return publicRequest<{
-      league: { id: string; name: string; game: string; season_number: number };
-      teams: Array<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null }>;
-      positions: string[];
-      players: Array<{ id: string; fullName: string; position: string | null; jerseyNumber: number | null; photoUrl: string | null; devTrait: string | null; teamId: string | null; teamName: string | null; teamAbbreviation: string | null; stats: Record<string, number> }>;
-      leaders: Record<string, Array<{ playerId: string; playerName: string; position: string | null; teamName: string | null; teamAbbreviation: string | null; value: number; rank: number }>>;
-    }>("/v1/demo-league/stats", { method: "POST", body: JSON.stringify({ leagueId, teamId: teamId ?? null, position: position ?? null }) });
-  },
-  getDemoLeagueTeamStats(leagueId: string) {
-    return publicRequest<{
-      league: { id: string; name: string; game: string; season_number: number };
-      teams: Array<{ id: string; name: string; abbreviation: string | null; conference: string | null; division: string | null; stats: Record<string, number> }>;
-    }>("/v1/demo-league/team-stats", { method: "POST", body: JSON.stringify({ leagueId }) });
-  },
-  getDemoStandings(leagueId: string, phase: DemoPhase = "live") {
-    return publicRequest<(PublicLeagueSnapshot & { demo: false }) | { demo: true; phaseLabel: string; standings: Array<{ team: string; wins: number; losses: number; ties: number }> }>(
-      "/v1/demo-league/standings", { method: "POST", body: JSON.stringify({ leagueId, phase }) },
-    );
-  },
-  getDemoLeagueHistory(leagueId: string) {
-    return publicRequest<PublicLeagueHistory>("/v1/demo-league/history", { method: "POST", body: JSON.stringify({ leagueId }) });
   },
   getPublicLeagueSnapshot(guildId: string) {
     return publicRequest<PublicLeagueSnapshot>("/v1/public-league/snapshot", {
@@ -2200,7 +2145,6 @@ export type WeeklyMatchupBoardRenderData = {
   humanCpu: HubMatchupGame[];
 };
 
-export type DemoPhase = "live" | "week1" | "playoffs" | "championship" | "draft";
 
 export type PublicLeagueSnapshot = {
   league: {

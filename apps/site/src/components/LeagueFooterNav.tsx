@@ -13,7 +13,8 @@ function isActive(pathname: string, to: string) {
 
 /** Opens a HubHome modal via query bridge (footer lives outside HubHome). */
 function openModalHref(leagueId: string, modal: string) {
-  return `/l/${leagueId}/buzz?openModal=${modal}`;
+  if (modal === "wager") return `/l/${leagueId}/matchups?openModal=wager`;
+  return `/l/${leagueId}/home?openModal=${modal}`;
 }
 
 function FooterChip({
@@ -57,14 +58,13 @@ export function LeagueFooterNav({
   const risePreLaunch = isRise && !hubUnlocked;
   const { triggerRef, open, setOpen, Panel } = useHeaderMenu<HTMLButtonElement>({ anchor: "above" });
 
-  const homeTo = risePreLaunch || (isRise && !rtiOriginsComplete) ? `${base}/rise` : `${base}/buzz`;
+  const homeTo = risePreLaunch || (isRise && !rtiOriginsComplete) ? `${base}/rise` : `${base}/home`;
   const teamTo = hubUnlocked ? `${base}/team` : `${base}/rise`;
   const statsTo = `${base}/stats`;
   const gameDayTo = `${base}/matchups`;
 
   const homeActive =
-    isActive(path, `${base}/buzz`) ||
-    isActive(path, `${base}/news`) ||
+    isActive(path, `${base}/home`) ||
     (isRise && isActive(path, `${base}/rise`) && !isActive(path, `${base}/team`));
   const gameDayActive = isActive(path, `${base}/matchups`);
   const statsActive =

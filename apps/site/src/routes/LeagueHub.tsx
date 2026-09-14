@@ -12,26 +12,14 @@ import {
   FantasyDraftBoardPage,
   DeleteLeagueHome,
   HubChromeProvider,
-  HubHome,
   InjectedAuthProvider,
   LeagueThemeProvider,
   LinkTeamForm,
   ManageLeagueHome,
-  type MgmtNavId,
-  MgmtStatusStrip,
-  NflPlayoffBracket,
   NotificationsHome,
   PublishingHome,
-  LeagueHistoryHome,
-  LeagueRecordsHome,
-  LeagueStandingsHome,
-  LeagueCareerStatsHome,
-  LeagueStatsHome,
   RolesHome,
-  RulesHome,
   SettingsHome,
-  StatsMiniNav,
-  type StatsNavId,
   TeamOwnershipTable,
   TeamRosterForm,
   TeamScheduleForm,
@@ -41,6 +29,25 @@ import {
   HighlightUploadDrawer,
   HighlightUploadProvider,
 } from "@rec/hub-ui";
+import { LeagueChassis, LeagueChassisLoading } from "../features/league/chassis/index.js";
+import { GameDayPage, GameDayRouteRail } from "../features/league/gameday/index.js";
+import { LeagueHomePage } from "../features/league/home/index.js";
+import { MgmtRouteRail, type MgmtNavId } from "../features/league/management/index.js";
+import {
+  LeagueCareerStatsHome,
+  LeagueStatsHome,
+  NflPlayoffBracket,
+  StatsRouteRail,
+  type StatsFamilyView,
+} from "../features/league/stats/index.js";
+import { LeagueStandingsHome } from "../features/league/standings/index.js";
+import { LeagueRecordsHome } from "../features/league/records/index.js";
+import { LeagueHistoryHome } from "../features/league/history/index.js";
+import { RulesHome } from "../features/league/rules/index.js";
+import { TeamRouteRail, TeamHomePage, type TeamNavId } from "../features/league/team/index.js";
+import { RosterPage } from "../features/league/roster/index.js";
+import { StorePage } from "../features/league/store/index.js";
+import { TradesPage } from "../features/league/trades/index.js";
 
 // Consolidated from 11 separately-imported files into 3 purpose-named bundles (Phase 4 CSS
 // centralization) -- see hub-tokens.css/hub-layout.css/hub-features.css for what each groups
@@ -51,7 +58,7 @@ import "../../../web/src/styles/hub-layout.css";
 import "../../../web/src/styles/hub-features.css";
 import "../../../web/src/styles/responsive.css";
 
-type HubView = "buzz" | "news" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records" | "mgmt" | "playoff-bracket";
+type HubView = "home" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records" | "mgmt" | "playoff-bracket";
 
 function viewFromPath(pathname: string): HubView {
   // Check /mgmt first — mgmt sub-routes like manage-league/teams or
@@ -60,7 +67,6 @@ function viewFromPath(pathname: string): HubView {
   if (pathname.includes("/mgmt")) return "mgmt";
   if (pathname.includes("/playoff-bracket")) return "playoff-bracket";
   if (pathname.includes("/matchups")) return "matchups";
-  if (pathname.includes("/news")) return "news";
   if (pathname.includes("/team")) return "team";
   if (pathname.includes("/store")) return "store";
   if (pathname.includes("/wagers")) return "wagers";
@@ -72,7 +78,7 @@ function viewFromPath(pathname: string): HubView {
   if (pathname.includes("/records")) return "records";
   if (pathname.includes("/history")) return "history";
   if (pathname.includes("/rules")) return "rules";
-  return "buzz";
+  return "home";
 }
 
 function formatCaughtError(error: unknown, info?: ErrorInfo): string {
@@ -147,66 +153,14 @@ class HubErrorBoundary extends Component<
   }
 }
 
-const VIEW_PATH_SEGMENT: Record<Exclude<HubView, "mgmt" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records" | "playoff-bracket">, string> = {
-  buzz: "buzz", news: "news", matchups: "matchups", team: "team", store: "store", wagers: "wagers", roster: "roster", trades: "trades",
+const VIEW_PATH_SEGMENT: Record<"home" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades", string> = {
+  home: "home", matchups: "matchups", team: "team", store: "store", wagers: "wagers", roster: "roster", trades: "trades",
 };
 
-function viewFromQuery(section: string | null, subTab: string | null): Exclude<HubView, "mgmt" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records" | "playoff-bracket"> | null {
-  if (section === "matchups" || (section === "league" && subTab === "matchups")) return "matchups";
-  if (section === "league" && subTab === "news") return "news";
-  if (section === "team") return "team";
-  if (section === "store") return "store";
-  if (section === "wagers") return "wagers";
-  if (section === "roster") return "roster";
-  if (section === "trades") return "trades";
-  if (section === "league") return "buzz";
-  return null;
+function isTeamFamilyView(view: HubView): view is "team" | "store" | "roster" | "trades" {
+  return view === "team" || view === "store" || view === "roster" || view === "trades";
 }
 
-/** Sync /l/:id/{buzz|matchups|team|store} into HubHome search params (parent BrowserRouter).
- * Bidirectional: a quick-action button inside HubHome that only changes `?section=` (never
- * touches the path) used to get instantly reverted back to whatever the current path implied —
- * navigate to the matching path instead of stomping the query string when that happens. */
-function HubHomeBridge({ view, leagueId }: { view: Exclude<HubView, "mgmt">; leagueId: string }) {
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const desired = useMemo(() => {
-    if (view === "matchups") return { section: "league", subTab: "matchups" };
-    if (view === "news") return { section: "league", subTab: "news" };
-    if (view === "team") return { section: "team", subTab: null as string | null };
-    if (view === "store") return { section: "store", subTab: null as string | null };
-    if (view === "wagers") return { section: "wagers", subTab: null as string | null };
-    if (view === "roster") return { section: "roster", subTab: null as string | null };
-    if (view === "trades") return { section: "trades", subTab: null as string | null };
-    return { section: "league", subTab: "buzz" };
-  }, [view]);
-
-  useEffect(() => {
-    const section = searchParams.get("section");
-    const subTab = searchParams.get("subTab");
-    const sectionOk = section === desired.section;
-    const subOk =
-      desired.subTab == null
-        ? subTab == null || subTab === ""
-        : subTab === desired.subTab;
-    if (sectionOk && subOk) return;
-
-    const impliedView = viewFromQuery(section, subTab);
-    if (impliedView && impliedView !== view) {
-      navigate(`/l/${leagueId}/${VIEW_PATH_SEGMENT[impliedView]}`, { replace: true });
-      return;
-    }
-    const next = new URLSearchParams();
-    next.set("section", desired.section);
-    if (desired.subTab) next.set("subTab", desired.subTab);
-    // Preserve Game Day / Home media view chips when syncing path → query.
-    const keepView = searchParams.get("view");
-    if (keepView) next.set("view", keepView);
-    setSearchParams(next, { replace: true });
-  }, [desired, searchParams, setSearchParams, navigate, leagueId, view]);
-
-  return <HubHome />;
-}
 
 /** League Mgmt sub-pages have no chrome of their own on the site (unlike apps/web's
  * AppShell, which always renders a Back button) — so give them one here. */
@@ -227,11 +181,11 @@ function MgmtSubPage({ children }: { children: ReactNode }) {
 }
 
 /** Top status strip + bottom nav, persistent across the four League Mgmt destinations --
- * same relationship StatsSectionLayout has to StatsMiniNav/{children} below. */
+ * site owns the rail through features/league/management. */
 function MgmtSectionLayout({ active, leagueId, children }: { active: MgmtNavId; leagueId: string; children: ReactNode }) {
   return (
     <>
-      <MgmtStatusStrip leagueId={leagueId} active={active} />
+      <MgmtRouteRail active={active} leagueId={leagueId} />
       {children}
     </>
   );
@@ -299,39 +253,22 @@ async function composeHubContextFromLists(leagueId: string): Promise<{ guildId: 
   return { guildId, discordId };
 }
 
-type StatsFamilyView = "stats" | "standings" | "records" | "history" | "career-stats" | "playoff-bracket";
-
 function isStatsFamilyView(view: HubView): view is StatsFamilyView {
   return view === "stats" || view === "standings" || view === "records"
     || view === "history" || view === "career-stats" || view === "playoff-bracket";
 }
 
-const STATS_FAMILY_NAV_ID: Record<Exclude<StatsFamilyView, "stats">, StatsNavId> = {
-  standings: "standings",
-  records: "records",
-  history: "history",
-  "career-stats": "career",
-  "playoff-bracket": "bracket",
-};
-
 /** Persistent chassis for the Stats-family destinations (League Stats / Division Standings /
- * League Records / League History / Career Stats / Playoff Bracket): renders StatsMiniNav
- * exactly once here rather than once per destination page, so switching between these six no
- * longer unmounts/remounts the nav along with the page content (they were separate top-level
- * components at the same ternary position below -- same problem class as a hub tab switch,
- * just one level up). `active` is derived from the URL, not passed in by each page, so removing
- * each page's own <StatsMiniNav> render is a pure extraction with no behavior change.
- * Wrapped in .hub-page (the same universal frame HubHome/RulesHome use at their own top level)
- * so the outer position/width/vertical-rhythm of this whole section never shifts when the view
- * changes -- only the nav's active button and the page content below it do. */
+ * League Records / League History / Career Stats / Playoff Bracket): site owns the top rail
+ * through features/league/stats, so switching between these six no longer unmounts/remounts
+ * the nav along with the page content. Bodies still come from @rec/hub-ui until those pages
+ * move. Wrapped in .hub-page (the same universal frame HubHome/RulesHome use at their own top
+ * level) so the outer position/width/vertical-rhythm of this whole section never shifts when
+ * the view changes -- only the nav's active button and the page content below it do. */
 function StatsSectionLayout({ view, leagueId, children }: { view: StatsFamilyView; leagueId: string; children: ReactNode }) {
-  const [searchParams] = useSearchParams();
-  const active: StatsNavId = view === "stats"
-    ? (searchParams.get("view") === "season" || searchParams.get("view") === "team" ? (searchParams.get("view") as StatsNavId) : "leaders")
-    : STATS_FAMILY_NAV_ID[view];
   return (
     <div className="hub-page">
-      <StatsMiniNav active={active} leagueId={leagueId} />
+      <StatsRouteRail view={view} leagueId={leagueId} />
       {children}
     </div>
   );
@@ -342,7 +279,7 @@ function StatsSectionLayout({ view, leagueId, children }: { view: StatsFamilyVie
  * Uses the site BrowserRouter only — never nest MemoryRouter.
  */
 // Switching leagues changes the :leagueId URL param but keeps the same route pattern (e.g.
-// /l/A/buzz -> /l/B/buzz), so React Router reuses this exact component instance instead of
+// /l/A/home -> /l/B/home), so React Router reuses this exact component instance instead of
 // remounting it. That left this component's own context/loading state (below) holding the
 // PREVIOUS league's Discord guildId/discordId for at least one render after the param changed --
 // the header (a separate HubContext consumer, see hub-context.tsx) had already updated to the new
@@ -395,7 +332,7 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
       let painted = Boolean(cached);
       if (cached) {
         setLoading(false);
-        void siteApi.openLeagueHub({ leagueId, view: "buzz" }).then((result) => {
+        void siteApi.openLeagueHub({ leagueId, view: "home" }).then((result) => {
           if (cancelled) return;
           const guildId = String(result.guildId ?? "").trim();
           const discordId = String(result.discordId ?? "").trim();
@@ -417,7 +354,7 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
       }
 
       try {
-        const result = await siteApi.openLeagueHub({ leagueId, view: "buzz" });
+        const result = await siteApi.openLeagueHub({ leagueId, view: "home" });
         if (cancelled) return;
         const guildId = String(result.guildId ?? "").trim();
         const discordId = String(result.discordId ?? "").trim();
@@ -456,7 +393,7 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
     siteAuth.status === "signed-in" ? siteAuth.session.access_token : null;
 
   if (loading || siteAuth.status === "loading") {
-    return <div className="site-page site-loading">Loading league hub…</div>;
+    return <LeagueChassisLoading />;
   }
 
   if (isRise && (!riseHubUnlocked || !rtiOriginsComplete) && view !== "mgmt") {
@@ -487,49 +424,71 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
   }
 
   return (
-    <div className="site-hub-embed site-hub-inprocess">
-      <div className="site-hub-inprocess-content">
-        <InjectedAuthProvider
-          key={leagueId}
-          discordId={context.discordId}
-          guildId={context.guildId}
-          accessToken={accessToken}
-        >
-          <HubChromeProvider embedded>
-            <ImportStatusProvider>
-            <AdvanceStatusProvider>
-            <HighlightUploadProvider>
-              <LeagueThemeProvider game={gameTheme}>
-                <HubErrorBoundary>
-                  {location.pathname.endsWith("/draft-board") ? (
-                    <FantasyDraftBoardPage />
-                  ) : view === "mgmt" ? (
-                    <div className="hub-page"><HubMgmtRoutes leagueId={leagueId} /></div>
-                  ) : isStatsFamilyView(view) ? (
-                    <StatsSectionLayout view={view} leagueId={leagueId}>
-                      {view === "playoff-bracket" ? <NflPlayoffBracket />
-                        : view === "history" ? <LeagueHistoryHome />
-                        : view === "records" ? <LeagueRecordsHome />
-                        : view === "stats" ? <LeagueStatsHome />
-                        : view === "standings" ? <LeagueStandingsHome />
-                        : <LeagueCareerStatsHome />}
-                    </StatsSectionLayout>
-                  ) : view === "rules" ? (
-                    <RulesHome />
-                  ) : (
-                    <HubHomeBridge key={leagueId} view={view} leagueId={leagueId} />
-                  )}
-                </HubErrorBoundary>
-                <ImportStatusDrawer />
-                <AdvanceStatusDrawer />
-                <HighlightUploadDrawer />
-              </LeagueThemeProvider>
-            </HighlightUploadProvider>
-            </AdvanceStatusProvider>
-            </ImportStatusProvider>
-          </HubChromeProvider>
-        </InjectedAuthProvider>
-      </div>
-    </div>
+    <LeagueChassis>
+      <InjectedAuthProvider
+        key={leagueId}
+        discordId={context.discordId}
+        guildId={context.guildId}
+        accessToken={accessToken}
+      >
+        <HubChromeProvider embedded>
+          <ImportStatusProvider>
+          <AdvanceStatusProvider>
+          <HighlightUploadProvider>
+            <LeagueThemeProvider game={gameTheme}>
+              <HubErrorBoundary>
+                {location.pathname.endsWith("/draft-board") ? (
+                  <FantasyDraftBoardPage />
+                ) : view === "mgmt" ? (
+                  <div className="hub-page"><HubMgmtRoutes leagueId={leagueId} /></div>
+                ) : isStatsFamilyView(view) ? (
+                  <StatsSectionLayout view={view} leagueId={leagueId}>
+                    {view === "playoff-bracket" ? <NflPlayoffBracket />
+                      : view === "history" ? <LeagueHistoryHome />
+                      : view === "records" ? <LeagueRecordsHome />
+                      : view === "stats" ? <LeagueStatsHome />
+                      : view === "standings" ? <LeagueStandingsHome />
+                      : <LeagueCareerStatsHome />}
+                  </StatsSectionLayout>
+                ) : view === "rules" ? (
+                  <RulesHome />
+                ) : view === "matchups" ? (
+                  <>
+                    <GameDayRouteRail leagueId={leagueId} />
+                    <GameDayPage key={leagueId} />
+                  </>
+                ) : isTeamFamilyView(view) ? (
+                  <>
+                    <TeamRouteRail
+                      active={view as TeamNavId}
+                      leagueId={leagueId}
+                      isRise={isRise}
+                      tradesUnlocked={!isRise || routeLeague?.rtiTradesUnlocked !== false}
+                      storeUnlocked={!isRise || Boolean(routeLeague?.rtiStoreUnlocked ?? routeLeague?.riseHubUnlocked)}
+                      progressionAvailable={isRise}
+                    />
+                    {view === "team" ? <TeamHomePage />
+                      : view === "roster" ? <RosterPage />
+                      : view === "store" ? <StorePage />
+                      : <TradesPage />}
+                  </>
+                ) : view === "home" ? (
+                  <LeagueHomePage />
+                ) : view === "wagers" ? (
+                  <Navigate replace to={`/l/${leagueId}/matchups`} />
+                ) : (
+                  <Navigate replace to={`/l/${leagueId}/${VIEW_PATH_SEGMENT.home}`} />
+                )}
+              </HubErrorBoundary>
+              <ImportStatusDrawer />
+              <AdvanceStatusDrawer />
+              <HighlightUploadDrawer />
+            </LeagueThemeProvider>
+          </HighlightUploadProvider>
+          </AdvanceStatusProvider>
+          </ImportStatusProvider>
+        </HubChromeProvider>
+      </InjectedAuthProvider>
+    </LeagueChassis>
   );
 }

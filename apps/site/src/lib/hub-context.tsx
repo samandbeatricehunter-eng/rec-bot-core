@@ -195,7 +195,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
     setScope(next);
     persistScope(next);
     setTheme("app");
-    const dest = league?.rosterType === "rise_to_immortality" && !league.riseHubUnlocked ? "rise" : "buzz";
+    const dest = league?.rosterType === "rise_to_immortality" && !league.riseHubUnlocked ? "rise" : "home";
     navigate(`/l/${leagueId}/${dest}`);
   }
 

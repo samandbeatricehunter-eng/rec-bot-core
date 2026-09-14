@@ -1,42 +1,29 @@
-﻿import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
+﻿import { lazy, Suspense, useEffect, useMemo, useState, type ReactElement } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, parlayOdds, potentialPayout, priceForPurchaseWithConfig, regularSeasonWeeks, stageForWeek, stageHasScheduledGames, stageLabel, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
-import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
-import { HeadshotUploadOverlay } from "../../components/hub/HeadshotUploadOverlay.js";
-import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, Shield, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
-import { InterviewMicIcon, ManageTeamIcon, ScheduleIcon } from "../../components/hub/QuickActionIcons.js";
-import { ManageFundsModal, SnapshotFundsModal, WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
-import { WeeklyChallengesCard } from "../../components/hub/WeeklyChallengesCard.js";
-import { DivisionRecordModal } from "../../components/hub/DivisionRecordModal.js";
+import { americanFromDecimal, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, coinsNumber, parlayOdds, potentialPayout, regularSeasonWeeks, stageForWeek, stageHasScheduledGames, stageLabel, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
+import { ArrowDown, ArrowUp, ChevronLeft, RefreshCw, ScrollText, ShoppingBag, SlidersHorizontal, Star, TrendingUp, UserPlus, UsersRound } from "lucide-react";
+import { WalletSavingsCard } from "../../components/hub/WalletSavingsCard.js";
 import { writeStandingsBoardCache, type StandingsBoardResponse } from "../../lib/standings-board-cache.js";
 import { HeroMatchupActions } from "../../components/hub/HeroMatchupActions.js";
 import { HeroMatchupBreakdown } from "../../components/hub/HeroMatchupBreakdown.js";
 import { GotwVotingCarousel } from "../../components/hub/GotwVotingCarousel.js";
 import { GameDayMiniNav, type GameDayNavId } from "../../components/hub/GameDayMiniNav.js";
-import { MediaMiniNav } from "../../components/hub/MediaMiniNav.js";
 import { GameDayEmpty, byeWeekEmptyCopy, noGotwEmptyCopy, noScheduleEmptyCopy, offseasonEmptyCopy } from "../../components/hub/GameDayEmpty.js";
 import { MatchupGameMedia } from "../../components/hub/MatchupGameMedia.js";
 import { MatchupTeamLeaders } from "../../components/hub/MatchupTeamLeaders.js";
 import { HeroSchedulingStatus } from "../../components/hub/HeroSchedulingStatus.js";
 import { ShareStreamModal } from "../../components/hub/ShareStreamModal.js";
 import { RequestHelpSheet } from "../../components/matchups/RequestHelpSheet.js";
-import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { GotwGuessingRecordsResponse, HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MatchupPreview as MatchupPreviewData, MyEosPayoutProgress, MyWagersResponse, NonRtiMediaDayResponse, OpenTeam, PeerWagerBoardResponse, RosterPlayer, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WeekWagerLinesResponse } from "../../types/api.js";
+import type { GotwGuessingRecordsResponse, HubMatchupSchedule, HubResponse, LinkedTeamRow, MatchupPreview as MatchupPreviewData, MyEosPayoutProgress, OpenTeam, RosterPlayer, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 import { Button } from "../../components/ui/Button.js";
 import { CoinAmount } from "../../components/ui/CoinAmount.js";
 import { TeamLogo } from "../../components/ui/TeamLogo.js";
 import { SectionFrame } from "../../components/design-system/SectionFrame.js";
-import { IconWell } from "../../components/design-system/IconWell.js";
 import { StatusChip } from "../../components/design-system/StatusChip.js";
-import { ExpandedArticleView } from "../../components/hub/ExpandedArticleView.js";
-import { InterviewBody } from "../../components/hub/InterviewBody.js";
-import { EosAwardVotingBlock } from "../../components/hub/EosAwardVotingBlock.js";
-import { CommissionerPollsVotingBlock } from "../../components/hub/CommissionerPollsVotingBlock.js";
-import { useSwipeNavigation } from "../../hooks/useSwipeNavigation.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.js";
 import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
@@ -57,7 +44,6 @@ const RosterHome = lazy(() => import("../roster/RosterHome.js").then((m) => ({ d
 const TradeCenterHome = lazy(() => import("./TradeCenterHome.js").then((m) => ({ default: m.TradeCenterHome })));
 const LegendPurchasePanel = lazy(() => import("./LegendPurchasePanel.js").then((m) => ({ default: m.LegendPurchasePanel })));
 const FantasyDraftCard = lazy(() => import("./FantasyDraftCard.js").then((m) => ({ default: m.FantasyDraftCard })));
-const RiseOverviewMediaDayCard = lazy(() => import("./RiseOverviewMediaDay.js").then((m) => ({ default: m.RiseOverviewMediaDayCard })));
 const AttributePurchaseBuilder = lazy(() => import("../../components/hub/AttributePurchaseBuilder.js").then((m) => ({ default: m.AttributePurchaseBuilder })));
 const CustomPlayerWizard = lazy(() => import("../../components/hub/CustomPlayerWizard.js").then((m) => ({ default: m.CustomPlayerWizard })));
 const RelocateTeamWizard = lazy(() => import("../../components/hub/RelocateTeamWizard.js").then((m) => ({ default: m.RelocateTeamWizard })));
@@ -66,30 +52,13 @@ function HubSurfaceFallback() {
   return <div className="hub-empty" role="status">Loading...</div>;
 }
 
-// Highlight reactions are exactly three: Like, POTY, and Dislike. POTY opens the category
-// modal (AWARD_REACTIONS) where the user picks one Play-of-the-Year category and submits.
-const AWARD_REACTIONS: Array<{ key: HubReactionKey; label: string }> = [
-  { key: "TOTY", label: "Throw of the Year" }, { key: "COTY", label: "Catch of the Year" }, { key: "ROTY", label: "Run of the Year" },
-  { key: "IOTY", label: "Interception of the Year" }, { key: "HOTY", label: "Hit of the Year" }, { key: "MVP_PLAY", label: "Most Valuable Play" },
-];
-const COMMUNITY_REACTION_KEYS: HubReactionKey[] = ["like", "dislike"];
-const AWARD_KEYS = AWARD_REACTIONS.map((reaction) => reaction.key);
-const STORE_PRODUCT_ICONS: Partial<Record<RecPurchaseType, typeof ShoppingBag>> = {
-  age_reset: RefreshCw,
-  dev_upgrade: TrendingUp,
-  contract: ScrollText,
-  attribute: SlidersHorizontal,
-  legend: Star,
-  custom_player: UserPlus,
-};
-type Story = HubResponse["headlines"][number];
 type HubSection = "league" | "store" | "team" | "roster" | "openTeams" | "schedules" | "trades";
-type LeagueSubTab = "buzz" | "news" | "matchups";
+type LeagueSubTab = "matchups";
 type MatchupView = "h2h" | "cpu" | "rankings";
 
 const HUB_SECTIONS = new Set<HubSection>(["league", "store", "team", "roster", "openTeams", "schedules", "trades"]);
 
-const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["buzz", "news", "matchups"]);
+const LEAGUE_SUB_TABS = new Set<LeagueSubTab>(["matchups"]);
 
 function parseHubSection(value: string | null): HubSection | null {
   if (value && HUB_SECTIONS.has(value as HubSection)) return value as HubSection;
@@ -97,8 +66,8 @@ function parseHubSection(value: string | null): HubSection | null {
 }
 
 function parseLeagueSubTab(value: string | null): LeagueSubTab | null {
-  // Legacy deep-link: Rankings used to be its own sub-tab; it now lives under Matchups.
-  if (value === "rankings") return "matchups";
+  // Legacy deep-links: rankings / buzz / news all collapse to matchups (buzz/news retired).
+  if (value === "rankings" || value === "buzz" || value === "news") return "matchups";
   if (value && LEAGUE_SUB_TABS.has(value as LeagueSubTab)) return value as LeagueSubTab;
   return null;
 }
@@ -180,23 +149,6 @@ function displayLabel(key: string) {
 function matchupWordmarkSize(name: string) {
   const length = name.replace(/\s+/g, "").length;
   return `clamp(${length > 16 ? 11 : length > 12 ? 13 : length > 9 ? 15 : 17}px, ${length > 16 ? 3.1 : length > 12 ? 3.8 : length > 9 ? 4.6 : 5.8}vw, ${length > 16 ? 28 : length > 12 ? 34 : length > 9 ? 42 : 56}px)`;
-}
-
-// Card preview only — the full body always reads in the article modal. Breaks on a
-// word boundary so it never cuts mid-word.
-function snippet(body: string | null | undefined, maxLen = 160): string {
-  const text = (body ?? "").trim();
-  if (text.length <= maxLen) return text;
-  const cut = text.slice(0, maxLen);
-  const lastSpace = cut.lastIndexOf(" ");
-  return `${cut.slice(0, lastSpace > 40 ? lastSpace : maxLen)}…`;
-}
-
-function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
-  return <div className="hub-image-lightbox" onClick={onClose}>
-    <button type="button" className="hub-image-lightbox-close" onClick={onClose} aria-label="Close image"><X size={22} /></button>
-    <img src={src} alt="" onClick={(event) => event.stopPropagation()} />
-  </div>;
 }
 
 function gameLabel(game: string | null | undefined) {
@@ -452,7 +404,7 @@ function ScheduleWeekList({
     })}
   </div>;
 }
-export function HubHome() {
+export function HubHome({ showGameDayNav = true, showTeamNav = true }: { showGameDayNav?: boolean; showTeamNav?: boolean } = {}) {
   const auth = useAuth();
   const hubChrome = useHubChrome();
   const isMobile = useIsMobile();
@@ -479,7 +431,7 @@ export function HubHome() {
   const [error, setError] = useState<string | null>(null);
   const [setupAccess, setSetupAccess] = useState<{ leagueExists: boolean; canSetup: boolean } | null>(null);
   const [section, setSection] = useState<HubSection>(() => parseHubSection(searchParams.get("section")) ?? "league");
-  const [subTab, setSubTab] = useState<LeagueSubTab>(() => parseLeagueSubTab(searchParams.get("subTab")) ?? "buzz");
+  const [subTab, setSubTab] = useState<LeagueSubTab>(() => parseLeagueSubTab(searchParams.get("subTab")) ?? "matchups");
   const [matchupWeek, setMatchupWeek] = useState<number | null>(null);
   const [matchupSeason, setMatchupSeason] = useState<number | null>(null);
   const [matchupSchedule, setMatchupSchedule] = useState<HubMatchupSchedule | null>(null);
@@ -497,11 +449,6 @@ export function HubHome() {
     const raw = searchParams.get("view");
     if (raw === "gotw" || raw === "schedule" || raw === "myschedule") return raw;
     return "mine";
-  })();
-  const homeMediaView = (() => {
-    const raw = searchParams.get("view");
-    if (raw === "social" || raw === "highlights" || raw === "press") return raw;
-    return null;
   })();
   // CFB support has been removed; this is permanently false now, left as a variable (rather
   // than hand-editing every conditional below) so every existing isCfbLeague branch still
@@ -527,25 +474,8 @@ export function HubHome() {
     return [...groups.entries()].sort(([a], [b]) => conferenceSortKey(a) - conferenceSortKey(b) || a.localeCompare(b));
   }, [hub?.powerRankings]);
   const [wagerPanel, setWagerPanel] = useState<WagerPanel | null>(null);
-  const [wagersBoard, setWagersBoard] = useState<PeerWagerBoardResponse["wagers"] | null>(null);
-  const [weekWagerLines] = useState<WeekWagerLinesResponse["lines"] | null>(null);
-  const [myWagers, setMyWagers] = useState<MyWagersResponse["wagers"] | null>(null);
-  const [wagersBoardBusy, setWagersBoardBusy] = useState(false);
-  const [wagersBoardNotice, setWagersBoardNotice] = useState<string | null>(null);
-  const [wagerBoardIndex, setWagerBoardIndex] = useState(0);
-  const [announcementWeekIndex, setAnnouncementWeekIndex] = useState(0);
   const [heroPreview, setHeroPreview] = useState<MatchupPreviewData | null>(null);
   const [heroBreakdownExpanded, setHeroBreakdownExpanded] = useState(false);
-  const [manageFundsOpen, setManageFundsOpen] = useState(false);
-  const [snapshotFundsKind, setSnapshotFundsKind] = useState<"wallet" | "savings" | null>(null);
-  const [announcementItemIndex, setAnnouncementItemIndex] = useState(0);
-  const [conferenceIndex, setConferenceIndex] = useState(0);
-  const [mediaDay, setMediaDay] = useState<NonRtiMediaDayResponse | null>(null);
-  const [mediaDayDrafts, setMediaDayDrafts] = useState<Record<number, string>>({});
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const [mediaDayOpen, setMediaDayOpen] = useState(false);
-  const [mediaNotice, setMediaNotice] = useState<string | null>(null);
-  const [mediaBusy, setMediaBusy] = useState(false);
   const [shareStreamGame, setShareStreamGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [highlightUploadGame, setHighlightUploadGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [requestHelpGame, setRequestHelpGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
@@ -585,8 +515,7 @@ export function HubHome() {
   useEffect(() => {
     const requested = searchParams.get("openModal");
     if (!requested) return;
-    if ((requested === "interview" || requested === "media-day" || requested === "article") && hub?.league.rosterType !== "rise_to_immortality") setMediaDayOpen(true);
-    else if (requested === "schedule" && (hub?.league.rosterType !== "rise_to_immortality" || hub?.league.riseHubUnlocked === true)) void viewMySchedule();
+    if (requested === "schedule" && (hub?.league.rosterType !== "rise_to_immortality" || hub?.league.riseHubUnlocked === true)) void viewMySchedule();
     else if (requested === "financials") setFinancialModalOpen(true);
     else if (requested === "wager" && hub?.league.rosterType !== "rise_to_immortality") openSportsbook();
     else if (requested === "retire") { setRetireError(null); setRetireNickname(""); setRetireStep(1); setRetireModalOpen(true); }
@@ -598,15 +527,6 @@ export function HubHome() {
   const [careerStatsModalOpen, setCareerStatsModalOpen] = useState(false);
   const [divisionModalOpen, setDivisionModalOpen] = useState(false);
   const [gotwGuessing, setGotwGuessing] = useState<GotwGuessingRecordsResponse | null>(null);
-  const [highlightIndex, setHighlightIndex] = useState(0);
-  const [potyHighlightId, setPotyHighlightId] = useState<string | null>(null);
-  const [potyCategory, setPotyCategory] = useState<HubReactionKey | "">("");
-  const [headlineWeekIndex, setHeadlineWeekIndex] = useState(0);
-  const [headlineItemIndex, setHeadlineItemIndex] = useState(0);
-  const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
-  const [comments, setComments] = useState<StoryComment[] | null>(null);
-  const [commentBody, setCommentBody] = useState("");
-  const [deadHighlightIds, setDeadHighlightIds] = useState<string[]>([]);
   const [purchaseType, setPurchaseType] = useState("");
   const [purchaseDetails, setPurchaseDetails] = useState<Record<string, string>>({});
   const [devUpgradePlayer, setDevUpgradePlayer] = useState<RosterPlayer | null>(null);
@@ -619,39 +539,6 @@ export function HubHome() {
   const [storeContext, setStoreContext] = useState<StorePurchaseContext | null>(null);
   const [openTeams, setOpenTeams] = useState<OpenTeam[] | null>(null);
   const [openTeamsError, setOpenTeamsError] = useState<string | null>(null);
-  const viewedHighlights = useRef(new Set<string>());
-
-  const highlightCount = (hub?.highlights ?? []).filter((item) => !deadHighlightIds.includes(item.id)).length;
-  const activeHighlightIndex = highlightCount ? highlightIndex % highlightCount : 0;
-  const highlightSwipe = useSwipeNavigation({ itemCount: highlightCount, onIndexChange: setHighlightIndex });
-  useEffect(() => { highlightSwipe.setCurrentIndex(activeHighlightIndex); }, [activeHighlightIndex]);
-  useEffect(() => { setDeadHighlightIds([]); setHighlightIndex(0); }, [hub?.league?.id]);
-  // Advance highlight reel only when Cloudflare reports the clip ended — no wall-clock fallback
-  // (a 90s timer was cutting longer clips short).
-  useEffect(() => {
-    if (subTab !== "buzz" || highlightCount <= 1) return;
-    function onMessage(event: MessageEvent) {
-      const origin = String(event.origin ?? "");
-      if (!origin.includes("videodelivery.net") && !origin.includes("cloudflarestream.com")) return;
-      let data: unknown = event.data;
-      if (typeof data === "string") {
-        try {
-          data = JSON.parse(data);
-        } catch {
-          if (data === "ended") setHighlightIndex((current) => (current + 1) % highlightCount);
-          return;
-        }
-      }
-      const payload = data as { name?: string; eventName?: string; type?: string; event?: string } | null;
-      const name = payload?.name ?? payload?.eventName ?? payload?.type ?? payload?.event;
-      if (name === "ended" || name === "complete") {
-        setHighlightIndex((current) => (current + 1) % highlightCount);
-      }
-    }
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, [subTab, highlightCount]);
-
   useEffect(() => {
     const nextSection = parseHubSection(searchParams.get("section"));
     const rawSub = searchParams.get("subTab");
@@ -693,113 +580,10 @@ export function HubHome() {
     const params = new URLSearchParams();
     params.set("section", nextSection);
     if (nextSection === "league") {
-      params.set("subTab", nextSubTab ?? "buzz");
+      params.set("subTab", nextSubTab ?? "matchups");
     }
     setSearchParams(params, { replace: true });
   }
-
-  useEffect(() => {
-    const count = matchupSchedule?.usersByConference.length ?? 0;
-    if (subTab !== "matchups" || count < 2) return;
-    const timer = window.setInterval(() => setConferenceIndex((current) => (current + 1) % count), 6000);
-    return () => window.clearInterval(timer);
-  }, [subTab, matchupSchedule?.usersByConference.length]);
-
-  useEffect(() => {
-    const count = wagersBoard?.length ?? 0;
-    if (section !== "league" || subTab !== "buzz" || count < 2) return;
-    const timer = window.setInterval(() => setWagerBoardIndex((current) => (current + 1) % count), 6000);
-    return () => window.clearInterval(timer);
-  }, [section, subTab, wagersBoard?.length]);
-
-  // Announcements are grouped by week (newest week first) so the carousel only auto-rotates
-  // within the current week's posts; the arrows page between weeks instead of flattening
-  // the whole season into one long rotation.
-  const announcementWeekGroups = useMemo(() => {
-    const announcements = hub?.announcements ?? [];
-    const byWeek = new Map<number | null, typeof announcements>();
-    for (const item of announcements) {
-      const key = item.week_number ?? null;
-      const group = byWeek.get(key) ?? [];
-      group.push(item);
-      byWeek.set(key, group);
-    }
-    return [...byWeek.entries()]
-      .sort((a, b) => (b[0] ?? -1) - (a[0] ?? -1))
-      .map(([weekNumber, items]) => ({ weekNumber, items }));
-  }, [hub?.announcements]);
-
-  useEffect(() => {
-    if (!announcementWeekGroups.length) return;
-    const currentWeek = hub?.league?.weekNumber;
-    const matchIndex = announcementWeekGroups.findIndex((group) => group.weekNumber === currentWeek);
-    setAnnouncementWeekIndex(matchIndex >= 0 ? matchIndex : 0);
-    setAnnouncementItemIndex(0);
-  }, [announcementWeekGroups, hub?.league?.weekNumber]);
-
-  const activeAnnouncementGroup = announcementWeekGroups[announcementWeekIndex] ?? null;
-
-  // Announcement carousel timer — rotates only within the current/most-recent week's
-  // announcements (index 0); paging back to an older week freezes rotation entirely while
-  // it's being browsed. A week with a single announcement stays static regardless.
-  useEffect(() => {
-    const count = activeAnnouncementGroup?.items.length ?? 0;
-    if (section !== "league" || subTab !== "buzz" || announcementWeekIndex !== 0 || count < 2) return;
-    const timer = window.setInterval(() => setAnnouncementItemIndex((current) => (current + 1) % count), 8000);
-    return () => window.clearInterval(timer);
-  }, [section, subTab, announcementWeekIndex, activeAnnouncementGroup?.items.length]);
-
-  // Headlines are grouped by week (newest week first), mirroring the announcements
-  // carousel: auto-rotation only runs for the current/most-recent week's headlines (fully
-  // paused once the user pages back to browse an older week), and the arrows/swipe page
-  // between weeks instead of flattening the whole season into one long rotation.
-  const headlineWeekGroups = useMemo(() => {
-    const stories = hub?.headlines ?? [];
-    const byWeek = new Map<number | null, Array<{ story: (typeof stories)[number]; flatIndex: number }>>();
-    stories.forEach((story, flatIndex) => {
-      const key = story.week ?? null;
-      const group = byWeek.get(key) ?? [];
-      group.push({ story, flatIndex });
-      byWeek.set(key, group);
-    });
-    // Sort by each group's most recent story rather than by week number — offseason stories
-    // (week === null, e.g. EOS awards, recruiting/portal recaps) are otherwise stuck sorting
-    // after every real week even when they're the newest thing published.
-    return [...byWeek.entries()]
-      .map(([week, items]) => ({
-        week,
-        items,
-        latestCreatedAt: items.reduce((latest, item) => Math.max(latest, new Date(item.story.created_at).getTime()), 0),
-      }))
-      .sort((a, b) => b.latestCreatedAt - a.latestCreatedAt)
-      .map(({ week, items }) => ({ week, items }));
-  }, [hub?.headlines]);
-
-  useEffect(() => {
-    if (!headlineWeekGroups.length) return;
-    const currentWeek = hub?.league?.weekNumber;
-    const matchIndex = headlineWeekGroups.findIndex((group) => group.week === currentWeek);
-    setHeadlineWeekIndex(matchIndex >= 0 ? matchIndex : 0);
-    setHeadlineItemIndex(0);
-  }, [headlineWeekGroups, hub?.league?.weekNumber]);
-
-  const activeHeadlineGroup = headlineWeekGroups[headlineWeekIndex] ?? null;
-  const headlineWeekCount = headlineWeekGroups.length;
-
-  const mobileStorySwipe = useSwipeNavigation({
-    itemCount: headlineWeekCount,
-    onIndexChange: (index) => { setHeadlineWeekIndex(index); setHeadlineItemIndex(0); },
-  });
-  useEffect(() => { mobileStorySwipe.setCurrentIndex(headlineWeekIndex); }, [headlineWeekIndex]);
-
-  useEffect(() => {
-    const count = activeHeadlineGroup?.items.length ?? 0;
-    if (subTab !== "buzz" || headlineWeekIndex !== 0 || count < 2 || mobileStorySwipe.isDragging) return;
-    const timer = window.setInterval(() => {
-      setHeadlineItemIndex((current) => (current + 1) % count);
-    }, 24_000);
-    return () => window.clearInterval(timer);
-  }, [subTab, headlineWeekIndex, activeHeadlineGroup?.items.length, mobileStorySwipe.isDragging]);
 
   const heroCurrentGameId: string | null = (hub?.myTeam?.display as any)?.currentGameId
     ?? matchupSchedule?.games.find((game) => game.involvesMe)?.gameId
@@ -879,144 +663,6 @@ export function HubHome() {
     }
   }, [gameDayView, hub?.league.seasonStage, hub?.league.game]);
 
-  useEffect(() => {
-    if (auth.status !== "ready") return;
-    // Buzz shows the wager board too — keep it loaded for both surfaces.
-    if (!(section === "league" && subTab === "buzz")) return;
-    const guildId = auth.guildId;
-    const refresh = () => {
-      recApi.getPeerWagerBoard(guildId).then((result) => setWagersBoard(result.wagers)).catch(() => undefined);
-    };
-    refresh();
-    // A counterparty accepting/declining a wager is a change made by someone else's
-    // session — poll while this surface is visible so it doesn't require a hard reload
-    // to reflect that (there's no realtime channel for wagers yet).
-    const interval = window.setInterval(() => { if (document.visibilityState === "visible") refresh(); }, 20000);
-    const onFocus = () => refresh();
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
-    };
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, section, subTab]);
-
-  useEffect(() => {
-    const rise = hub?.league.rosterType === "rise_to_immortality";
-    if (auth.status !== "ready" || rise || !mediaDayOpen || mediaDay) return;
-    recApi.getNonRtiMediaDay(auth.guildId).then(setMediaDay).catch(() => setMediaDay(null));
-  }, [auth.status, auth.status === "ready" ? auth.guildId : null, hub?.league.rosterType, mediaDayOpen, mediaDay]);
-
-  // Comments load once per story open — keyed on the index, not on `hub`, so an optimistic
-  // reaction/comment update elsewhere doesn't re-trigger a comment refetch.
-  useEffect(() => {
-    if (activeStoryIndex == null || auth.status !== "ready" || !hub) return;
-    const story = (hub.headlines ?? [])[activeStoryIndex];
-    if (!story) return;
-    setComments(null);
-    recApi.listHubStoryComments({ guildId: auth.guildId, storyId: story.id }).then((result) => setComments(result.comments));
-  }, [activeStoryIndex]);
-
-  async function highlightReact(highlightId: string, reactionKey: HubReactionKey) {
-    if (auth.status !== "ready") return;
-    const mutuallyExclusive = COMMUNITY_REACTION_KEYS.includes(reactionKey) ? COMMUNITY_REACTION_KEYS : AWARD_KEYS;
-    setHub((current) => current ? { ...current, highlights: (current.highlights ?? []).map((highlight) => {
-      if (highlight.id !== highlightId) return highlight;
-      const has = (highlight.myReactions ?? []).includes(reactionKey);
-      const counts = { ...highlight.reactionCounts };
-      let nextReactions = highlight.myReactions;
-      if (has) {
-        counts[reactionKey] = Math.max(0, counts[reactionKey] - 1);
-        nextReactions = (highlight.myReactions ?? []).filter((key) => key !== reactionKey);
-      } else {
-        for (const key of mutuallyExclusive) if (key !== reactionKey && (highlight.myReactions ?? []).includes(key as HubReactionKey)) counts[key as HubReactionKey] = Math.max(0, counts[key as HubReactionKey] - 1);
-        counts[reactionKey] = (counts[reactionKey] ?? 0) + 1;
-        nextReactions = [...(highlight.myReactions ?? []).filter((key) => !mutuallyExclusive.includes(key)), reactionKey];
-      }
-      return { ...highlight, myReactions: nextReactions, reactionCounts: counts };
-    }) } : current);
-    try { await recApi.toggleHubHighlightReaction({ guildId: auth.guildId, highlightId, reactionKey }); }
-    catch { await load(); }
-  }
-  async function storyReact(storyId: string, reactionKey: "like" | "dislike") {
-    if (auth.status !== "ready") return;
-    setHub((current) => current ? { ...current, headlines: (current.headlines ?? []).map((story) => {
-      if (story.id !== storyId) return story;
-      const counts = { ...story.reactionCounts };
-      const isSame = story.myReaction === reactionKey;
-      if (story.myReaction) counts[story.myReaction] = Math.max(0, counts[story.myReaction] - 1);
-      if (!isSame) counts[reactionKey] = (counts[reactionKey] ?? 0) + 1;
-      return { ...story, myReaction: isSame ? null : reactionKey, reactionCounts: counts };
-    }) } : current);
-    try { await recApi.toggleHubStoryReaction({ guildId: auth.guildId, storyId, reactionKey }); }
-    catch { await load(); }
-  }
-  async function gameReact(gameId: string, reactionKey: "like" | "dislike") {
-    if (auth.status !== "ready") return;
-    setHub((current) => current ? { ...current, matchups: { ...current.matchups, games: current.matchups.games.map((game: any) => {
-      if (game.gameId !== gameId) return game;
-      const counts = { ...game.reactionCounts };
-      const isSame = game.myReaction === reactionKey;
-      if (game.myReaction) counts[game.myReaction] = Math.max(0, counts[game.myReaction] - 1);
-      if (!isSame) counts[reactionKey] = (counts[reactionKey] ?? 0) + 1;
-      return { ...game, myReaction: isSame ? null : reactionKey, reactionCounts: counts };
-    }) } } : current);
-    try { await recApi.toggleHubGameReaction({ guildId: auth.guildId, gameId, reactionKey }); }
-    catch { await load(); }
-  }
-  async function matchupGameReact(gameId: string, reactionKey: "love" | "like" | "goty" | "dislike" | "poop") {
-    if (auth.status !== "ready") return;
-    setMatchupSchedule((current) => current ? { ...current, games: current.games.map((game) => {
-      if (game.gameId !== gameId) return game;
-      const counts = { ...game.reactionCounts };
-      const isSame = (game.myReactions ?? []).includes(reactionKey);
-      if (isSame) {
-        counts[reactionKey] = Math.max(0, counts[reactionKey] - 1);
-        return { ...game, myReactions: (game.myReactions ?? []).filter((key) => key !== reactionKey), reactionCounts: counts };
-      }
-      let nextReactions = [...(game.myReactions ?? [])];
-      if (reactionKey !== "goty") {
-        for (const key of ["love", "like", "dislike", "poop"] as const) {
-          if (nextReactions.includes(key)) counts[key] = Math.max(0, counts[key] - 1);
-        }
-        nextReactions = nextReactions.filter((key) => key === "goty");
-      }
-      counts[reactionKey] = (counts[reactionKey] ?? 0) + 1;
-      return { ...game, myReactions: [...nextReactions, reactionKey], reactionCounts: counts };
-    }) } : current);
-    try { await recApi.toggleHubGameReaction({ guildId: auth.guildId, gameId, reactionKey }); }
-    catch { if (matchupSchedule) setMatchupSchedule(await recApi.getHubMatchupSchedule({ guildId: auth.guildId, weekNumber: matchupSchedule.selectedWeek })); }
-  }
-  async function recordView(highlightId: string) {
-    if (auth.status !== "ready" || viewedHighlights.current.has(highlightId)) return;
-    viewedHighlights.current.add(highlightId);
-    try {
-      const result = await recApi.recordHubHighlightView({ guildId: auth.guildId, highlightId });
-      setHub((current) => current ? { ...current, highlights: (current.highlights ?? []).map((highlight) => highlight.id === highlightId ? { ...highlight, viewCount: result.viewCount } : highlight) } : current);
-    } catch { viewedHighlights.current.delete(highlightId); }
-  }
-
-  async function recordStreamClick(streamLogId: string) {
-    if (auth.status !== "ready") return;
-    try {
-      const result = await recApi.recordHubStreamView({ guildId: auth.guildId, streamLogId });
-      setHub((current) => current ? {
-        ...current,
-        liveStreams: current.liveStreams.map((stream) => stream.id === streamLogId ? { ...stream, viewCount: result.viewCount } : stream),
-      } : current);
-      setMatchupSchedule((current) => current ? {
-        ...current,
-        games: current.games.map((game) => ({
-          ...game,
-          streams: game.streams.map((stream) => stream.streamLogId === streamLogId ? { ...stream, viewCount: result.viewCount } : stream),
-        })),
-      } : current);
-    } catch {}
-  }
-
-  function openStory(index: number) { setActiveStoryIndex(index); }
-  function closeStory() { setActiveStoryIndex(null); setComments(null); }
   function retryMatchups() {
     setMatchupSchedule(null);
     setMatchupScheduleError(null);
@@ -1033,23 +679,6 @@ export function HubHome() {
     }
     if (matchupScheduleLoading || !matchupSchedule) return <GameDayEmpty title={label} />;
     return null;
-  }
-  async function submitComment() {
-    if (auth.status !== "ready" || activeStoryIndex == null || !hub) return;
-    const story = (hub.headlines ?? [])[activeStoryIndex];
-    const body = commentBody.trim();
-    if (!story || !body) return;
-    const tempId = `temp-${Date.now()}`;
-    setComments((current) => [...(current ?? []), { id: tempId, body, authorName: "You", created_at: new Date().toISOString() }]);
-    setCommentBody("");
-    try {
-      const result = await recApi.addHubStoryComment({ guildId: auth.guildId, storyId: story.id, body });
-      setComments(result.comments);
-      setHub((current) => current ? { ...current, headlines: (current.headlines ?? []).map((item) => item.id === story.id ? { ...item, commentCount: item.commentCount + 1 } : item) } : current);
-    } catch {
-      setComments((current) => (current ?? []).filter((comment) => comment.id !== tempId));
-      setCommentBody(body);
-    }
   }
   async function loadStoreContext(force = false) {
     if (auth.status !== "ready") return;
@@ -1144,21 +773,6 @@ export function HubHome() {
   }
 
 
-  async function submitMediaDaySlot(slot: number) {
-    if (auth.status !== "ready") return;
-    const answer = (mediaDayDrafts[slot] ?? "").trim();
-    if (!answer) return;
-    setMediaBusy(true); setMediaNotice(null);
-    try {
-      await recApi.submitNonRtiMediaDayAnswer({ guildId: auth.guildId, slot, answer });
-      setMediaDayDrafts((current) => { const next = { ...current }; delete next[slot]; return next; });
-      setMediaDay(null);
-      setMediaNotice("Media Day answer submitted.");
-      void load();
-    } catch (cause) { setMediaNotice(cause instanceof Error ? cause.message : "Media Day submission failed."); }
-    finally { setMediaBusy(false); }
-  }
-
   async function voteGotw(pollId: string, selectedTeamId: string) {
     if (auth.status !== "ready" || !matchupSchedule) return;
     await recApi.voteGameOfWeek({ guildId: auth.guildId, pollId, selectedTeamId });
@@ -1236,36 +850,6 @@ export function HubHome() {
     }
   }
 
-  async function acceptFromWagersBoard(wagerId: string) {
-    if (auth.status !== "ready") return;
-    setWagersBoardBusy(true); setWagersBoardNotice(null);
-    try {
-      await recApi.acceptPeerWager({ guildId: auth.guildId, wagerId });
-      const board = await recApi.getPeerWagerBoard(auth.guildId);
-      setWagersBoard(board.wagers);
-      recApi.getMyWagers(auth.guildId).then((result) => setMyWagers(result.wagers)).catch(() => undefined);
-      setWagersBoardNotice("Peer wager accepted.");
-      await load();
-    } catch (cause) {
-      setWagersBoardNotice(cause instanceof Error ? cause.message : "Could not accept wager.");
-    } finally {
-      setWagersBoardBusy(false);
-    }
-  }
-
-  async function removeWager(wagerId: string) {
-    if (auth.status !== "ready") return;
-    if (!window.confirm("Cancel this wager? Your held stake will be refunded.")) return;
-    setWagersBoardBusy(true);
-    try {
-      await recApi.cancelMyWager({ guildId: auth.guildId, wagerId });
-      setWagersBoard((current) => (current ?? []).filter((wager) => wager.id !== wagerId));
-      setMyWagers((current) => (current ?? []).filter((wager) => wager.id !== wagerId));
-      setWagersBoardNotice("Wager removed and the held stake was refunded.");
-    } catch (cause) { setWagersBoardNotice(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setWagersBoardBusy(false); }
-  }
-
   if (error) return <div className="hub-state"><h1>League Hub</h1><p>{error}</p><button className="btn btn-primary" onClick={() => void load()}>Try again</button></div>;
   if (setupAccess && !setupAccess.leagueExists) return <div className="hub-state">
     <h1>Welcome to REC League</h1>
@@ -1287,8 +871,6 @@ export function HubHome() {
   const isRise = hub.league.rosterType === "rise_to_immortality";
   const riseHubUnlocked = !isRise || hub.league.riseHubUnlocked === true;
   const rtiGates = hub.league.rtiGates ?? null;
-  const headlines = hub.headlines ?? [];
-  const highlights = (hub.highlights ?? []).filter((item) => !deadHighlightIds.includes(item.id));
   const my = hub.myTeam?.display ?? {};
   const profile = hub.myTeam?.profile ?? {};
   const heroRank = profile.powerRank?.rank ? `#${profile.powerRank.rank}` : "Unranked";
@@ -1324,15 +906,6 @@ export function HubHome() {
   // show per-player progress separately via rtiGates.playerSnapshots.
   const playerXpProgress = Math.max(0, Math.min(100, Number(my.progressionSummary?.playerXpProgressPct ?? 0)));
   const recentForm = (my.recentForm ?? []) as Array<{ result: "W" | "L" | "T"; opponentName: string; opponentAbbr: string | null; opponentLogoUrl: string | null }>;
-  const activeHighlight = highlights[activeHighlightIndex] ?? null;
-  const highlightOwnerId = (activeHighlight as { user_id?: string | null; userId?: string | null } | null)?.user_id
-    ?? (activeHighlight as { userId?: string | null } | null)?.userId
-    ?? null;
-  const potyOwnHighlight =
-    Boolean(highlightOwnerId) &&
-    Boolean(hub.userRatings?.viewerUserId) &&
-    String(highlightOwnerId) === String(hub.userRatings?.viewerUserId);
-  const activeStory = activeStoryIndex != null ? headlines[activeStoryIndex] ?? null : null;
   const openTeamsByConference = (openTeams ?? []).reduce<Record<string, OpenTeam[]>>((groups, team) => {
     const conference = team.conference || "Other";
         (groups[conference] ??= []).push(team);
@@ -1344,7 +917,7 @@ export function HubHome() {
   return <div className="hub-page" data-bg={isRise ? "rise" : isCfbLeague ? "cfb" : "madden"}>
     <div className="hub-body">
       <main className="hub-content">
-    {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team"><TeamMiniNav active="team" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /><div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{coachName}</p></div></div>
+    {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team">{showTeamNav ? <TeamMiniNav active="team" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /> : null}<div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{coachName}</p></div></div>
       <MyTeamRecordRow my={my} profile={profile} />
       {/* Body intentionally cleared for a redesign -- was MaddenMyTeamGrid (stat grid + quick
           action cards) on the live (non-CFB) path, CFB-only dead code before that. TeamMiniNav,
@@ -1388,252 +961,10 @@ export function HubHome() {
           <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
         )}
       </Modal>}
-      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireNickname(""); setRetireStep(1); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" ? <section className="hub-section hub-store"><TeamMiniNav active="store" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /></section> : section === "roster" ? <><TeamMiniNav active="roster" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} />{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<Suspense fallback={<HubSurfaceFallback />}><RosterHome /></Suspense></> : section === "trades" ? <><TeamMiniNav active="trades" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} />{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<Suspense fallback={<HubSurfaceFallback />}><TradeCenterHome /></Suspense></> : <div className="hub-league-tab">
-      {(subTab === "buzz" || subTab === "news") && <>
-        {subTab === "buzz" && <>
-        {homeMediaView ? <MediaMiniNav active={homeMediaView} leagueId={hub.league.id} /> : null}
-        <div className="hub-buzz-top">
-          <section className="hub-hero hub-hero-rebuilt">
-            <section className="hub-season-snapshot">
-              <div className="hub-season-snapshot-box">
-              <div className="hub-season-snapshot-grid" aria-label="Season snapshot">
-                {isRise ? <article><span>Matchup</span><strong className="hub-season-snapshot-opponent">{heroOpponent ? <TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /> : "—"}</strong></article>
-                  : <Link to={`/l/${hub.league.id}/matchups`} aria-label="Open my game day matchup"><span>Matchup</span><strong className="hub-season-snapshot-opponent">{heroOpponent ? heroMatchup?.viewerSide === "home" ? <><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /><em>AT</em><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /></> : <><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /><em>AT</em><TeamLogo abbreviation={heroOpponent.abbreviation} logoUrl={heroOpponent.logoUrl} alt={heroOpponent.name} /></> : <><TeamLogo abbreviation={my.teamAbbr} logoUrl={my.teamLogoUrl} alt={heroTeam} /><em>—</em></>}</strong></Link>}
-                {isRise ? <article><span>Record</span><strong>{heroSeasonRecord}</strong></article> : <Link to={`/l/${hub.league.id}/standings`}><span>Record</span><strong>{heroSeasonRecord}</strong></Link>}
-                {isRise ? <article><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></article> : <button type="button" onClick={() => setSnapshotFundsKind("wallet")}><span>Wallet</span><strong><CoinAmount amount={Number(my.wallet ?? 0)} /></strong></button>}
-                {isRise ? <article><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></article> : <button type="button" onClick={() => setSnapshotFundsKind("savings")}><span>Savings</span><strong><CoinAmount amount={Number(my.savings ?? 0)} /></strong></button>}
-              </div>
-              {!isRise ? <div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="Team progression snapshot">
-                <Link to={`/l/${hub.league.id}/standings?view=power`}><span>Power ranking</span><strong>{heroRank}</strong></Link>
-                <Link className="hub-season-form-card" to={`/l/${hub.league.id}/matchups?view=myschedule`}><span>Recent form · Streak</span><strong>{recentForm.length ? [...recentForm].reverse().map((game, index) => <span className={`hub-season-form-game is-${game.result.toLowerCase()}`} key={`${game.opponentName}-${index}`} title={`${game.result} vs ${game.opponentName}`}><TeamLogo abbreviation={game.opponentAbbr} logoUrl={game.opponentLogoUrl} alt={game.opponentName} /><b>{game.result}</b></span>) : <small>—</small>}<em>{my.userStreakText ?? "—"}</em></strong></Link>
-                <Link className="hub-season-team-xp" to={`/l/${hub.league.id}/player-progression`}><span>Player XP</span><strong>{playerXpTotal.toLocaleString()}</strong><div className="hub-season-team-xp-track" aria-label={`${playerXpTotal} Player XP`}><i style={{ width: `${playerXpProgress}%` }} /></div></Link>
-                <Link className="hub-season-team-xp" to={`/l/${hub.league.id}/owner-progression`}><span>Team XP</span><strong>{teamXpTotal.toLocaleString()} <Shield size={17} aria-label="Steel shield" /></strong><div className="hub-season-team-xp-track" aria-label={`${teamXpTotal} Team XP toward steel shield`}><i style={{ width: `${teamXpProgress}%` }} /></div></Link>
-              </div> : null}
-              </div>
-              {isRise && rtiGates?.playerSnapshots?.length ? (() => {
-                const bannerTeam = rtiGates.playerSnapshots.find((player) => player.teamLogoUrl) ?? rtiGates.playerSnapshots[0];
-                return bannerTeam.teamName ? (
-                  <div className="hub-rti-team-banner">
-                    {bannerTeam.teamLogoUrl ? <img src={bannerTeam.teamLogoUrl} alt="" /> : null}
-                    <strong>{bannerTeam.teamName}</strong>
-                  </div>
-                ) : null;
-              })() : null}
-              {isRise && rtiGates?.playerSnapshots?.length ? <div className={`hub-rti-player-snapshot-grid${rtiGates.owner ? " has-owner" : ""}`}>
-                {rtiGates.playerSnapshots.map((player, index) => <Fragment key={player.playerId}>
-                  <article className="hub-rti-player-snapshot-card">
-                    <HeadshotUploadOverlay disabled={!readyGuildId} onUpload={async (resized) => {
-                      if (!readyGuildId) return;
-                      await recApi.uploadImmortalityProspectHeadshot({ guildId: readyGuildId, side: player.side === "defense" ? "defense" : "offense", ...resized });
-                      await load();
-                    }}>
-                      <div className="hub-rti-player-portrait">
-                        {player.headshotUrl ? <img src={player.headshotUrl} alt={`${player.playerName} headshot`} /> : <span>{player.playerName.slice(0, 1)}</span>}
-                        {player.teamLogoUrl ? <img className="hub-rti-player-team-logo" src={player.teamLogoUrl} alt="" /> : null}
-                      </div>
-                    </HeadshotUploadOverlay>
-                    <div className="hub-rti-player-copy">
-                      <p>{player.teamAbbr ?? player.teamName} · {player.position ?? "Player"}</p>
-                      <h3>{player.playerName}</h3>
-                      <div className="hub-rti-player-rank"><strong>{player.positionRank ? `#${player.positionRank}` : "—"}</strong><span>{player.position ?? "POS"} league rank{player.positionCount ? ` · ${player.positionCount} ranked` : ""}</span></div>
-                      <ul>{player.seasonLines.map((line, lineIndex) => <li key={`${player.playerId}-${lineIndex}`}>{line}</li>)}</ul>
-                    </div>
-                  </article>
-                  {index === 0 && rtiGates.owner ? <article className="hub-rti-player-snapshot-card hub-rti-owner-snapshot-card">
-                    <HeadshotUploadOverlay disabled={!readyGuildId} onUpload={async (resized) => {
-                      if (!readyGuildId) return;
-                      await recApi.uploadImmortalityOwnerHeadshot({ guildId: readyGuildId, ...resized });
-                      await load();
-                    }}>
-                      <div className="hub-rti-player-portrait">
-                        {rtiGates.owner.headshotUrl ? <img src={rtiGates.owner.headshotUrl} alt={`${rtiGates.owner.name} headshot`} /> : <span>{rtiGates.owner.name.slice(0, 1)}</span>}
-                      </div>
-                    </HeadshotUploadOverlay>
-                    <div className="hub-rti-player-copy">
-                      <p>Owner</p>
-                      <h3>{rtiGates.owner.name}</h3>
-                    </div>
-                  </article> : null}
-                </Fragment>)}
-              </div> : null}
-              {isRise && rtiGates?.playerSnapshots?.length ? <div className="hub-rti-hof-progress-grid">
-                {rtiGates.playerSnapshots.map((player) => <article key={`hof-${player.playerId}`}>
-                  <div className="hub-rti-progress-row"><span>Player XP Progress</span><strong>{player.playerXpTotal.toLocaleString("en-US")} XP · {player.xpProgressPct.toFixed(1)}%</strong></div>
-                  <p>{player.playerName} · {player.position} · to next Player XP point</p>
-                  <div className="hub-rti-xp-meter" role="progressbar" aria-label={`${player.playerName} progress to next Player XP point`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={player.xpProgressPct}><i style={{ width: `${player.xpProgressPct}%` }} /></div>
-                  <div className="hub-rti-progress-row"><span>{player.side === "offense" ? "Offensive" : "Defensive"} HOF Progress</span><strong>{player.hofProgress.toFixed(1)}%</strong></div>
-                  <p>{player.playerName} · {player.position}</p>
-                  <div className="hub-rti-hof-meter" role="progressbar" aria-label={`${player.playerName} Hall of Fame progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={player.hofProgress}><i style={{ width: `${player.hofProgress}%` }} /></div>
-                </article>)}
-              </div> : null}
-            </section>
-
-            {isRise && auth.status === "ready" ? (
-              <Suspense fallback={<HubSurfaceFallback />}>
-                <RiseOverviewMediaDayCard guildId={auth.guildId} seasonStage={hub.league.seasonStage} game={hub.league.game as LeagueGame} />
-              </Suspense>
-            ) : null}
-
-          </section>
-        </div>
-
-        {manageFundsOpen && auth.status === "ready" && <ManageFundsModal guildId={auth.guildId} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} onClose={() => setManageFundsOpen(false)} />}
-        {snapshotFundsKind && auth.status === "ready" && <SnapshotFundsModal kind={snapshotFundsKind} guildId={auth.guildId} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} onClose={() => setSnapshotFundsKind(null)} />}
-
-        {(hub.league.game === "madden_26" || hub.league.game === "madden_27") && (!isRise || riseHubUnlocked) && hub.league.fantasyDraftStatus && hub.league.fantasyDraftStatus !== "not_applicable" && hub.league.fantasyDraftStatus !== "concluded" && readyGuildId && (
-          <Suspense fallback={<HubSurfaceFallback />}>
-            <FantasyDraftCard guildId={readyGuildId} leagueId={hub.league.id} compact />
-          </Suspense>
-        )}
-
-        <LiveGamesCard liveStreams={hub.liveStreams} />
-
-        <EosAwardVotingBlock />
-        <CommissionerPollsVotingBlock />
-        </>}
-        {subTab === "news" && <>
-        <MediaMiniNav active="headlines" leagueId={hub.league.id} />
-        <SectionFrame eyebrow="Around the league" title={hub.league.game?.startsWith("madden") ? "League News" : "Campus Buzz"}>
-          {(() => {
-            const items = activeHeadlineGroup?.items ?? [];
-            const active = items.length ? items[headlineItemIndex % items.length] : null;
-            if (!active) return <p className="hub-empty">Headlines publish here after games or from League Publishing.</p>;
-            const { story, flatIndex } = active;
-            // Offseason-stage stories (end of season recap, transfer portal, etc.) reuse the
-            // last real gameplay week_number for storage continuity (see advance-results
-            // .service.ts) — that's a DB detail, not the story's actual context, so a non-
-            // regular-season story must show its season_stage, not "Week N".
-            const isRegularSeasonStory = !story.season_stage || story.season_stage === "regular_season";
-            const weekLabel = isRegularSeasonStory && activeHeadlineGroup?.week != null
-              ? `Week ${activeHeadlineGroup.week}`
-              : story.season_stage ? displayLabel(story.season_stage) : "League Story";
-            const itemPos = items.length > 1 ? `${(headlineItemIndex % items.length) + 1} of ${items.length}` : null;
-            return isMobile ? (
-              <div className="hub-story-mobile-swipe" style={{ position: "relative" }}>
-                <article
-                  className={(story.story_type === "headline" ? "hub-story-card" : "hub-story-card article") + " swipe-card-surface"}
-                  style={{
-                    transform: mobileStorySwipe.isDragging ? `translateX(${mobileStorySwipe.dragOffsetPx}px)` : undefined,
-                    transition: mobileStorySwipe.isDragging || mobileStorySwipe.reducedMotion ? "none" : "transform var(--duration-standard) var(--ease-standard)",
-                  }}
-                  onPointerDown={mobileStorySwipe.handlers.onPointerDown}
-                  onPointerMove={mobileStorySwipe.handlers.onPointerMove}
-                  onPointerUp={mobileStorySwipe.handlers.onPointerUp}
-                  onPointerCancel={mobileStorySwipe.handlers.onPointerCancel}
-                >
-                  {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
-                  <button type="button" className="hub-story-open" onClick={() => openStory(flatIndex)}><time>{weekLabel}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
-                </article>
-                <p className="hub-story-swipe-hint">
-                  {headlineWeekCount > 1 ? (
-                    <>
-                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineWeekIndex((headlineWeekIndex + 1) % headlineWeekCount)} aria-label="Older week">‹</button>
-                      {` ${weekLabel} `}
-                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineWeekIndex((headlineWeekIndex - 1 + headlineWeekCount) % headlineWeekCount)} aria-label="Newer week">›</button>
-                    </>
-                  ) : weekLabel}
-                  {itemPos ? (
-                    <>
-                      {" · "}
-                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineItemIndex((headlineItemIndex - 1 + items.length) % items.length)} aria-label="Previous article">‹</button>
-                      {` ${itemPos} `}
-                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineItemIndex((headlineItemIndex + 1) % items.length)} aria-label="Next article">›</button>
-                    </>
-                  ) : null}
-                </p>
-              </div>
-            ) : (
-              <div className="hub-story-carousel">
-                {/* The counter below ("N of M") steps through this week's articles, not
-                    weeks — so, to match the Highlight Reel, these big arrows drive
-                    headlineItemIndex (the dimension actually visible/relevant here), not
-                    headlineWeekIndex. Week navigation is the small ‹/› pair in the hint line
-                    below instead (mirrors the Announcements card's week arrows, which this
-                    card never got even though the same headlineWeekIndex/headlineWeekGroups
-                    state already existed to drive them). Week auto-selects to the current week
-                    on load. */}
-                {items.length > 1 ? <button type="button" className="hub-highlight-arrow previous" title="Previous article" onClick={() => setHeadlineItemIndex((headlineItemIndex - 1 + items.length) % items.length)}><ChevronLeft /></button> : null}
-                <article className={story.story_type === "headline" ? "hub-story-card hub-story-feature" : "hub-story-card article hub-story-feature"} key={story.id}>
-                  {story.image_url && <img className="hub-story-image" src={story.image_url} alt="" onClick={(event) => { event.stopPropagation(); setLightboxImage(story.image_url!); }} />}
-                  <button type="button" className="hub-story-open" onClick={() => openStory(flatIndex)}><time>{weekLabel}</time><h3>{story.headline ?? "League Story"}</h3><p>{snippet(story.body)}</p><span className="hub-read-article">{story.story_type !== "headline" ? "Open REC Network Roundtable" : "Read more"}</span></button>
-                </article>
-                {items.length > 1 ? <button type="button" className="hub-highlight-arrow next" title="Next article" onClick={() => setHeadlineItemIndex((headlineItemIndex + 1) % items.length)}><ChevronRight /></button> : null}
-                <p className="hub-story-swipe-hint">
-                  {headlineWeekCount > 1 ? (
-                    <>
-                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineWeekIndex((headlineWeekIndex + 1) % headlineWeekCount)} aria-label="Older week">‹</button>
-                      {` ${weekLabel} `}
-                      <button type="button" className="hub-story-item-nav" onClick={() => setHeadlineWeekIndex((headlineWeekIndex - 1 + headlineWeekCount) % headlineWeekCount)} aria-label="Newer week">›</button>
-                    </>
-                  ) : weekLabel}
-                  {itemPos ? ` · Showing ${itemPos}` : null}
-                </p>
-              </div>
-            );
-          })()}
-        </SectionFrame>
-        <SectionFrame
-          eyebrow={isRise ? "REC Network Clips" : "Community clips"}
-          title={`Weekly Recap - Season ${hub.league.seasonNumber}`}
-          className="hub-highlight-section"
-        >
-          {activeHighlight ? <div className="hub-highlight-carousel">
-            {highlightCount > 1 && <button className="hub-highlight-arrow previous" aria-label="Previous highlight" title="Previous highlight" onClick={() => setHighlightIndex((activeHighlightIndex - 1 + highlightCount) % highlightCount)}><ChevronLeft /></button>}
-            <article
-              className="hub-highlight hub-highlight-embed swipe-card-surface"
-              style={{
-                transform: highlightSwipe.isDragging ? `translateX(${highlightSwipe.dragOffsetPx}px)` : undefined,
-                transition: highlightSwipe.isDragging || highlightSwipe.reducedMotion ? "none" : "transform var(--duration-standard) var(--ease-standard)",
-              }}
-              onPointerDown={highlightSwipe.handlers.onPointerDown}
-              onPointerMove={highlightSwipe.handlers.onPointerMove}
-              onPointerUp={highlightSwipe.handlers.onPointerUp}
-              onPointerCancel={highlightSwipe.handlers.onPointerCancel}
-            >
-              <div className="hub-video-frame">{activeHighlight.iframeUrl || activeHighlight.streamUid ? <iframe key={activeHighlight.id} src={`${activeHighlight.iframeUrl ?? `https://iframe.videodelivery.net/${activeHighlight.streamUid}`}?autoplay=true&muted=true`} title="Highlight" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowFullScreen onLoad={() => void recordView(activeHighlight.id)} /> : activeHighlight.videoUrl ? <video key={activeHighlight.id} src={activeHighlight.videoUrl} controls autoPlay muted playsInline preload="auto" onCanPlay={(event) => { event.currentTarget.muted = true; void event.currentTarget.play().catch(() => undefined); }} onPlay={() => void recordView(activeHighlight.id)} onEnded={() => { if (!highlightSwipe.isDragging && highlightCount > 1) setHighlightIndex((activeHighlightIndex + 1) % highlightCount); }} onError={() => { setDeadHighlightIds((ids) => ids.includes(activeHighlight.id) ? ids : [...ids, activeHighlight.id]); }} /> : <a href={activeHighlight.message_url ?? "#"} target="_blank" rel="noreferrer" onClick={() => void recordView(activeHighlight.id)}><Play size={36} /> Open highlight</a>}</div>
-              <div className="hub-highlight-meta">
-                <div className="hub-highlight-meta-title">
-                  <strong>{activeHighlight.source === "weekly_recap" ? activeHighlight.title : (activeHighlight.matchupLabel ?? activeHighlight.team?.name ?? activeHighlight.user?.username ?? activeHighlight.user?.display_name ?? "REC Highlight")}</strong>
-                  {activeHighlight.source !== "weekly_recap" && <small className="hub-highlight-participants">
-                    {activeHighlight.matchupParticipants
-                      ? `H2H: @${activeHighlight.matchupParticipants.away} VS @${activeHighlight.matchupParticipants.home}`
-                      : `CPU: @${activeHighlight.user?.username ?? activeHighlight.user?.display_name ?? "REC Member"}`}
-                  </small>}
-                </div>
-                <span>{activeHighlightIndex + 1} of {highlightCount}{" \u00B7 "}Season {activeHighlight.season_number}{" \u00B7 "}{activeHighlight.season_stage === "regular_season" ? `Week ${activeHighlight.week_number}` : displayLabel(activeHighlight.season_stage ?? `Week ${activeHighlight.week_number}`)}</span>
-              </div><div className="hub-highlight-views"><Eye size={14} /> {activeHighlight.viewCount} views</div>
-              <div className="hub-highlight-reactions">
-                <button aria-label="Like" className={(activeHighlight.myReactions ?? []).includes("like") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "like")}><ThumbsUp size={18} /><b>Like</b><small>{activeHighlight.reactionCounts?.like || ""}</small></button>
-                <button aria-label="Nominate for Play of the Year" className={`poty${AWARD_KEYS.some((key) => (activeHighlight.myReactions ?? []).includes(key)) ? " active" : ""}`} disabled={potyOwnHighlight} title={potyOwnHighlight ? "You can't nominate your own highlight" : "Nominate for Play of the Year"} onClick={() => { if (potyOwnHighlight) return; setPotyHighlightId(activeHighlight.id); setPotyCategory(AWARD_KEYS.find((key) => (activeHighlight.myReactions ?? []).includes(key)) ?? ""); }}><Award size={18} /><b>POTY</b><small>{AWARD_KEYS.reduce((sum, key) => sum + (activeHighlight.reactionCounts?.[key] ?? 0), 0) || ""}</small></button>
-                <button aria-label="Dislike" className={(activeHighlight.myReactions ?? []).includes("dislike") ? "active" : ""} onClick={() => void highlightReact(activeHighlight.id, "dislike")}><ThumbsDown size={18} /><b>Dislike</b><small>{activeHighlight.reactionCounts?.dislike || ""}</small></button>
-              </div>
-            </article>{highlightCount > 1 && <button className="hub-highlight-arrow next" aria-label="Next highlight" title="Next highlight" onClick={() => setHighlightIndex((activeHighlightIndex + 1) % highlightCount)}><ChevronRight /></button>}</div> : <p className="hub-empty">Upload from a matchup or post in Discord — clips show up here.</p>}
-        </SectionFrame>
-        <SectionFrame eyebrow="Official updates" title="Announcements" className="hub-announce-panel">
-          {activeAnnouncementGroup ? (
-            <div className="hub-announce-carousel">
-              {announcementWeekGroups.length > 1 ? <button type="button" className="hub-highlight-arrow previous" title="Older week" onClick={() => setAnnouncementWeekIndex((announcementWeekIndex + 1) % announcementWeekGroups.length)}><ChevronLeft /></button> : null}
-              {(() => {
-                const items = activeAnnouncementGroup.items;
-                const item = items[announcementItemIndex % items.length];
-                const weekLabel = activeAnnouncementGroup.weekNumber == null ? "" : `Week ${activeAnnouncementGroup.weekNumber} · `;
-                return <article key={item.id}>
-                  <time>{weekLabel}{new Date(item.published_at).toLocaleDateString()}</time>
-                  <h3>{item.title}</h3>
-                  <p className="hub-announcement-body">{item.body}</p>
-                  {items.length > 1 ? <span className="hub-announce-pos">{(announcementItemIndex % items.length) + 1} / {items.length}</span> : null}
-                </article>;
-              })()}
-              {announcementWeekGroups.length > 1 ? <button type="button" className="hub-highlight-arrow next" title="Newer week" onClick={() => setAnnouncementWeekIndex((announcementWeekIndex - 1 + announcementWeekGroups.length) % announcementWeekGroups.length)}><ChevronRight /></button> : null}
-            </div>
-          ) : <p className="hub-empty">League announcements will appear here.</p>}
-        </SectionFrame>
-        </>}
-      </>}
-
+      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireNickname(""); setRetireStep(1); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" ? <section className="hub-section hub-store">{showTeamNav ? <TeamMiniNav active="store" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /> : null}</section> : section === "roster" ? <>{showTeamNav ? <TeamMiniNav active="roster" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /> : null}{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<Suspense fallback={<HubSurfaceFallback />}><RosterHome /></Suspense></> : section === "trades" ? <>{showTeamNav ? <TeamMiniNav active="trades" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /> : null}{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<Suspense fallback={<HubSurfaceFallback />}><TradeCenterHome /></Suspense></> : <div className="hub-league-tab">
       {subTab === "matchups" && (
         <>
-          <GameDayMiniNav active={gameDayView} leagueId={hub.league.id} />
+          {showGameDayNav ? <GameDayMiniNav active={gameDayView} leagueId={hub.league.id} /> : null}
 
           {gameDayView === "mine" ? (
             <SectionFrame eyebrow="This week" title="My Matchup" className="hub-matchup-section">
@@ -1831,26 +1162,6 @@ export function HubHome() {
       </main>
     </div>
 
-    {potyHighlightId && <Modal title="Play of the Year Nomination" onClose={() => { setPotyHighlightId(null); setPotyCategory(""); }}><div className="hub-poty-modal">
-      <p>Select exactly one category. This submission is the only action that counts as a POTY nomination.</p>
-      <div>{AWARD_REACTIONS.map((reaction) => <label key={reaction.key} className={potyCategory === reaction.key ? "active" : ""}><input type="radio" name="poty-category" value={reaction.key} checked={potyCategory === reaction.key} onChange={() => setPotyCategory(reaction.key)} /><span>{reaction.label}</span></label>)}</div>
-      <Button variant="primary" disabled={!potyCategory} onClick={async () => { if (!potyCategory) return; await highlightReact(potyHighlightId, potyCategory); setPotyHighlightId(null); setPotyCategory(""); }}>Submit Nomination</Button>
-    </div></Modal>}
-    {activeStory ? (
-      <ExpandedArticleView
-        stories={headlines}
-        activeIndex={activeStoryIndex ?? 0}
-        onIndexChange={(index) => setActiveStoryIndex(index)}
-        onClose={closeStory}
-        comments={comments}
-        commentBody={commentBody}
-        onCommentBodyChange={setCommentBody}
-        onSubmitComment={() => void submitComment()}
-        onReact={(storyId, key) => void storyReact(storyId, key)}
-        onImageClick={(src) => setLightboxImage(src)}
-      />
-    ) : null}
-    {lightboxImage && <ImageLightbox src={lightboxImage} onClose={() => setLightboxImage(null)} />}
     {shareStreamGame && auth.status === "ready" && <ShareStreamModal guildId={auth.guildId} gameId={shareStreamGame.gameId} onClose={() => setShareStreamGame(null)} onSubmitted={() => { setShareStreamGame(null); setMatchupReloadKey((value) => value + 1); }} />}
     {highlightUploadGame && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={highlightUploadGame.gameId} onClose={() => setHighlightUploadGame(null)} onSubmitted={() => { setHighlightUploadGame(null); setMatchupReloadKey((value) => value + 1); }} />}
     {requestHelpGame && auth.status === "ready" && <RequestHelpSheet matchup={requestHelpGame} guildId={auth.guildId} onClose={() => setRequestHelpGame(null)} onSubmitted={() => setRequestHelpGame(null)} />}
@@ -1902,23 +1213,6 @@ export function HubHome() {
         </> : <div className="hub-peer-board hub-peer-board-tab"><h3>Open Wager Board</h3>{wagerPanel.board.length ? wagerPanel.board.map((wager) => <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{displayLabel(wager.market)} · <CoinAmount amount={wager.stake} /> · {displayLabel(wager.challengeType)}</span></div>{wager.canAccept ? <Button variant="secondary" size="compact" disabled={wagerPanel.busy} onClick={() => void acceptPeer(wager.id)}>Accept</Button> : <StatusChip status={wager.isMine ? "pending" : "locked"} label={wager.isMine ? "Your offer" : "Unavailable"} />}</article>) : <p className="hub-empty">No open user wagers yet.</p>}</div>}
       </>}
     </div></Modal>}
-    {mediaDayOpen && !isRise ? <Modal title="Media Day" onClose={() => setMediaDayOpen(false)}><div className="hub-media-modal">
-      {mediaNotice && <p className="hub-transfer-status">{mediaNotice}</p>}
-      {!mediaDay ? <p className="hub-empty">Loading this week's Media Day...</p> : <>
-        <p className="hub-muted">Answer all 3 questions below as your team's coach. Pays {coinsNumber(economyValues.submissions.mediaDay)} once every slot is answered — no commissioner review needed.</p>
-        {mediaDay.slots.map((slot) => <div className="hub-interview-question" key={slot.slot}>
-          <strong>Question {slot.slot}</strong>
-          {slot.question && <p className="hub-interview-question-preview">{slot.question.text}</p>}
-          {slot.answer
-            ? <p className="hub-muted">{slot.answer}</p>
-            : <>
-              <textarea className="form-input" rows={3} placeholder="Answer" value={mediaDayDrafts[slot.slot] ?? ""} onChange={(event) => setMediaDayDrafts((current) => ({ ...current, [slot.slot]: event.target.value }))} />
-              <Button variant="primary" size="compact" disabled={mediaBusy || !(mediaDayDrafts[slot.slot] ?? "").trim()} onClick={() => void submitMediaDaySlot(slot.slot)}>{mediaBusy ? "Submitting..." : "Submit Answer"}</Button>
-            </>}
-        </div>)}
-        {mediaDay.complete && <p className="hub-muted">This week's Media Day is complete.</p>}
-      </>}
-    </div></Modal> : null}
     {relocateWizardOpen && auth.status === "ready" && (
       <Modal title="Relocate / Custom Team" onClose={() => setRelocateWizardOpen(false)}>
         <Suspense fallback={<HubSurfaceFallback />}>

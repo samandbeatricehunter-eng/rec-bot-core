@@ -145,14 +145,14 @@ export function RiseOriginsPage() {
         } finally {
           // A failed/stale league-summary refresh must never strand the user behind the
           // full-screen fade. The destination can load its own fresh state.
-          navigate(`/l/${leagueId}/buzz`, { replace: true });
+          navigate(`/l/${leagueId}/home`, { replace: true });
         }
       })();
     }, 400);
   }, [allContractsSigned, hubCtx, leagueId, navigate]);
 
   if (selected && !isRise) {
-    return <Navigate replace to={`/l/${leagueId}/buzz`} />;
+    return <Navigate replace to={`/l/${leagueId}/home`} />;
   }
 
   if (!selected || !guildId) {
@@ -314,7 +314,7 @@ export function RiseOriginsPage() {
         </>
       )}
 
-      {!showVideoGate ? <p className="site-muted"><Link to={`/l/${leagueId}/buzz`}>Back to league overview</Link></p> : null}
+      {!showVideoGate ? <p className="site-muted"><Link to={`/l/${leagueId}/home`}>Back to league overview</Link></p> : null}
     </div>
   );
 }

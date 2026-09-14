@@ -199,7 +199,7 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
             kind: "game_channel_created",
             title: `Your ${channel.name.replaceAll("-", " ")} game chat is ready`,
             body: "Open Chat on the league page to coordinate with your opponent.",
-            href: `/l/${context.leagueId}/buzz?section=league&subTab=buzz&buzzView=chat&gameChannel=${channel.gameChannelId}`,
+            href: `/l/${context.leagueId}/home?section=league&subTab=buzz&buzzView=chat&gameChannel=${channel.gameChannelId}`,
           })),
         );
         if (notifications.length) {
