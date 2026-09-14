@@ -1198,10 +1198,10 @@ export async function listTournamentTicker() {
 
 export async function resolveKnownGamerTag(recUserId: string): Promise<string | null> {
   const profile = await getPgPool().query(
-    `select gamer_tag from rec_comp_profiles where user_id = $1 and coalesce(gamer_tag, '') <> ''`,
+    `select known_gamer_tag from rec_users where id = $1 and coalesce(known_gamer_tag, '') <> ''`,
     [recUserId],
   );
-  const fromProfile = String(profile.rows[0]?.gamer_tag ?? "").trim();
+  const fromProfile = String(profile.rows[0]?.known_gamer_tag ?? "").trim();
   if (fromProfile) return fromProfile;
   const imported = await getPgPool().query(
     `
@@ -1223,13 +1223,7 @@ export async function resolveKnownGamerTag(recUserId: string): Promise<string | 
 
 async function rememberGamerTag(recUserId: string, gamerTag: string) {
   await getPgPool().query(
-    `
-      insert into rec_comp_profiles (user_id, gamer_tag, updated_at)
-      values ($1, $2, now())
-      on conflict (user_id) do update set
-        gamer_tag = excluded.gamer_tag,
-        updated_at = now()
-    `,
+    `update rec_users set known_gamer_tag = $2 where id = $1`,
     [recUserId, gamerTag],
   );
 }

@@ -54,18 +54,6 @@ export function IconHeadlines(props: IconProps) {
   );
 }
 
-export function IconComp(props: IconProps) {
-  return base(
-    props,
-    <>
-      <path d="M8 21h8" />
-      <path d="M12 17v4" />
-      <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
-      <path d="M7 7H4.5A2.5 2.5 0 0 1 4.5 2H7" />
-      <path d="M17 7h2.5A2.5 2.5 0 0 0 19.5 2H17" />
-    </>,
-  );
-}
 
 export function IconAccount(props: IconProps) {
   return base(

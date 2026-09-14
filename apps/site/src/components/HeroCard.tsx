@@ -110,12 +110,6 @@ export function HeroCard({
               ) : null}
             </article>
             <article>
-              <span>Tournament power rank</span>
-              <strong title="Tournament ranking fills in as bracket results are logged.">
-                {card?.compPowerRank ? `#${card.compPowerRank.rank} of ${card.compPowerRank.of}` : "Not ranked yet"}
-              </strong>
-            </article>
-            <article>
               <span>Current streak</span>
               <strong>{perf?.currentStreak ?? "—"}</strong>
             </article>

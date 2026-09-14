@@ -1679,7 +1679,7 @@ export const siteApi = {
   listRankedGames() {
     return request<{ games: Array<{ game: string; label: string; dynastyLabel: string }> }>("/v1/rankings/games", {});
   },
-  listPowerRankings(input: { game: string; scope: "dynasty" | "comp" }) {
+  listPowerRankings(input: { game: string; scope: "dynasty" }) {
     return request<{ rankings: PowerRankingRow[]; asOf: string | null }>("/v1/rankings/list", input);
   },
   listTournaments() {
@@ -1970,82 +1970,6 @@ export const siteApi = {
   },
   skipLotteryPick(tournamentId: string) {
     return request<SiteTournamentLottery>("/v1/tournaments/lottery/skip", { tournamentId });
-  },
-  listCompUsers(input: { page?: number } = {}) {
-    return request<{ users: CompUserSummary[]; page: number; pageSize: number; total: number }>(
-      "/v1/comp/users/list",
-      input,
-    );
-  },
-  getCompUserDetail(userId: string) {
-    return request<CompUserDetail>("/v1/comp/users/detail", { userId });
-  },
-  getCompProfile() {
-    return request<any>("/v1/comp/profile/get", {});
-  },
-  saveCompProfile(input: { console: "xbox" | "ps5" | "pc"; gamerTag: string; crossPlayEnabled: boolean; preferredGame: "madden_26" | "madden_27" | "cfb_27" }) {
-    return request<any>("/v1/comp/profile/save", input);
-  },
-  getCompState(game: string) {
-    return request<any>("/v1/comp/state", { game });
-  },
-  joinCompQueue(input: any) {
-    return request<any>("/v1/comp/queue/join", input);
-  },
-  leaveCompQueue() {
-    return request<any>("/v1/comp/queue/leave", {});
-  },
-  requestCompMatch(opponentUserId: string) {
-    return request<any>("/v1/comp/match/request", { opponentUserId });
-  },
-  respondCompMatch(matchId: string, accept: boolean) {
-    return request<any>("/v1/comp/match/respond", { matchId, accept });
-  },
-  listCompTeams(game: string) {
-    return request<{ teams: Array<{ id: string; name: string; abbreviation: string | null }> }>("/v1/comp/match/teams", { game });
-  },
-  selectCompTeam(matchId: string, teamId: string) {
-    return request<any>("/v1/comp/match/select-team", { matchId, teamId });
-  },
-  sendCompMessage(matchId: string, body: string) {
-    return request<any>("/v1/comp/chat/send", { matchId, body });
-  },
-  shareCompStream(matchId: string, streamUrl: string) {
-    return request<any>("/v1/comp/stream/share", { matchId, streamUrl });
-  },
-  cancelCompMatch(matchId: string) {
-    return request<any>("/v1/comp/match/cancel", { matchId });
-  },
-  concedeCompMatch(matchId: string) {
-    return request<any>("/v1/comp/match/concede", { matchId });
-  },
-  createCompReport(input: any) {
-    return request<any>("/v1/comp/report/create", input);
-  },
-  respondCompReport(input: any) {
-    return request<any>("/v1/comp/report/respond", input);
-  },
-  parseCompBoxScore(input: { game: string; imageUrls: string[] }) {
-    return request<any>("/v1/comp/box-score/parse", input);
-  },
-  submitCompBoxScore(input: any) {
-    return request<any>("/v1/comp/box-score/submit", input);
-  },
-  reviewCompBoxScore(input: any) {
-    return request<any>("/v1/comp/box-score/review", input);
-  },
-  async uploadCompImage(file: File) {
-    const base = requireApiBaseUrl();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) throw new Error("You are not signed in.");
-    const form = new FormData();
-    form.append("file", file);
-    const response = await fetch(`${base}/v1/comp/box-score/upload`, {
-      method: "POST", headers: { authorization: `Bearer ${session.access_token}` }, body: form,
-    });
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(payload?.error ?? payload?.message ?? "Upload failed.");
-    return payload as { url: string };
   },
   listDemoLeagues() {
     return publicRequest<{ leagues: Array<{ id: string; name: string; game: string; seasonNumber: number; phases: Array<{ value: DemoPhase; label: string }> }> }>("/v1/demo-league/leagues", { method: "POST" });
@@ -2601,42 +2525,6 @@ export type SiteTournamentWagerOptions = {
   }>;
 };
 
-export type CompUserSummary = {
-  id: string;
-  username: string | null;
-  displayName: string;
-};
-
-export type CompUserDetail = {
-  displayName: string;
-  username: string | null;
-  memberSince: string | null;
-  globalRecord: {
-    wins: number;
-    losses: number;
-    ties: number;
-    playoffWins: number;
-    playoffLosses: number;
-    superbowlWins: number;
-    superbowlLosses: number;
-    gamesPlayed: number;
-    pointDifferential: number;
-  };
-  careerStats: Array<{
-    [key: string]: string | number;
-    game: string;
-    gameLabel: string;
-    gamesLogged: number;
-    passingYards: number;
-    rushingYards: number;
-    totalYards: number;
-    firstDowns: number;
-    turnoversGenerated: number;
-    turnoversCommitted: number;
-    turnoverDifferential: number;
-  }>;
-};
-
 export type PowerRankPosition = { rank: number; of: number; previousRank: number | null };
 
 export type PowerRankingRow = {
@@ -2814,7 +2702,6 @@ export type SiteHomeCard = {
   userRating: { rating: number; grade: string; displayAsGrade: boolean } | null;
   currentGame: string | null;
   dynastyPowerRank: PowerRankPosition | null;
-  compPowerRank: PowerRankPosition | null;
   careerAwardsWon: number;
   leaguesActivity: { activeLeagues: number; commissionerOf: number };
 };

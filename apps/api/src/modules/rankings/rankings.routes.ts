@@ -21,7 +21,7 @@ export async function rankingsRoutes(app: FastifyInstance) {
       const body = z
         .object({
           game: z.enum(["madden_26", "madden_27", "cfb_27"]),
-          scope: z.enum(["dynasty", "comp"]),
+          scope: z.enum(["dynasty"]),
         })
         .parse(request.body ?? {});
       return reply.send(await listPowerRankings(body));
@@ -30,7 +30,7 @@ export async function rankingsRoutes(app: FastifyInstance) {
     }
   });
 
-  /** Cron: daily at midnight — recompute global dynasty/comp power rankings for every game. */
+  /** Cron: daily at midnight — recompute global dynasty power rankings for every game. */
   app.post("/v1/rankings/refresh", async (request, reply) => {
     try {
       requireInternalApiKey(request);

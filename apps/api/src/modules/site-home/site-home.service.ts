@@ -147,10 +147,7 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
     }
   }
 
-  const [dynastyPowerRank, compPowerRank] = await Promise.all([
-    bestEffort("site_home.dynasty_power_rank", () => getUserPowerRank({ game: currentGame, scope: "dynasty", userId: user.recUserId }), { userId: user.recUserId }).then((v) => v ?? null),
-    bestEffort("site_home.comp_power_rank", () => getUserPowerRank({ game: currentGame, scope: "comp", userId: user.recUserId }), { userId: user.recUserId }).then((v) => v ?? null),
-  ]);
+  const dynastyPowerRank = await bestEffort("site_home.dynasty_power_rank", () => getUserPowerRank({ game: currentGame, scope: "dynasty", userId: user.recUserId }), { userId: user.recUserId }).then((v) => v ?? null);
 
   if (!userRating) {
     const wins = Number(globalRecord.wins ?? 0);
@@ -194,7 +191,6 @@ export async function getSiteHomeCard(input: { authUserId: string }) {
     userRating,
     currentGame,
     dynastyPowerRank,
-    compPowerRank,
     careerAwardsWon: Number(extrasRow.career_awards_won ?? 0),
     leaguesActivity: {
       activeLeagues: Number(extrasRow.active_leagues ?? 0),

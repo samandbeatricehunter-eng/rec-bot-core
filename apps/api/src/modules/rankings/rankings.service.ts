@@ -148,48 +148,9 @@ async function computeDynastyScoresForGame(game: string): Promise<
   });
 }
 
-async function computeCompScoresForGame(game: string): Promise<Array<{ userId: string; score: number }>> {
-  const result = await getPgPool().query(
-    `
-      with records as (
-        select s.user_id, count(*)::int as games,
-          count(*) filter (where s.won)::int as wins,
-          avg((s.points_for - s.points_against)::numeric) as avg_pd
-        from rec_comp_game_stats s
-        join rec_users u on u.id = s.user_id and u.supabase_auth_user_id is not null
-        where s.game = $1
-        group by s.user_id
-      ),
-      opponent_quality as (
-        select s.user_id,
-          avg(case when opp.games > 0 then opp.wins::numeric / opp.games else 0 end) as oq
-        from rec_comp_game_stats s join records opp on opp.user_id = s.opponent_user_id
-        where s.game = $1 group by s.user_id
-      ),
-      select r.*, coalesce(o.oq, 0) as oq
-      from records r
-      left join opponent_quality o on o.user_id = r.user_id
-    `,
-    [game],
-  );
-  return result.rows.map((row: any) => {
-    const games = Number(row.games) || 1;
-    const pd = Math.max(-1, Math.min(1, Number(row.avg_pd ?? 0) / 21));
-    // Weights renormalized to sum to 100 after removing the badge component
-    // (was 40/15/20/15/10 with badges; badges' 10 points redistributed
-    // proportionally across the remaining four).
-    const score =
-      44.4444 * (Number(row.wins) / games) +
-      16.6667 * Number(row.oq ?? 0) +
-      22.2222 * ((pd + 1) / 2) +
-      16.6667 * Math.min(games / 25, 1);
-    return { userId: String(row.user_id), score: Math.round(score * 100) / 100 };
-  });
-}
-
 async function upsertRankingSnapshot(input: {
   game: string;
-  scope: "dynasty" | "comp";
+  scope: "dynasty";
   scored: Array<{ userId: string; score: number }>;
 }): Promise<{ ranked: number }> {
   const ranked = [...input.scored].sort((a, b) => b.score - a.score || a.userId.localeCompare(b.userId));
@@ -224,8 +185,6 @@ export async function refreshAllPowerRankings(): Promise<Record<string, { ranked
   for (const game of RANKED_GAMES) {
     const scored = await computeDynastyScoresForGame(game);
     results[`${game}:dynasty`] = await upsertRankingSnapshot({ game, scope: "dynasty", scored });
-    const comp = await computeCompScoresForGame(game);
-    results[`${game}:comp`] = await upsertRankingSnapshot({ game, scope: "comp", scored: comp });
   }
   return results;
 }
@@ -241,7 +200,7 @@ export type PowerRankingRow = {
 
 export async function listPowerRankings(input: {
   game: string;
-  scope: "dynasty" | "comp";
+  scope: "dynasty";
   limit?: number;
 }): Promise<{ rankings: PowerRankingRow[]; asOf: string | null }> {
   const limit = Math.min(Math.max(input.limit ?? 100, 1), 100);
@@ -304,7 +263,7 @@ export async function listPowerRankings(input: {
 
 export async function getUserPowerRank(input: {
   game: string | null;
-  scope: "dynasty" | "comp";
+  scope: "dynasty";
   userId: string;
 }): Promise<{ rank: number; of: number; previousRank: number | null } | null> {
   if (!input.game) return null;
