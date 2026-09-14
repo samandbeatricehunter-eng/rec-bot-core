@@ -33,7 +33,7 @@ import {
 
 const CreateUnclaimedLeagueSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  game: z.enum(["madden_26", "madden_27", "cfb_27"]),
+  game: z.enum(["madden_26", "madden_27"]),
   leaguePassword: z.string().optional().nullable(),
   leagueType: z.string().optional(),
   templateId: z.enum(["rec_recommended", "normal_regs", "hardcore_regs", "normal_fantasy", "fantasy_free_for_all", "rise_to_immortality"]).optional().nullable(),

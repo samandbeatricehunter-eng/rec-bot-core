@@ -8,7 +8,6 @@ import {
 import { siteApi } from "../lib/site-api.js";
 import { useAuth } from "../lib/auth-context.js";
 import {
-  CFB_LEAGUE_TEMPLATES,
   describeTemplateSettings,
   getLeagueTemplatePreset,
   MADDEN_LEAGUE_TEMPLATES,
@@ -18,8 +17,7 @@ import {
   TextField, TextareaField, ToggleField,
 } from "./wizard/fields.js";
 import {
-  ADVANCE_TIMING_OPTIONS, BALL_HAWK_OPTIONS, CFB_CONFERENCE_REALIGNMENT, CFB_DIFFICULTY,
-  CFB_DYNASTY_TYPE, CFB_RECRUITING_DIFFICULTY,
+  ADVANCE_TIMING_OPTIONS, BALL_HAWK_OPTIONS,
   CHAMP_GAME_CRITERIA_OPTIONS, CHAMP_GAME_LOCATION_OPTIONS, COACH_FIRING_OPTIONS,
   CPU_TRADING_OPTIONS, FA_MOTIVATION_IMPACT_OPTIONS, FOURTH_DOWN_OPTIONS,
   IMMORTALITY_DEFENSE_POSITIONS, IMMORTALITY_OFFENSE_POSITIONS,
@@ -303,7 +301,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
     setConferenceRules,
     conferenceRuleDraft,
     updateConferenceRule,
-    isCfb,
     isMadden,
     isSeasonOne,
     gameLabel,
@@ -661,7 +658,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
 
         {step === 1 && (
           <>
-            {(game === "madden_27" || game === "cfb_27") && (
+            {game === "madden_27" && (
               <Section title="Coach Mode">
                 <ToggleField label="Is this a Coach Mode-only league?" hint="Coach Mode leagues are identified in league search and league advertisements."
                   checked={coachModeEnabled} onChange={setCoachModeEnabled} />
@@ -675,10 +672,10 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                 reflects the selected game's actual defaults; incompatible templates are not offered.
               </p>
               <div className="wizard-template-grid">
-                {(isCfb ? CFB_LEAGUE_TEMPLATES : MADDEN_LEAGUE_TEMPLATES).map((template) => {
+                {MADDEN_LEAGUE_TEMPLATES.map((template) => {
                   const preset = getLeagueTemplatePreset(game, template.id);
                   if (!preset) return null;
-                  const settingsGroups = describeTemplateSettings(preset, isCfb ? "cfb" : "madden");
+                  const settingsGroups = describeTemplateSettings(preset);
                   const selected = templateId === template.id;
                   return (
                     <div key={template.id}
@@ -788,12 +785,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               </Section>
             )}
 
-            {isCfb && (
-              <div className="wizard-notice">
-                <strong>CFB roster setup is automatic.</strong> REC seeds the current baseline roster and enables recruiting, transfer-portal, progression, and roster-history tracking for every CFB league.
-              </div>
-            )}
-
             <div className="site-modal-actions">
               <button type="button" className="site-btn site-btn-ghost" onClick={() => setStep(1)}>Back</button>
               <button type="button" className="site-btn site-btn-primary" disabled={!game || (isMadden && !leagueType) || (isRise && (!immortalityOffensePosition || !immortalityDefensePosition))} onClick={() => setStep(3)}>Next</button>
@@ -836,7 +827,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               <NumberField label="Season number" hint="Set to 1 for a brand-new dynasty. Only change this if you are importing an existing save that is already past season 1."
                 value={seasonNumber} onChange={setSeasonNumber} min={1} max={99} />
               <SelectField label="Season stage" hint={`Current point in the ${gameLabel} season.`}
-                value={seasonStage || (isCfb ? "preseason" : "preseason_training_camp")}
+                value={seasonStage || "preseason_training_camp"}
                 onChange={setSeasonStage}
                 options={stages.map((s) => ({ value: s, label: s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) }))} />
 
@@ -853,12 +844,6 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               {!isSeasonOne && (
                 <div className="wizard-notice wizard-notice-warn">
                   <strong>Season {seasonNumber}</strong> — Since this is not the first season, the schedule will need to be imported manually. REC cannot auto-seed a schedule for seasons past year 1.
-                </div>
-              )}
-
-              {isCfb && (
-                <div className="wizard-notice">
-                  <strong>CFB Schedule</strong> — Unlike Madden, CFB has no default schedule to seed. Your schedule must be entered manually or imported via screenshot parsing, even in season 1.
                 </div>
               )}
 
@@ -1216,115 +1201,11 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
               </>
             )}
 
-            {isCfb && (
-              <>
-                <Section title="Difficulty &amp; Gameplay">
-                  <SelectField label="Difficulty" value={cfbDifficulty} onChange={setCfbDifficulty} options={CFB_DIFFICULTY} />
-                  <ToggleField label="Custom sliders" hint="After Discord linking and the rest of setup are complete, you will be routed to League Management → Settings → Gameplay to choose a community template or enter values." checked={slidersAdjusted} onChange={setSlidersAdjusted} />
-                  <NumberField label="Quarter length (minutes)" value={quarterLengthMinutes} onChange={setQuarterLengthMinutes} min={1} max={15} />
-                  <ToggleField label="Accelerated clock" checked={acceleratedClockEnabled} onChange={setAcceleratedClockEnabled} />
-                  {acceleratedClockEnabled && (
-                    <NumberField label="Minimum play clock (seconds)" value={acceleratedClockMinimumSeconds} onChange={setAcceleratedClockMinimumSeconds} min={0} max={40} />
-                  )}
-                  <ToggleField label="Abilities enabled" checked={abilitiesEnabled} onChange={setAbilitiesEnabled} />
-                  <ToggleField label="Wear and tear" checked={wearAndTearEnabled} onChange={setWearAndTearEnabled} />
-                  <SelectField label="Coach XP setting" value={coachXpSetting} onChange={setCoachXpSetting}
-                    options={[{ value: "casual", label: "Casual" }, { value: "career", label: "Career" }, { value: "simulation", label: "Simulation" }]} />
-                  <SelectField label="Player edit permission" hint="Informational only — who is expected to edit player info/ratings in-game."
-                    value={playerEditPermission} onChange={setPlayerEditPermission} options={PLAYER_EDIT_PERMISSION_OPTIONS} />
-                  <NumberField label="Manual XP progression penalty (%)" hint="Coin/points penalty applied when progression is done manually instead of automatically."
-                    value={manualXpProgressionPenaltyPct} onChange={setManualXpProgressionPenaltyPct} min={0} max={100} />
-                  <NumberField label="Verbal commit influence (%)" hint="How much a verbal commitment influences a recruit's final decision."
-                    value={verbalCommitInfluencePct} onChange={setVerbalCommitInfluencePct} min={0} max={100} />
-                  <SelectField label="Season experience" hint="How much manual control users have over season-to-season decisions."
-                    value={seasonExperience} onChange={setSeasonExperience} options={SEASON_EXPERIENCE_OPTIONS} />
-                </Section>
-
-                <Section title="Dynasty / Recruiting">
-                  <SelectField label="Dynasty type" hint="Whether teams use real-world rosters or allow Team Builder imports."
-                    value={dynastyType} onChange={(v) => { setDynastyType(v); setTeamBuilderAllowed(v === "mixed"); }} options={CFB_DYNASTY_TYPE} />
-                  <SelectField label="Recruiting difficulty" hint="Controls how competitive recruiting is. Hard means top recruits are much harder to land."
-                    value={recruitingDifficulty} onChange={setRecruitingDifficulty} options={CFB_RECRUITING_DIFFICULTY} />
-                  <NumberField label="Transfer portal — max transfers per team" hint="0 turns the transfer portal off. Max 30."
-                    value={transferPortalMaxPerTeam} onChange={setTransferPortalMaxPerTeam} min={0} max={30} />
-                  <NumberField label="User player transfer chance (%)" value={userTransferChancePct} onChange={setUserTransferChancePct} min={0} max={100} />
-                  <NumberField label="CPU player transfer chance (%)" value={cpuTransferChancePct} onChange={setCpuTransferChancePct} min={0} max={100} />
-                  <ToggleField label="Coach carousel enabled" hint="Allow coaches to move between schools during the coaching carousel phase." checked={coachCarouselEnabled} onChange={setCoachCarouselEnabled} />
-                  <ToggleField label="Home-field advantage enabled" hint="Grant gameplay bonuses to the home team." checked={homeFieldAdvantageEnabled} onChange={setHomeFieldAdvantageEnabled} />
-                  <ToggleField label="Stadium pulse enabled" hint="Enable the crowd noise/stadium pulse mechanic." checked={stadiumPulseEnabled} onChange={setStadiumPulseEnabled} />
-                  <NumberField label="Minimum play clock (seconds)" hint="10-25 seconds." value={minimumPlayClockSeconds} onChange={setMinimumPlayClockSeconds} min={10} max={25} />
-                  <SelectField label="Conference realignment" hint="Whether commissioners can move teams between conferences."
-                    value={conferenceRealignment} onChange={setConferenceRealignment} options={CFB_CONFERENCE_REALIGNMENT} />
-                  <ToggleField label="Team Builder allowed" hint="Follows Dynasty type — Mixed allows Team Builder teams, Real Rosters does not."
-                    checked={teamBuilderAllowed} onChange={setTeamBuilderAllowed} disabled desc="Set by Dynasty type above." />
-                </Section>
-
-                {conferenceRealignment === "allowed" && (
-                  <Section title="Individual Conference Rules">
-                    <ToggleField label="Customize individual conference rules?" checked={conferenceRulesEditing} onChange={(value) => { setConferenceRulesEditing(value); if (!value) setActiveConferenceForRules(""); }} />
-                    {conferenceRulesEditing && (
-                      <>
-                        <label className="site-field">
-                          <span>Conference</span>
-                          <select className="site-select" value={activeConferenceForRules} onChange={(event) => setActiveConferenceForRules(event.target.value)}>
-                            <option value="">Select a conference to customize</option>
-                            {CONFERENCE_ORDER.map((conf) => (
-                              <option key={conf} value={conf}>{conf}{conferenceRules[conf] ? " (customized)" : ""}</option>
-                            ))}
-                          </select>
-                        </label>
-                        {activeConferenceForRules && (() => {
-                          const draft = conferenceRuleDraft(activeConferenceForRules);
-                          return (
-                            <div className="wizard-conference-rule-panel">
-                              <ToggleField label="Divisions" checked={draft.divisionsEnabled} onChange={(value) => updateConferenceRule(activeConferenceForRules, { divisionsEnabled: value })} />
-                              {draft.divisionsEnabled && (
-                                <>
-                                  <TextField label="Division 1 name" value={draft.division1Name} onChange={(value) => updateConferenceRule(activeConferenceForRules, { division1Name: value })} maxLength={40} />
-                                  <TextField label="Division 2 name" value={draft.division2Name} onChange={(value) => updateConferenceRule(activeConferenceForRules, { division2Name: value })} maxLength={40} />
-                                </>
-                              )}
-                              <NumberField label="Number of conference games" value={draft.conferenceGames} onChange={(value) => updateConferenceRule(activeConferenceForRules, { conferenceGames: value })} min={6} max={9} />
-                              <ToggleField label="Conference championship game" checked={draft.confChampGameEnabled} onChange={(value) => updateConferenceRule(activeConferenceForRules, { confChampGameEnabled: value })} />
-                              {draft.confChampGameEnabled && (
-                                <>
-                                  <SelectField label="Championship game location" value={draft.champGameLocation} onChange={(value) => updateConferenceRule(activeConferenceForRules, { champGameLocation: value })} options={CHAMP_GAME_LOCATION_OPTIONS} />
-                                  <SelectField label="Championship game selection criteria" value={draft.champGameSelectionCriteria} onChange={(value) => updateConferenceRule(activeConferenceForRules, { champGameSelectionCriteria: value })} options={CHAMP_GAME_CRITERIA_OPTIONS} />
-                                </>
-                              )}
-                              <ToggleField label="Protected opponents" checked={draft.protectedOpponentsEnabled} onChange={(value) => updateConferenceRule(activeConferenceForRules, { protectedOpponentsEnabled: value })} />
-                              {draft.protectedOpponentsEnabled && (
-                                <NumberField label="Number of protected opponents" value={draft.protectedOpponentsCount} onChange={(value) => updateConferenceRule(activeConferenceForRules, { protectedOpponentsCount: value })} min={1} max={10} />
-                              )}
-                              <div className="site-modal-actions">
-                                <button type="button" className="site-btn site-btn-secondary" onClick={() => setActiveConferenceForRules("")}>Done with {activeConferenceForRules}</button>
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </>
-                    )}
-                  </Section>
-                )}
-              </>
-            )}
-
             {coachModeEnabled && (
               <Section title="Coach Mode">
                 <ToggleField label="Auto-pass" hint="QB automatically throws to open receivers." checked={coachModeAutoPassEnabled} onChange={setCoachModeAutoPassEnabled} />
                 <ToggleField label="Auto-snap" hint="Center automatically snaps the ball on the play clock." checked={coachModeAutoSnapEnabled} onChange={setCoachModeAutoSnapEnabled} />
                 <ToggleField label="Coach suggestions" hint="Show the coach's recommended play on the play call screen." checked={coachModeCoachSuggestionsEnabled} onChange={setCoachModeCoachSuggestionsEnabled} />
-                {isCfb && (
-                  <>
-                    <ToggleField label="Recruit flipping" hint="Allow coaches to flip recruit commitments during recruiting." checked={coachModeRecruitFlippingEnabled} onChange={setCoachModeRecruitFlippingEnabled} />
-                    <ToggleField label="Auto-recruiting" hint="Let the CPU handle recruiting tasks automatically." checked={coachModeAutoRecruitingEnabled} onChange={setCoachModeAutoRecruitingEnabled} />
-                    <ToggleField label="Auto-progress players" hint="Automatically advance player development each season." checked={coachModeAutoProgressPlayersEnabled} onChange={setCoachModeAutoProgressPlayersEnabled} />
-                    <ToggleField label="User auto-progression" hint="Allow users to manually trigger player progression." checked={coachModeUserAutoProgressionEnabled} onChange={setCoachModeUserAutoProgressionEnabled} />
-                    <ToggleField label="CPU manages budget" hint="Let the CPU handle recruiting budget allocation." checked={coachModeCpuManageBudgetEnabled} onChange={setCoachModeCpuManageBudgetEnabled} />
-                    <ToggleField label="CPU manages staff" hint="Let the CPU handle coaching staff hiring." checked={coachModeCpuManageStaffEnabled} onChange={setCoachModeCpuManageStaffEnabled} />
-                    <ToggleField label="CPU manages facilities" hint="Let the CPU handle facility upgrades." checked={coachModeCpuManageFacilitiesEnabled} onChange={setCoachModeCpuManageFacilitiesEnabled} />
-                  </>
-                )}
               </Section>
             )}
 
@@ -1536,7 +1417,7 @@ export function CreateLeagueWizard({ onClose, onCreated }: { onClose: () => void
                       <aside className="site-discord-owner-notice" role="note" aria-label="Discord server owner nickname limitation">
                         <strong>Server owner nickname</strong>
                         <p>
-                          If you are the current Discord server owner, Discord does not allow REC Scout—or any bot—to change your nickname, even with Administrator permission. Change your own server nickname manually to your {game === "cfb_27" ? "school" : "team"} name. REC Scout can still assign and reconcile your Commissioner, Member, and team roles normally.
+                          If you are the current Discord server owner, Discord does not allow REC Scout—or any bot—to change your nickname, even with Administrator permission. Change your own server nickname manually to your team name. REC Scout can still assign and reconcile your Commissioner, Member, and team roles normally.
                         </p>
                       </aside>
                       <p className="site-muted">Channel routing:</p>

@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import {
-  AFC_TEAMS, CFB_27_TEAMS, LEAGUE_SLIDER_CATALOG_VERSION, NFL_TEAMS, NFC_TEAMS, defaultLeagueSliderValues,
+  AFC_TEAMS, LEAGUE_SLIDER_CATALOG_VERSION, NFL_TEAMS, NFC_TEAMS, defaultLeagueSliderValues,
   applyRiseToImmortalityLockedSettings,
 } from "@rec/shared";
 import { type SiteOpenTeam } from "../../lib/site-api.js";
@@ -11,7 +11,7 @@ import {
   type LeagueTemplatePreset,
 } from "../../lib/league-templates.js";
 import {
-  CFB_SEASON_STAGES, MADDEN_SEASON_STAGES,
+  MADDEN_SEASON_STAGES,
   type GameKey,
 } from "./options.js";
 
@@ -199,12 +199,11 @@ export function useLeagueWizardState() {
     setConferenceRules((current) => ({ ...current, [conference]: { ...conferenceRuleDraft(conference), ...patch } }));
   }
 
-  const isCfb = game === "cfb_27";
   const isMadden = game === "madden_26" || game === "madden_27";
   const isSeasonOne = seasonNumber === 1;
 
-  const gameLabel = isCfb ? "CFB" : "Madden";
-  const stages = isCfb ? CFB_SEASON_STAGES : MADDEN_SEASON_STAGES;
+  const gameLabel = "Madden";
+  const stages = MADDEN_SEASON_STAGES;
 
   const existingCategories = useMemo(() => {
     const cats = new Set<string>();
@@ -244,27 +243,6 @@ export function useLeagueWizardState() {
         })
         : undefined,
       maxMembers: customMaxMembers ? maxMembers : 32,
-      activeRostersEnabled: isCfb ? true : undefined,
-      trackRostersEnabled: isCfb ? true : undefined,
-      dynastyType: isCfb ? dynastyType : undefined,
-      recruitingDifficulty: isCfb ? recruitingDifficulty : undefined,
-      transferPortalEnabled: isCfb ? transferPortalEnabled : undefined,
-      playerEditPermission: isCfb ? playerEditPermission : undefined,
-      manualXpProgressionPenaltyPct: isCfb ? manualXpProgressionPenaltyPct : undefined,
-      verbalCommitInfluencePct: isCfb ? verbalCommitInfluencePct : undefined,
-      userTransferChancePct: isCfb ? userTransferChancePct : undefined,
-      cpuTransferChancePct: isCfb ? cpuTransferChancePct : undefined,
-      transferPortalMaxPerTeam: isCfb ? transferPortalMaxPerTeam : undefined,
-      minimumPlayClockSeconds: isCfb ? minimumPlayClockSeconds : undefined,
-      seasonExperience: isCfb ? seasonExperience : undefined,
-      conferenceRules: isCfb && conferenceRulesEditing
-        ? Object.entries(conferenceRules).map(([conferenceName, rule]) => ({ conferenceName, ...rule }))
-        : undefined,
-      coachCarouselEnabled: isCfb ? coachCarouselEnabled : undefined,
-      homeFieldAdvantageEnabled: isCfb ? homeFieldAdvantageEnabled : undefined,
-      stadiumPulseEnabled: isCfb ? stadiumPulseEnabled : undefined,
-      conferenceRealignment: isCfb ? conferenceRealignment : undefined,
-      teamBuilderAllowed: isCfb ? teamBuilderAllowed : undefined,
       seasonNumber,
       seasonStage: seasonStage || undefined,
       currentWeek: isSeasonOne ? currentWeek : 1,
@@ -325,7 +303,6 @@ export function useLeagueWizardState() {
       purchaseDeadlines: coinEconomyEnabled ? purchaseDeadlines : {},
       customRules,
       difficulty: isMadden ? difficulty : undefined,
-      cfbDifficulty: isCfb ? cfbDifficulty : undefined,
       tradeDifficulty: isMadden ? tradeDifficulty : undefined,
       freeAgentMotivationImpact: game === "madden_26" ? freeAgentMotivationImpact : undefined,
       quarterLengthMinutes,
@@ -341,13 +318,6 @@ export function useLeagueWizardState() {
       coachModeAutoPassEnabled: coachModeEnabled ? coachModeAutoPassEnabled : false,
       coachModeAutoSnapEnabled: coachModeEnabled ? coachModeAutoSnapEnabled : false,
       coachModeCoachSuggestionsEnabled: coachModeEnabled ? coachModeCoachSuggestionsEnabled : false,
-      coachModeRecruitFlippingEnabled: isCfb && coachModeEnabled ? coachModeRecruitFlippingEnabled : undefined,
-      coachModeAutoRecruitingEnabled: isCfb && coachModeEnabled ? coachModeAutoRecruitingEnabled : undefined,
-      coachModeAutoProgressPlayersEnabled: isCfb && coachModeEnabled ? coachModeAutoProgressPlayersEnabled : undefined,
-      coachModeUserAutoProgressionEnabled: isCfb && coachModeEnabled ? coachModeUserAutoProgressionEnabled : undefined,
-      coachModeCpuManageBudgetEnabled: isCfb && coachModeEnabled ? coachModeCpuManageBudgetEnabled : undefined,
-      coachModeCpuManageStaffEnabled: isCfb && coachModeEnabled ? coachModeCpuManageStaffEnabled : undefined,
-      coachModeCpuManageFacilitiesEnabled: isCfb && coachModeEnabled ? coachModeCpuManageFacilitiesEnabled : undefined,
       ballHawk,
       heatSeeker,
       switchAssist,
@@ -363,7 +333,6 @@ export function useLeagueWizardState() {
       slidersAdjusted,
       sliderCatalogVersion: game ? LEAGUE_SLIDER_CATALOG_VERSION[game] : undefined,
       sliderSettings: game ? defaultLeagueSliderValues(game) : {},
-      coachXpSetting: isCfb ? coachXpSetting : undefined,
       leaguePassword: leaguePassword || undefined,
     };
     if (leagueType === "rise_to_immortality" || templateId === "rise_to_immortality") {
@@ -436,7 +405,7 @@ export function useLeagueWizardState() {
     tradeApprovalPolicy, cpuTradingPolicy, cpuTradingRestriction, cpuTradesSeasonCap,
     coachAbilitiesRestricted, coachAbilitiesRestrictionNotes,
     difficultyCustomSettings, slidersAdjusted, coachXpSetting,
-    isCfb, isMadden, isSeasonOne,
+    isMadden, isSeasonOne,
   ]);
 
   function applyTemplate(template: LeagueTemplatePreset) {
@@ -532,14 +501,6 @@ export function useLeagueWizardState() {
   }
 
   const teamOptions: SiteOpenTeam[] = useMemo(() => {
-    if (game === "cfb_27") {
-      return CFB_27_TEAMS.map((t) => ({
-        id: t.abbreviation,
-        name: t.name,
-        abbreviation: t.abbreviation,
-        mascot: t.isSchedulePlaceholder ? "FCS" : t.mascot,
-      }));
-    }
     return [...AFC_TEAMS, ...NFC_TEAMS].map((t) => ({
       id: t.abbreviation,
       name: t.name,
@@ -857,7 +818,6 @@ export function useLeagueWizardState() {
     setConferenceRules,
     conferenceRuleDraft,
     updateConferenceRule,
-    isCfb,
     isMadden,
     isSeasonOne,
     gameLabel,

@@ -61,8 +61,8 @@ async function maybeCreateImmortalityLeague(input: {
     teamPool: input.teamPool,
   });
 }
-function defaultDataModeForGame(game: string | undefined): "import" | "box_scores" {
-  return game?.startsWith("madden_") ? "import" : "box_scores";
+function defaultDataModeForGame(_game: string | undefined): "import" | "box_scores" {
+  return "import";
 }
 
 function normalizeTradeApprovalPolicy(policy: unknown): "not_allowed" | "competition_committee_review" {
@@ -72,23 +72,7 @@ function normalizeTradeApprovalPolicy(policy: unknown): "not_allowed" | "competi
 function normalizeLeagueSetupInput(input: CreateLeagueInput): CreateLeagueInput {
   const sliderSettings = resolveLeagueSliderValues(input.game, input.sliderPresetId, input.sliderSettings);
   const sliderCatalogVersion = LEAGUE_SLIDER_CATALOG_VERSION[input.game];
-  if (input.game !== "cfb_27") return { ...input, sliderSettings, sliderCatalogVersion };
-
-  const dynastyType = input.dynastyType ?? "real";
-  return {
-    ...input,
-    sliderSettings,
-    sliderCatalogVersion,
-    dynastyType,
-    teamBuilderAllowed: dynastyType === "mixed",
-    ageResetsEnabled: false,
-    contractAdjustmentPurchasesEnabled: false,
-    // Campus Legends (CFB's Legends) supports its own season cap same as Madden — don't zero it.
-    ageResetsSeasonCap: 0,
-    contractPurchasesSeasonCap: 0,
-    salaryCapEnabled: false,
-    tradeDeadlineEnabled: false,
-  };
+  return { ...input, sliderSettings, sliderCatalogVersion };
 }
 
 function preserveWhenOmitted<T>(value: T | undefined, existing: T | null | undefined) {
@@ -221,10 +205,9 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     league_type: input.leagueType,
     ...(ownerUserId ? { owner_user_id: ownerUserId } : {}),
     current_phase: "preseason",
-    // CFB has no training-camp period and starts at Preseason; Madden starts at Training Camp.
     // The bot immediately calls setLeagueWeek() right after creation to confirm this, but set it
     // correctly here too so the league is never briefly mislabeled if that follow-up call fails.
-    season_stage: input.game === "cfb_27" ? "preseason" : "preseason_training_camp",
+    season_stage: "preseason_training_camp",
     season_number: input.seasonNumber ?? 1,
     current_week: 1,
     trust_mode: "manual",
@@ -247,36 +230,17 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     league_password: input.leaguePassword ?? null,
     roster_type: input.leagueType,
     data_mode: input.dataMode ?? defaultDataModeForGame(input.game),
-    dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
-    recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
-    active_rosters_enabled: input.game === "cfb_27" ? true : null,
-    track_rosters_enabled: input.game === "cfb_27" ? true : null,
-    transfer_portal_enabled: input.game === "cfb_27" ? input.transferPortalEnabled : null,
-    coach_carousel_enabled: input.game === "cfb_27" ? input.coachCarouselEnabled : null,
-    conference_realignment: input.game === "cfb_27" ? input.conferenceRealignment : null,
-    home_field_advantage_enabled: input.game === "cfb_27" ? input.homeFieldAdvantageEnabled : null,
-    stadium_pulse_enabled: input.game === "cfb_27" ? input.stadiumPulseEnabled : null,
-    team_builder_allowed: input.game === "cfb_27" ? input.teamBuilderAllowed : null,
-    player_edit_permission: input.game === "cfb_27" ? (input.playerEditPermission ?? "commish_only") : null,
-    manual_xp_progression_penalty_pct: input.game === "cfb_27" ? (input.manualXpProgressionPenaltyPct ?? 25) : null,
-    verbal_commit_influence_pct: input.game === "cfb_27" ? (input.verbalCommitInfluencePct ?? 25) : null,
-    user_transfer_chance_pct: input.game === "cfb_27" ? (input.userTransferChancePct ?? 55) : null,
-    cpu_transfer_chance_pct: input.game === "cfb_27" ? (input.cpuTransferChancePct ?? 55) : null,
-    transfer_portal_max_per_team: input.game === "cfb_27" ? (input.transferPortalMaxPerTeam ?? 20) : null,
-    minimum_play_clock_seconds: input.game === "cfb_27" ? (input.minimumPlayClockSeconds ?? 15) : null,
-    season_experience: input.game === "cfb_27" ? (input.seasonExperience ?? "customized") : null,
-
     cross_play_enabled: input.crossPlayEnabled ?? true,
     required_console: input.crossPlayEnabled === false ? (input.requiredConsole ?? null) : null,
     coin_economy_enabled: input.coinEconomyEnabled,
     coin_economy_minimum_linked_users: input.coinEconomyMinimumLinkedUsers ?? 8,
     custom_players_enabled: input.customPlayersEnabled,
     legends_enabled: input.legendsEnabled,
-    dev_upgrades_enabled: input.game === "cfb_27" ? false : input.devUpgradesEnabled,
-    age_resets_enabled: input.game === "cfb_27" ? false : input.ageResetsEnabled,
-    attribute_purchases_enabled: input.game === "cfb_27" ? false : input.attributePurchasesEnabled,
+    dev_upgrades_enabled: input.devUpgradesEnabled,
+    age_resets_enabled: input.ageResetsEnabled,
+    attribute_purchases_enabled: input.attributePurchasesEnabled,
     player_trait_purchases_enabled: false,
-    contract_adjustment_purchases_enabled: input.game === "cfb_27" ? false : input.contractAdjustmentPurchasesEnabled,
+    contract_adjustment_purchases_enabled: input.contractAdjustmentPurchasesEnabled,
     media_features_enabled: input.mediaFeaturesEnabled,
     custom_players_season_cap: input.customPlayersSeasonCap ?? 0,
     legends_season_cap: input.legendsSeasonCap ?? 0,
@@ -332,15 +296,13 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
 
     injury_policy: input.injuryPolicy,
     difficulty: input.difficulty,
-    cfb_difficulty: input.game === "cfb_27" ? input.cfbDifficulty : null,
-    trade_difficulty: input.game === "cfb_27" ? null : (input.tradeDifficulty ?? "normal"),
+    trade_difficulty: input.tradeDifficulty ?? "normal",
     free_agent_motivation_impact: input.game === "madden_26" ? (input.freeAgentMotivationImpact ?? "normal") : null,
     sliders_adjusted: input.slidersAdjusted ?? Boolean(input.sliderPresetId || Object.keys(input.sliderSettings ?? {}).length),
     slider_preset_id: input.sliderPresetId ?? null,
     slider_catalog_version: input.sliderCatalogVersion ?? LEAGUE_SLIDER_CATALOG_VERSION[input.game],
     slider_settings: resolveLeagueSliderValues(input.game, input.sliderPresetId, input.sliderSettings),
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
-    coach_xp_setting: input.game === "cfb_27" ? (input.coachXpSetting ?? "casual") : null,
     quarter_length_minutes: input.quarterLengthMinutes,
     accelerated_clock_enabled: input.acceleratedClockEnabled,
     accelerated_clock_minimum_seconds: input.acceleratedClockMinimumSeconds,
@@ -358,13 +320,6 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     coach_mode_auto_pass_enabled: input.coachModeAutoPassEnabled,
     coach_mode_auto_snap_enabled: input.coachModeAutoSnapEnabled,
     coach_mode_coach_suggestions_enabled: input.coachModeCoachSuggestionsEnabled,
-    coach_mode_recruit_flipping_enabled: input.game === "cfb_27" ? input.coachModeRecruitFlippingEnabled : null,
-    coach_mode_auto_recruiting_enabled: input.game === "cfb_27" ? input.coachModeAutoRecruitingEnabled : null,
-    coach_mode_auto_progress_players_enabled: input.game === "cfb_27" ? input.coachModeAutoProgressPlayersEnabled : null,
-    coach_mode_user_auto_progression_enabled: input.game === "cfb_27" ? input.coachModeUserAutoProgressionEnabled : null,
-    coach_mode_cpu_manage_budget_enabled: input.game === "cfb_27" ? input.coachModeCpuManageBudgetEnabled : null,
-    coach_mode_cpu_manage_staff_enabled: input.game === "cfb_27" ? input.coachModeCpuManageStaffEnabled : null,
-    coach_mode_cpu_manage_facilities_enabled: input.game === "cfb_27" ? input.coachModeCpuManageFacilitiesEnabled : null,
     ball_hawk: input.ballHawk,
     heat_seeker: input.heatSeeker,
     switch_assist: input.switchAssist,
@@ -446,7 +401,6 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
   const defaultTeams = await createDefaultTeamsForGuild({
     guildId: input.guildId,
     requestedByDiscordId: input.requestedByDiscordId ?? null,
-    conferenceOverrides: input.game === "cfb_27" ? input.conferenceAssignments : undefined,
   });
   const isRiseIdentityLeague = shouldApplyRiseToImmortality({
     game: input.game,
@@ -497,8 +451,6 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     await ensureFantasyDraftSession(league.data.id);
   }
 
-  await upsertConferenceRules(league.data.id, input.conferenceRules);
-
   return {
     server: serverResult.server,
     league: league.data,
@@ -521,42 +473,24 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
  * else rides on rec_league_configuration's column defaults and is one Settings edit away
  * once the commissioner is ready, same as any other league.
  */
-function buildConfigurationPayload(leagueId: string, input: Record<string, unknown>, isCfbGame: boolean) {
-  const sliderGame = input.game === "cfb_27" || input.game === "madden_27" ? input.game : "madden_26";
+function buildConfigurationPayload(leagueId: string, input: Record<string, unknown>) {
+  const sliderGame = input.game === "madden_27" ? input.game : "madden_26";
   return {
     league_id: leagueId,
     league_password: input.leaguePassword ?? null,
-    roster_type: input.leagueType ?? (isCfbGame ? "dynasty" : "madden_cfm"),
+    roster_type: input.leagueType ?? "madden_cfm",
     data_mode: (input.dataMode as string | undefined) ?? defaultDataModeForGame(input.game as string | undefined),
-    dynasty_type: isCfbGame ? (input.dynastyType ?? "real") : null,
-    recruiting_difficulty: isCfbGame ? (input.recruitingDifficulty ?? "normal") : null,
-    active_rosters_enabled: isCfbGame ? true : null,
-    track_rosters_enabled: isCfbGame ? true : null,
-    transfer_portal_enabled: isCfbGame ? (input.transferPortalEnabled ?? true) : null,
-    coach_carousel_enabled: isCfbGame ? (input.coachCarouselEnabled ?? true) : null,
-    conference_realignment: isCfbGame ? (input.conferenceRealignment ?? "locked") : null,
-    home_field_advantage_enabled: isCfbGame ? (input.homeFieldAdvantageEnabled ?? true) : null,
-    stadium_pulse_enabled: isCfbGame ? (input.stadiumPulseEnabled ?? true) : null,
-    team_builder_allowed: isCfbGame ? (input.teamBuilderAllowed ?? false) : null,
-    player_edit_permission: isCfbGame ? (input.playerEditPermission ?? "commish_only") : null,
-    manual_xp_progression_penalty_pct: isCfbGame ? (input.manualXpProgressionPenaltyPct ?? 25) : null,
-    verbal_commit_influence_pct: isCfbGame ? (input.verbalCommitInfluencePct ?? 25) : null,
-    user_transfer_chance_pct: isCfbGame ? (input.userTransferChancePct ?? 55) : null,
-    cpu_transfer_chance_pct: isCfbGame ? (input.cpuTransferChancePct ?? 55) : null,
-    transfer_portal_max_per_team: isCfbGame ? (input.transferPortalMaxPerTeam ?? 20) : null,
-    minimum_play_clock_seconds: isCfbGame ? (input.minimumPlayClockSeconds ?? 15) : null,
-    season_experience: isCfbGame ? (input.seasonExperience ?? "customized") : null,
     cross_play_enabled: input.crossPlayEnabled ?? true,
     required_console: input.crossPlayEnabled === false ? (input.requiredConsole ?? null) : null,
     coin_economy_enabled: input.coinEconomyEnabled ?? false,
     coin_economy_minimum_linked_users: input.coinEconomyMinimumLinkedUsers ?? 8,
     custom_players_enabled: input.customPlayersEnabled ?? false,
     legends_enabled: input.legendsEnabled ?? false,
-    dev_upgrades_enabled: isCfbGame ? false : (input.devUpgradesEnabled ?? false),
-    age_resets_enabled: isCfbGame ? false : (input.ageResetsEnabled ?? false),
-    attribute_purchases_enabled: isCfbGame ? false : (input.attributePurchasesEnabled ?? false),
+    dev_upgrades_enabled: input.devUpgradesEnabled ?? false,
+    age_resets_enabled: input.ageResetsEnabled ?? false,
+    attribute_purchases_enabled: input.attributePurchasesEnabled ?? false,
     player_trait_purchases_enabled: false,
-    contract_adjustment_purchases_enabled: isCfbGame ? false : (input.contractAdjustmentPurchasesEnabled ?? false),
+    contract_adjustment_purchases_enabled: input.contractAdjustmentPurchasesEnabled ?? false,
     media_features_enabled: input.mediaFeaturesEnabled ?? true,
     custom_players_season_cap: input.customPlayersSeasonCap ?? 0,
     legends_season_cap: input.legendsSeasonCap ?? 0,
@@ -604,9 +538,8 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     cpu_trades_season_cap: input.cpuTradingPolicy === "not_allowed" ? 0 : (input.cpuTradesSeasonCap ?? 0),
     cpu_free_agency_policy: "disabled",
     injury_policy: input.injuryPolicy ?? "on_standard",
-    difficulty: isCfbGame ? null : (input.difficulty ?? "all_madden"),
-    cfb_difficulty: isCfbGame ? (input.cfbDifficulty ?? "heisman") : null,
-    trade_difficulty: isCfbGame ? null : (input.tradeDifficulty ?? "normal"),
+    difficulty: input.difficulty ?? "all_madden",
+    trade_difficulty: input.tradeDifficulty ?? "normal",
     free_agent_motivation_impact: input.game === "madden_26" ? (input.freeAgentMotivationImpact ?? "normal") : null,
     sliders_adjusted: input.slidersAdjusted ?? Boolean(input.sliderPresetId || Object.keys(input.sliderSettings ?? {}).length),
     slider_preset_id: input.sliderPresetId ?? null,
@@ -617,7 +550,6 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
       input.sliderSettings && typeof input.sliderSettings === "object" ? input.sliderSettings as Record<string, number> : {},
     ),
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
-    coach_xp_setting: isCfbGame ? (input.coachXpSetting ?? "casual") : null,
     quarter_length_minutes: input.quarterLengthMinutes ?? 8,
     accelerated_clock_enabled: input.acceleratedClockEnabled ?? true,
     accelerated_clock_minimum_seconds: input.acceleratedClockMinimumSeconds ?? 20,
@@ -633,13 +565,6 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     coach_mode_auto_pass_enabled: input.coachModeAutoPassEnabled ?? false,
     coach_mode_auto_snap_enabled: input.coachModeAutoSnapEnabled ?? false,
     coach_mode_coach_suggestions_enabled: input.coachModeCoachSuggestionsEnabled ?? false,
-    coach_mode_recruit_flipping_enabled: isCfbGame ? (input.coachModeRecruitFlippingEnabled ?? false) : null,
-    coach_mode_auto_recruiting_enabled: isCfbGame ? (input.coachModeAutoRecruitingEnabled ?? false) : null,
-    coach_mode_auto_progress_players_enabled: isCfbGame ? (input.coachModeAutoProgressPlayersEnabled ?? false) : null,
-    coach_mode_user_auto_progression_enabled: isCfbGame ? (input.coachModeUserAutoProgressionEnabled ?? false) : null,
-    coach_mode_cpu_manage_budget_enabled: isCfbGame ? (input.coachModeCpuManageBudgetEnabled ?? false) : null,
-    coach_mode_cpu_manage_staff_enabled: isCfbGame ? (input.coachModeCpuManageStaffEnabled ?? false) : null,
-    coach_mode_cpu_manage_facilities_enabled: isCfbGame ? (input.coachModeCpuManageFacilitiesEnabled ?? false) : null,
     ball_hawk: input.ballHawk ?? "keep_individual",
     heat_seeker: input.heatSeeker ?? "keep_individual",
     switch_assist: input.switchAssist ?? "keep_individual",
@@ -653,49 +578,17 @@ function buildConfigurationPayload(leagueId: string, input: Record<string, unkno
     defensive_play_call_cooldown: input.defensivePlayCallCooldown ?? null,
     fair_sim_requirements: input.fairSimRequirements ?? null,
     force_win_requirements: input.forceWinRequirements ?? null,
-    // Madden season-1 leagues auto-seed the NFL schedule once linked to Discord (see
-    // schedule.service.ts's default_schedule_seed_requested gate); CFB schedules are always
-    // manual. Wizard-created leagues always start at season 1, so this can key off game alone.
-    default_schedule_seed_requested: isCfbGame ? false : true,
+    // Season-1 leagues auto-seed the NFL schedule once linked to Discord (see
+    // schedule.service.ts's default_schedule_seed_requested gate). Wizard-created leagues
+    // always start at season 1.
+    default_schedule_seed_requested: true,
   };
-}
-
-/**
- * Replaces a league's per-conference rule rows. Called with an empty array to clear them,
- * or left untouched when the wizard didn't customize any conferences (undefined).
- */
-async function upsertConferenceRules(leagueId: string, rules: Record<string, unknown>[] | undefined) {
-  if (!Array.isArray(rules)) return;
-  if (rules.length === 0) {
-    await supabase.from("rec_conference_rules").delete().eq("league_id", leagueId);
-    return;
-  }
-  const rows = rules.map((rule) => ({
-    league_id: leagueId,
-    conference_name: String(rule.conferenceName ?? ""),
-    divisions_enabled: Boolean(rule.divisionsEnabled),
-    division_1_name: rule.division1Name ?? null,
-    division_2_name: rule.division2Name ?? null,
-    conference_games: rule.conferenceGames ?? null,
-    conf_champ_game_enabled: Boolean(rule.confChampGameEnabled),
-    champ_game_location: rule.champGameLocation ?? null,
-    champ_game_selection_criteria: rule.champGameSelectionCriteria ?? null,
-    protected_opponents_enabled: Boolean(rule.protectedOpponentsEnabled),
-    protected_opponents_count: rule.protectedOpponentsCount ?? 1,
-  })).filter((row) => row.conference_name);
-  if (rows.length === 0) {
-    await supabase.from("rec_conference_rules").delete().eq("league_id", leagueId);
-    return;
-  }
-  await supabase.from("rec_conference_rules").delete().eq("league_id", leagueId);
-  const { error } = await supabase.from("rec_conference_rules").insert(rows);
-  if (error) throw new ApiError(500, "We couldn't save conference rules. Please try again.", error);
 }
 
 export async function createUnclaimedLeague(input: {
   requestedByUserId: string;
   name: string;
-  game: "madden_26" | "madden_27" | "cfb_27";
+  game: "madden_26" | "madden_27";
   leaguePassword?: string | null;
   leagueType?: string;
   templateId?: string | null;
@@ -727,18 +620,6 @@ export async function createUnclaimedLeague(input: {
   transferPortalMaxPerTeam?: number;
   minimumPlayClockSeconds?: number;
   seasonExperience?: string;
-  conferenceRules?: Array<{
-    conferenceName: string;
-    divisionsEnabled: boolean;
-    division1Name?: string | null;
-    division2Name?: string | null;
-    conferenceGames: number;
-    confChampGameEnabled: boolean;
-    champGameLocation?: string | null;
-    champGameSelectionCriteria?: string | null;
-    protectedOpponentsEnabled: boolean;
-    protectedOpponentsCount: number;
-  }>;
   seasonNumber?: number;
   seasonStage?: string;
   currentWeek?: number;
@@ -837,11 +718,10 @@ export async function createUnclaimedLeague(input: {
   input = applyModeLocks(input as Record<string, unknown>) as typeof input;
   await assertCanCreateLeague(input.requestedByUserId, input.game);
 
-  const isCfbGame = input.game === "cfb_27";
   if (input.templateId && !getLeagueTemplatePreset(input.game, input.templateId as LeagueTemplateId)) {
     throw new ApiError(400, "That template is not available for the selected game.");
   }
-  const leagueType = input.leagueType ?? (isCfbGame ? "dynasty" : "madden_cfm");
+  const leagueType = input.leagueType ?? "madden_cfm";
   const seasonNumber = input.seasonNumber ?? 1;
 
   const leagueFields = {
@@ -851,7 +731,7 @@ export async function createUnclaimedLeague(input: {
     owner_user_id: input.requestedByUserId,
     discord_bot_enabled: false,
     current_phase: input.currentPhase ?? (seasonNumber > 1 ? "regular_season" : "preseason"),
-    season_stage: input.seasonStage ?? (isCfbGame ? "preseason" : "preseason_training_camp"),
+    season_stage: input.seasonStage ?? "preseason_training_camp",
     season_number: seasonNumber,
     current_week: input.currentWeek ?? 1,
     trust_mode: "manual",
@@ -871,7 +751,7 @@ export async function createUnclaimedLeague(input: {
   // commissioner to find (and instead of leaving them unable to retry without hitting a
   // duplicate — see CreateLeagueWizard.finishWizard, which only reuses an id it got back here).
   try {
-    const configurationPayload = buildConfigurationPayload(league.data.id, input, isCfbGame);
+    const configurationPayload = buildConfigurationPayload(league.data.id, input);
     const configuration = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
     if (configuration.error) throw new ApiError(500, "We couldn't save league configuration. Please try again.", configuration.error);
 
@@ -886,9 +766,7 @@ export async function createUnclaimedLeague(input: {
       teamPool: input.immortalityTeamPool,
     });
 
-    await upsertConferenceRules(league.data.id, input.conferenceRules);
-
-    const defaultTeams = await createDefaultTeamsForLeague(league.data.id, input.game);
+      const defaultTeams = await createDefaultTeamsForLeague(league.data.id, input.game);
 
     if (input.game === "madden_26" || input.game === "madden_27") {
       await seedMaddenDraftPicks(league.data.id, input.game);
@@ -974,11 +852,11 @@ export async function createUnclaimedLeague(input: {
       });
     }
 
-    // Madden season-1 leagues get their default NFL schedule immediately, regardless of whether
-    // this league ever gets linked to Discord — Discord is an optional add-on, not a
-    // prerequisite for core site functionality. CFB schedules are always manual (no default to
-    // seed). Non-fatal: a schedule-seed hiccup shouldn't block league creation.
-    if (!isCfbGame && seasonNumber === 1) {
+    // Season-1 leagues get their default NFL schedule immediately, regardless of whether this
+    // league ever gets linked to Discord — Discord is an optional add-on, not a prerequisite
+    // for core site functionality. Non-fatal: a schedule-seed hiccup shouldn't block league
+    // creation.
+    if (seasonNumber === 1) {
       await seedDefaultScheduleForLeague({
         leagueId: league.data.id,
         game: input.game,
@@ -1018,16 +896,13 @@ export async function updateSiteLeagueConfig(input: { requestedByUserId: string;
   if (!league.data) throw new ApiError(404, "League not found.");
   if (league.data.owner_user_id !== input.requestedByUserId) throw new ApiError(403, "Only the league creator can update settings.");
 
-  const isCfbGame = league.data.game === "cfb_27";
   input.game = league.data.game;
-  const configurationPayload = buildConfigurationPayload(input.leagueId, input, isCfbGame);
+  const configurationPayload = buildConfigurationPayload(input.leagueId, input);
 
   const previous = await supabase.from("rec_league_configuration").select("*").eq("league_id", input.leagueId).maybeSingle();
 
   const { data, error } = await supabase.from("rec_league_configuration").upsert(configurationPayload, { onConflict: "league_id" }).select("*").single();
   if (error) throw new ApiError(500, "We couldn't update the league configuration. Please try again.", error);
-
-  await upsertConferenceRules(input.leagueId, input.conferenceRules as Record<string, unknown>[] | undefined);
 
   await writeAuditLog({
     action: "league.configuration.updated",
@@ -1278,35 +1153,17 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     league_password: input.leaguePassword ?? null,
     roster_type: input.leagueType,
     data_mode: input.dataMode ?? defaultDataModeForGame(input.game),
-    dynasty_type: input.game === "cfb_27" ? input.dynastyType : null,
-    recruiting_difficulty: input.game === "cfb_27" ? input.recruitingDifficulty : null,
-    active_rosters_enabled: input.game === "cfb_27" ? true : null,
-    track_rosters_enabled: input.game === "cfb_27" ? true : null,
-    transfer_portal_enabled: input.game === "cfb_27" ? input.transferPortalEnabled : null,
-    coach_carousel_enabled: input.game === "cfb_27" ? input.coachCarouselEnabled : null,
-    conference_realignment: input.game === "cfb_27" ? input.conferenceRealignment : null,
-    home_field_advantage_enabled: input.game === "cfb_27" ? input.homeFieldAdvantageEnabled : null,
-    stadium_pulse_enabled: input.game === "cfb_27" ? input.stadiumPulseEnabled : null,
-    team_builder_allowed: input.game === "cfb_27" ? input.teamBuilderAllowed : null,
-    player_edit_permission: input.game === "cfb_27" ? (input.playerEditPermission ?? "commish_only") : null,
-    manual_xp_progression_penalty_pct: input.game === "cfb_27" ? (input.manualXpProgressionPenaltyPct ?? 25) : null,
-    verbal_commit_influence_pct: input.game === "cfb_27" ? (input.verbalCommitInfluencePct ?? 25) : null,
-    user_transfer_chance_pct: input.game === "cfb_27" ? (input.userTransferChancePct ?? 55) : null,
-    cpu_transfer_chance_pct: input.game === "cfb_27" ? (input.cpuTransferChancePct ?? 55) : null,
-    transfer_portal_max_per_team: input.game === "cfb_27" ? (input.transferPortalMaxPerTeam ?? 20) : null,
-    minimum_play_clock_seconds: input.game === "cfb_27" ? (input.minimumPlayClockSeconds ?? 15) : null,
-    season_experience: input.game === "cfb_27" ? (input.seasonExperience ?? "customized") : null,
     cross_play_enabled: input.crossPlayEnabled ?? true,
     required_console: input.crossPlayEnabled === false ? (input.requiredConsole ?? null) : null,
     coin_economy_enabled: input.coinEconomyEnabled,
     coin_economy_minimum_linked_users: input.coinEconomyMinimumLinkedUsers ?? 8,
     custom_players_enabled: input.customPlayersEnabled,
     legends_enabled: input.legendsEnabled,
-    dev_upgrades_enabled: input.game === "cfb_27" ? false : input.devUpgradesEnabled,
-    age_resets_enabled: input.game === "cfb_27" ? false : input.ageResetsEnabled,
-    attribute_purchases_enabled: input.game === "cfb_27" ? false : input.attributePurchasesEnabled,
+    dev_upgrades_enabled: input.devUpgradesEnabled,
+    age_resets_enabled: input.ageResetsEnabled,
+    attribute_purchases_enabled: input.attributePurchasesEnabled,
     player_trait_purchases_enabled: false,
-    contract_adjustment_purchases_enabled: input.game === "cfb_27" ? false : input.contractAdjustmentPurchasesEnabled,
+    contract_adjustment_purchases_enabled: input.contractAdjustmentPurchasesEnabled,
     media_features_enabled: input.mediaFeaturesEnabled,
     custom_players_season_cap: input.customPlayersSeasonCap ?? 0,
     legends_season_cap: input.legendsSeasonCap ?? 0,
@@ -1355,15 +1212,13 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     cpu_free_agency_policy: "disabled",
     injury_policy: input.injuryPolicy,
     difficulty: input.difficulty,
-    cfb_difficulty: input.game === "cfb_27" ? input.cfbDifficulty : null,
-    trade_difficulty: input.game === "cfb_27" ? null : (input.tradeDifficulty ?? "normal"),
+    trade_difficulty: input.tradeDifficulty ?? "normal",
     free_agent_motivation_impact: input.game === "madden_26" ? (input.freeAgentMotivationImpact ?? "normal") : null,
     sliders_adjusted: input.slidersAdjusted ?? Boolean(input.sliderPresetId || Object.keys(input.sliderSettings ?? {}).length),
     slider_preset_id: input.sliderPresetId ?? null,
     slider_catalog_version: input.sliderCatalogVersion ?? LEAGUE_SLIDER_CATALOG_VERSION[input.game],
     slider_settings: resolveLeagueSliderValues(input.game, input.sliderPresetId, input.sliderSettings),
     difficulty_custom_settings: input.difficultyCustomSettings ?? null,
-    coach_xp_setting: input.game === "cfb_27" ? (input.coachXpSetting ?? "casual") : null,
     quarter_length_minutes: input.quarterLengthMinutes,
     accelerated_clock_enabled: input.acceleratedClockEnabled,
     accelerated_clock_minimum_seconds: input.acceleratedClockMinimumSeconds,
@@ -1380,13 +1235,6 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     coach_mode_auto_pass_enabled: input.coachModeAutoPassEnabled,
     coach_mode_auto_snap_enabled: input.coachModeAutoSnapEnabled,
     coach_mode_coach_suggestions_enabled: input.coachModeCoachSuggestionsEnabled,
-    coach_mode_recruit_flipping_enabled: input.game === "cfb_27" ? input.coachModeRecruitFlippingEnabled : null,
-    coach_mode_auto_recruiting_enabled: input.game === "cfb_27" ? input.coachModeAutoRecruitingEnabled : null,
-    coach_mode_auto_progress_players_enabled: input.game === "cfb_27" ? input.coachModeAutoProgressPlayersEnabled : null,
-    coach_mode_user_auto_progression_enabled: input.game === "cfb_27" ? input.coachModeUserAutoProgressionEnabled : null,
-    coach_mode_cpu_manage_budget_enabled: input.game === "cfb_27" ? input.coachModeCpuManageBudgetEnabled : null,
-    coach_mode_cpu_manage_staff_enabled: input.game === "cfb_27" ? input.coachModeCpuManageStaffEnabled : null,
-    coach_mode_cpu_manage_facilities_enabled: input.game === "cfb_27" ? input.coachModeCpuManageFacilitiesEnabled : null,
     ball_hawk: input.ballHawk,
     heat_seeker: input.heatSeeker,
     switch_assist: input.switchAssist,
@@ -1417,8 +1265,6 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
     if (renamed.error) throw new ApiError(500, "We couldn't update the league name. Please try again.", renamed.error);
   }
 
-  await upsertConferenceRules(context.leagueId, input.conferenceRules);
-
   await writeAuditLog({
     action: "league.configuration.updated",
     entityType: "rec_league_configuration",
@@ -1436,27 +1282,14 @@ export async function updateLeagueConfig(input: CreateLeagueInput) {
 
 export async function getLeagueConfigAsDraft(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
-  const [league, config, conferenceRulesResult, immortality] = await Promise.all([
+  const [league, config, immortality] = await Promise.all([
     supabase.from("rec_leagues").select("name,game,logo_url").eq("id", context.leagueId).single(),
     supabase.from("rec_league_configuration").select("*").eq("league_id", context.leagueId).maybeSingle(),
-    supabase.from("rec_conference_rules").select("*").eq("league_id", context.leagueId),
     supabase.from("rec_immortality_leagues").select("offense_position,defense_position").eq("league_id", context.leagueId).maybeSingle(),
   ]);
   if (league.error) throw new ApiError(500, "We couldn't load that league. Please try again.", league.error);
   const c = config.data ?? {};
   const r = context.routes ?? {};
-  const conferenceRules = (conferenceRulesResult.data ?? []).map((row) => ({
-    conferenceName: row.conference_name,
-    divisionsEnabled: row.divisions_enabled,
-    division1Name: row.division_1_name,
-    division2Name: row.division_2_name,
-    conferenceGames: row.conference_games,
-    confChampGameEnabled: row.conf_champ_game_enabled,
-    champGameLocation: row.champ_game_location,
-    champGameSelectionCriteria: row.champ_game_selection_criteria,
-    protectedOpponentsEnabled: row.protected_opponents_enabled,
-    protectedOpponentsCount: row.protected_opponents_count,
-  }));
   const draft = {
     leagueId: context.leagueId,
     name: league.data.name ?? "League",
@@ -1467,28 +1300,8 @@ export async function getLeagueConfigAsDraft(guildId: string) {
     immortalityOffensePosition: immortality.data?.offense_position ?? "QB",
     immortalityDefensePosition: immortality.data?.defense_position ?? "MIKE",
     dataMode: c.data_mode ?? defaultDataModeForGame(league.data.game),
-    activeRostersEnabled: c.active_rosters_enabled ?? true,
-    trackRostersEnabled: c.track_rosters_enabled ?? false,
-    dynastyType: c.dynasty_type ?? "real",
-    recruitingDifficulty: c.recruiting_difficulty ?? "normal",
-    transferPortalEnabled: c.transfer_portal_enabled ?? true,
-    coachCarouselEnabled: c.coach_carousel_enabled ?? true,
-    conferenceRealignment: c.conference_realignment ?? "locked",
-    conferenceAssignments: {},
     crossPlayEnabled: c.cross_play_enabled ?? true,
     requiredConsole: c.required_console ?? null,
-    homeFieldAdvantageEnabled: c.home_field_advantage_enabled ?? true,
-    stadiumPulseEnabled: c.stadium_pulse_enabled ?? true,
-    teamBuilderAllowed: c.team_builder_allowed ?? (c.dynasty_type === "mixed"),
-    playerEditPermission: c.player_edit_permission ?? "commish_only",
-    manualXpProgressionPenaltyPct: c.manual_xp_progression_penalty_pct ?? 25,
-    verbalCommitInfluencePct: c.verbal_commit_influence_pct ?? 25,
-    userTransferChancePct: c.user_transfer_chance_pct ?? 55,
-    cpuTransferChancePct: c.cpu_transfer_chance_pct ?? 55,
-    transferPortalMaxPerTeam: c.transfer_portal_max_per_team ?? 20,
-    minimumPlayClockSeconds: c.minimum_play_clock_seconds ?? 15,
-    seasonExperience: c.season_experience ?? "customized",
-    conferenceRules,
     seasonWeek: "week_1",
     coinEconomyEnabled: c.coin_economy_enabled ?? false,
     customPlayersEnabled: c.custom_players_enabled ?? false,
@@ -1608,8 +1421,8 @@ export async function getLeagueConfigAsDraft(guildId: string) {
 }
 
 /**
- * Current conference for every team on the guild's league — used to seed the CFB conference
- * assignment editor with live data instead of the static default catalog once a league exists.
+ * Current conference for every team on the guild's league — used to seed the Team Relocate
+ * conference editor with live data instead of the static default catalog once a league exists.
  */
 export async function getLeagueTeamConferences(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
@@ -1622,9 +1435,8 @@ export async function getLeagueTeamConferences(guildId: string) {
 }
 
 /**
- * Updates a single team's conference. Used by the CFB conference-assignment editor when editing
- * an existing league (new leagues apply overrides at team-creation time instead, see
- * createDefaultTeamsForGuild's conferenceOverrides param).
+ * Updates a single team's conference. Used by the Team Relocate panel when editing an
+ * existing league's teams.
  */
 export async function updateTeamConference(input: { guildId: string; abbreviation: string; conference: string; requestedByDiscordId?: string }) {
   const context = await getCurrentLeagueContext(input.guildId);

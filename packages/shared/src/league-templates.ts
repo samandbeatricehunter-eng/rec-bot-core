@@ -1,5 +1,4 @@
 export type LeagueTemplateId = "rec_recommended" | "normal_regs" | "hardcore_regs" | "normal_fantasy" | "fantasy_free_for_all" | "rise_to_immortality";
-export type LeagueTemplateGame = "madden" | "cfb";
 
 export interface LeagueTemplateMeta {
   id: LeagueTemplateId;
@@ -91,14 +90,6 @@ export const MADDEN_LEAGUE_TEMPLATES: LeagueTemplateMeta[] = [
   { id:"rise_to_immortality", name:"Rise to Immortality", tagline:"10-season player-career RPG", description:"Madden 27 only. Create one offensive and one defensive cornerstone. Store purchases are off — Player XP upgrades ratings, then Team XP. Coins come from annual contracts, not weekly payouts." },
 ];
 
-export const CFB_LEAGUE_TEMPLATES: LeagueTemplateMeta[] = MADDEN_LEAGUE_TEMPLATES
-  .filter((template) => !["normal_fantasy","fantasy_free_for_all","rise_to_immortality"].includes(template.id))
-  .map((template) => ({ ...template, description: template.id === "rec_recommended"
-    ? "Heisman gameplay, REC rules, automatic roster tracking, custom players, and Campus Legends."
-    : template.id === "normal_regs"
-      ? "Heisman gameplay, reduced injuries, automatic roster tracking, and custom-player purchases."
-      : "Heisman gameplay with strict rules, automatic roster tracking, and no purchase types enabled." }));
-
 const base = (): LeagueTemplatePreset => ({
   leagueType:"regular_rosters", difficulty:"all_madden", cfbDifficulty:"heisman", recruitingDifficulty:"normal", dynastyType:"real",
   quarterLengthMinutes:8, acceleratedClockEnabled:true, acceleratedClockMinimumSeconds:25, abilitiesEnabled:true, wearAndTearEnabled:true,
@@ -155,36 +146,24 @@ function maddenPreset(id: LeagueTemplateId): LeagueTemplatePreset {
     customPlayersEnabled:true, legendsEnabled:true, devUpgradesEnabled:true, ageResetsEnabled:true, attributePurchasesEnabled:true };
 }
 
-function cfbPreset(id: LeagueTemplateId): LeagueTemplatePreset {
-  const p = base();
-  if (id === "rec_recommended") return { ...p, customPlayersEnabled:true, customPlayersSeasonCap:2, legendsEnabled:true, legendsSeasonCap:2 };
-  if (id === "normal_regs") return { ...p, injuryPolicy:"on_reduced", offensivePlayCallCooldown:5, defensivePlayCallCooldown:5,
-    customPlayersEnabled:true, customPlayersSeasonCap:1 };
-  return { ...p, recruitingDifficulty:"hard", injuryPolicy:"on_standard", preorderBonusesEnabled:false,
-    ballHawk:"off", heatSeeker:"off", switchAssist:"off", fourthDownRuleTypePlayoff:"standard_rec",
-    customFourthDownRuleRegular:"Trailing exception applies only in the fourth quarter.", offensivePlayCallLimitsEnabled:true,
-    offensivePlayCallLimit:2, offensivePlayCallCooldown:7, defensivePlayCallLimitsEnabled:true, defensivePlayCallLimit:5, defensivePlayCallCooldown:7 };
-}
-
 export const MADDEN_TEMPLATE_PRESETS = Object.fromEntries(MADDEN_LEAGUE_TEMPLATES.map((template) => [template.id, maddenPreset(template.id)])) as Record<LeagueTemplateId, LeagueTemplatePreset>;
-export const CFB_TEMPLATE_PRESETS = Object.fromEntries(CFB_LEAGUE_TEMPLATES.map((template) => [template.id, cfbPreset(template.id)])) as Partial<Record<LeagueTemplateId, LeagueTemplatePreset>>;
 export const BASE_TEMPLATE_PRESET = base();
 export const LEAGUE_TEMPLATES = MADDEN_LEAGUE_TEMPLATES;
 export const REC_RECOMMENDED_CORE_ATTRIBUTES = CORE_STANDARD;
 export const NORMAL_CORE_ATTRIBUTES = CORE_STANDARD;
 export const ALL_MADDEN_ATTRIBUTE_CODES = CORE_STANDARD;
 
-export function getLeagueTemplatePreset(game: "madden_26"|"madden_27"|"cfb_27", id: LeagueTemplateId): LeagueTemplatePreset | null {
+export function getLeagueTemplatePreset(game: "madden_26"|"madden_27", id: LeagueTemplateId): LeagueTemplatePreset | null {
   if (id === "rise_to_immortality") return game === "madden_27" ? MADDEN_TEMPLATE_PRESETS[id] : null;
-  return game === "cfb_27" ? CFB_TEMPLATE_PRESETS[id] ?? null : MADDEN_TEMPLATE_PRESETS[id];
+  return MADDEN_TEMPLATE_PRESETS[id];
 }
 
 export interface TemplateSettingRow { label:string; value:string }
 export interface TemplateSettingGroup { key:string; label:string; blurb:string; rows:TemplateSettingRow[] }
-export function describeTemplateSettings(preset: LeagueTemplatePreset, game: LeagueTemplateGame): TemplateSettingGroup[] {
+export function describeTemplateSettings(preset: LeagueTemplatePreset): TemplateSettingGroup[] {
   return [
     { key:"gameplay", label:"Gameplay & Rules", blurb:"Difficulty, clocks, fourth-down and play-call rules.", rows:[
-      {label:"Difficulty",value:game === "cfb" ? preset.cfbDifficulty : preset.difficulty}, {label:"Quarter length",value:`${preset.quarterLengthMinutes} min`},
+      {label:"Difficulty",value:preset.difficulty}, {label:"Quarter length",value:`${preset.quarterLengthMinutes} min`},
       {label:"Accelerated clock",value:preset.acceleratedClockEnabled ? `${preset.acceleratedClockMinimumSeconds}s` : "Off"},
       {label:"Injuries",value:preset.injuryPolicy}, {label:"4th down (regular)",value:preset.fourthDownRuleTypeRegular}, {label:"4th down (playoffs)",value:preset.fourthDownRuleTypePlayoff},
     ]},

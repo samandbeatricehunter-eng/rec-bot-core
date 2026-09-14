@@ -1,7 +1,7 @@
 // Static dropdown/select option lists for CreateLeagueWizard, split out of the wizard
 // component itself purely because of file size — none of this has any state or behavior.
 
-export type GameKey = "madden_26" | "madden_27" | "cfb_27";
+export type GameKey = "madden_26" | "madden_27";
 
 export const GAME_OPTIONS: { value: GameKey; label: string }[] = [
   { value: "madden_26", label: "Madden 26" },
@@ -36,22 +36,9 @@ export const MADDEN_DIFFICULTY = [
   { value: "all_madden", label: "All-Madden" },
 ];
 
-export const CFB_DIFFICULTY = [
-  { value: "freshman", label: "Freshman" },
-  { value: "varsity", label: "Varsity" },
-  { value: "all_american", label: "All-American" },
-  { value: "heisman", label: "Heisman" },
-];
-
 export const MADDEN_SEASON_STAGES = [
   "preseason_training_camp", "regular_season", "wild_card", "divisional",
   "conference_championship", "super_bowl", "offseason", "draft",
-] as const;
-
-export const CFB_SEASON_STAGES = [
-  "preseason", "week_0", "regular_season", "conference_championship",
-  "bowl_season", "cfp_first_round", "cfp_quarterfinal", "cfp_semifinal",
-  "national_championship", "offseason",
 ] as const;
 
 export const STREAMING_OPTIONS = [
@@ -131,17 +118,6 @@ export const FA_MOTIVATION_IMPACT_OPTIONS = [
   { value: "very_high", label: "Very High" },
 ];
 
-export const CFB_RECRUITING_DIFFICULTY = [
-  { value: "easy", label: "Easy" },
-  { value: "normal", label: "Normal" },
-  { value: "hard", label: "Hard" },
-];
-
-export const CFB_DYNASTY_TYPE = [
-  { value: "real", label: "Real Rosters" },
-  { value: "mixed", label: "Mixed (Team Builder Allowed)" },
-];
-
 export const PLAYER_EDIT_PERMISSION_OPTIONS = [
   { value: "commish_only", label: "Commissioner Only" },
   { value: "any_player", label: "Any Player" },
@@ -162,9 +138,4 @@ export const CHAMP_GAME_LOCATION_OPTIONS = [
 export const CHAMP_GAME_CRITERIA_OPTIONS = [
   { value: "conference_record", label: "Conference Record" },
   { value: "division_winners", label: "Division Winners" },
-];
-
-export const CFB_CONFERENCE_REALIGNMENT = [
-  { value: "allowed", label: "Allowed" },
-  { value: "locked", label: "Locked" },
 ];

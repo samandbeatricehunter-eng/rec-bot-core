@@ -1,4 +1,4 @@
-export type SliderGame = "cfb_27" | "madden_26" | "madden_27";
+export type SliderGame = "madden_26" | "madden_27";
 export type SliderSide = "shared" | "user" | "cpu";
 export type SliderCategory = "gameplay" | "special_teams" | "penalties" | "wear_and_tear" | "xp" | "regression" | "age_regression";
 
@@ -77,7 +77,6 @@ const maddenOnly = [
 ];
 
 export const LEAGUE_SLIDER_CATALOGS: Record<SliderGame, LeagueSliderDefinition[]> = {
-  cfb_27: baseCatalog,
   madden_26: [...baseCatalog, ...maddenOnly],
   // Madden 27 intentionally launches from the Madden 26 catalog. New Madden 27-only
   // controls can be appended under a new catalog version without changing saved builds.
@@ -85,7 +84,6 @@ export const LEAGUE_SLIDER_CATALOGS: Record<SliderGame, LeagueSliderDefinition[]
 };
 
 export const LEAGUE_SLIDER_CATALOG_VERSION: Record<SliderGame, string> = {
-  cfb_27: "cfb-27-2026-08-10",
   madden_26: "madden-26-final",
   madden_27: "madden-27-m26-baseline-v1",
 };
@@ -99,40 +97,6 @@ function both(key: string, user: number, cpu: number): Record<string, number> {
 }
 
 export const COMMUNITY_SLIDER_PRESETS: CommunitySliderPreset[] = [
-  {
-    id: "cfb27_noobtubetv", game: "cfb_27", name: "NoobTubeTV Dynasty", creator: "NoobTubeTV",
-    description: "Heisman/All-American dynasty set with progression, transfers, gameplay, and wear-and-tear tuning.",
-    sourceUrl: "https://noobtubetv.com/", sourceVersion: "2026-07-20",
-    values: {
-      ...both("qb_accuracy",50,45), ...both("pass_blocking",60,50), ...both("wr_catching",53,46),
-      ...both("run_blocking",50,51), ...both("ball_security",40,30), ...both("interceptions",49,25),
-      ...both("pass_coverage",55,5), ...both("tackling",50,50),
-      "shared.normal_tackle":25,"shared.catch_tackle":28,"shared.hit_stick":38,"shared.cut_stick":38,
-      "shared.defender_advantage":42,"shared.sack":36,"shared.block":25,"shared.impact_block":38,
-      "shared.per_play_recovery":49,"shared.per_timeout_recovery":53,"shared.quarter_recovery":58,
-      "shared.halftime_recovery":65,"shared.week_recovery":80,
-      "xp.qb":155,"xp.hb":145,"xp.fb":110,"xp.wr":145,"xp.te":155,"xp.ot":120,"xp.og":120,
-      "xp.c":120,"xp.de":125,"xp.dt":120,"xp.mlb":120,"xp.olb":110,"xp.cb":115,"xp.ss":120,"xp.fs":120,"xp.k":110,"xp.p":110,
-    },
-  },
-  {
-    id: "cfb27_editorial_all_american", game: "cfb_27", name: "CFB27 Editorial All-American", creator: "CFB27 Editorial",
-    description: "No-switch All-American baseline verified against game version 1.005.",
-    sourceUrl: "https://cfb27.com/article/cfb-27-sliders-guide-realistic-gameplay-settings-for-dynasty-and", sourceVersion: "1.005 / 2026-07-18",
-    values: {
-      ...both("qb_accuracy",37,32),...both("pass_blocking",51,55),...both("wr_catching",47,49),
-      ...both("run_blocking",49,52),...both("ball_security",50,50),...both("pass_defense_reaction",53,51),
-      ...both("interceptions",31,29),...both("pass_coverage",52,50),...both("tackling",44,50),
-      ...both("field_goal_power",51,51),...both("field_goal_accuracy",45,45),...both("punt_power",54,54),
-      ...both("punt_accuracy",49,49),...both("kickoff_power",50,50),
-    },
-  },
-  {
-    id: "cfb27_realsport101", game: "cfb_27", name: "RealSport101 Dynasty", creator: "RealSport101",
-    description: "Community-published realism configuration for long-running CFB 27 dynasties.",
-    sourceUrl: "https://realsport101.com/article/college-football-27-the-most-realistic-sliders-for-dynasty-mode", sourceVersion: "2026-07-15",
-    values: { ...both("qb_accuracy",40,24),...both("pass_blocking",68,62),...both("wr_catching",40,50),...both("run_blocking",38,50),...both("ball_security",48,50),...both("interceptions",22,50),...both("pass_coverage",42,50),...both("tackling",42,50) },
-  },
   {
     id: "m26_matt10", game: "madden_26", name: "Matt10 Simulation", creator: "Matt10",
     description: "Maintained All-Madden/All-Pro simulation set emphasizing blocking animations and coverage.",

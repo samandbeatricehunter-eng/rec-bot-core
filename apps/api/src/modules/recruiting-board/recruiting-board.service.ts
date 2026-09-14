@@ -11,14 +11,13 @@ import { listOpenTeamsForLeagueId } from "../team-ownership/team-ownership.servi
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { grantWelcomeBonus } from "../economy/welcome-bonus.service.js";
 import { notifyLeagueCommissionersOfPendingItem } from "../notifications/commissioner-pending-summary.js";
-import { CFB_LEAGUE_TEMPLATES, MADDEN_LEAGUE_TEMPLATES } from "@rec/shared";
+import { MADDEN_LEAGUE_TEMPLATES } from "@rec/shared";
 
-const GAME_LABELS: Record<string, string> = { madden_26: "Madden NFL 26", madden_27: "Madden NFL 27", cfb_27: "College Football 27" };
+const GAME_LABELS: Record<string, string> = { madden_26: "Madden NFL 26", madden_27: "Madden NFL 27" };
 
 function channelForGame(config: Awaited<ReturnType<typeof getSiteDiscordConfig>>, game: string): string | null {
   if (game === "madden_26") return config.leaguePostChannels.madden_26;
   if (game === "madden_27") return config.leaguePostChannels.madden_27;
-  if (game === "cfb_27") return config.leaguePostChannels.cfb_27;
   return null;
 }
 
@@ -28,10 +27,9 @@ async function loadLeagueForAd(leagueId: string) {
   return data as { id: string; name: string; game: string; max_members: number | null; template_id: string | null } | null;
 }
 
-function templateDisplayName(game: string, templateId: string | null): string | null {
+function templateDisplayName(_game: string, templateId: string | null): string | null {
   if (!templateId) return null;
-  const catalog = game === "cfb_27" ? CFB_LEAGUE_TEMPLATES : MADDEN_LEAGUE_TEMPLATES;
-  return catalog.find((t) => t.id === templateId)?.name ?? null;
+  return MADDEN_LEAGUE_TEMPLATES.find((t) => t.id === templateId)?.name ?? null;
 }
 
 async function removeAd(leagueId: string) {
@@ -222,9 +220,9 @@ export type RecruitingBoardGroup = {
   teams: Array<{ id: string; name: string; open: boolean }>;
 };
 
-/** Teams grouped by conference (CFB) or division (Madden) for the paginated Request Team
- * browser — one Discord page per group, since a single 25-option select menu can't hold a
- * full league and a flat list has no way to convey "these go together." */
+/** Teams grouped by division for the paginated Request Team browser — one Discord page per
+ * group, since a single 25-option select menu can't hold a full league and a flat list has
+ * no way to convey "these go together." */
 export async function getRecruitingBoardGroupedTeams(leagueId: string): Promise<{ leagueName: string; groups: RecruitingBoardGroup[] }> {
   const league = await loadLeagueForAd(leagueId);
   if (!league) throw new ApiError(404, "League not found.");
@@ -236,10 +234,9 @@ export async function getRecruitingBoardGroupedTeams(leagueId: string): Promise<
   }
   const { openTeams, allTeams } = await listOpenTeamsForLeagueId(leagueId);
   const openTeamIds = new Set<string>(openTeams.map((team: any) => String(team.id)));
-  const isCfb = league.game === "cfb_27";
   const byGroup = new Map<string, RecruitingBoardGroup["teams"]>();
   for (const team of allTeams as any[]) {
-    const key = (isCfb ? team.conference : team.division) || (isCfb ? team.division : team.conference) || "Teams";
+    const key = team.division || team.conference || "Teams";
     const list = byGroup.get(key) ?? [];
     list.push({ id: team.id, name: formatTeamDisplayName(team) ?? team.name, open: openTeamIds.has(team.id) });
     byGroup.set(key, list);
@@ -250,21 +247,20 @@ export async function getRecruitingBoardGroupedTeams(leagueId: string): Promise<
   };
 }
 
-// `game` filters entries to CFB-only ("cfb"), Madden-only ("madden"), or unset for always-shown.
-// `condition` additionally hides a field based on the loaded config row (e.g. Required Console
-// only matters once cross-play is off) — evaluated after the game filter.
+// `condition` hides a field based on the loaded config row (e.g. Required Console only
+// matters once cross-play is off).
 const LEAGUE_SETTINGS_SECTIONS: Array<{
   title: string;
-  fields: Array<[label: string, key: string, game?: "cfb" | "madden", condition?: (row: Record<string, unknown>) => boolean]>;
+  fields: Array<[label: string, key: string, condition?: (row: Record<string, unknown>) => boolean]>;
 }> = [
   {
     title: "General & Format",
     fields: [
       ["Roster type", "roster_type"],
       ["Quarter length", "quarter_length_minutes"], ["Accelerated clock", "accelerated_clock_enabled"],
-      ["Difficulty", "difficulty", "madden"], ["CFB difficulty", "cfb_difficulty", "cfb"],
+      ["Difficulty", "difficulty"],
       ["Cross-play", "cross_play_enabled"],
-      ["Required console", "required_console", undefined, (row) => row.cross_play_enabled === false],
+      ["Required console", "required_console", (row) => row.cross_play_enabled === false],
       ["Advance timing", "advance_timing"],
     ],
   },
@@ -312,16 +308,10 @@ export async function getRecruitingBoardLeagueSettings(leagueId: string): Promis
   const config = await supabase.from("rec_league_configuration").select("*").eq("league_id", leagueId).maybeSingle();
   if (config.error) throw new ApiError(500, "Failed to load league settings.", config.error);
   const row: Record<string, unknown> = config.data ?? {};
-  const isCfb = league.game === "cfb_27";
   const pages = LEAGUE_SETTINGS_SECTIONS.map((section) => ({
     title: section.title,
     lines: section.fields
-      .filter(([, , game, condition]) => {
-        if (game === "cfb" && !isCfb) return false;
-        if (game === "madden" && isCfb) return false;
-        if (condition && !condition(row)) return false;
-        return true;
-      })
+      .filter(([, , condition]) => !condition || condition(row))
       .map(([label, key]) => `**${label}:** ${formatSettingValue(row[key])}`),
   }));
   return { leagueName: league.name, pages };

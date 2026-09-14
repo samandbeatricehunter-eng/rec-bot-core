@@ -41,7 +41,7 @@ export const CreateLeagueSchema = z.object({
   crossPlayEnabled: z.boolean().default(true),
   requiredConsole: z.enum(["ps5", "xbox", "pc"]).optional().nullable(),
 
-  game: z.enum(["madden_26", "madden_27", "cfb_27"]).default("madden_26"),
+  game: z.enum(["madden_26", "madden_27"]).default("madden_26"),
   // How this league's game results/stats/rosters get entered. No zod default keyed on `game`
   // here — league creation picks the game-aware default (see defaultDataModeForGame in
   // setup.service.ts) when this is omitted; settings saves always send it explicitly.
@@ -66,43 +66,6 @@ export const CreateLeagueSchema = z.object({
   // "custom rosters" — "pre-seed with in-game default rosters anyway?" Defaults to false
   // (no preseed) so commissioners who want a truly blank roster get one without an extra step.
   customRostersPreseedRequested: z.boolean().default(false),
-  // CFB 27 only: replaces the League Type question.
-  activeRostersEnabled: z.boolean().default(true),
-  // CFB 27 only: seed the league's initial rosters from the CFB baseline dataset at creation.
-  trackRostersEnabled: z.boolean().default(true),
-
-  dynastyType: z.enum(["real", "mixed"]).default("real"),
-  recruitingDifficulty: z.enum(["easy", "normal", "hard"]).default("normal"),
-  transferPortalEnabled: z.boolean().default(true),
-  coachCarouselEnabled: z.boolean().default(true),
-  homeFieldAdvantageEnabled: z.boolean().default(true),
-  stadiumPulseEnabled: z.boolean().default(true),
-  conferenceRealignment: z.enum(["allowed", "locked"]).default("locked"),
-  // Team abbreviation -> conference override, applied when seeding default teams (CFB 27 only).
-  conferenceAssignments: z.record(z.string()).default({}),
-  teamBuilderAllowed: z.boolean().default(false),
-  // CFB 27 only: per-conference rule overrides (division structure, conference games,
-  // championship game, protected opponents). Only conferences actually customized are sent.
-  playerEditPermission: z.enum(["commish_only", "any_player", "none"]).default("commish_only"),
-  manualXpProgressionPenaltyPct: z.number().int().min(0).max(100).default(25),
-  verbalCommitInfluencePct: z.number().int().min(0).max(100).default(25),
-  userTransferChancePct: z.number().int().min(0).max(100).default(55),
-  cpuTransferChancePct: z.number().int().min(0).max(100).default(55),
-  transferPortalMaxPerTeam: z.number().int().min(0).max(30).default(20),
-  minimumPlayClockSeconds: z.number().int().min(10).max(25).default(15),
-  seasonExperience: z.enum(["full_control", "customized", "simple"]).default("customized"),
-  conferenceRules: z.array(z.object({
-    conferenceName: z.string().trim().min(1).max(80),
-    divisionsEnabled: z.boolean(),
-    division1Name: z.string().optional().nullable(),
-    division2Name: z.string().optional().nullable(),
-    conferenceGames: z.number().int().min(6).max(9),
-    confChampGameEnabled: z.boolean(),
-    champGameLocation: z.string().optional().nullable(),
-    champGameSelectionCriteria: z.string().optional().nullable(),
-    protectedOpponentsEnabled: z.boolean(),
-    protectedOpponentsCount: z.number().int().min(1).max(10),
-  })).optional(),
 
   seasonNumber: z.number().int().min(1).default(1),
   seasonStage: SeasonStageSchema.default("preseason_training_camp"),
@@ -195,8 +158,6 @@ export const CreateLeagueSchema = z.object({
   injuryPolicy: z.enum(["off", "on_standard", "on_reduced"]).default("on_standard"),
 
   difficulty: z.enum(["rookie", "pro", "all_pro", "all_madden"]).default("all_madden"),
-  cfbDifficulty: z.enum(["freshman", "varsity", "all_american", "heisman"]).default("heisman"),
-  // Madden only: mirrors the in-game "Trade Difficulty" league setting. Omitted/null for CFB.
   tradeDifficulty: z.enum(["very_easy", "easy", "normal", "hard", "very_hard"]).default("normal"),
   // Madden 26 only: mirrors the in-game "Free Agent Motivation Impact" league setting (the
   // setting does not exist in Madden 27). Null/omitted for everything else.
@@ -206,7 +167,6 @@ export const CreateLeagueSchema = z.object({
   sliderCatalogVersion: z.string().trim().max(100).optional().nullable(),
   sliderSettings: z.record(z.number().min(0).max(300)).default({}),
   difficultyCustomSettings: z.string().optional().nullable(),
-  coachXpSetting: z.enum(["casual", "career", "simulation"]).optional().nullable(),
   quarterLengthMinutes: z.number().int().min(1).max(15).default(8),
   acceleratedClockEnabled: z.boolean().default(true),
   acceleratedClockMinimumSeconds: z.number().int().min(0).max(40).default(20),
@@ -218,21 +178,12 @@ export const CreateLeagueSchema = z.object({
   advanceTiming: z.enum(["24hr", "48hr", "72hr", "other"]).default("24hr"),
   advanceTimingOther: z.string().max(120).optional().nullable(),
 
-  // Franchise settings (shared across Madden and CFB).
   coachFiringPolicy: z.enum(["off", "on", "cpu_only"]).default("on"),
   preorderBonusesEnabled: z.boolean().default(true),
   coachModeEnabled: z.boolean().default(false),
   coachModeAutoPassEnabled: z.boolean().default(false),
   coachModeAutoSnapEnabled: z.boolean().default(false),
   coachModeCoachSuggestionsEnabled: z.boolean().default(false),
-  // Coach Mode sub-toggles below only apply when game === "cfb_27".
-  coachModeRecruitFlippingEnabled: z.boolean().default(false),
-  coachModeAutoRecruitingEnabled: z.boolean().default(false),
-  coachModeAutoProgressPlayersEnabled: z.boolean().default(false),
-  coachModeUserAutoProgressionEnabled: z.boolean().default(false),
-  coachModeCpuManageBudgetEnabled: z.boolean().default(false),
-  coachModeCpuManageStaffEnabled: z.boolean().default(false),
-  coachModeCpuManageFacilitiesEnabled: z.boolean().default(false),
   ballHawk: z.enum(["on", "off", "keep_individual"]).default("keep_individual"),
   heatSeeker: z.enum(["on", "off", "keep_individual"]).default("keep_individual"),
   switchAssist: z.enum(["on", "off", "keep_individual"]).default("keep_individual"),
