@@ -4,6 +4,7 @@ export { ImportGamesPage } from "./ImportGamesPage.js";
 export { ManageUsersPage } from "./ManageUsersPage.js";
 export { ManageTeamsPage } from "./ManageTeamsPage.js";
 export { TeamManagePlaceholderPage } from "./TeamManagePlaceholderPage.js";
+export { ManageLeaguePage } from "./ManageLeaguePage.js";
 export { ManageLeaguePlaceholderPage } from "./ManageLeaguePlaceholderPage.js";
 export { ManageMediaPlaceholderPage } from "./ManageMediaPlaceholderPage.js";
 export { DivisionTeamsBoard } from "./DivisionTeamsBoard.js";

@@ -25,7 +25,7 @@ import {
   ImportGamesPage,
   LinkTeamForm,
   ManageLeagueHome,
-  ManageLeaguePlaceholderPage,
+  ManageLeaguePage,
   ManageMediaPlaceholderPage,
   ManageTeamsPage,
   ManageUsersPage,
@@ -206,7 +206,7 @@ function HubMgmtRoutes({ leagueId }: { leagueId: string }) {
       <Route path="users" element={<MgmtSectionLayout active="users" leagueId={leagueId}><ManageUsersPage /></MgmtSectionLayout>} />
       <Route path="teams" element={<MgmtSectionLayout active="teams" leagueId={leagueId}><ManageTeamsPage /></MgmtSectionLayout>} />
       <Route path="teams/:teamId" element={<MgmtSectionLayout active="teams" leagueId={leagueId}><TeamManagePlaceholderPage /></MgmtSectionLayout>} />
-      <Route path="league" element={<MgmtSectionLayout active="league" leagueId={leagueId}><ManageLeaguePlaceholderPage /></MgmtSectionLayout>} />
+      <Route path="league" element={<MgmtSectionLayout active="league" leagueId={leagueId}><ManageLeaguePage /></MgmtSectionLayout>} />
       <Route path="media" element={<MgmtSectionLayout active="media" leagueId={leagueId}><ManageMediaPlaceholderPage /></MgmtSectionLayout>} />
 
       {/* Legacy paths — keep deep links working while the rail destinations settle. */}

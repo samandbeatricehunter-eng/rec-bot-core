@@ -1066,3 +1066,66 @@
 .hub-troubleshoot-check input { margin-top:3px; accent-color:var(--accent); }
 .hub-troubleshoot-check span { display:flex; flex-direction:column; gap:2px; }
 .hub-troubleshoot-check small { color:var(--text-muted); }
+
+/* Manage League — current-week force-result schedule */
+.mgmt-league-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mgmt-league-schedule-error {
+  margin: 0 0 12px;
+  color: var(--danger, #e6484c);
+  font-weight: 700;
+}
+.mgmt-league-schedule-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(180px, 0.9fr);
+  gap: 12px 16px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(8, 10, 14, 0.72);
+}
+.mgmt-league-schedule-matchup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.mgmt-league-schedule-matchup strong {
+  font-family: "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  font-size: clamp(0.95rem, 2vw, 1.15rem);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.mgmt-league-schedule-matchup strong span {
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: 600;
+}
+.mgmt-league-schedule-matchup small {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.mgmt-league-schedule-status {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+.mgmt-league-schedule-control {
+  display: block;
+  min-width: 0;
+}
+.mgmt-league-schedule-control .form-input {
+  width: 100%;
+}
+@media (max-width: 760px) {
+  .mgmt-league-schedule-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
