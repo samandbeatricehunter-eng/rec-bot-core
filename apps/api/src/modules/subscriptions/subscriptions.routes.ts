@@ -24,7 +24,6 @@ import {
   handleStripeWebhook,
   redeemPublicCheckoutSession,
 } from "./stripe.service.js";
-import { requireInternalApiKey } from "../../lib/auth.js";
 import { getBotUserId } from "../../lib/discord-guild.js";
 
 
@@ -370,16 +369,5 @@ export async function subscriptionRoutes(app: FastifyInstance) {
       return sendError(reply, error);
     }
   });
-
-  app.post("/v1/subscriptions/internal/expire-unclaimed-free-lifetime", async (request, reply) => {
-    try {
-      requireInternalApiKey(request);
-      const { expireUnclaimedFreeLifetimePlatinum } = await import("./entitlements.service.js");
-      return reply.send(await expireUnclaimedFreeLifetimePlatinum());
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
 
 }

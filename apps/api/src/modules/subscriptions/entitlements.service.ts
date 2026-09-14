@@ -8,13 +8,6 @@ export const PLATINUM_JOIN_LIMIT = 20;
 export const GOLD_JOIN_LIMIT = 5;
 export const GRACE_DAYS = 14;
 
-/** Noon America/Chicago on 2026-07-31 (CDT = UTC-5). After this, new free lifetime comps stop. */
-export const FREE_LIFETIME_CLAIM_DEADLINE_ISO = "2026-07-31T17:00:00.000Z";
-
-export function isFreeLifetimeClaimOpen(now = new Date()): boolean {
-  return now.getTime() < Date.parse(FREE_LIFETIME_CLAIM_DEADLINE_ISO);
-}
-
 export type SubscriptionTier = "none" | "gold" | "platinum";
 export type BillingStatus =
   | "none"
@@ -673,118 +666,6 @@ export async function resolveRecUserIdByDiscordId(discordId: string): Promise<st
     .maybeSingle();
   if (result.error) throw new ApiError(500, "Failed to resolve Discord account.", result.error);
   return result.data?.user_id ? String(result.data.user_id) : null;
-}
-
-/** REC OG (cfb_27) — only active members here receive lifetime Platinum. */
-export const DEFAULT_LIFETIME_PLATINUM_LEAGUE_ID = "b7cca5ad-8f0a-4305-a4df-22f5f396874d";
-
-export async function getLifetimePlatinumLeagueId(): Promise<string> {
-  const result = await supabase
-    .from("rec_app_settings")
-    .select("value")
-    .eq("key", "lifetime_platinum_league")
-    .maybeSingle();
-  if (result.error) throw new ApiError(500, "Failed to load lifetime Platinum league setting.", result.error);
-  const leagueId = (result.data?.value as { league_id?: string } | null)?.league_id;
-  return leagueId || DEFAULT_LIFETIME_PLATINUM_LEAGUE_ID;
-}
-
-export async function isActiveLifetimePlatinumMember(userId: string): Promise<boolean> {
-  const leagueId = await getLifetimePlatinumLeagueId();
-  const { getPgPool } = await import("../../db/client.js");
-  const result = await getPgPool().query(
-    `
-      select 1
-      where exists (
-        select 1
-        from rec_team_assignments ta
-        where ta.user_id = $1
-          and ta.league_id = $2
-          and ta.assignment_status = 'active'
-          and ta.ended_at is null
-      )
-      or exists (
-        select 1
-        from rec_league_memberships m
-        where m.user_id = $1
-          and m.league_id = $2
-      )
-      limit 1
-    `,
-    [userId, leagueId],
-  );
-  return Boolean(result.rows[0]);
-}
-
-/** Grant lifetime Platinum only for active REC OG members; never downgrade paid Stripe users. */
-export async function syncLifetimePlatinumForUser(userId: string): Promise<boolean> {
-  const eligible = await isActiveLifetimePlatinumMember(userId);
-  const user = await loadUser(userId);
-  const status = asBillingStatus(user.billing_status);
-  const claimOpen = isFreeLifetimeClaimOpen();
-  const hasSiteAccount = Boolean(user.supabase_auth_user_id);
-
-  if (eligible) {
-    if (status === "lifetime_comp" && asTier(user.subscription_tier) === "platinum") return true;
-    if (status === "active") return false; // keep Stripe plan as source of truth while paid
-    // After the claim deadline, only users who already hold lifetime_comp keep it;
-    // newly eligible OG members must subscribe instead of receiving a free grant.
-    if (!claimOpen) return false;
-    if (!hasSiteAccount) return false;
-    const updated = await supabase
-      .from("rec_users")
-      .update({
-        subscription_tier: "platinum",
-        billing_status: "lifetime_comp",
-        subscription_source: "rec_og",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId);
-    if (updated.error) throw new ApiError(500, "Failed to grant lifetime Platinum.", updated.error);
-    return true;
-  }
-
-  // Never clear a comp a human deliberately gave: admin-console grants (admin_grant) and
-  // lifetime_platinum/lifetime_gold promo-code grants (promo_code) stay until revoked. Only
-  // the automatic REC OG free grant (subscription_source "rec_og") is managed here — an OG
-  // member who lost eligibility at these deadlines loses the free tier, not a paid grant.
-  if (status === "lifetime_comp" && (user.subscription_source === "rec_og" || user.subscription_source === null)) {
-    const updated = await supabase
-      .from("rec_users")
-      .update({
-        subscription_tier: "none",
-        billing_status: "none",
-        subscription_source: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userId);
-    if (updated.error) throw new ApiError(500, "Failed to clear lifetime Platinum.", updated.error);
-  }
-  return false;
-}
-
-/**
- * After the free-claim deadline, strip lifetime_comp from users who never registered
- * a site account (supabase_auth_user_id is null). Registered holders keep their grant.
- * Only REC-OG-sourced comps are eligible for this sweep — admin and promo-code grants are
- * skipped so a deadline can't silently revoke a grant a human actually issued.
- */
-export async function expireUnclaimedFreeLifetimePlatinum(now = new Date()): Promise<{ cleared: number }> {
-  if (isFreeLifetimeClaimOpen(now)) return { cleared: 0 };
-  const updated = await supabase
-    .from("rec_users")
-    .update({
-      subscription_tier: "none",
-      billing_status: "none",
-      subscription_source: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("billing_status", "lifetime_comp")
-    .is("supabase_auth_user_id", null)
-    .in("subscription_source", ["rec_og"])
-    .select("id");
-  if (updated.error) throw new ApiError(500, "Failed to expire unclaimed free lifetime comps.", updated.error);
-  return { cleared: updated.data?.length ?? 0 };
 }
 
 export async function ensureRecUserForAuthUser(

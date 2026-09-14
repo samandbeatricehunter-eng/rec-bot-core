@@ -1,4 +1,4 @@
-import { firstOffseasonStage, isOffseasonPipelineStage, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, postseasonResultMultiplier, stageForWeek, stageLabel, FRANCHISE_XP_GAME_RESULT_POINTS } from "@rec/shared";
+import { firstOffseasonStage, isChampionshipWeek, isOffseasonPipelineStage, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, postseasonResultMultiplier, stageForWeek, stageLabel, FRANCHISE_XP_GAME_RESULT_POINTS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -15,7 +15,7 @@ import { setLeagueWeek } from "./league-week.service.js";
 import { getLeagueDataMode } from "./data-mode.service.js";
 import { recordAdvanceDmRun } from "./advance-dm.service.js";
 import { zonedWallTimeToUtc } from "../../lib/timezone.js";
-import { formatTeamDisplayName, resolveTeamSchool } from "../users/user-profile-stats.service.js";
+import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
 import { cancelAllWagersForGame, listConfirmableWagers, resolveWagersOnAdvance } from "../wagers/wagers.service.js";
 import { sendPushToUsers } from "../push/push.service.js";
 import { mapWithConcurrency } from "../../lib/concurrency.js";
@@ -146,8 +146,8 @@ async function publishLeagueAdvanceAnnouncement(input: {
     : { data: [] as any[] };
 
   const lines = (games.data ?? []).map((game: any) => {
-    const away = input.game === "cfb_27" ? resolveTeamSchool(game.away_team) ?? formatTeamDisplayName(game.away_team) : formatTeamDisplayName(game.away_team);
-    const home = input.game === "cfb_27" ? resolveTeamSchool(game.home_team) ?? formatTeamDisplayName(game.home_team) : formatTeamDisplayName(game.home_team);
+    const away = formatTeamDisplayName(game.away_team);
+    const home = formatTeamDisplayName(game.home_team);
     return `${away} at ${home}`;
   });
 
@@ -219,7 +219,7 @@ async function postWeeklyFinalResultsRecap(input: { guildId: string; leagueId: s
   const teamById = new Map<string, any>((teams.data ?? []).map((team: any): [string, any] => [String(team.id), team]));
   const label = (teamId: string | null) => {
     const team = teamId ? teamById.get(String(teamId)) : null;
-    return input.game === "cfb_27" ? resolveTeamSchool(team) ?? formatTeamDisplayName(team) ?? "TBD" : formatTeamDisplayName(team) ?? "TBD";
+    return formatTeamDisplayName(team) ?? "TBD";
   };
   const lines = rows.map((row: any) => {
     const away = label(row.away_team_id);
@@ -808,19 +808,21 @@ export async function completeAdvanceWeek(input: {
     // administrative-outcome exclusion as the Coin payout above -- a Force Win/Fair Sim isn't a
     // "legitimate" win. Conference-championship-specific FPP (2400) isn't broken out separately
     // here (postseason_round isn't loaded in this query) -- every non-title playoff win pays the
-    // generic 1,200 playoff-win rate; only the National Championship/Super Bowl pays 4,800.
+    // generic 1,200 playoff-win rate; only the Super Bowl pays 4,800.
     if (winningUserId && result.designation !== "fair_sim" && result.designation !== "force_win") {
-      const isPlayoff = !isRegularSeasonWeek(game.data.week_number ?? currentWeek, context.rec_leagues.game);
-      const winFpp = game.data.is_national_championship
+      const gameWeekNumber = game.data.week_number ?? currentWeek;
+      const isPlayoff = !isRegularSeasonWeek(gameWeekNumber, context.rec_leagues.game);
+      const isSuperBowl = isChampionshipWeek(gameWeekNumber, context.rec_leagues.game);
+      const winFpp = isSuperBowl
         ? FRANCHISE_XP_GAME_RESULT_POINTS.superBowlWin
         : isPlayoff
           ? FRANCHISE_XP_GAME_RESULT_POINTS.playoffWin
           : FRANCHISE_XP_GAME_RESULT_POINTS.regularSeasonWin;
       await creditFranchiseXp({
         leagueId: context.leagueId, userId: winningUserId, teamId: winningTeamId,
-        seasonNumber, weekNumber: game.data.week_number ?? currentWeek, eventType: "game_win",
+        seasonNumber, weekNumber: gameWeekNumber, eventType: "game_win",
         sourceId: `game_win:${game.data.id}`, rawFpp: winFpp,
-        metadata: { gameId: game.data.id, isPlayoff, isNationalChampionship: Boolean(game.data.is_national_championship) },
+        metadata: { gameId: game.data.id, isPlayoff, isSuperBowl },
       }).catch((err) => console.error("[ERROR] creditFranchiseXp (game_win) failed during advance (non-fatal):", err));
     }
 
@@ -836,45 +838,30 @@ export async function completeAdvanceWeek(input: {
     await listConfirmableWagers(context.leagueId).catch((err) => {
       console.error("[ERROR] listConfirmableWagers failed during advance (non-fatal):", err);
     });
-
-    // Bowl games and the national championship don't get a regular weekly recap otherwise
-    // (they're often the only game that week, or the league is heading straight into the
-    // offseason) — post a dedicated recap so who-played/who-won isn't lost.
-    if (game.data.is_bowl_game || game.data.is_national_championship) {
-      const away: any = game.data.away_team;
-      const home: any = game.data.home_team;
-      const awayName = context.rec_leagues.game === "cfb_27" ? resolveTeamSchool(away) ?? formatTeamDisplayName(away) : formatTeamDisplayName(away);
-      const homeName = context.rec_leagues.game === "cfb_27" ? resolveTeamSchool(home) ?? formatTeamDisplayName(home) : formatTeamDisplayName(home);
-      const winnerName = isTie ? null : winningTeamId === game.data.home_team_id ? homeName : awayName;
-      const loserName = isTie ? null : winnerName === homeName ? awayName : homeName;
-      const gameLabel = game.data.is_national_championship
-        ? "National Championship"
-        : (String(game.data.bowl_name ?? "").trim() || "Bowl Game");
-      await publishTransitionStory({
-        guildId: input.guildId,
-        headline: winnerName ? `${gameLabel}: ${winnerName} Wins` : `${gameLabel} Ends in a Tie`,
-        body: winnerName
-          ? `${winnerName} defeated ${loserName} ${Math.max(homeScore, awayScore)}-${Math.min(homeScore, awayScore)} in the ${gameLabel}.`
-          : `${awayName} and ${homeName} tied ${awayScore}-${homeScore} in the ${gameLabel}.`,
-        primaryAngle: game.data.is_national_championship ? "national_championship_recap" : "bowl_game_recap",
-      }).catch((err) => console.error("[ERROR] Failed to publish bowl/national championship recap (non-fatal):", err));
-    }
   });
 
   updateAdvanceProgress(context.leagueId, "Advancing league week and processing awards");
 
+  // Do not pass seasonNumber here — setLeagueWeek bumps it when entering preseason /
+  // training camp. Passing the pre-advance season froze Madden leagues on S1 and let the
+  // next season's Week 1 import double up inside the same season_id (16+16=32).
   const advanceResult = await setLeagueWeek({
     guildId: input.guildId,
     weekNumber: nextTarget.weekNumber,
     seasonStage: nextTarget.seasonStage,
-    seasonNumber,
   });
+  const advancedSeasonNumber = Number(
+    (advanceResult.league as { season_number?: number } | null)?.season_number ?? seasonNumber,
+  );
 
   // Media Day gate (Post-Advance Experience): opens the period for the week/stage the league just
   // advanced INTO. Inert until MEDIA_DAY_GATE_ENABLED is flipped on -- see media-day-gate.service.ts.
   const { ensureMediaDayPeriodOpen } = await import("../media-day-gate/media-day-gate.service.js");
   await ensureMediaDayPeriodOpen({
-    leagueId: context.leagueId, seasonNumber, weekNumber: nextTarget.weekNumber, seasonStage: nextTarget.seasonStage,
+    leagueId: context.leagueId,
+    seasonNumber: advancedSeasonNumber,
+    weekNumber: nextTarget.weekNumber,
+    seasonStage: nextTarget.seasonStage,
   }).catch((err) => console.error("[ERROR] Failed to open Media Day period after advance (non-fatal):", err));
 
   // Player of the Week for the week that JUST completed (currentWeek/currentStage, captured
@@ -951,7 +938,7 @@ export async function completeAdvanceWeek(input: {
   const { offerDuePerformanceContracts } = await import("../immortality/contracts.service.js");
   await offerDuePerformanceContracts({
     leagueId: context.leagueId,
-    seasonNumber: Number((advanceResult.league as { season_number?: number } | null)?.season_number ?? seasonNumber),
+    seasonNumber: advancedSeasonNumber,
   }).catch((err) => console.error("[ERROR] RTI contract offers failed after advance (non-fatal):", err));
 
   // Weekly Transactions: one team-oriented embed per advance summarizing prior-week Coin/XP

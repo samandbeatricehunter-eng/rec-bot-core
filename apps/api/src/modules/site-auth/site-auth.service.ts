@@ -15,7 +15,6 @@ import {
   getEntitlementSummary,
   isIdentityClaimDropdownOpen,
   resolveRecUserIdByAuthUserId,
-  syncLifetimePlatinumForUser,
 } from "../subscriptions/entitlements.service.js";
 import { mergeOrphanedBillingIntoCanonicalUser } from "../subscriptions/stripe.service.js";
 import { siteOnlyDiscordId } from "../league-context/league-context.service.js";
@@ -315,7 +314,7 @@ export async function linkDiscordFromOAuth(input: {
   }
 
   await reconcilePreDiscordTeamRecords({ canonicalUserId: recUserId, discordId: discord.discordId });
-  const lifetimePlatinum = await syncLifetimePlatinumForUser(recUserId);
+  const lifetimePlatinum = false;
   // This user just went from Discord-only to site-linked — release anything that was queued
   // for them specifically because they couldn't receive payouts yet (Heisman awards, etc.).
   const { releaseBacklogForUser } = await import("../economy/economy-backlog.js");

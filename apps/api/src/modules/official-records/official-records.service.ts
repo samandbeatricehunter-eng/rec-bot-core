@@ -692,7 +692,7 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
       byGame.set(game, current);
     }
 
-    for (const game of ["madden_26", "madden_27", "cfb_27"] as const) {
+    for (const game of ["madden_26", "madden_27"] as const) {
       // The legacy carry-over baseline IS the madden_26 record, so merge it in for
       // that game — the per-game record is baseline + box-score games, never reset
       // to box-score-only (which previously erased the seeded baseline).

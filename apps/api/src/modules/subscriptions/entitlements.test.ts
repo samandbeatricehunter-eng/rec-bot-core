@@ -10,7 +10,6 @@ import {
   canEnableDiscordBot,
   hasSiteAccess,
   isCurrentlyTrialing,
-  isFreeLifetimeClaimOpen,
   joinLimitFor,
   ownLimitFor,
   type EntitlementUser,
@@ -130,10 +129,4 @@ test("promo_trial users get normal tier limits, not Stripe trial caps", () => {
   assert.equal(isCurrentlyTrialing(promoPlatinum, now), false);
   assert.equal(joinLimitFor(promoPlatinum, now), PLATINUM_JOIN_LIMIT);
   assert.equal(ownLimitFor(promoPlatinum, now), PLATINUM_OWN_LIMIT);
-});
-
-test("isFreeLifetimeClaimOpen is true before deadline and false after", () => {
-  assert.equal(isFreeLifetimeClaimOpen(new Date("2026-07-31T16:59:59.000Z")), true);
-  assert.equal(isFreeLifetimeClaimOpen(new Date("2026-07-31T17:00:00.000Z")), false);
-  assert.equal(isFreeLifetimeClaimOpen(new Date("2026-08-01T00:00:00.000Z")), false);
 });
