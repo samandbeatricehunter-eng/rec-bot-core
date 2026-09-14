@@ -1,5 +1,6 @@
 import { LeagueTopRail } from "../chassis/index.js";
-import { TeamMiniNav, type TeamNavId } from "./TeamMiniNav.js";
+import type { TeamNavId } from "./TeamMiniNav.js";
+import { TeamStatusStrip } from "./TeamStatusStrip.js";
 
 export type TeamFamilyView = "team" | "roster" | "store" | "trades" | "progression";
 
@@ -20,7 +21,7 @@ export function TeamRouteRail({
 }) {
   return (
     <LeagueTopRail>
-      <TeamMiniNav
+      <TeamStatusStrip
         active={active}
         leagueId={leagueId}
         isRise={isRise}

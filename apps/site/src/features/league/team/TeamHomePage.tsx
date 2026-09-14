@@ -4,12 +4,11 @@ import { useReadyAuth } from "@rec/hub-ui";
 import { Button } from "../../../../../web/src/components/ui/Button.js";
 import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
 import type { HubResponse } from "../../../../../web/src/types/api.js";
-import { MyTeamRecordRow } from "./MyTeamRecordRow.js";
 import { RetireFromLeagueModal } from "./RetireFromLeagueModal.js";
 
 /**
- * My Team body owned by apps/site. Rail chrome lives in TeamRouteRail; this page keeps the
- * redesign foothold (heading + records row + retire) while the rest of the body stays cleared.
+ * My Team body owned by apps/site. Record + nav chrome lives in TeamRouteRail
+ * (two-row snapshot); this page keeps the coach heading + retire foothold.
  */
 export function TeamHomePage() {
   const { guildId } = useReadyAuth();
@@ -83,7 +82,6 @@ export function TeamHomePage() {
             <p>{coachName}</p>
           </div>
         </div>
-        <MyTeamRecordRow my={my} profile={profile} />
         {/* Body intentionally cleared for a redesign — rebuild the rest fresh. */}
         {!hub.canManageLeague ? (
           <div className="hub-retire-league">
