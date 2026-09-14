@@ -2416,11 +2416,6 @@ export async function shareHubMatchupStream(input: {
     ]);
   })().catch((error) => console.error("[ERROR] Failed to mirror site-submitted stream (non-fatal):", error));
 
-  void (async () => {
-    const { enqueueManualStreamAutoclip } = await import("../streaming/stream-autoclip.service.js");
-    await enqueueManualStreamAutoclip({ userId, leagueId: context.leagueId, gameId: input.gameId, streamUrl: cleanedUrl });
-  })().catch((error) => console.error("[ERROR] Failed to enqueue autoclip for a site-submitted stream (non-fatal):", error));
-
   return {
     posted: true,
     streamLogId: inserted.data.id,

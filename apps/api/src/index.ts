@@ -13,7 +13,6 @@ import { sweepAnnualDraftTimers } from "./modules/fantasy-draft/annual-draft.ser
 import { runSchedulingReminderSweep } from "./modules/scheduling/reminder-poller.service.js";
 import { runStreamingSweep } from "./modules/streaming/streaming.service.js";
 import { runTeamWaitlistSweep } from "./modules/team-requests/team-waitlists.service.js";
-import { runStreamAutoclipSweep } from "./modules/streaming/stream-autoclip.service.js";
 import { runAutoImportSweep } from "./modules/madden-ea/ea-connections.service.js";
 import { runTournamentLotterySweep } from "./modules/tournaments/tournament-lottery.service.js";
 import { runTournamentRegistrationAnnounceSweep } from "./modules/tournaments/tournament-discord.service.js";
@@ -112,11 +111,6 @@ setInterval(() => {
 setInterval(() => {
   runStreamingSweep().catch((error) => app.log.error({ err: error }, "Streaming account sweep failed"));
 }, 60_000).unref();
-
-setTimeout(() => runStreamAutoclipSweep().catch((error) => app.log.error({ err: error }, "Stream autoclip sweep failed")), 10_000).unref();
-setInterval(() => {
-  runStreamAutoclipSweep().catch((error) => app.log.error({ err: error }, "Stream autoclip sweep failed"));
-}, 30_000).unref();
 
 // Waitlist delivery is polled from durable database state so every team-opening path is
 // covered, including retirements, commissioner unlinks, member departures, and admin repair.

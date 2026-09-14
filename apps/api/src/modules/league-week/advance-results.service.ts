@@ -1300,17 +1300,6 @@ export async function completeAdvanceWeek(input: {
     return { refundedCount: 0, refundedMessages: [] as any[] };
   });
 
-  // Last step of the advance on purpose: the recap's matchup board renders final scores for the
-  // week, so it shouldn't fire until everything else about the advance (including any of the
-  // steps above that could themselves still be touching this week's data) has settled.
-  // rec_games.phase only distinguishes regular_season/playoffs, not the specific round -- the
-  // recap's postseason clip rules (wild card vs divisional vs conference vs Super Bowl) need
-  // the real round for the week just completed, resolved the same way the rest of advance
-  // already does (stageForWeek), not the league's now-current stage (which has since advanced).
-  const { enqueueWeeklyHighlightRecap } = await import("../streaming/stream-autoclip.service.js");
-  await enqueueWeeklyHighlightRecap({ leagueId: context.leagueId, seasonNumber, weekNumber: currentWeek, seasonStage: stageForWeek(currentWeek, context.rec_leagues.game) })
-    .catch((err) => console.error("[ERROR] Weekly video highlight recap enqueue failed after advance (non-fatal):", err));
-
   return { ...advanceResult, nextWeekNumber: nextTarget.weekNumber, nextSeasonStage: nextTarget.seasonStage, nextLabel: stageLabel(nextTarget.seasonStage, nextTarget.weekNumber, context.rec_leagues.game), nextAdvanceLabel, wagerCleanup };
 }
 
