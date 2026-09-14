@@ -5,11 +5,9 @@ import { Button } from "../../../../../web/src/components/ui/Button.js";
 import { TroubleshootModal } from "./manage-league/TroubleshootModal.js";
 import { useReadyAuth, useHubChrome, useLeagueTheme } from "@rec/hub-ui";
 
-/** Tools bottom-tab: League Settings and Delete League link out to their existing dedicated
- * sub-pages (unchanged), and the rest of what used to be a header "Tools" modal
- * (TroubleshootModal -- Roles, team-link assignment, EOS payouts, wager/transaction
- * maintenance, EA admin actions, etc.) renders inline as this page's own body. */
-export function ToolsHome() {
+/** Tools menu body. When embedded under Manage League, skip the page chrome — the parent
+ * title block already owns navigation (and Settings / Delete live elsewhere on that page). */
+export function ToolsHome({ embedded = false }: { embedded?: boolean } = {}) {
   const { guildId } = useReadyAuth();
   const chrome = useHubChrome();
   const { game } = useLeagueTheme();
@@ -18,16 +16,18 @@ export function ToolsHome() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-      <PageHeader
-        title="League Tools"
-        subtitle="Settings, roles, team assignment, and maintenance tools."
-        actions={
-          <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-            <Link to={`/l/${leagueId}/mgmt/settings`}><Button variant="secondary"><Settings size={16} /> League Settings</Button></Link>
-            <Link to={`/l/${leagueId}/mgmt/delete-league`}><Button variant="danger"><Trash2 size={16} /> Delete League</Button></Link>
-          </div>
-        }
-      />
+      {embedded ? null : (
+        <PageHeader
+          title="League Tools"
+          subtitle="Settings, roles, team assignment, and maintenance tools."
+          actions={
+            <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+              <Link to={`/l/${leagueId}/mgmt/settings`}><Button variant="secondary"><Settings size={16} /> League Settings</Button></Link>
+              <Link to={`/l/${leagueId}/mgmt/delete-league`}><Button variant="danger"><Trash2 size={16} /> Delete League</Button></Link>
+            </div>
+          }
+        />
+      )}
       <TroubleshootModal
         embedded
         guildId={guildId}

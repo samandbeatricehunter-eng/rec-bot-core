@@ -75,8 +75,8 @@
   backdrop-filter: blur(6px);
 }
 .league-mgmt-content > div > .page-header.mgmt-league-title-block {
-  width: min(100%, 34rem);
-  max-width: min(100%, 34rem);
+  width: min(100%, 42rem);
+  max-width: min(100%, 42rem);
   gap: 12px;
 }
 .page-header-copy {
@@ -1075,7 +1075,7 @@
 /* Manage League — current-week force-result schedule */
 .mgmt-league-header-nav {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
   width: 100%;
 }

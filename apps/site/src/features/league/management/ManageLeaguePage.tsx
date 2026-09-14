@@ -9,10 +9,11 @@ import { Modal } from "../../../../../web/src/components/ui/Modal.js";
 import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
 import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
 import { SettingsHome } from "./settings/SettingsHome.js";
+import { ToolsHome } from "./ToolsHome.js";
 
 type ForceChoice = "clear" | "home" | "away";
 type ForceStatus = "home_win" | "away_win" | "cleared" | null;
-type ManageLeagueView = "schedule" | "discord" | "league" | "gameplay";
+type ManageLeagueView = "schedule" | "discord" | "league" | "gameplay" | "tools";
 
 type ForceableMeta = {
   lastForceStatus: ForceStatus;
@@ -23,6 +24,7 @@ const HEADER_VIEWS: Array<{ id: Exclude<ManageLeagueView, "schedule">; top: stri
   { id: "discord", top: "Discord", bottom: "Settings" },
   { id: "league", top: "League", bottom: "Settings" },
   { id: "gameplay", top: "Gameplay", bottom: "Settings" },
+  { id: "tools", top: "League", bottom: "Tools" },
 ];
 
 const MATCHUP_SORT: Record<HubMatchupGame["matchupType"], number> = {
@@ -32,7 +34,7 @@ const MATCHUP_SORT: Record<HubMatchupGame["matchupType"], number> = {
 };
 
 function parseView(raw: string | null): ManageLeagueView {
-  if (raw === "discord" || raw === "league" || raw === "gameplay") return raw;
+  if (raw === "discord" || raw === "league" || raw === "gameplay" || raw === "tools") return raw;
   return "schedule";
 }
 
@@ -296,7 +298,7 @@ function ManageLeagueScheduleBody({
   );
 }
 
-/** Manage League — schedule by default; Discord / League / Gameplay settings via header buttons. */
+/** Manage League — schedule by default; settings + tools via header buttons. */
 export function ManageLeaguePage() {
   const { leagueId = "" } = useParams();
   const { guildId } = useReadyAuth();
@@ -320,6 +322,8 @@ export function ManageLeaguePage() {
           <DiscordServerSettings leagueId={leagueId} />
           <SettingsHome mode="discord" />
         </>
+      ) : view === "tools" ? (
+        <ToolsHome embedded />
       ) : (
         <SettingsHome mode={view} />
       )}
