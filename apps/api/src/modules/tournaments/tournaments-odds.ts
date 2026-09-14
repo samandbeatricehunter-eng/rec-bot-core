@@ -102,8 +102,8 @@ export function buildTournamentMatchWagerOptions(input: {
   const markets: TournamentWagerMarketOption[] = [];
   // Tournament match reports no longer collect box-score stats (yards/rush/pass/turnovers/
   // red zone) -- there's no source left to grade a requiresBoxScore market against, so those
-  // markets are never offered here (league wagers keep them; league box scores still come from
-  // real screenshot OCR, unaffected by this).
+  // markets are never offered here (league wagers keep them; league box scores come from the
+  // EA import, unaffected by this).
   for (const def of marketsForGame(true).filter((market) => !market.requiresBoxScore)) {
     if (def.kind === "moneyline") {
       markets.push({

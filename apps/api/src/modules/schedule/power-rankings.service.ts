@@ -20,8 +20,8 @@ const POWER_RANKINGS_CACHE_TTL_MS = 60_000;
 //      + W_ENGAGE·engagement + W_CLUTCH·closeClutch  (see weights below, sum to 1.0)
 //   winPct      — official win% (ties = ½)
 //   normPD      — avg point differential / 14, mapped to 0..1
-//   engagement  — share of games actually played/imported (box score, companion
-//                 import, manual/schedule screenshot) rather than advance-only FWs
+//   engagement  — share of games actually played/imported (companion import,
+//                 manual entry) rather than advance-only FWs
 //   closeClutch — full credit if >50% of H2H games are won AND those wins
 //                 average a ≤7-point margin (winning close games vs humans)
 // For Madden leagues, an additional OVR component blends team average OVR and QB OVR

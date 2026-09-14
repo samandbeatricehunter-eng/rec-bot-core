@@ -192,9 +192,8 @@ export async function scheduleRoutes(app: FastifyInstance) {
     }
   });
 
-  // Activity-only: the no-OCR equivalent of the CFB screenshot import preview — every
-  // regular-season week for a team plus its already-confirmed status, for the "fill in the
-  // whole season on one page" form (no screenshot involved). Game-generic.
+  // Every regular-season week for a team plus its already-confirmed status, for the
+  // "fill in the whole season on one page" manual schedule form. Game-generic.
   app.post("/v1/schedule/team-manual-preview", async (request, reply) => {
     try {
       await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
