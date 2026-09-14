@@ -12,8 +12,8 @@
 // leagues:
 //   - regular_rosters league (589e59a0... "M27 Regs - REC Lgz"): assigned to their real
 //     team (mirrors applyMaddenBaselineToLeague team matching),
-//   - fantasy_draft league (e342e8bd... "M27 - The OG REC", draft "live"): inserted with
-//     team_id null so they land in the draft pool.
+//   - unassigned-pool league (e342e8bd... "M27 - The OG REC"): inserted with
+//     team_id null so they land in the unassigned pool.
 // The remaining 4 are already present but wrong: 2 name typos (Chris Roland-Wallace,
 // Josh Hines-Allen) and 2 placeholder stubs upgraded to full EA data (Malaesala
 // Aumavae-Laulu, Julian Good-Jones). Those are PATCHed in the baseline and both leagues.
@@ -312,9 +312,9 @@ async function main() {
     console.log(`Inserted ${baselineInsertRows.length} baseline players into dataset ${datasetId}.`);
   }
 
-  // Apply to both leagues (teamId null for the fantasy pool; real team for regular_rosters).
+  // Apply to both leagues (teamId null for the unassigned pool; real team for regular_rosters).
   const regularTeams = await loadLeagueTeams(REGULAR_LEAGUE_ID);
-  const leagueNames = ["regular_rosters", "fantasy_draft (pool)"] as const;
+  const leagueNames = ["regular_rosters", "unassigned_pool"] as const;
   for (const mode of leagueNames) {
     const leagueId = mode === "regular_rosters" ? REGULAR_LEAGUE_ID : FANTASY_LEAGUE_ID;
     const rows = toInsert.map((p) => {

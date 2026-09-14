@@ -8,7 +8,6 @@ import { getCurrentLeagueContext } from "../league-context/league-context.servic
 import { announceTeamAssignment, createDefaultTeamsForGuild, createDefaultTeamsForLeague } from "../team-ownership/team-ownership.service.js";
 import { applyMaddenBaselineToLeague, getActiveMaddenDataset } from "../madden-baseline/madden-baseline.service.js";
 import { seedMaddenDraftPicks } from "../draft-picks/madden-pick-seed.service.js";
-import { ensureFantasyDraftSession } from "../fantasy-draft/fantasy-draft.service.js";
 import { seedDefaultScheduleForLeague } from "../schedule/schedule.service.js";
 import { syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
 import { deleteAllLeagueStreamHighlights } from "../media/media.service.js";
@@ -211,11 +210,6 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
     season_number: input.seasonNumber ?? 1,
     current_week: 1,
     trust_mode: "manual",
-    // Rise to Immortality runs its own 3-round rookie draft through this same pick-clock
-    // system after franchises are assigned (see fantasy-draft module) -- give it a usable
-    // "pending" status too, not "not_applicable", even though its roster fill method isn't
-    // literally "fantasy_draft".
-    fantasy_draft_status: (input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE) ? "pending" : "not_applicable",
     is_online: input.isOnline ?? true,
   };
 
@@ -425,30 +419,22 @@ export async function createLeagueForServer(input: CreateLeagueInput) {
 
   // Madden: leagueType drives whether/how the baseline roster gets applied.
   // - regular_rosters: real team assignments.
-  // - fantasy_draft: every player starts unassigned (team_id null), forming the draft pool
-  //   — see docs/madden-fantasy-draft-plan.md for the (not-yet-built) draft tracker that
-  //   consumes this pool.
+  // - rise_to_immortality: players start unassigned (team_id null) until franchises/import.
   // - custom_rosters: no preseed unless customRostersPreseedRequested is explicitly set
-  //   (a wizard-step confirmation asked right after picking "custom rosters" — see plan
-  //   doc §3), in which case it behaves exactly like regular_rosters.
+  //   (a wizard-step confirmation asked right after picking "custom rosters"), in which
+  //   case it behaves exactly like regular_rosters.
   let maddenBaselineSeed: Awaited<ReturnType<typeof applyMaddenBaselineToLeague>> | null = null;
   if ((input.game === "madden_26" || input.game === "madden_27") &&
-      (input.leagueType === "regular_rosters" || input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE ||
+      (input.leagueType === "regular_rosters" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE ||
         (input.leagueType === "custom_rosters" && input.customRostersPreseedRequested))) {
     const activeMaddenDataset = await getActiveMaddenDataset();
     if (activeMaddenDataset) {
       maddenBaselineSeed = await applyMaddenBaselineToLeague({
         league_id: league.data.id,
         dataset_id: activeMaddenDataset.id,
-        fantasyDraftMode: input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE,
+        unassignedPool: input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE,
       });
     }
-  }
-
-  // Fantasy-draft leagues (and RTI, which runs its own 3-round rookie draft through the same
-  // pick-clock system after franchises are assigned) get a not_started draft session up front.
-  if (input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE) {
-    await ensureFantasyDraftSession(league.data.id);
   }
 
   return {
@@ -735,7 +721,6 @@ export async function createUnclaimedLeague(input: {
     season_number: seasonNumber,
     current_week: input.currentWeek ?? 1,
     trust_mode: "manual",
-    fantasy_draft_status: (leagueType === "fantasy_draft" || leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE) ? "pending" : "not_applicable",
     is_online: input.isOnline ?? true,
     advertisement_eligible: input.isOnline ?? true,
     max_members: input.maxMembers ?? 32,
@@ -810,7 +795,7 @@ export async function createUnclaimedLeague(input: {
     // that function's comment above its own applyMaddenBaselineToLeague call for the full
     // leagueType decision table.
     if ((input.game === "madden_26" || input.game === "madden_27") &&
-        (input.leagueType === "regular_rosters" || input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE ||
+        (input.leagueType === "regular_rosters" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE ||
           (input.leagueType === "custom_rosters" && input.customRostersPreseedRequested))) {
       const activeMaddenDataset = await getActiveMaddenDataset();
       if (activeMaddenDataset) {
@@ -821,14 +806,14 @@ export async function createUnclaimedLeague(input: {
         await applyMaddenBaselineToLeague({
           league_id: league.data.id,
           dataset_id: activeMaddenDataset.id,
-          fantasyDraftMode: input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE,
+          unassignedPool: input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE,
         }).catch(async (err) => {
           console.error("[ERROR] Failed to apply Madden baseline roster to new league, retrying once:", err);
           try {
             await applyMaddenBaselineToLeague({
               league_id: league.data.id,
               dataset_id: activeMaddenDataset.id,
-              fantasyDraftMode: input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE,
+              unassignedPool: input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE,
             });
           } catch (retryErr) {
             console.error("[ERROR] Failed to apply Madden baseline roster again after retry:", retryErr);
@@ -842,14 +827,6 @@ export async function createUnclaimedLeague(input: {
           }
         });
       }
-    }
-
-    // Fantasy-draft leagues (and RTI, which runs its own 3-round rookie draft through the same
-    // pick-clock system after franchises are assigned) get a not_started draft session up front.
-    if (input.leagueType === "fantasy_draft" || input.leagueType === RISE_TO_IMMORTALITY_LEAGUE_TYPE) {
-      await ensureFantasyDraftSession(league.data.id).catch((err) => {
-        console.error("[ERROR] Failed to create fantasy draft session for new league (non-fatal):", err);
-      });
     }
 
     // Season-1 leagues get their default NFL schedule immediately, regardless of whether this

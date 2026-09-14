@@ -10,7 +10,6 @@ export const GAME_OPTIONS: { value: GameKey; label: string }[] = [
 
 export const MADDEN_LEAGUE_TYPES = [
   { value: "regular_rosters", label: "Regular Rosters", desc: "Start with real NFL rosters. Trades, free agency, and the draft work as expected." },
-  { value: "fantasy_draft", label: "Fantasy Draft", desc: "Every team is emptied and users draft brand-new rosters from scratch. You can schedule a draft date at the end of setup." },
   { value: "custom_rosters", label: "Custom Rosters", desc: "Import a custom roster file before starting. Useful for roster sharing communities." },
   { value: "rise_to_immortality", label: "Rise to Immortality", desc: "Madden 27 10-season career RPG. Create one offensive and one defensive cornerstone. Store purchases are off — Player XP upgrades ratings. Coins are annual contracts only." },
 ] as const;

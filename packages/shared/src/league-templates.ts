@@ -82,11 +82,11 @@ const CORE_STANDARD = ["SPD","AGI","ACC","COD","STR","THP","JMP","MCV","ZCV","PO
 const CORE_HARDCORE = ["SPD","AGI","ACC","COD","STR","THP","JMP","MCV","ZCV","POW","AWR","INJ","STA"];
 
 export const MADDEN_LEAGUE_TEMPLATES: LeagueTemplateMeta[] = [
-  { id:"rec_recommended", name:"REC Recommended", tagline:"The default REC experience", description:"Fantasy draft by default, REC gameplay rules, full economy, and moderate purchase caps." },
+  { id:"rec_recommended", name:"REC Recommended", tagline:"The default REC experience", description:"Regular rosters by default, REC gameplay rules, full economy, and moderate purchase caps." },
   { id:"normal_regs", name:"Normal Regs", tagline:"Structured regular rosters", description:"Regular rosters, realistic trades, reduced injuries, and a controlled economy." },
   { id:"hardcore_regs", name:"Hardcore Regs", tagline:"Competitive and highly regulated", description:"Strict play calling, standard injuries, difficult CPU trades, and narrow purchase limits." },
-  { id:"normal_fantasy", name:"Normal Fantasy", tagline:"Structured fantasy rosters", description:"Fantasy rosters with normal REC rules and the full Madden economy." },
-  { id:"fantasy_free_for_all", name:"Fantasy Free-For-All", tagline:"Casual and wide open", description:"Fantasy rosters, open gameplay and trading, and unlimited enabled purchases." },
+  { id:"normal_fantasy", name:"Normal Fantasy", tagline:"Open roster economy", description:"Regular rosters with looser injury/trade settings and the full Madden economy." },
+  { id:"fantasy_free_for_all", name:"Fantasy Free-For-All", tagline:"Casual and wide open", description:"Regular rosters, open gameplay and trading, and unlimited enabled purchases." },
   { id:"rise_to_immortality", name:"Rise to Immortality", tagline:"10-season player-career RPG", description:"Madden 27 only. Create one offensive and one defensive cornerstone. Store purchases are off — Player XP upgrades ratings, then Team XP. Coins come from annual contracts, not weekly payouts." },
 ];
 
@@ -112,7 +112,7 @@ const base = (): LeagueTemplatePreset => ({
 
 function maddenPreset(id: LeagueTemplateId): LeagueTemplatePreset {
   const p = base();
-  if (id === "rec_recommended") return { ...p, leagueType:"fantasy_draft", customPlayersEnabled:true, customPlayersSeasonCap:2,
+  if (id === "rec_recommended") return { ...p, leagueType:"regular_rosters", customPlayersEnabled:true, customPlayersSeasonCap:2,
     legendsEnabled:true, legendsSeasonCap:2, devUpgradesEnabled:true, devUpgradesSeasonCap:2, ageResetsEnabled:true, ageResetsSeasonCap:1,
     attributePurchasesEnabled:true, coreAttributePurchasesSeasonCap:2, nonCoreAttributePurchasesSeasonCap:25, coreAttributes:CORE_STANDARD };
   if (id === "normal_regs") return { ...p, leagueType:"regular_rosters", injuryPolicy:"on_reduced", salaryCapEnabled:true,
@@ -128,7 +128,7 @@ function maddenPreset(id: LeagueTemplateId): LeagueTemplatePreset {
     defensivePlayCallLimitsEnabled:true, defensivePlayCallLimit:5, defensivePlayCallCooldown:7,
     devUpgradesEnabled:true, devUpgradesSeasonCap:1, attributePurchasesEnabled:true, coreAttributePurchasesSeasonCap:1,
     nonCoreAttributePurchasesSeasonCap:5, coreAttributes:CORE_HARDCORE, contractAdjustmentPurchasesEnabled:true, contractPurchasesSeasonCap:1 };
-  if (id === "normal_fantasy") return { ...p, leagueType:"fantasy_draft", injuryPolicy:"off", salaryCapEnabled:false, tradeDeadlineEnabled:false,
+  if (id === "normal_fantasy") return { ...p, leagueType:"regular_rosters", injuryPolicy:"off", salaryCapEnabled:false, tradeDeadlineEnabled:false,
     tradeApprovalPolicy:"commissioner_review", cpuTradingPolicy:"restricted", cpuTradesSeasonCap:3, positionChangePolicy:"open",
     customPlayersEnabled:true, customPlayersSeasonCap:2, legendsEnabled:true, legendsSeasonCap:2, devUpgradesEnabled:true, devUpgradesSeasonCap:2,
     ageResetsEnabled:true, ageResetsSeasonCap:1, attributePurchasesEnabled:true, coreAttributePurchasesSeasonCap:2,
@@ -140,7 +140,7 @@ function maddenPreset(id: LeagueTemplateId): LeagueTemplatePreset {
     devUpgradesEnabled:false, devUpgradesSeasonCap:0, ageResetsEnabled:false, ageResetsSeasonCap:0,
     attributePurchasesEnabled:false, coreAttributePurchasesSeasonCap:0, nonCoreAttributePurchasesSeasonCap:0, coreAttributes:[],
     contractAdjustmentPurchasesEnabled:false, contractPurchasesSeasonCap:0 };
-  return { ...p, leagueType:"fantasy_draft", difficulty:"all_pro", acceleratedClockEnabled:false, injuryPolicy:"off", wearAndTearEnabled:false,
+  return { ...p, leagueType:"regular_rosters", difficulty:"all_pro", acceleratedClockEnabled:false, injuryPolicy:"off", wearAndTearEnabled:false,
     tradeDifficulty:"very_easy", freeAgentMotivationImpact:"off", tradeDeadlineEnabled:false, positionChangePolicy:"open",
     fourthDownRuleTypeRegular:"none", fourthDownRuleTypePlayoff:"none", offensivePlayCallCooldownEnabled:false, defensivePlayCallCooldownEnabled:false,
     customPlayersEnabled:true, legendsEnabled:true, devUpgradesEnabled:true, ageResetsEnabled:true, attributePurchasesEnabled:true };

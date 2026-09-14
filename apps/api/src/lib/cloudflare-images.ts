@@ -32,7 +32,7 @@ async function deleteImage(accountId: string, apiToken: string, imageId: string)
 }
 
 /**
- * Upload a binary image to Cloudflare Images (see docs/madden-fantasy-draft-plan.md §8/§11).
+ * Upload a binary image to Cloudflare Images.
  * The account token needs Images:Edit permission. A stable `imageId` (e.g. the rec_players
  * UUID) makes re-uploads replace the same image: Cloudflare rejects a duplicate custom ID,
  * so on that error we delete the existing image and retry once — headshot re-uploads and

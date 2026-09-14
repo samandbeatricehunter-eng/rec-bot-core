@@ -344,7 +344,7 @@ export async function deleteTransientGameSchedulingMessages(channelId: string): 
 }
 
 /** Edit a previously posted bot message (embeds/components/content) via REST. Used to keep
- * live status embeds (e.g. the fantasy-draft check-in board) in sync when a change comes
+ * live status embeds in sync when a change comes
  * from a non-gateway source like the website. Returns false on any non-OK response (a
  * deleted/expired message is non-fatal to the caller). */
 export async function editDiscordMessage(channelId: string, messageId: string, payload: Record<string, unknown>): Promise<boolean> {

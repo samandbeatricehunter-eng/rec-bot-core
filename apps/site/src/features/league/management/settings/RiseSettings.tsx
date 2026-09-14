@@ -4,15 +4,14 @@ import { Card } from "../../../../../../web/src/components/ui/Card.js";
 import { Button } from "../../../../../../web/src/components/ui/Button.js";
 import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
 import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
-import { useReadyAuth, FantasyDraftCard } from "@rec/hub-ui";
+import { useReadyAuth } from "@rec/hub-ui";
 
 // Reachable from League Mgmt regardless of chapter state -- unlike the normal hub route, which
 // redirects an RTI member with no franchise yet straight to /rise, League Mgmt stays open the
-// whole time. That's what lets the commissioner set the intro video and schedule/start the
-// rookie draft before members have even finished Origins.
+// whole time. That's what lets the commissioner set the intro video before members have even
+// finished Origins.
 export function RiseSettings() {
   const { guildId } = useReadyAuth();
-  const [leagueId, setLeagueId] = useState<string | null>(null);
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +23,7 @@ export function RiseSettings() {
     Promise.all([
       recApi.getLeagueHeaderSummary(guildId),
       recApi.getImmortalityIntroVideo(guildId).catch(() => null),
-    ]).then(([header, hub]) => {
-      setLeagueId(header.league.id);
+    ]).then(([, hub]) => {
       setUrl(hub?.introVideo?.url ?? "");
       setError(null);
     }).catch((cause) => setError(cause instanceof Error ? cause.message : "Failed to load Rise to Immortality settings."))
@@ -60,6 +58,5 @@ export function RiseSettings() {
       </div>
       {saved && <p style={{ color: "var(--success)" }}>Saved.</p>}
     </Card>
-    {leagueId && <FantasyDraftCard guildId={guildId} leagueId={leagueId} />}
   </>;
 }

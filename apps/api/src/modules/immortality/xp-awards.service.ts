@@ -582,13 +582,7 @@ export async function loadRtiMemberGates(input: {
     .select("id", { count: "exact", head: true })
     .eq("league_id", input.leagueId)
     .not("madden_player_id", "like", "rti:%");
-  // RTI's roster fill method isn't literally a "fantasy draft" (see setup.service.ts's comment
-  // on fantasy_draft_status) -- no RTI code path ever transitions that column to "concluded", so
-  // gating on it here permanently locked rosters for every RTI league regardless of how much
-  // progress they'd actually made. Confirmed live in M27 RTI (2026-09-08): real EA-imported
-  // players existed on every roster, but this AND'd condition kept rostersUnlocked false. The
-  // real signal RTI needs is just "has a real (non-placeholder) roster been imported at all,"
-  // which the exists-check below already captures on its own.
+  // Rosters unlock once any real (non-placeholder) EA-imported player exists on the league.
   const rostersUnlocked = Number(imported.count ?? 0) > 0;
   const empty = {
     rostersUnlocked,

@@ -177,7 +177,6 @@ export const recLeagues = pgTable("rec_leagues", {
   displaySeasonNumber: integer("display_season_number"),
   currentPhase: text("current_phase").notNull().default("preseason"),
   currentWeek: integer("current_week"),
-  fantasyDraftStatus: text("fantasy_draft_status").notNull().default("not_applicable"),
   trustMode: text("trust_mode").notNull().default("manual"),
   appAccountRequired: boolean("app_account_required").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),

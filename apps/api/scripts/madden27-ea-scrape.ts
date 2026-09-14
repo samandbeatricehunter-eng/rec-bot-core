@@ -1,6 +1,5 @@
 // Madden 27 EA ratings scrape — pulls the *official* EA ratings (ea.com) that the
-// maddenratings.com fan-site CSVs were missing. See docs/madden-fantasy-draft-plan.md
-// §12 progress log for the full EA cross-reference work this belongs to.
+// maddenratings.com fan-site CSVs were missing.
 //
 // EA's ratings pages are a Next.js app; every team page embeds its full roster as
 // `__NEXT_DATA__` JSON (74 players × 55 stats + abilities). The index page embeds the

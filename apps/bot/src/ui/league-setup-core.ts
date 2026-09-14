@@ -112,7 +112,6 @@ export function buildLeagueTypeWindow(draft: LeagueSetupDraft) {
     components: [
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.leagueType, "Select league type", [
         option("Regular Rosters", "regular_rosters"),
-        option("Fantasy Draft", "fantasy_draft"),
         option("Custom Rosters", "custom_rosters"),
         ...(draft.game === "madden_27"
           ? [option("Rise to Immortality", "rise_to_immortality", "10-season career RPG. Store off; Player XP upgrades.")]

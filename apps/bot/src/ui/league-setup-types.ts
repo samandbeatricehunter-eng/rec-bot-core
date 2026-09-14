@@ -168,7 +168,7 @@ export type LeagueSetupDraft = {
   game: LeagueGame;
   leaguePassword?: string | null;
   step: LeagueSetupStep;
-  leagueType: "fantasy_draft" | "regular_rosters" | "custom_rosters" | "rise_to_immortality";
+  leagueType: "regular_rosters" | "custom_rosters" | "rise_to_immortality";
   immortalityOffensePosition: "QB" | "HB" | "WR" | "TE";
   immortalityDefensePosition: "CB" | "FS" | "SS" | "MIKE";
   immortalityTeamPool: "default_nfl" | "custom_32";

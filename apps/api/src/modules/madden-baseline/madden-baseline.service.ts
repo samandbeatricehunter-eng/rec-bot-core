@@ -1,4 +1,4 @@
-// Madden roster pre-seed — apply-to-league flow. See docs/madden-fantasy-draft-plan.md.
+// Madden roster pre-seed — apply-to-league flow.
 //
 // Historically mirrored the now-removed cfb-baseline module's applyCfbBaselineToLeague,
 // writing into the same shared rec_players table CFB used to use (see plan doc §2's
@@ -83,9 +83,9 @@ async function listMaddenBaselinePlayers(datasetId: string): Promise<MaddenBasel
 export type ApplyMaddenBaselineInput = {
   league_id: string;
   dataset_id: string;
-  /** true = every player's team_id is set to null (fantasy_draft pool / undrafted).
+  /** true = every player's team_id is set to null (unassigned pool, e.g. RTI pre-import).
    *  false = real-life team assignment (regular_rosters, or custom_rosters that opted in). */
-  fantasyDraftMode: boolean;
+  unassignedPool: boolean;
 };
 
 export async function applyMaddenBaselineToLeague(input: ApplyMaddenBaselineInput): Promise<{
@@ -93,7 +93,7 @@ export async function applyMaddenBaselineToLeague(input: ApplyMaddenBaselineInpu
   teamsMatched: number;
   skippedNoTeamMatch: number;
 }> {
-  const { league_id, dataset_id, fantasyDraftMode } = input;
+  const { league_id, dataset_id, unassignedPool } = input;
 
   const { data: leagueTeams, error: teamsError } = await supabase
     .from("rec_teams")
@@ -120,7 +120,7 @@ export async function applyMaddenBaselineToLeague(input: ApplyMaddenBaselineInpu
     if (existingIds.has(maddenPlayerId)) continue;
 
     let teamId: string | null = null;
-    if (!fantasyDraftMode && p.team_abbreviation) {
+    if (!unassignedPool && p.team_abbreviation) {
       teamId = teamIdByName.get(p.team_abbreviation.trim().toUpperCase()) ?? null;
       if (teamId) teamsMatched++;
       else skippedNoTeamMatch++;

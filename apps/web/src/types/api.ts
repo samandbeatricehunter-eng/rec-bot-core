@@ -480,7 +480,7 @@ export type ChatMessage = { id: string; author_discord_id: string; author_displa
 
 export type HubReactionKey = "love" | "like" | "dislike" | "poop" | "TOTY" | "COTY" | "ROTY" | "IOTY" | "HOTY" | "MVP_PLAY" | "MOSSED" | "STEAMROLLER" | "FAWKKKK" | "SNATCHED" | "RIP";
 export type HubResponse = {
-  league: { id: string; name: string; game: string; seasonNumber: number; weekNumber: number; seasonStage: string; fantasyDraftStatus: string; rosterType?: string | null; riseChapterState?: string | null; riseHubUnlocked?: boolean; rtiGates?: {
+  league: { id: string; name: string; game: string; seasonNumber: number; weekNumber: number; seasonStage: string; rosterType?: string | null; riseChapterState?: string | null; riseHubUnlocked?: boolean; rtiGates?: {
     rostersUnlocked: boolean;
     tradesUnlocked: boolean;
     storeUnlocked: boolean;
@@ -1055,46 +1055,3 @@ export type GotwGuessingRecordsResponse = {
 export type MentionableCommissioner = { discordId: string; displayName: string };
 export type MentionableRole = { key: "commissioner" | "coCommissioner"; roleId: string; name: string };
 export type MentionableList = { members: MentionableCommissioner[]; roles: MentionableRole[] };
-
-// Fantasy/offseason draft: a pure turn-order/pick-clock coordinator for the real in-Madden
-// draft. REC doesn't track which player each team picks -- see fantasy-draft.service.ts.
-export type FantasyDraftStatus = "not_started" | "live" | "concluded";
-export type FantasyDraftOrderMode = "standard" | "snake";
-export type FantasyDraftType = "fantasy" | "offseason" | "rookie";
-
-export type FantasyDraftSession = {
-  id: string;
-  leagueId: string;
-  status: FantasyDraftStatus;
-  draftType: FantasyDraftType;
-  draftKind?: "fantasy" | "annual";
-  seasonNumber?: number | null;
-  orderMode: FantasyDraftOrderMode | null;
-  currentRound: number;
-  currentPickInRound: number;
-  totalRounds: number | null;
-  pickTimerSeconds: number | null;
-  scheduledAt: string | null;
-  turnStartedAt: string | null;
-  commencedByUserId: string | null;
-  commencedAt: string | null;
-  concludedAt: string | null;
-};
-
-export type FantasyDraftTeam = {
-  id: string;
-  name: string;
-  displayName: string;
-  abbreviation: string | null;
-};
-
-export type FantasyDraftSkipChoice = { round: number; pickInRound: number; teamId: string; teamName: string };
-
-export type FantasyDraftState = {
-  session: FantasyDraftSession | null;
-  teams: FantasyDraftTeam[];
-  pickOrder: Array<{ pickInRound: number; teamId: string }>;
-  onTheClockTeamId: string | null;
-  skipChoices: FantasyDraftSkipChoice[];
-  caller: { isCommissioner: boolean; myTeamId: string | null };
-};

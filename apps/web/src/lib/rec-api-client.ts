@@ -63,9 +63,6 @@ import type {
   TeamManagementSummary,
   TeamScheduleManualState,
   UploadImageResponse,
-  FantasyDraftState,
-  FantasyDraftOrderMode,
-  FantasyDraftType,
   GotwGuessingRecordsResponse,
 } from "../types/api.js";
 
@@ -1122,34 +1119,4 @@ export const recApi = {
     recApiFetch<{ headshotUrl: string }>("/v1/immortality/prospect/headshot/upload", { method: "POST", body: JSON.stringify(input) }),
   uploadImmortalityOwnerHeadshot: (input: { guildId: string; contentType: string; imageBase64: string }) =>
     recApiFetch<{ headshotUrl: string }>("/v1/immortality/owner/headshot/upload", { method: "POST", body: JSON.stringify(input) }),
-
-  // Fantasy/offseason draft turn-order coordinator — all actions require a website session.
-  getFantasyDraftState: (guildId: string) =>
-    recApiFetch<FantasyDraftState>("/v1/fantasy-draft/state", { method: "POST", body: JSON.stringify({ guildId }) }),
-  startFantasyDraft: (input: { guildId: string; draftType: FantasyDraftType; pickTimerSeconds: number | null }) =>
-    recApiFetch<{ ok: true }>("/v1/fantasy-draft/start", { method: "POST", body: JSON.stringify(input) }),
-  scheduleFantasyDraft: (input: { guildId: string; scheduledAt: string | null }) =>
-    recApiFetch<{ ok: true; scheduledAt: string | null }>("/v1/fantasy-draft/schedule", { method: "POST", body: JSON.stringify(input) }),
-  endFantasyDraft: (guildId: string) =>
-    recApiFetch<{ ok: true }>("/v1/fantasy-draft/end", { method: "POST", body: JSON.stringify({ guildId }) }),
-  setFantasyDraftPickOrder: (input: { guildId: string; orderMode: FantasyDraftOrderMode; picks: Array<{ pickInRound: number; teamId: string }> }) =>
-    recApiFetch<{ ok: true; orderMode: FantasyDraftOrderMode; count: number }>("/v1/fantasy-draft/set-pick-order", { method: "POST", body: JSON.stringify(input) }),
-  setFantasyDraftTimer: (input: { guildId: string; pickTimerSeconds: number | null }) =>
-    recApiFetch<{ ok: true; pickTimerSeconds: number | null }>("/v1/fantasy-draft/set-timer", { method: "POST", body: JSON.stringify(input) }),
-  skipFantasyDraftToNext: (guildId: string) =>
-    recApiFetch<{ ok: true; round: number; pickInRound: number }>("/v1/fantasy-draft/skip-to-next", { method: "POST", body: JSON.stringify({ guildId }) }),
-  skipFantasyDraftToSpecific: (input: { guildId: string; round: number; pickInRound: number }) =>
-    recApiFetch<{ ok: true; round: number; pickInRound: number }>("/v1/fantasy-draft/skip-to-specific", { method: "POST", body: JSON.stringify(input) }),
-  getAnnualDraftState: (guildId: string) =>
-    recApiFetch<FantasyDraftState>("/v1/annual-draft/state", { method: "POST", body: JSON.stringify({ guildId }) }),
-  startAnnualDraft: (input: { guildId: string; seasonNumber: number; pickTimerSeconds: number | null }) =>
-    recApiFetch<{ ok: true }>("/v1/annual-draft/start", { method: "POST", body: JSON.stringify(input) }),
-  endAnnualDraft: (guildId: string) =>
-    recApiFetch<{ ok: true }>("/v1/annual-draft/end", { method: "POST", body: JSON.stringify({ guildId }) }),
-  setAnnualDraftTimer: (input: { guildId: string; pickTimerSeconds: number | null }) =>
-    recApiFetch<{ ok: true; pickTimerSeconds: number | null }>("/v1/annual-draft/set-timer", { method: "POST", body: JSON.stringify(input) }),
-  advanceAnnualDraftPick: (guildId: string) =>
-    recApiFetch<{ ok: true; round: number; pickInRound: number }>("/v1/annual-draft/advance", { method: "POST", body: JSON.stringify({ guildId }) }),
-  skipAnnualDraftToSpecific: (input: { guildId: string; round: number; pickInRound: number }) =>
-    recApiFetch<{ ok: true; round: number; pickInRound: number }>("/v1/annual-draft/skip-to-specific", { method: "POST", body: JSON.stringify(input) }),
 };

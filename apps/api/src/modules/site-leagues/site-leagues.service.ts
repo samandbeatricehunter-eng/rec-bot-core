@@ -211,7 +211,6 @@ export async function listMySiteLeagues(input: {
           l.season_stage,
           l.current_week,
           l.game,
-          l.fantasy_draft_status,
           exists (
             select 1
             from rec_players p
@@ -332,10 +331,7 @@ export async function listMySiteLeagues(input: {
         league.riseHubUnlocked = riseHubUnlocked(chapter) || originsComplete;
         league.rtiOriginsComplete = originsComplete;
         league.rtiStoreUnlocked = gameplaySeasonStages(game).has(stage);
-        // fantasy_draft_status never reaches "concluded" for RTI leagues -- RTI's roster fill
-        // isn't the literal fantasy-draft flow that column tracks (see the matching fix and
-        // comment in xp-awards.service.ts's loadRtiMemberGates). rti_rosters_imported alone is
-        // the real signal.
+        // Rosters unlock once a real (non-placeholder) EA roster has been imported.
         league.rtiRostersUnlocked = Boolean(row.rti_rosters_imported);
         league.rtiTradesUnlocked = false;
       } else {

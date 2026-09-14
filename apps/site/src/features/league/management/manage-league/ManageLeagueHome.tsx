@@ -13,7 +13,6 @@ import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.j
 import { PendingRosterAddRequests } from "./PendingRosterAddRequests.js";
 import { RosterEditProposalQueue } from "./RosterEditProposalQueue.js";
 import { TeamDropdown } from "./TeamDropdown.js";
-import { AnnualDraftCard } from "../../../../../../web/src/routes/hub/AnnualDraftCard.js";
 import { useReadyAuth, useLeagueTheme } from "@rec/hub-ui";
 
 type OwnershipFilter = "all" | "linked" | "unlinked";
@@ -123,7 +122,6 @@ export function ManageLeagueHome({ mode = "schedule" }: { mode?: "schedule" | "r
       />
       {mode === "roster" && <PendingRosterAddRequests guildId={guildId} />}
       {mode === "roster" && dataMode === "manual" && <RosterEditProposalQueue guildId={guildId} />}
-      {mode === "schedule" && isMadden && summary && <AnnualDraftCard guildId={guildId} leagueId={summary.league.id} currentSeason={summary.league.seasonNumber} />}
       {error && <ErrorState message={error} />}
       {notice && <p className="form-hint">{notice}</p>}
       {!summary && !error && <LoadingState label="Loading teams…" />}

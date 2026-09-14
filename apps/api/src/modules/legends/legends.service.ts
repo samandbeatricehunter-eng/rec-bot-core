@@ -210,7 +210,7 @@ export async function createLegendPurchaseRequest(input: {
   // CFB inherits the legend's identity onto the replaced player's roster slot, so it stays
   // gated to recruits/manually-added players at a compatible position — same rule as
   // custom-player builds. Madden has no such inheritance: any active roster player (seeded,
-  // fantasy-drafted, or recruited) is a valid replacement target.
+  // free agent, custom, or recruited) is a valid replacement target.
   let replaceTarget: { playerId: string; position: string; firstName: string; lastName: string } | null = null;
   if (input.replacementPlayerId) {
     if (!teamId) throw new ApiError(403, "A linked league team is required.");

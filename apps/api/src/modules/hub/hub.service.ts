@@ -958,7 +958,6 @@ async function loadHub(guildId: string, discordId: string) {
       seasonNumber,
       weekNumber: currentWeek,
       seasonStage,
-      fantasyDraftStatus: context.rec_leagues.fantasy_draft_status ?? "not_applicable",
       rosterType: (cfg as { roster_type?: string | null }).roster_type ?? null,
       riseChapterState,
       riseHubUnlocked: hubUnlocked,

@@ -500,13 +500,11 @@ export async function uploadPlayerPhoto(input: {
 }
 
 // ---------------------------------------------------------------------------
-// Roster pool editor — League Mgmt "Edit Rosters" side of the plan: the commissioner
-// sees every unassigned player (the draft pool in fantasy_draft leagues, the free-agent
-// pool elsewhere) and can assign WHOLE players to a team, release a roster player back
-// into the pool, or edit a player's identity/attributes in place. Mirrors the fantasy
-// draft's team_id/is_free_agent lifecycle: assignment sets team_id + is_free_agent false,
-// release reverses it (team_id null + is_free_agent true), so released players reappear in
-// the pool the same way an undone draft pick does.
+// Roster pool editor — League Mgmt "Edit Rosters": the commissioner
+// sees every unassigned player (the free-agent / unassigned pool) and can assign WHOLE
+// players to a team, release a roster player back into the pool, or edit a player's
+// identity/attributes in place. Assignment sets team_id + is_free_agent false;
+// release reverses it (team_id null + is_free_agent true).
 // ---------------------------------------------------------------------------
 
 export type RosterPoolPlayer = {

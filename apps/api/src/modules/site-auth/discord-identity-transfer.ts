@@ -50,7 +50,6 @@ async function remapLiveDiscordIds(client: PoolClient, fromId: string, toId: str
   await client.query(streamViews.update, [fromId, toId]);
 
   await client.query(`update rec_hub_presence_heartbeats set discord_id = $2 where discord_id = $1`, [fromId, toId]);
-  await client.query(`update rec_fantasy_draft_checkins set discord_id = $2 where discord_id = $1`, [fromId, toId]);
   await client.query(`delete from user_gameday_preferences where discord_id = $1`, [toId]);
   await client.query(`update user_gameday_preferences set discord_id = $2 where discord_id = $1`, [fromId, toId]);
   await client.query(`update rec_active_check_responses set discord_id = $2 where discord_id = $1`, [fromId, toId]);

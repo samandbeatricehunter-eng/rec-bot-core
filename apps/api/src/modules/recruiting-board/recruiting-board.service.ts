@@ -42,7 +42,7 @@ function buildAdPayload(
   league: { id: string; name: string; game: string; template_id: string | null },
   allTeams: any[],
   openTeamIds: Set<string>,
-  rosterInfo: { rosterType: string | null; draftScheduledAt: string | null },
+  rosterInfo: { rosterType: string | null },
 ) {
   const openCount = allTeams.filter((team) => openTeamIds.has(team.id)).length;
 
@@ -83,25 +83,15 @@ function buildAdPayload(
   });
 
   const isRise = rosterInfo.rosterType === "rise_to_immortality";
-  // "Regs" (roster carries over / default catalog teams) vs "Fantasy Draft" (roster built via
-  // a scheduled draft night) vs "Rise to Immortality" (no team requests — members register,
-  // build a created-player class through Origins, and link to a franchise from there) — the
-  // single biggest thing a recruit wants to know up front.
-  const rosterTypeLabel = isRise ? "Rise to Immortality" : rosterInfo.rosterType === "fantasy_draft" ? "Fantasy Draft" : "Regs";
+  // "Regs" (roster carries over / default catalog teams) vs "Rise to Immortality"
+  // (no team requests — members register, build a created-player class through Origins,
+  // and link to a franchise from there) — the single biggest thing a recruit wants to know.
+  const rosterTypeLabel = isRise ? "Rise to Immortality" : "Regs";
   const templateName = templateDisplayName(league.game, league.template_id);
   const descriptionLines = [
     `${GAME_LABELS[league.game] ?? league.game} — **${openCount}** of **${allTeams.length}** teams open.`,
     `**${rosterTypeLabel}**${templateName ? ` · Template: ${templateName}` : ""}`,
   ];
-  // Discord's <t:UNIX:R> timestamp renders as a live, self-updating "in X hours" countdown on
-  // every client with zero further edits from us — far more reliable than trying to keep an
-  // embed synced with a setInterval-style re-post loop. Shown for any league with a scheduled
-  // draft session (fantasy-draft leagues and RTI's rookie draft alike) — the roster-fill method
-  // label above is a separate, orthogonal setting from whether a draft session is scheduled.
-  if (rosterInfo.draftScheduledAt) {
-    const unix = Math.floor(new Date(rosterInfo.draftScheduledAt).getTime() / 1000);
-    descriptionLines.push(`🗓️ Draft: <t:${unix}:F> (<t:${unix}:R>)`);
-  }
   const baseDescription = descriptionLines.join("\n");
   // Discord rejects an embed outright once title+description+all field name/value text
   // combined exceeds 6000 characters — a large-conference-count league (CFB, easily 10+
@@ -156,16 +146,9 @@ export async function syncLeagueRecruitingAd(leagueId: string): Promise<void> {
 
     const openTeamIds = new Set<string>(openTeams.map((team: any) => String(team.id)));
 
-    const [configResult, draftResult] = await Promise.all([
-      supabase.from("rec_league_configuration").select("roster_type").eq("league_id", leagueId).maybeSingle(),
-      supabase.from("rec_fantasy_draft_sessions").select("scheduled_at,status").eq("league_id", leagueId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    ]);
+    const configResult = await supabase.from("rec_league_configuration").select("roster_type").eq("league_id", leagueId).maybeSingle();
     const rosterInfo = {
       rosterType: configResult.data?.roster_type ?? null,
-      // "scheduled" hasn't been a real session status since the Sept 26 simplification
-      // (current values are not_started/live/concluded) -- a schedule is now just a
-      // scheduled_at timestamp on an otherwise not_started session, set independently of status.
-      draftScheduledAt: draftResult.data?.status === "not_started" && draftResult.data.scheduled_at ? draftResult.data.scheduled_at : null,
     };
 
     const payload = buildAdPayload(league, allTeams, openTeamIds, rosterInfo);

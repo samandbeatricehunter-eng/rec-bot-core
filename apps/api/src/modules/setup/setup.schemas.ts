@@ -46,7 +46,7 @@ export const CreateLeagueSchema = z.object({
   // here — league creation picks the game-aware default (see defaultDataModeForGame in
   // setup.service.ts) when this is omitted; settings saves always send it explicitly.
   dataMode: z.enum(["import", "box_scores", "manual"]).optional(),
-  leagueType: z.enum(["fantasy_draft", "regular_rosters", "custom_rosters", "rise_to_immortality"]).default("regular_rosters"),
+  leagueType: z.enum(["regular_rosters", "custom_rosters", "rise_to_immortality"]).default("regular_rosters"),
   immortalityOffensePosition: z.enum(["QB", "HB", "WR", "TE"]).optional(),
   immortalityDefensePosition: z.enum(["CB", "FS", "SS", "MIKE"]).optional(),
   immortalityTeamPool: z.enum(["default_nfl", "custom_32"]).optional(),
@@ -72,7 +72,6 @@ export const CreateLeagueSchema = z.object({
   currentWeek: z.number().int().min(0).max(30).default(1),
 
   currentPhase: z.enum([
-    "fantasy_draft",
     "preseason",
     "regular_season",
     "playoffs",

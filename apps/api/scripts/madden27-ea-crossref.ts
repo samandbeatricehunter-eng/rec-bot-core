@@ -1,5 +1,5 @@
 // Madden 27 EA cross-reference pass — EA.com is now the source of truth for player
-// ratings (see docs/madden-fantasy-draft-plan.md §12 progress log).
+// ratings.
 //
 // Reads the EA scrape (data/madden27/madden27_ea_players.csv, produced by
 // madden27-ea-scrape.ts) and PATCHes the active madden_27 baseline dataset:

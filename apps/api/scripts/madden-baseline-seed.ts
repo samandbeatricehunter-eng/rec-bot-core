@@ -1,8 +1,8 @@
-// Madden 27 baseline roster seed — see docs/madden-fantasy-draft-plan.md §1-2, §10.
+// Madden 27 baseline roster seed.
 //
 // Reads the three committed CSVs (apps/api/scripts/data/madden27/*.csv — scraped from
 // maddenratings.com, real-life-cross-referenced against NFL.com for the unrated stub
-// players, see the plan doc for full provenance) and populates:
+// players) and populates:
 //   rec_madden_roster_datasets      (one approved, active, versioned dataset)
 //   rec_madden_baseline_players     (every player, flat attribute columns)
 //

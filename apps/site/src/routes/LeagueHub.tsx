@@ -8,7 +8,6 @@ import { IconBack } from "../components/icons.js";
 import {
   AdvanceStatusDrawer,
   AdvanceStatusProvider,
-  FantasyDraftBoardPage,
   HubChromeProvider,
   InjectedAuthProvider,
   LeagueThemeProvider,
@@ -440,9 +439,7 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
           <HighlightUploadProvider>
             <LeagueThemeProvider game={gameTheme}>
               <HubErrorBoundary>
-                {location.pathname.endsWith("/draft-board") ? (
-                  <FantasyDraftBoardPage />
-                ) : view === "mgmt" ? (
+                {view === "mgmt" ? (
                   <div className="hub-page"><HubMgmtRoutes leagueId={leagueId} /></div>
                 ) : isStatsFamilyView(view) ? (
                   <StatsSectionLayout view={view} leagueId={leagueId}>

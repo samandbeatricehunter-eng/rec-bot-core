@@ -5,12 +5,9 @@ import { resolveUserSessionFromToken, assertGuildPermission } from "../../lib/us
 import { subscribeSocket, unsubscribeSocket, dropSocket } from "./chat-realtime.js";
 import { supabase } from "../../lib/supabase.js";
 
-// Only remaining consumer is the Fantasy Draft Board's live-refresh transport (the chat
-// messaging feature itself -- league/game/commissioner chat -- was removed; this in-process
-// pub/sub + websocket layer was kept because Fantasy Draft depends on it independently of
-// chat). fantasy_draft channels use the league id directly as the channel id -- the board
-// refreshes via a one-shot refetch on event, so there's no per-message row to resolve.
-const ChannelTypeSchema = z.literal("fantasy_draft");
+// Realtime websocket transport kept as scaffolding. No channel types are currently active
+// after fantasy/annual draft removal — subscribe messages are rejected by schema.
+const ChannelTypeSchema = z.never();
 const ClientMessageSchema = z.union([
   z.object({ type: z.literal("subscribe"), channelType: ChannelTypeSchema, channelId: z.string().min(1) }),
   z.object({ type: z.literal("unsubscribe"), channelType: ChannelTypeSchema, channelId: z.string().min(1) }),

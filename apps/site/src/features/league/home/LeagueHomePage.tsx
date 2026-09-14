@@ -11,9 +11,6 @@ import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
 import type { HubMatchupSchedule, HubResponse } from "../../../../../web/src/types/api.js";
 import { RetireFromLeagueModal } from "../team/RetireFromLeagueModal.js";
 
-const FantasyDraftCard = lazy(() =>
-  import("../../../../../web/src/routes/hub/FantasyDraftCard.js").then((m) => ({ default: m.FantasyDraftCard })),
-);
 const RiseOverviewMediaDayCard = lazy(() =>
   import("../../../../../web/src/routes/hub/RiseOverviewMediaDay.js").then((m) => ({ default: m.RiseOverviewMediaDayCard })),
 );
@@ -24,7 +21,7 @@ function HubSurfaceFallback() {
 
 /**
  * League Home — site-owned. Replaces the retired buzz/news destinations.
- * Keeps the season snapshot + draft/RTI footholds; media feed/news room are gone.
+ * Keeps the season snapshot + RTI footholds; media feed/news room are gone.
  */
 export function LeagueHomePage() {
   const { leagueId = "" } = useParams();
@@ -356,16 +353,6 @@ export function LeagueHomePage() {
               />
             ) : null}
 
-            {(hub.league.game === "madden_26" || hub.league.game === "madden_27")
-              && (!isRise || riseHubUnlocked)
-              && hub.league.fantasyDraftStatus
-              && hub.league.fantasyDraftStatus !== "not_applicable"
-              && hub.league.fantasyDraftStatus !== "concluded"
-              && guildId ? (
-              <Suspense fallback={<HubSurfaceFallback />}>
-                <FantasyDraftCard guildId={guildId} leagueId={leagueId || hub.league.id} compact />
-              </Suspense>
-            ) : null}
           </div>
         </main>
       </div>
