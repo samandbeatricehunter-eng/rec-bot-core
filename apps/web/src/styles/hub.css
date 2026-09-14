@@ -4174,14 +4174,18 @@ button.poty:disabled {
   font-weight:700;
 }
 .rec-leader-name > strong {
-  display:block;
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
   max-width:100%;
   overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  font-size:.78rem;
-  letter-spacing:.03em;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  font-size:clamp(.62rem, 2.6vw, .78rem);
+  letter-spacing:.02em;
   font-weight:800;
+  line-height:1.05;
 }
 .rec-leader-name > em {
   display:block;

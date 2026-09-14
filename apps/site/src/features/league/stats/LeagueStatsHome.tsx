@@ -228,10 +228,19 @@ const LEADER_CATEGORIES = [
   { label: "Interceptions", primaryKey: "interceptions", stats: [{ label: "INT", key: "interceptions" }, { label: "PBU", key: "pass_deflections" }] },
 ] as const;
 
+const NAME_SUFFIXES = new Set(["jr", "jr.", "sr", "sr.", "ii", "iii", "iv", "v", "2nd", "3rd", "4th"]);
+
 function splitPlayerName(fullName: string): { first: string; last: string } {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length <= 1) return { first: parts[0] ?? fullName, last: "" };
-  return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1]! };
+  // Keep generational suffixes with the family name ("Cook III", "Williams Jr.") so they
+  // don't render as the oversized last-name line by themselves.
+  const lastToken = parts[parts.length - 1]!.toLowerCase();
+  const lastCount = parts.length >= 3 && NAME_SUFFIXES.has(lastToken) ? 2 : 1;
+  return {
+    first: parts.slice(0, -lastCount).join(" "),
+    last: parts.slice(-lastCount).join(" "),
+  };
 }
 
 function LeagueLeadersView({ guildId }: { guildId: string }) {
