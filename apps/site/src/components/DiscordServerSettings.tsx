@@ -32,14 +32,12 @@ export function DiscordServerSettings({ leagueId }: { leagueId: string }) {
     };
   }, [leagueId]);
 
-  const pickerNext = location.pathname || `/l/${leagueId}/mgmt/settings`;
+  const pickerNext = `${location.pathname}${location.search}` || `/l/${leagueId}/mgmt/settings`;
   const pickerPath = `/discord-guild-picker?leagueId=${encodeURIComponent(leagueId)}&next=${encodeURIComponent(pickerNext)}`;
 
   return (
-    <section className="site-page-card"
-      style={{ marginBottom: "var(--space-4)" }}
-    >
-      <h2 style={{ marginTop: 0 }}>Discord Server</h2>
+    <section className="site-discord-server-block">
+      <h2>Discord Server</h2>
       {error ? (
         <p className="site-auth-error">{error}</p>
       ) : status === null ? (
