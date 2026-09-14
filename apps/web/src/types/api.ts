@@ -499,7 +499,7 @@ export type HubResponse = {
   } | null };
   canManageLeague: boolean;
   commissionerTier: "commissioner" | "co_commissioner" | null;
-  store: { enabled: boolean; cfbSeasonOneLocked: boolean; products: Array<{ type: "age_reset" | "dev_upgrade" | "contract" | "player_trait" | "attribute" | "legend" | "custom_player"; label: string; locked: boolean }> };
+  store: { enabled: boolean; products: Array<{ type: "age_reset" | "dev_upgrade" | "contract" | "player_trait" | "attribute" | "legend" | "custom_player"; label: string; locked: boolean }> };
   waysToGetPaid: { weeklyEarned: number; weeklyPotential: number; weeklyItems: Array<{ key: string; label: string; amount: number; current: number; limit: number; earned: number; note?: string }>; wagerHint: string };
   announcements: Array<{ id: string; title: string; body: string; season_number: number | null; week_number: number | null; published_at: string }>;
   headlines: Array<{ id: string; season: number; week: number | null; season_stage?: string | null; headline: string | null; body: string | null; image_url?: string | null; media_kind?: string | null; author_discord_id?: string | null; primary_angle: string | null; story_type: "headline" | "article" | "game_article" | "player_of_week"; notes: string[] | { winners: import("../components/hub/PlayerOfWeekCard.js").PlayerOfWeekCardWinner[] } | null; roundtable: Array<{ speaker: string; role: string; take: string }> | null; reactionCounts: { like: number; dislike: number }; myReaction: "like" | "dislike" | null; commentCount: number; created_at: string }>;

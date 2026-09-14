@@ -61,8 +61,8 @@ const MEDIA_BUCKET = "rec-media";
 const MEDIA_IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 export const STREAM_VIEWER_COOKIE = "rec_stream_viewer";
 
-function matchupLogo(team: { is_relocated?: boolean | null; abbreviation?: string | null; original_abbreviation?: string | null; logo_url?: string | null } | null | undefined, isCfb: boolean) {
-  if (isCfb || !team) return { abbr: null as string | null, logoUrl: null as string | null };
+function matchupLogo(team: { is_relocated?: boolean | null; abbreviation?: string | null; original_abbreviation?: string | null; logo_url?: string | null } | null | undefined) {
+  if (!team) return { abbr: null as string | null, logoUrl: null as string | null };
   if (team.logo_url) return { abbr: null, logoUrl: team.logo_url };
   return { abbr: team.is_relocated ? team.original_abbreviation ?? team.abbreviation ?? null : team.abbreviation ?? null, logoUrl: null };
 }
@@ -908,12 +908,11 @@ async function loadHub(guildId: string, discordId: string) {
   }
   const weeklyPotential = weeklyItems.reduce((sum, item) => sum + item.amount * item.limit, 0);
   const weeklyEarned = weeklyItems.reduce((sum, item) => sum + item.earned, 0);
-  const cfbSeasonOne = context.rec_leagues.game === "cfb_27" && seasonNumber < 2;
   const productConfig = [
-    ["age_reset", "Age Reset", "age_resets_enabled", true], ["dev_upgrade", "Dev Upgrade", "dev_upgrades_enabled", true],
-    ["contract", "Contract", "contract_adjustment_purchases_enabled", true],
-    ["attribute", "Attribute Points", "attribute_purchases_enabled", true], ["legend", context.rec_leagues.game === "cfb_27" ? "Campus Legend" : "Legend", "legends_enabled", true],
-    ["custom_player", context.rec_leagues.game === "cfb_27" ? "Custom Recruit" : "Custom Player", "custom_players_enabled", true],
+    ["age_reset", "Age Reset", "age_resets_enabled"], ["dev_upgrade", "Dev Upgrade", "dev_upgrades_enabled"],
+    ["contract", "Contract", "contract_adjustment_purchases_enabled"],
+    ["attribute", "Attribute Points", "attribute_purchases_enabled"], ["legend", "Legend", "legends_enabled"],
+    ["custom_player", "Custom Player", "custom_players_enabled"],
   ] as const;
 
   if (reactions.error) throw new ApiError(500, "We couldn't load highlight reactions right now. Please try again.", reactions.error);
@@ -923,9 +922,7 @@ async function loadHub(guildId: string, discordId: string) {
   const highlightGameUserNameById = new Map<string, string>((highlightGameUsers.data ?? []).map((u: any) => [u.id, String(u.username ?? u.display_name ?? "REC Member")]));
   const highlightMatchupByTeamWeek = new Map<string, { label: string; participants: { away: string; home: string } | null }>();
   const hubTeamName = (team: any, fallback: string) =>
-    context.rec_leagues.game === "cfb_27"
-      ? resolveTeamSchool(team) ?? team?.name ?? team?.abbreviation ?? fallback
-      : formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
+    formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
   for (const game of highlightGames.data ?? []) {
     const label = `${hubTeamName((game as any).away_team, "Away")} VS ${hubTeamName((game as any).home_team, "Home")}`;
     const participants = game.home_user_id && game.away_user_id
@@ -970,13 +967,9 @@ async function loadHub(guildId: string, discordId: string) {
     commissionerTier,
     store: {
       enabled: Boolean(cfg.coin_economy_enabled),
-      cfbSeasonOneLocked: cfbSeasonOne,
-      // Dev trait progression is earned in-game for CFB, not purchased — hide the tile
-      // entirely there rather than showing it locked/enabled like the other products.
       products: productConfig
-        .filter(([type]) => !(type === "dev_upgrade" && context.rec_leagues.game === "cfb_27"))
         .filter(([, , flag]) => Boolean((cfg as any)[flag]))
-        .map(([type, label, , cfbLocked]) => ({ type, label, locked: cfbSeasonOne && cfbLocked })),
+        .map(([type, label]) => ({ type, label, locked: false })),
     },
     waysToGetPaid: { weeklyEarned, weeklyPotential, weeklyItems, wagerHint: isRise ? "Wagers are not available in Rise to Immortality." : "Place wagers from the Place a Wager button in Quick Actions." },
     announcements: announcements.data ?? [],
@@ -1812,7 +1805,6 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   const contextP = getCurrentLeagueContext(input.guildId);
   const userIdP = userIdForDiscord(input.discordId);
   const [context, userId] = await Promise.all([contextP, userIdP]);
-  const isCfb = context.rec_leagues.game === "cfb_27";
   const universityName = (team: any, fallback: string) =>
     resolveTeamSchool(team) ?? formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
   const mascotName = (team: any, fallback: string) =>
@@ -2082,10 +2074,10 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         awayTeamMascot: mascotName(game.away_team, "Away"),
         homeTeamColor: game.home_team?.primary_color ?? "#FFFFFF",
         awayTeamColor: game.away_team?.primary_color ?? "#FFFFFF",
-        homeTeamAbbr: matchupLogo(game.home_team, isCfb).abbr,
-        awayTeamAbbr: matchupLogo(game.away_team, isCfb).abbr,
-        homeTeamLogoUrl: matchupLogo(game.home_team, isCfb).logoUrl,
-        awayTeamLogoUrl: matchupLogo(game.away_team, isCfb).logoUrl,
+        homeTeamAbbr: matchupLogo(game.home_team).abbr,
+        awayTeamAbbr: matchupLogo(game.away_team).abbr,
+        homeTeamLogoUrl: matchupLogo(game.home_team).logoUrl,
+        awayTeamLogoUrl: matchupLogo(game.away_team).logoUrl,
         homeTeamRank: rankByTeamId.get(game.home_team?.id)?.rank ?? null,
         awayTeamRank: rankByTeamId.get(game.away_team?.id)?.rank ?? null,
         homeTeamRecord: teamRecordText(game.home_team?.id),
