@@ -16,23 +16,35 @@ function TickerLogo({ abbreviation, alt }: { abbreviation: string | null; alt: s
 }
 
 function matchupSegment(item: SiteLeagueTickerItem): ReactNode {
-  const away = <><TickerLogo abbreviation={item.awayTeamAbbr} alt={item.awayTeamName} />{item.awayTeamAbbr ?? item.awayTeamName}</>;
-  const home = <><TickerLogo abbreviation={item.homeTeamAbbr} alt={item.homeTeamName} />{item.homeTeamAbbr ?? item.homeTeamName}</>;
+  const awayAbbr = item.awayTeamAbbr ?? item.awayTeamName;
+  const homeAbbr = item.homeTeamAbbr ?? item.homeTeamName;
+  // Logos on the outside, abbreviations on the inside: [AWAY LOGO] SEA AT PIT [HOME LOGO]
+  const matchup = (
+    <>
+      <TickerLogo abbreviation={item.awayTeamAbbr} alt={item.awayTeamName} />
+      {awayAbbr}
+      {" "}
+      {item.isFinal && item.awayScore != null && item.homeScore != null
+        ? <>{item.awayScore} — {item.homeScore}</>
+        : item.isLive && item.awayScore != null && item.homeScore != null
+          ? <>{item.awayScore} — {item.homeScore}</>
+          : "at"}
+      {" "}
+      {homeAbbr}
+      <TickerLogo abbreviation={item.homeTeamAbbr} alt={item.homeTeamName} />
+    </>
+  );
   if (item.isFinal && item.awayScore != null && item.homeScore != null) {
-    return <>{away} {item.awayScore} — {item.homeScore} {home} <span className="site-ticker-final">FINAL</span></>;
-  }
-  if (item.isLive && item.awayScore != null && item.homeScore != null) {
-    return <><span className="site-ticker-live">● LIVE</span> {away} {item.awayScore} — {item.homeScore} {home}</>;
+    return <>{matchup} <span className="site-ticker-final">FINAL</span></>;
   }
   if (item.isLive) {
-    return <><span className="site-ticker-live">● LIVE</span> {away} at {home}</>;
+    return <><span className="site-ticker-live">● LIVE</span> {matchup}</>;
   }
-  // Odds only ever come through pre-game (server omits them once a game is live/final).
   if (item.odds) {
     const ou = item.odds.overUnder != null ? ` · O/U ${item.odds.overUnder}` : "";
-    return <>{away} at {home} — ML {americanFromDecimal(item.odds.awayMoneyline)}/{americanFromDecimal(item.odds.homeMoneyline)}{ou}</>;
+    return <>{matchup} — ML {americanFromDecimal(item.odds.awayMoneyline)}/{americanFromDecimal(item.odds.homeMoneyline)}{ou}</>;
   }
-  return <>{away} at {home}</>;
+  return matchup;
 }
 
 function useLeagueTickerSegments(leagueId: string): ReactNode[] {
