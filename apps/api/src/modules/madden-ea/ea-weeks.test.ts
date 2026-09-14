@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   eaScheduleExternalId,
+  resolveScheduleImportRefs,
   resolveWeeklyImportRefs,
   validateWeekRef,
   weeksThroughCurrent,
@@ -37,6 +38,24 @@ test("through_current in preseason stays in preseason", () => {
     { stageIndex: 0, weekIndex: 1 },
     { stageIndex: 0, weekIndex: 2 },
   ]);
+});
+
+test("week_scope full_season is regular-season weeks 1–18", () => {
+  const refs = resolveWeeklyImportRefs({
+    weekScope: "full_season",
+    current: { stageIndex: 1, weekIndex: 0 },
+  });
+  assert.equal(refs.length, 18);
+  assert.equal(refs[0]?.weekIndex, 0);
+  assert.equal(refs.at(-1)?.weekIndex, 17);
+  assert.ok(refs.every((ref) => ref.stageIndex === 1));
+});
+
+test("schedule import refs always cover the full regular-season slate", () => {
+  const refs = resolveScheduleImportRefs([{ stageIndex: 1, weekIndex: 0 }]);
+  assert.equal(refs.length, 18);
+  assert.ok(refs.some((ref) => ref.weekIndex === 0));
+  assert.ok(refs.some((ref) => ref.weekIndex === 17));
 });
 
 test("explicit week_refs win over week_scope", () => {

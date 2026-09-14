@@ -1925,8 +1925,17 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   }
   const loadedPolls = [...loadedPollsById.values()].sort((a, b) =>
     Date.parse(String(b.updated_at ?? b.created_at ?? 0)) - Date.parse(String(a.updated_at ?? a.created_at ?? 0)));
+  // Regular season has one featured GOTW. Prefer an open poll over a more-recently-touched
+  // closed leftover — otherwise closing (or cancelling) a wrong game can resurface it above
+  // the still-open assigned GOTW purely because updated_at is newer.
   const polls = selectedWeek <= regularSeasonWeeks(context.rec_leagues.game)
-    ? loadedPolls.slice(0, 1)
+    ? (() => {
+        const open = loadedPolls.filter((row: any) => row.status === "open");
+        if (open.length) return open.slice(0, 1);
+        const closed = loadedPolls.filter((row: any) => row.status === "closed");
+        if (closed.length) return closed.slice(0, 1);
+        return loadedPolls.slice(0, 1);
+      })()
     : loadedPolls;
   const pollIds = polls.map((row: any) => row.id);
   const assignmentUserIds = [...new Set((assignments.data ?? []).map((row: any) => row.user_id).filter(Boolean))] as string[];

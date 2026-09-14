@@ -175,8 +175,15 @@ export function weekSpan(stageIndex: EaStage, fromDisplayWeek: number, toDisplay
  *
  * - `current` — only the franchise's current week (manual "Current week" and auto-import)
  * - `through_current` — every exportable week in the current stage up through current
+ * - `full_season` — every regular-season week (1–18), for pulling the full schedule slate
  */
-export type EaWeekScope = "current" | "through_current";
+export type EaWeekScope = "current" | "through_current" | "full_season";
+
+/** Regular-season weeks 1–18 (EA stage 1, weekIndex 0–17). Playoffs are excluded — those
+ *  matchups do not exist in EA until the bracket is set. */
+export function fullRegularSeasonWeekRefs(): EaWeekRef[] {
+  return Array.from({ length: 18 }, (_, weekIndex) => ({ stageIndex: 1 as EaStage, weekIndex }));
+}
 
 export function weeksThroughCurrent(current: EaWeekRef): EaWeekRef[] {
   const ref = validateWeekRef(current);
@@ -218,8 +225,9 @@ export function dedupeWeekRefs(refs: EaWeekRef[]): EaWeekRef[] {
  * Resolves which EA weeks a weekly dataset import should fetch.
  *
  * Explicit `weekRefs` always win (specific week or a range). Otherwise a lone stage/weekIndex
- * is that one week. Otherwise `through_current` expands 0..current in the current stage, and
- * the default (`current` / omitted) is only the franchise's current week.
+ * is that one week. Otherwise `through_current` expands 0..current in the current stage,
+ * `full_season` expands regular-season weeks 1–18, and the default (`current` / omitted) is
+ * only the franchise's current week.
  */
 export function resolveWeeklyImportRefs(input: {
   weekRefs?: EaWeekRef[] | null;
@@ -234,7 +242,18 @@ export function resolveWeeklyImportRefs(input: {
   }
   const current = validateWeekRef(input.current);
   if (input.weekScope === "through_current") return weeksThroughCurrent(current);
+  if (input.weekScope === "full_season") return fullRegularSeasonWeekRefs();
   return [current];
+}
+
+/**
+ * Weeks to fetch for the schedule dataset. Stats stay on the caller's week selection;
+ * schedule always also covers the full regular-season slate so future My Schedule /
+ * League Schedule weeks exist after a "current week" import (which would otherwise only
+ * store the 16 games for the franchise's current week).
+ */
+export function resolveScheduleImportRefs(baseWeeklyRefs: EaWeekRef[]): EaWeekRef[] {
+  return dedupeWeekRefs([...baseWeeklyRefs, ...fullRegularSeasonWeekRefs()]);
 }
 
 /**

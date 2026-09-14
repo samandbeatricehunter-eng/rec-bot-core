@@ -61,7 +61,7 @@ import {
   type EaSessionCache,
   type EaTokenRecord,
 } from "./ea-token-vault.js";
-import { currentWeekFromSeasonInfo, describeEaWeek, describeWeekRefsLabel, resolveWeeklyImportRefs, type EaStage, type EaWeekRef, type EaWeekScope } from "./ea-weeks.js";
+import { currentWeekFromSeasonInfo, describeEaWeek, describeWeekRefsLabel, resolveScheduleImportRefs, resolveWeeklyImportRefs, type EaStage, type EaWeekRef, type EaWeekScope } from "./ea-weeks.js";
 
 export type { EaDataset };
 
@@ -601,7 +601,8 @@ export type EaImportOptions = {
    *  replaces week_scope / stage / weekIndex for weekly datasets; snapshots import once. */
   weekRefs?: EaWeekRef[];
   /** When weekRefs is omitted: `current` (default) is only the franchise week; `through_current`
-   *  is every exportable week in that stage up through current. */
+   *  is every week in the stage up through current; `full_season` is regular-season weeks 1–18.
+   *  Schedule always also expands to the full regular-season slate regardless. */
   weekScope?: EaWeekScope;
 };
 
@@ -854,18 +855,42 @@ export async function importEaDatasetsWithProgress(
 
   // Weekly datasets follow the picker: current week, an explicit list, or all weeks through
   // current. Omitted weekRefs used to expand 0..current, so "Current week" imported history.
+  // Schedule always also covers the full regular-season slate (see resolveScheduleImportRefs)
+  // so a current-week import still stores weeks 2–18 for My Schedule / League Schedule.
   const defaultWeekRef: EaWeekRef = options.stage !== undefined && options.weekIndex !== undefined
     ? { stageIndex: options.stage, weekIndex: options.weekIndex }
     : seasonInfo
       ? currentWeekFromSeasonInfo({ seasonWeek: seasonInfo.seasonWeek, seasonWeekType: seasonInfo.seasonWeekType })
       : { stageIndex: 1, weekIndex: 0 };
-  const weeklyRefs = resolveWeeklyImportRefs({
+  const baseWeeklyRefs = resolveWeeklyImportRefs({
     weekRefs: options.weekRefs,
     stage: options.stage,
     weekIndex: options.weekIndex,
     weekScope: options.weekScope,
     current: defaultWeekRef,
   });
+  const scheduleSelected = datasets.includes("schedule");
+  const scheduleWeekRefs = scheduleSelected ? resolveScheduleImportRefs(baseWeeklyRefs) : [];
+  const statsWeeklyDatasets = datasets.filter((d) => WEEKLY_DATASETS.has(d) && d !== "schedule") as EaDataset[];
+  // Union of weeks we will actually hit EA for (schedule slate ∪ stats weeks).
+  const weeklyRefs = (() => {
+    const byKey = new Map<string, EaWeekRef>();
+    for (const ref of scheduleWeekRefs) byKey.set(`${ref.stageIndex}:${ref.weekIndex}`, ref);
+    if (statsWeeklyDatasets.length) {
+      for (const ref of baseWeeklyRefs) byKey.set(`${ref.stageIndex}:${ref.weekIndex}`, ref);
+    }
+    return [...byKey.values()].sort((a, b) => a.stageIndex - b.stageIndex || a.weekIndex - b.weekIndex);
+  })();
+  const datasetsForWeek = (week: EaWeekRef): EaDataset[] => {
+    const out: EaDataset[] = [];
+    if (scheduleSelected && scheduleWeekRefs.some((ref) => ref.stageIndex === week.stageIndex && ref.weekIndex === week.weekIndex)) {
+      out.push("schedule");
+    }
+    if (statsWeeklyDatasets.length && baseWeeklyRefs.some((ref) => ref.stageIndex === week.stageIndex && ref.weekIndex === week.weekIndex)) {
+      out.push(...statsWeeklyDatasets);
+    }
+    return out;
+  };
   // Now that the requested week(s) are resolved (including "current", which only becomes
   // concrete once the franchise's season info is in), record them on the progress entry so a
   // reader (e.g. the Import Data modal, or the auto-sweep skipping a league with one already
@@ -1036,15 +1061,17 @@ export async function importEaDatasetsWithProgress(
   // and hung sockets, so matching that batching is safe for a week-1-through-current import.
   // Writes used to wait until the whole batch finished fetching, then run serially — EA sat
   // idle during Postgres. Fetch the next two weeks while the current batch is writing.
+  // Per-week dataset lists can differ: schedule covers the full RS slate; stats stay on the
+  // caller's week selection (current / span / through_current).
   if (weeklyDatasets.length > 0 && weeklyRefs.length > 0) {
     const weekBatches = chunkItems(weeklyRefs, EA_WEEKLY_WEEK_BATCH);
     type WeekFetchItem = { week: EaWeekRef; dataset: EaDataset; raw: unknown; ok: boolean };
     const fetchWeekBatch = async (weekBatch: EaWeekRef[]): Promise<WeekFetchItem[]> => {
       const batchLabel = weekBatch.map((week) => describeEaWeek(week.stageIndex, week.weekIndex).label).join(", ");
-      pushProgress(leagueId, { type: "dataset_start", dataset: "weekly", label: `Fetching ${weeklyDatasets.length} datasets for ${batchLabel}` });
+      pushProgress(leagueId, { type: "dataset_start", dataset: "weekly", label: `Fetching weekly datasets for ${batchLabel}` });
       return Promise.all(weekBatch.flatMap((week) => {
         const weekDesc = describeEaWeek(week.stageIndex, week.weekIndex);
-        return weeklyDatasets.map(async (dataset) => {
+        return datasetsForWeek(week).map(async (dataset) => {
           try {
             const raw = await runWithFreshSession((client) =>
               fetchDataset(client, dataset, eaLeagueId, week, teamIdInfoList),

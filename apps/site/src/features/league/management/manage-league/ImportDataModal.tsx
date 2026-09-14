@@ -38,7 +38,7 @@ function seasonWeekLabel(displayWeek: number): string {
 const PRESEASON_DISPLAY_WEEKS = [1, 2, 3, 4];
 // Display 22 is the Pro Bowl — reserved by EA but never exportable, so it's not offered.
 const SEASON_DISPLAY_WEEKS = Array.from({ length: 23 }, (_, i) => i + 1).filter((w) => w !== 22);
-type WeekMode = "current" | "week" | "span" | "through_current";
+type WeekMode = "current" | "week" | "span" | "through_current" | "full_season";
 
 // Two-phase EA link: the commissioner opens EA's login page, pastes the redirect URL back,
 // picks the gamertag (persona) that owns the franchise, and finally selects which of their
@@ -313,6 +313,7 @@ export function ImportDataModal({
                 .map((w) => ({ stage: weekStage as 0 | 1, weekIndex: w - 1 }))
             : undefined;
       const weekScope = weekMode === "through_current" ? "through_current" as const
+        : weekMode === "full_season" ? "full_season" as const
         : weekMode === "current" ? "current" as const
         : undefined;
 
@@ -491,7 +492,7 @@ export function ImportDataModal({
                 <>
                   <Card>
                     <h3 style={{ marginTop: 0 }}>Datasets</h3>
-                    <p className="form-hint">Choose what to pull. Per-week stats (schedule, passing, rushing, receiving, defense, kicking, punting, team stats) follow the week selection below and fetch two weeks at a time with every endpoint in parallel. Rosters pull four teams at a time. Rosters, free agents, teams, and standings are league-wide snapshots. Current week imports only the franchise's current week. Use a range or “All weeks through current” to backfill history.</p>
+                    <p className="form-hint">Choose what to pull. Per-week stats follow the week selection below. Schedule always also stores the full regular-season slate (weeks 1–18) so My Schedule is not stuck with only the current week&apos;s 16 games. Rosters, free agents, teams, and standings are league-wide snapshots.</p>
                     <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
                       <div className="form-field" style={{ margin: 0, minWidth: 170 }}>
                         <label className="form-label" htmlFor="ea-week-mode">Import for</label>
@@ -500,6 +501,7 @@ export function ImportDataModal({
                           <option value="week">A specific week</option>
                           <option value="span">A range of weeks</option>
                           <option value="through_current">All weeks through current</option>
+                          <option value="full_season">Full regular season (1–18)</option>
                         </select>
                       </div>
                       {(weekMode === "week" || weekMode === "span") && (

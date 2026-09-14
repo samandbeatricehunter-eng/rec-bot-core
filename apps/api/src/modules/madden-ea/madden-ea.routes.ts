@@ -137,7 +137,7 @@ export async function maddenEaRoutes(app: FastifyInstance) {
     stage: z.union([z.literal(0), z.literal(1)]).optional(),
     week_index: z.number().int().min(0).max(22).optional(),
     week_refs: z.array(z.object({ stage: z.union([z.literal(0), z.literal(1)]), week_index: z.number().int().min(0).max(22) })).min(1).max(27).optional(),
-    week_scope: z.enum(["current", "through_current"]).optional(),
+    week_scope: z.enum(["current", "through_current", "full_season"]).optional(),
   });
 
   function weekOptionsFromBody(body: z.infer<typeof importBodySchema>) {
@@ -148,7 +148,8 @@ export async function maddenEaRoutes(app: FastifyInstance) {
 
   // Pull the enabled datasets from EA and run them through the ingest pipeline. Weekly
   // datasets default to the franchise's current week; pass week_refs for a specific week or
-  // span, or week_scope=through_current for every week up through current (snapshots once).
+  // span, week_scope=through_current for history through current, or full_season for weeks
+  // 1–18. Schedule always also stores the full regular-season slate (snapshots once).
   app.post("/v1/import/madden/ea/import", async (request, reply) => {
     try {
       const body = importBodySchema.parse(request.body);

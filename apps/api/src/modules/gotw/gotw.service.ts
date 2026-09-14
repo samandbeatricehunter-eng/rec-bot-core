@@ -127,8 +127,10 @@ export async function createGotwPoll(input: {
     .select("id")
     .single();
   if (error) throw new ApiError(500, "We couldn't create that GOTW poll. Please try again.", error);
-  // Regular season only allows one featured GOTW — cancel any other open polls for the week
-  // so a prior all-H2H assign (or a season-number mismatch repair) doesn't leave multiples live.
+  // Regular season only allows one featured GOTW — cancel any other open/closed polls for the
+  // week so a prior all-H2H assign (or a season-number mismatch repair) doesn't leave
+  // multiples live. Closed leftovers must go too: hub used to pick by newest updated_at and
+  // a recently closed wrong game would outrank the still-open assigned GOTW.
   if (data?.id && input.weekNumber <= regularSeasonWeeks(context.rec_leagues.game)) {
     const cancelled = await supabase
       .from("rec_game_of_week_polls")
@@ -136,7 +138,7 @@ export async function createGotwPoll(input: {
       .eq("league_id", context.leagueId)
       .eq("season_number", seasonNumber)
       .eq("week_number", input.weekNumber)
-      .eq("status", "open")
+      .in("status", ["open", "closed"])
       .neq("id", data.id);
     if (cancelled.error) throw new ApiError(500, "We couldn't clear competing GOTW polls. Please try again.", cancelled.error);
   }
