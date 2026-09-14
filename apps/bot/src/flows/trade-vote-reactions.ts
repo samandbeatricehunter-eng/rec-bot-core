@@ -1,9 +1,12 @@
 import { MessageFlags, type ButtonInteraction, type MessageReaction, type PartialMessageReaction, type User, type PartialUser } from "discord.js";
 import { recApi } from "../lib/rec-api.js";
 import { isDiscordAdminInteraction, isDiscordAdminMember } from "../lib/admin.js";
-import { idAfter } from "./game-scheduling-panel.js";
 
 export const TRADE_RELEASE_COINS_PREFIX = "rec:trade:release_coins:";
+
+function idAfter(prefix: string, customId: string): string {
+  return customId.slice(prefix.length);
+}
 
 /** "Confirm Sent In-Game — Release Coins" button on a finalized-trades post. The API call itself
  * edits this message to strip the button once the release succeeds, so there's nothing more to

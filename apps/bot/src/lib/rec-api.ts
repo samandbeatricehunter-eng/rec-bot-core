@@ -100,87 +100,8 @@ export const recApi = {
       team: { id: string; name: string; abbreviation: string | null };
       players: Array<{ id: string; fullName: string; position: string; positionGroup: string; overallRating: number | null; devTrait: string | null }>;
     }>("/v1/roster/team", { method: "POST", body: JSON.stringify(input) }),
-  setSchedulingTimezone: (input: { guildId: string; discordId: string; timezone: string; source: "discord_manual" }) =>
-    recFetch<any>("/v1/scheduling/timezone", { method: "POST", body: JSON.stringify(input) }),
-  getSchedulingProfile: (input: { guildId: string; discordId: string }) =>
-    recFetch<{ profile: any; windows: Array<{ id: string; weekday: number; startMinute: number; endMinute: number }>; overrides: any[] }>("/v1/scheduling/profile", { method: "POST", body: JSON.stringify(input) }),
-  setSchedulingWindows: (input: { guildId: string; discordId: string; leagueScoped: boolean; weekday: number; windows: Array<{ startMinute: number; endMinute: number }> }) =>
-    recFetch<any>("/v1/scheduling/windows", { method: "POST", body: JSON.stringify(input) }),
-  setAvailabilityDayUnavailable: (input: { guildId: string; discordId: string; leagueScoped: boolean; weekday: number }) =>
-    recFetch<{ markedUnavailable: true }>("/v1/scheduling/day-unavailable/set", { method: "POST", body: JSON.stringify(input) }),
-  setSchedulingOverride: (input: { guildId: string; discordId: string; scope: "week" | "day" | "matchup"; gameId?: string; localDate: string; timezone: string; startMinute?: number; endMinute?: number; unavailable: boolean }) =>
-    recFetch<any>("/v1/scheduling/overrides", { method: "POST", body: JSON.stringify(input) }),
-  getSchedulingSuggestions: (input: { guildId: string; discordId: string; gameId: string }) =>
-    recFetch<{
-      deadlineUtc: string; homeTimezone: string | null; awayTimezone: string | null;
-      sharedWindows: Array<{ startUtc: string; endUtc: string }>;
-      bestWindow: { kickoffUtc: string; windowEndUtc: string; score: number } | null; bestKickoffOptions: string[];
-    }>("/v1/scheduling/matchup/suggestions", { method: "POST", body: JSON.stringify(input) }),
-  proposeSchedulingTime: (input: { guildId: string; discordId: string; gameId: string; proposedForUtc?: string; localDate?: string; localTime?: string; timezone?: string }) =>
-    recFetch<{ id: string; proposed_for: string }>("/v1/scheduling/matchup/propose", { method: "POST", body: JSON.stringify(input) }),
-  getSchedulingStatus: (input: { guildId: string; discordId: string; gameId: string }) =>
-    recFetch<{
-      status: string; scheduledFor: string | null; fwFlagged: boolean;
-      pendingProposal: { id: string; proposedByUserId: string; proposedFor: string; proposedByMe: boolean } | null;
-    }>("/v1/scheduling/matchup/status", { method: "POST", body: JSON.stringify(input) }),
-  requestSchedulingReschedule: (input: { guildId: string; discordId: string; gameId: string }) =>
-    recFetch<{ status: string }>("/v1/scheduling/matchup/request-reschedule", { method: "POST", body: JSON.stringify(input) }),
-  respondToSchedulingProposal: (input: { guildId: string; discordId: string; gameId: string; proposalId: string; action: "accept" | "counter" | "withdraw" | "reject"; counterForUtc?: string; localDate?: string; localTime?: string; timezone?: string }) =>
-    recFetch<any>("/v1/scheduling/matchup/respond-to-proposal", { method: "POST", body: JSON.stringify(input) }),
-  markGameStarted: (input: { guildId: string; discordId: string; gameId: string }) =>
-    recFetch<any>("/v1/scheduling/matchup/game-started", { method: "POST", body: JSON.stringify(input) }),
-  getCantMakeGameOptions: (input: { guildId: string; discordId: string; gameId: string }) =>
-    recFetch<{ canGrantForceWin: boolean; canRequestFairSim: boolean; allowAutopilotRequests: boolean }>("/v1/scheduling/matchup/cant-make-game-options", { method: "POST", body: JSON.stringify(input) }),
-  markSchedulingCantMakeGame: (input: { guildId: string; discordId: string; gameId: string; choice: "grant_fw" | "request_fs" }) =>
-    recFetch<{ flagged: true; opponentId: string | null }>("/v1/scheduling/matchup/cant-make-game", { method: "POST", body: JSON.stringify(input) }),
-  resolveSchedulingCantMakeGame: (input: { guildId: string; discordId: string; gameId: string; choice: "accept_fs" | "request_autopilot" }) =>
-    recFetch<{ choice: string }>("/v1/scheduling/matchup/cant-make-game-response", { method: "POST", body: JSON.stringify(input) }),
-  resolveAutopilotRequest: (input: { guildId: string; discordId: string; gameId: string; decision: "grant_autopilot" | "enforce_fs" }) =>
-    recFetch<{ decision: string }>("/v1/scheduling/matchup/autopilot-resolve", { method: "POST", body: JSON.stringify(input) }),
-  reportRuleViolation: (input: { guildId: string; discordId: string; gameId: string; description: string }) =>
-    recFetch<{ ok: true }>("/v1/scheduling/matchup/report-violation", { method: "POST", body: JSON.stringify(input) }),
-  resolveViolationReport: (input: { guildId: string; discordId: string; gameId: string; decision: "grant_fw" | "clear" }) =>
-    recFetch<{ decision: string }>("/v1/scheduling/matchup/violation-resolve", { method: "POST", body: JSON.stringify(input) }),
-  reportDashing: (input: { guildId: string; discordId: string; gameId: string }) =>
-    recFetch<{ ok: true }>("/v1/scheduling/matchup/report-dashing", { method: "POST", body: JSON.stringify(input) }),
-  resolveDashingReport: (input: { guildId: string; discordId: string; gameId: string; decision: "grant_fw" | "reject" }) =>
-    recFetch<{ decision: string }>("/v1/scheduling/matchup/dashing-resolve", { method: "POST", body: JSON.stringify(input) }),
-  resetScheduling: (input: { guildId: string; discordId: string; gameId: string; wipeMessages?: boolean }) =>
-    recFetch<{ reset: true }>("/v1/scheduling/matchup/reset", { method: "POST", body: JSON.stringify(input) }),
-  grantForceWinCommissioner: (input: { guildId: string; discordId: string; gameId: string; side: "home" | "away" }) =>
-    recFetch<{ granted: true; side: string; cite: string; teamName: string }>("/v1/scheduling/matchup/commish/grant-fw", { method: "POST", body: JSON.stringify(input) }),
-  grantFairSimCommissioner: (input: { guildId: string; discordId: string; gameId: string }) =>
-    recFetch<{ granted: true }>("/v1/scheduling/matchup/commish/grant-fs", { method: "POST", body: JSON.stringify(input) }),
-  suspendUserCommissioner: (input: { guildId: string; discordId: string; gameId: string; side: "home" | "away"; reason: string; weeks: number }) =>
-    recFetch<{ suspended: true; targetUserId: string; endsAt: string }>("/v1/scheduling/matchup/commish/suspend-user", { method: "POST", body: JSON.stringify(input) }),
-  bootUserCommissioner: (input: { guildId: string; discordId: string; gameId: string; side: "home" | "away"; reason: string }) =>
-    recFetch<{ booted: true; targetUserId: string }>("/v1/scheduling/matchup/commish/boot-user", { method: "POST", body: JSON.stringify(input) }),
-  grantAutoPilotCommissioner: (input: { guildId: string; discordId: string; gameId: string; side: "home" | "away" }) =>
-    recFetch<{ granted: true; side: string; cite: string; teamName: string }>("/v1/scheduling/matchup/commish/grant-autopilot", { method: "POST", body: JSON.stringify(input) }),
-  gameDayAudit: (input: { guildId: string; discordId: string }) =>
-    recFetch<{ entries: Array<{
-      gameId: string; discordChannelId: string;
-      home: { userId: string | null; discordId: string | null; teamName: string; messageCount: number; firstMessageTodayAt: string | null; submittedTimesCount: number };
-      away: { userId: string | null; discordId: string | null; teamName: string; messageCount: number; firstMessageTodayAt: string | null; submittedTimesCount: number };
-      recommendation: "fair_sim" | "force_win_home" | "force_win_away" | null;
-    }> }>("/v1/scheduling/matchup/commish/game-day-audit", { method: "POST", body: JSON.stringify(input) }),
   submitMatchupHelpRequest: (input: { guildId: string; discordId: string; gameId: string; kind: "force_win" | "autopilot" | "matchup_issue"; message: string }) =>
     recFetch<{ ok: true }>("/v1/matchup-help/submit", { method: "POST", body: JSON.stringify(input) }),
-  markGameOver: (input: { guildId: string; discordId: string; gameId: string; homeScore?: number; awayScore?: number }) =>
-    recFetch<{ ok: true }>("/v1/scheduling/matchup/game-over", { method: "POST", body: JSON.stringify(input) }),
-  getReadyToAdvanceStatus: (input: { guildId: string; discordId: string }) =>
-    recFetch<
-      | { kind: "not_linked" }
-      | { kind: "no_game" }
-      | { kind: "h2h_ready"; gameId: string; opponentLabel: string; isComplete: boolean; scheduledFor: string | null }
-      | { kind: "h2h_needs_input"; gameId: string; opponentLabel: string }
-      | { kind: "cpu_ready"; gameId: string; isComplete: boolean; fwRequested: boolean }
-      | { kind: "cpu_needs_input"; gameId: string }
-    >("/v1/scheduling/ready-to-advance/status", { method: "POST", body: JSON.stringify(input) }),
-  reportReadyToAdvanceScore: (input: { guildId: string; discordId: string; gameId: string; myScore: number; opponentScore: number }) =>
-    recFetch<{ ok: true; homeScore: number; awayScore: number }>("/v1/scheduling/ready-to-advance/report-score", { method: "POST", body: JSON.stringify(input) }),
-  requestReadyToAdvanceCpuForceWin: (input: { guildId: string; discordId: string; gameId: string }) =>
-    recFetch<{ flagged: true }>("/v1/scheduling/ready-to-advance/cpu-force-win", { method: "POST", body: JSON.stringify(input) }),
   linkLeagueServerByDiscord: (input: { discordId: string; guildId: string; serverName?: string; leagueId?: string }) =>
     recFetch<
       | { linked: true; server: { id: string; name: string }; leagueName: string }

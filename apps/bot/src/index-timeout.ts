@@ -121,64 +121,13 @@ import { handlePowerRankingsSlash } from "./flows/powerrankings-slash.js";
 import { handleLeagueSlash } from "./flows/league-slash.js";
 import { handleTeamsSlash } from "./flows/teams-slash.js";
 import { handleProfileSlash } from "./flows/profile-slash.js";
-import { handleSetTimezoneSelect, handleSetTimezoneOtherModal, SETTIMEZONE_CUSTOM_IDS } from "./flows/settimezone-slash.js";
-import {
-  AVAILABILITY_WIZARD_CUSTOM_IDS,
-  handleAvailabilityWizardButton,
-  handleAvailabilityWizardDateModal,
-  handleAvailabilityWizardDayModal,
-  handleAvailabilityWizardTimezoneOtherModal,
-  handleAvailabilityWizardTimezoneSelect,
-} from "./flows/availability-wizard.js";
 import { handleRulesSlash, handleRulesCategorySelect, RULES_SLASH_CUSTOM_IDS } from "./flows/rules-slash.js";
 import { handleTweetsSlash } from "./flows/tweets-slash.js";
 import {
-  GAME_SCHEDULING_CUSTOM_IDS,
-  handleAdjustAvailability, handleProposePanel, handleCantMakePanel, handlePanelGameStarted,
-  handleProposalCounterButton, handleProposalAcceptButton, handleProposeOrCounterSelect,
-  handleCantMakeResponse, handleCantMakeChoice, handleAutopilotResolve,
-  handleGameOverButton, handleGameOverModal,
-} from "./flows/game-scheduling-panel.js";
-import {
-  CUSTOM_TIME_PICKER_CUSTOM_IDS,
-  handleCustomTimeDateSelect, handleCustomTimeDateModal, handleCustomTimeHourSelect,
-  handleCustomTimeMinuteSelect, handleCustomTimeSubmit,
-} from "./flows/custom-time-picker.js";
-import {
-  REPORT_VIOLATION_CUSTOM_IDS,
-  handleDashingResolve,
-  handleReportViolationChoiceDash,
-  handleReportViolationChoiceRule,
-  handleReportViolationPanel,
-  handleReportViolationRuleModal,
-  handleViolationResolve,
-} from "./flows/report-violation-flow.js";
-import {
   COMMISH_TOOLS_CUSTOM_IDS,
-  handleCommishBootConfirm,
-  handleCommishBootModal,
-  handleCommishBootSide,
-  handleCommishBootStart,
-  handleCommishGrantAutopilotSide,
-  handleCommishGrantAutopilotStart,
   handleCommishGrantBonusUserSelect,
-  handleCommishGrantFs,
-  handleCommishGrantFwSide,
-  handleCommishGrantFwStart,
-  handleCommishResetStart,
-  handleCommishResetWipeConfirm,
-  handleCommishSuspendModal,
-  handleCommishSuspendSide,
-  handleCommishSuspendStart,
-  handleCommishToolsMatchupSelect,
-  handleCommishToolsPanel,
   handleCommishToolsSlash,
 } from "./flows/commish-tools-flow.js";
-import {
-  READY_TO_ADVANCE_CUSTOM_IDS,
-  handleReadyToAdvanceButton, handleH2hYesButton, handleH2hNoButton, handleH2hScoreModalSubmit,
-  handleCpuPlayedButton, handleCpuFwButton, handleCpuScoreModalSubmit,
-} from "./flows/ready-to-advance.js";
 import { handleRulesSelect } from "./flows/rules.js";
 import {
   handleCoachAbilitiesRestrictionModal,
@@ -588,26 +537,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       return;
     }
 
-    // /settimezone was removed as a standalone slash command -- the /schedule Availability
-    // button (and the site) cover the same flow now. handleSetTimezoneSlash and its
-    // select/modal follow-ups stay wired since that button calls straight into them.
-    if (interaction.isStringSelectMenu() && interaction.customId === SETTIMEZONE_CUSTOM_IDS.select) return handleSetTimezoneSelect(interaction);
-    if (interaction.isModalSubmit() && interaction.customId === SETTIMEZONE_CUSTOM_IDS.otherModal) return handleSetTimezoneOtherModal(interaction);
-
-    if (interaction.isButton() && (
-      interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.modeRoutine ||
-      interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.modeTemporary ||
-      interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.next ||
-      interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.back ||
-      interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.done ||
-      interaction.customId.startsWith(AVAILABILITY_WIZARD_CUSTOM_IDS.dayPrefix) ||
-      interaction.customId.startsWith(AVAILABILITY_WIZARD_CUSTOM_IDS.datePrefix)
-    )) return handleAvailabilityWizardButton(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(AVAILABILITY_WIZARD_CUSTOM_IDS.dayModalPrefix)) return handleAvailabilityWizardDayModal(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(AVAILABILITY_WIZARD_CUSTOM_IDS.dateModalPrefix)) return handleAvailabilityWizardDateModal(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.tzSelect) return handleAvailabilityWizardTimezoneSelect(interaction);
-    if (interaction.isModalSubmit() && interaction.customId === AVAILABILITY_WIZARD_CUSTOM_IDS.tzOtherModal) return handleAvailabilityWizardTimezoneOtherModal(interaction);
-
     if (interaction.isChatInputCommand() && interaction.commandName === "rules") {
       await handleRulesSlash(interaction);
       return;
@@ -620,62 +549,9 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       await handleTweetsSlash(interaction);
       return;
     }
-    if (interaction.isStringSelectMenu() && interaction.customId === COMMISH_TOOLS_CUSTOM_IDS.matchupSelect) return handleCommishToolsMatchupSelect(interaction);
     if (interaction.isUserSelectMenu() && interaction.customId === COMMISH_TOOLS_CUSTOM_IDS.grantBonusUserSelect) return handleCommishGrantBonusUserSelect(interaction);
     if (interaction.isStringSelectMenu() && interaction.customId === RULES_SLASH_CUSTOM_IDS.categorySelect) return handleRulesCategorySelect(interaction);
     if (interaction.isButton() && interaction.customId.startsWith(TRADE_RELEASE_COINS_PREFIX)) return handleTradeReleaseCoinsButton(interaction);
-
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelAvailability)) return handleAdjustAvailability(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelPropose)) return handleProposePanel(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelCantMake)) return handleCantMakePanel(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelReportViolation)) return handleReportViolationPanel(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.choiceRule)) return handleReportViolationChoiceRule(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.choiceDash)) return handleReportViolationChoiceDash(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.ruleModal)) return handleReportViolationRuleModal(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.violationGrantFw)) return handleViolationResolve(interaction, "grant_fw");
-    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.violationClear)) return handleViolationResolve(interaction, "clear");
-    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.dashingGrantFw)) return handleDashingResolve(interaction, "grant_fw");
-    if (interaction.isButton() && interaction.customId.startsWith(REPORT_VIOLATION_CUSTOM_IDS.dashingReject)) return handleDashingResolve(interaction, "reject");
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.panelGameStarted)) return handlePanelGameStarted(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.panel)) return handleCommishToolsPanel(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantFwSide)) return handleCommishGrantFwSide(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantFw)) return handleCommishGrantFwStart(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantFs)) return handleCommishGrantFs(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantAutopilotSide)) return handleCommishGrantAutopilotSide(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.grantAutopilot)) return handleCommishGrantAutopilotStart(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.suspendSide)) return handleCommishSuspendSide(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.suspend)) return handleCommishSuspendStart(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.suspendModal)) return handleCommishSuspendModal(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.bootConfirm)) return handleCommishBootConfirm(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.bootSide)) return handleCommishBootSide(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.boot)) return handleCommishBootStart(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.bootModal)) return handleCommishBootModal(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.resetWipeConfirm)) return handleCommishResetWipeConfirm(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(COMMISH_TOOLS_CUSTOM_IDS.reset)) return handleCommishResetStart(interaction);
-    if (interaction.isButton() && (interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposalCounter) || interaction.customId.startsWith("rec:sc:pc:"))) return handleProposalCounterButton(interaction);
-    if (interaction.isButton() && (interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposalAccept) || interaction.customId.startsWith("rec:sc:pa:"))) return handleProposalAcceptButton(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.proposeSelect)) return handleProposeOrCounterSelect(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(CUSTOM_TIME_PICKER_CUSTOM_IDS.date)) return handleCustomTimeDateSelect(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(CUSTOM_TIME_PICKER_CUSTOM_IDS.customDateModal)) return handleCustomTimeDateModal(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(CUSTOM_TIME_PICKER_CUSTOM_IDS.hour)) return handleCustomTimeHourSelect(interaction);
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(CUSTOM_TIME_PICKER_CUSTOM_IDS.minute)) return handleCustomTimeMinuteSelect(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(CUSTOM_TIME_PICKER_CUSTOM_IDS.submit)) return handleCustomTimeSubmit(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeAcceptFs)) return handleCantMakeResponse(interaction, "accept_fs");
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeAutopilot)) return handleCantMakeResponse(interaction, "request_autopilot");
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeChoiceGrantFw)) return handleCantMakeChoice(interaction, "grant_fw");
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.cantMakeChoiceRequestFs)) return handleCantMakeChoice(interaction, "request_fs");
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilotResolveGrant)) return handleAutopilotResolve(interaction, "grant_autopilot");
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.autopilotResolveEnforceFs)) return handleAutopilotResolve(interaction, "enforce_fs");
-    if (interaction.isButton() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.gameOver)) return handleGameOverButton(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(GAME_SCHEDULING_CUSTOM_IDS.gameOverModal)) return handleGameOverModal(interaction);
-    if (interaction.isButton() && interaction.customId === READY_TO_ADVANCE_CUSTOM_IDS.button) return handleReadyToAdvanceButton(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.h2hYes)) return handleH2hYesButton(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.h2hNo)) return handleH2hNoButton(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.cpuPlayed)) return handleCpuPlayedButton(interaction);
-    if (interaction.isButton() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.cpuFw)) return handleCpuFwButton(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.h2hScoreModal)) return handleH2hScoreModalSubmit(interaction);
-    if (interaction.isModalSubmit() && interaction.customId.startsWith(READY_TO_ADVANCE_CUSTOM_IDS.cpuScoreModal)) return handleCpuScoreModalSubmit(interaction);
-
 
     if (interaction.isButton() && interaction.customId === MENU_CUSTOM_IDS.leagueMgmtOpenDashboard) {
       await handleLeagueMgmtOpenDashboard(interaction);

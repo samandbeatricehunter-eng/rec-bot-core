@@ -50,7 +50,7 @@ export const DISCORD_COMMANDS: DiscordCommandDefinition[] = [
   { name: "profile", description: "Show your personal summary: team, record, current matchup, and Coins/Savings." },
   { name: "rules", description: "Browse this league's rules." },
   { name: "highlights", description: "Get a link to upload a highlight for an eligible week." },
-  { name: "commishtools", description: "Commissioner tools: Force Win, Fair Sim, AutoPilot, Suspend, Boot, Reset Scheduling, Game Day Audit." },
+  { name: "commishtools", description: "Commissioner: grant a Rise to Immortality bonus (100 REC Coins) to a member." },
   {
     name: "tweets",
     description: "Commissioner: post a tweet to the RTI feed as a persona, generic, or custom handle.",
