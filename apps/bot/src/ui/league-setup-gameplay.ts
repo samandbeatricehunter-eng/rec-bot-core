@@ -2,28 +2,25 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle
 } from "discord.js";
-import { CFB_27_TEAMS, CONFERENCE_ORDER } from "@rec/shared";
 import { buildNavigationRow } from "./navigation.js";
 import { LEAGUE_SETUP_CUSTOM_IDS, type LeagueSetupDraft } from "./league-setup-types.js";
 import { baseEmbed, formatDifficultyLabel, option, selectRow, yesNoOptions } from "./league-setup-shared.js";
 
 export function buildDifficultyWindow(draft: LeagueSetupDraft) {
-  const isCfb = draft.game === "cfb_27";
   const embed = baseEmbed("Gameplay: Difficulty", draft);
 
   return {
     embeds: [embed],
     components: [
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.difficulty, "Select difficulty", [
-        option(formatDifficultyLabel("rookie", isCfb), "rookie"),
-        option(formatDifficultyLabel("pro", isCfb), "pro"),
-        option(formatDifficultyLabel("all_pro", isCfb), "all_pro"),
-        option(formatDifficultyLabel("all_madden", isCfb), "all_madden")
+        option(formatDifficultyLabel("rookie"), "rookie"),
+        option(formatDifficultyLabel("pro"), "pro"),
+        option(formatDifficultyLabel("all_pro"), "all_pro"),
+        option(formatDifficultyLabel("all_madden"), "all_madden")
       ]),
       buildNavigationRow()
     ]
@@ -36,19 +33,6 @@ export function buildSlidersAdjustedWindow(draft: LeagueSetupDraft) {
       .setDescription("Have any gameplay sliders been adjusted from the game defaults for this league?")],
     components: [
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.slidersAdjusted, "Sliders adjusted?", yesNoOptions()),
-      buildNavigationRow()
-    ]
-  };
-}
-
-export function buildCoachXpSettingWindow(draft: LeagueSetupDraft) {
-  return {
-    embeds: [cfbEmbed("CFB Setup: Coach XP Setting", draft, "Choose the coach XP progression style for this dynasty.")],
-    components: [
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.coachXpSetting, "Coach XP setting", [
-        option("Casual", "casual"),
-        option("Career", "career")
-      ]),
       buildNavigationRow()
     ]
   };
@@ -105,71 +89,6 @@ export function buildAcceleratedClockSecondsWindow(draft: LeagueSetupDraft) {
 export function buildBooleanGameplayWindow(draft: LeagueSetupDraft, title: string, customId: string, placeholder: string) {
   return {
     embeds: [baseEmbed(title, draft)],
-    components: [selectRow(customId, placeholder, yesNoOptions()), buildNavigationRow()]
-  };
-}
-
-// ---- CFB 27 dynasty setup windows (only reached when game === "cfb_27") ----
-
-function cfbEmbed(title: string, draft: LeagueSetupDraft, description: string) {
-  return new EmbedBuilder()
-    .setTitle(title)
-    .setDescription([`League: **${draft.name}**`, "", description].join("\n"));
-}
-
-export function buildDynastyStructureWindow(draft: LeagueSetupDraft) {
-  return {
-    embeds: [cfbEmbed("CFB Setup: Teams Replaced with Customs", draft, [
-      "Are any dynasty teams replaced with custom/created programs?",
-      "",
-      "• **No** — everyone uses real FBS programs. Team Builder is **disabled**.",
-      "• **Yes** — custom/created programs are allowed alongside real ones, so Team Builder is **enabled**."
-    ].join("\n"))],
-    components: [
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.dynastyStructure, "Teams replaced with customs?", [
-        option("No", "real", "Real FBS programs only — Team Builder off."),
-        option("Yes", "mixed", "Allow created programs — Team Builder on.")
-      ]),
-      buildNavigationRow()
-    ]
-  };
-}
-
-export function buildRecruitingDifficultyWindow(draft: LeagueSetupDraft) {
-  return {
-    embeds: [cfbEmbed("CFB Setup: Recruiting Difficulty", draft, "How hard is it to land recruits and win recruiting battles this dynasty?")],
-    components: [
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.recruitingDifficulty, "Select recruiting difficulty", [
-        option("Easy", "easy"),
-        option("Normal", "normal"),
-        option("Hard", "hard")
-      ]),
-      buildNavigationRow()
-    ]
-  };
-}
-
-export function buildConferenceRealignmentWindow(draft: LeagueSetupDraft) {
-  return {
-    embeds: [cfbEmbed("CFB Setup: Conference Realignment", draft, [
-      "May teams move conferences during the dynasty?",
-      "",
-      "• **Locked** — conferences stay as they start.",
-      "• **Allowed** — realignment / expansion is permitted between seasons."
-    ].join("\n"))],
-    components: [
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.conferenceRealignment, "Select realignment policy", [
-        option("Locked", "locked"),
-        option("Allowed", "allowed")
-      ]),
-      buildNavigationRow()
-    ]
-  };
-}
-
-export function buildCfbToggleWindow(draft: LeagueSetupDraft, title: string, customId: string, description: string, placeholder: string) {
-  return {
-    embeds: [cfbEmbed(title, draft, description)],
     components: [selectRow(customId, placeholder, yesNoOptions()), buildNavigationRow()]
   };
 }
@@ -259,22 +178,17 @@ export function buildRoleWindow(draft: LeagueSetupDraft, title: string, customId
   };
 }
 
-// ---- Franchise / Coach Mode / Assist settings (shared across Madden and CFB).
-// CFB calls this section "Dynasty" rather than "Franchise" — Madden keeps "Franchise".
-// Each setting below gets its own dedicated wizard step (never bundled multiple
-// questions onto one screen — see 79eac1cf for the bug that caused). ----
+// ---- Franchise / Coach Mode / Assist settings. Each setting below gets its own dedicated
+// wizard step (never bundled multiple questions onto one screen — see 79eac1cf for the bug
+// that caused). ----
 
 function threeWayOptions(offLabel: string, onLabel: string, thirdLabel: string, thirdValue: string, thirdDescription?: string) {
   return [option(offLabel, "off"), option(onLabel, "on"), option(thirdLabel, thirdValue, thirdDescription)];
 }
 
-function franchiseOrDynastyLabel(draft: LeagueSetupDraft) {
-  return draft.game === "cfb_27" ? "Dynasty" : "Franchise";
-}
-
 export function buildCoachFiringPolicyWindow(draft: LeagueSetupDraft) {
   return {
-    embeds: [baseEmbed(`${franchiseOrDynastyLabel(draft)} Settings: Coach Firing`, draft)],
+    embeds: [baseEmbed("Franchise Settings: Coach Firing", draft)],
     components: [
       selectRow(LEAGUE_SETUP_CUSTOM_IDS.coachFiringPolicy, "Coach Firing", threeWayOptions("Off", "On", "CPU Only", "cpu_only", "Only CPU-controlled coaches can be fired.")),
       buildNavigationRow()
@@ -283,7 +197,7 @@ export function buildCoachFiringPolicyWindow(draft: LeagueSetupDraft) {
 }
 
 export function buildPreorderBonusesWindow(draft: LeagueSetupDraft) {
-  return buildBooleanGameplayWindow(draft, `${franchiseOrDynastyLabel(draft)} Settings: Preorder Bonuses`, LEAGUE_SETUP_CUSTOM_IDS.preorderBonuses, "Preorder Bonuses enabled?");
+  return buildBooleanGameplayWindow(draft, "Franchise Settings: Preorder Bonuses", LEAGUE_SETUP_CUSTOM_IDS.preorderBonuses, "Preorder Bonuses enabled?");
 }
 
 function assistOptions() {
@@ -311,19 +225,12 @@ export function buildSwitchAssistWindow(draft: LeagueSetupDraft) {
   };
 }
 
-export type CoachModeSubSetting = { step: LeagueSetupDraft["step"]; key: keyof LeagueSetupDraft; customId: string; label: string; cfbOnly?: boolean };
+export type CoachModeSubSetting = { step: LeagueSetupDraft["step"]; key: keyof LeagueSetupDraft; customId: string; label: string };
 
 export const COACH_MODE_SUB_SETTINGS: CoachModeSubSetting[] = [
   { step: "coach_mode_auto_pass", key: "coachModeAutoPassEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoPass, label: "Autopass" },
   { step: "coach_mode_auto_snap", key: "coachModeAutoSnapEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoSnap, label: "Autosnap" },
-  { step: "coach_mode_coach_suggestions", key: "coachModeCoachSuggestionsEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeCoachSuggestions, label: "Coach Suggestions" },
-  { step: "coach_mode_recruit_flipping", key: "coachModeRecruitFlippingEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeRecruitFlipping, label: "Recruit Flipping", cfbOnly: true },
-  { step: "coach_mode_auto_recruiting", key: "coachModeAutoRecruitingEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoRecruiting, label: "Auto Recruiting", cfbOnly: true },
-  { step: "coach_mode_auto_progress_players", key: "coachModeAutoProgressPlayersEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoProgressPlayers, label: "Auto Progress Players", cfbOnly: true },
-  { step: "coach_mode_user_auto_progression", key: "coachModeUserAutoProgressionEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeUserAutoProgression, label: "User Coach Auto Progression", cfbOnly: true },
-  { step: "coach_mode_cpu_manage_budget", key: "coachModeCpuManageBudgetEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeCpuManageBudget, label: "CPU Manage Budget", cfbOnly: true },
-  { step: "coach_mode_cpu_manage_staff", key: "coachModeCpuManageStaffEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeCpuManageStaff, label: "CPU Manage Staff", cfbOnly: true },
-  { step: "coach_mode_cpu_manage_facilities", key: "coachModeCpuManageFacilitiesEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeCpuManageFacilities, label: "CPU Manage Facilities Spending", cfbOnly: true }
+  { step: "coach_mode_coach_suggestions", key: "coachModeCoachSuggestionsEnabled", customId: LEAGUE_SETUP_CUSTOM_IDS.coachModeCoachSuggestions, label: "Coach Suggestions" }
 ];
 
 export function findCoachModeSubSetting(step: LeagueSetupDraft["step"]) {
@@ -333,111 +240,5 @@ export function findCoachModeSubSetting(step: LeagueSetupDraft["step"]) {
 }
 
 export function buildCoachModeSubSettingWindow(draft: LeagueSetupDraft, setting: CoachModeSubSetting) {
-  const isCfb = draft.game === "cfb_27";
-  return buildBooleanGameplayWindow(draft, `${isCfb ? "Dynasty" : "Gameplay"}: Coach Mode — ${setting.label}`, setting.customId, `${setting.label} enabled?`);
-}
-
-// ---- Conference assignment editor (CFB 27 only) ----
-
-const CFB_CONFERENCES = CONFERENCE_ORDER.filter((conference) => conference !== "NFC" && conference !== "AFC");
-
-function effectiveConference(draft: LeagueSetupDraft, team: { abbreviation: string; conference: string }) {
-  return draft.conferenceAssignments[team.abbreviation] ?? team.conference;
-}
-
-function cfbTeamDisplayName(team: { name: string; mascot: string }) {
-  return `${team.name} ${team.mascot}`;
-}
-
-export function conferenceGroupBrowseCustomId(conference: string) {
-  return `${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignGroupPrefix}:${encodeURIComponent(conference)}`;
-}
-
-export function conferenceAssignTargetCustomId(abbreviation: string) {
-  return `${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignTargetSelect}:${abbreviation}`;
-}
-
-export function buildConferenceAssignmentsWindow(draft: LeagueSetupDraft) {
-  const counts = new Map<string, number>();
-  for (const team of CFB_27_TEAMS) {
-    const conference = effectiveConference(draft, team);
-    counts.set(conference, (counts.get(conference) ?? 0) + 1);
-  }
-  const movedCount = Object.keys(draft.conferenceAssignments).length;
-
-  const embed = new EmbedBuilder()
-    .setTitle("CFB Setup: Conference Assignments")
-    .setDescription([
-      `League: **${draft.name}**`,
-      "",
-      "Realign teams to match their real conference alignment in the game. Pick a conference to view its teams, then move any team to a different conference.",
-      `Teams moved from their default conference so far: **${movedCount}**`
-    ].join("\n"));
-
-  return {
-    embeds: [embed],
-    components: [
-      selectRow(
-        LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignGroupPrefix,
-        "Select a conference to view",
-        CFB_CONFERENCES.map((conference) => option(conference, conference, `${counts.get(conference) ?? 0} teams`))
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignDone)
-          .setLabel(draft.editMode ? "Save & Back to Dynasty Settings" : "Continue")
-          .setStyle(ButtonStyle.Success)
-      ),
-      buildNavigationRow()
-    ]
-  };
-}
-
-export function buildConferenceGroupWindow(draft: LeagueSetupDraft, conference: string) {
-  const teams = CFB_27_TEAMS.filter((team) => effectiveConference(draft, team) === conference);
-  const embed = new EmbedBuilder()
-    .setTitle(`CFB Setup: ${conference} Teams`)
-    .setDescription([
-      `League: **${draft.name}**`,
-      "",
-      `Pick a team to move to a different conference (${teams.length} currently in ${conference}).`
-    ].join("\n"));
-
-  return {
-    embeds: [embed],
-    components: [
-      selectRow(
-        conferenceGroupBrowseCustomId(conference),
-        `${conference} — pick a team to move`,
-        teams.map((team) => option(cfbTeamDisplayName(team), team.abbreviation))
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignCancel).setLabel("Back to Conferences").setStyle(ButtonStyle.Secondary)
-      ),
-      buildNavigationRow()
-    ]
-  };
-}
-
-export function buildConferenceTargetWindow(draft: LeagueSetupDraft, abbreviation: string) {
-  const team = CFB_27_TEAMS.find((t) => t.abbreviation === abbreviation);
-  const current = team ? effectiveConference(draft, team) : "Unknown";
-  const embed = new EmbedBuilder()
-    .setTitle(`CFB Setup: Move ${team ? cfbTeamDisplayName(team) : abbreviation}`)
-    .setDescription([`League: **${draft.name}**`, "", `Currently in **${current}**. Select the new conference.`].join("\n"));
-
-  return {
-    embeds: [embed],
-    components: [
-      selectRow(
-        conferenceAssignTargetCustomId(abbreviation),
-        "Select new conference",
-        CFB_CONFERENCES.map((conference) => option(conference, conference))
-      ),
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignCancel).setLabel("Cancel").setStyle(ButtonStyle.Secondary)
-      ),
-      buildNavigationRow()
-    ]
-  };
+  return buildBooleanGameplayWindow(draft, `Gameplay: Coach Mode — ${setting.label}`, setting.customId, `${setting.label} enabled?`);
 }

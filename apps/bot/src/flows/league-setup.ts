@@ -31,9 +31,6 @@ import {
   setLeagueSetupServerChannel,
   LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS,
   COACH_MODE_SUB_SETTINGS,
-  buildConferenceAssignmentsWindow,
-  buildConferenceGroupWindow,
-  buildConferenceTargetWindow,
   type LeagueSetupDraft,
   type LeagueSetupSettingsCategory,
 } from "../ui/league-setup.js";
@@ -120,35 +117,7 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
     return interaction.showModal(buildAttributeCapModal(code, draft));
   }
 
-  // Conference Assignments (CFB): picking a team within a conference opens the target-conference picker.
-  if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignGroupPrefix}:`)) {
-    leagueSetupSessions.set(interaction.user.id, draft);
-    return interaction.update(buildConferenceTargetWindow(draft, value));
-  }
-
-  // Conference Assignments (CFB): the main screen's select picks a conference to browse.
-  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignGroupPrefix) {
-    leagueSetupSessions.set(interaction.user.id, draft);
-    return interaction.update(buildConferenceGroupWindow(draft, value));
-  }
-
-  // Conference Assignments (CFB): picking a target conference commits the move.
-  if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignTargetSelect}:`)) {
-    const abbreviation = interaction.customId.slice(`${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignTargetSelect}:`.length);
-    draft.conferenceAssignments[abbreviation] = value;
-    leagueSetupSessions.set(interaction.user.id, draft);
-    if (draft.editMode && interaction.guildId) {
-      try {
-        await recApi.updateTeamConference({ guildId: interaction.guildId, abbreviation, conference: value, requestedByDiscordId: interaction.user.id });
-      } catch (err) {
-        console.error("[ERROR] Failed to save conference assignment:", err);
-      }
-    }
-    return interaction.update(buildConferenceAssignmentsWindow(draft));
-  }
-
-  // First step: pick the game. Madden-only (buildGameSelectWindow no longer offers College
-  // Football 27) -- draft.game can never resolve to "cfb_27" through this flow.
+  // First step: pick the game. Madden-only (buildGameSelectWindow only ever offers Madden titles).
   if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.game) {
     draft.game = value as LeagueSetupDraft["game"];
     draft.step = getNextLeagueSetupStep("game", draft);
@@ -205,19 +174,9 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
     if (COACH_MODE_SUB_SETTINGS.some((setting) => setting.step === draft.step) && !draft.coachModeEnabled) {
       draft.step = "settings_picker";
       leagueSetupSessions.set(interaction.user.id, draft);
-      const picker = buildSettingsPickerWindow(draft, draft.game === "cfb_27" ? "dynasty" : "franchise");
+      const picker = buildSettingsPickerWindow(draft, "franchise");
       picker.embeds[0]?.setDescription(`League: **${draft.name}**\n\nEnable **Coach Mode** before configuring its settings.`);
       return interaction.update(picker);
-    }
-    // Editing an existing league: seed the conference-assignment map from the teams actually
-    // saved for this league instead of the static catalog defaults.
-    if (draft.step === "conference_assignments" && draft.editMode && interaction.guildId) {
-      try {
-        const { teams } = await recApi.getLeagueTeamConferences(interaction.guildId);
-        draft.conferenceAssignments = Object.fromEntries(teams.map((team) => [team.abbreviation, team.conference]));
-      } catch (err) {
-        console.error("[ERROR] Failed to load current team conferences:", err);
-      }
     }
     leagueSetupSessions.set(interaction.user.id, draft);
     return interaction.update(buildLeagueSetupWindow(draft));
@@ -228,8 +187,6 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
     case LEAGUE_SETUP_CUSTOM_IDS.immortalityOffense: draft.immortalityOffensePosition = value as LeagueSetupDraft["immortalityOffensePosition"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.immortalityDefense: draft.immortalityDefensePosition = value as LeagueSetupDraft["immortalityDefensePosition"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.immortalityTeamPool: draft.immortalityTeamPool = value as LeagueSetupDraft["immortalityTeamPool"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.activeRosters: draft.activeRostersEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.trackRosters: draft.trackRostersEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreaming: draft.regularSeasonStreamingRequirement = value as LeagueSetupDraft["regularSeasonStreamingRequirement"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.regularSeasonStreamingSide: draft.regularSeasonStreamingSide = value as LeagueSetupDraft["regularSeasonStreamingSide"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.postseasonStreaming: draft.postseasonStreamingRequirement = value as LeagueSetupDraft["postseasonStreamingRequirement"]; break;
@@ -283,20 +240,9 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
       break;
     }
     case LEAGUE_SETUP_CUSTOM_IDS.slidersAdjusted: draft.slidersAdjusted = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.coachXpSetting: draft.coachXpSetting = value as LeagueSetupDraft["coachXpSetting"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.quarterLength: draft.quarterLengthMinutes = Number(value); break;
     case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockEnabled: draft.acceleratedClockEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.acceleratedClockSeconds: draft.acceleratedClockMinimumSeconds = Number(value); break;
-    case LEAGUE_SETUP_CUSTOM_IDS.dynastyStructure:
-      draft.dynastyType = value as LeagueSetupDraft["dynastyType"];
-      draft.teamBuilderAllowed = draft.dynastyType === "mixed";
-      break;
-    case LEAGUE_SETUP_CUSTOM_IDS.recruitingDifficulty: draft.recruitingDifficulty = value as LeagueSetupDraft["recruitingDifficulty"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.transferPortal: draft.transferPortalEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.coachCarousel: draft.coachCarouselEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.conferenceRealignment: draft.conferenceRealignment = value as LeagueSetupDraft["conferenceRealignment"]; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.homeFieldAdvantage: draft.homeFieldAdvantageEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.stadiumPulse: draft.stadiumPulseEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.salaryCap: draft.salaryCapEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.tradeDeadline: draft.tradeDeadlineEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.abilities: draft.abilitiesEnabled = value === "yes"; break;
@@ -325,13 +271,6 @@ export async function handleLeagueSetupSelect(interaction: Extract<Interaction, 
     case LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoPass: draft.coachModeAutoPassEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoSnap: draft.coachModeAutoSnapEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.coachModeCoachSuggestions: draft.coachModeCoachSuggestionsEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.coachModeRecruitFlipping: draft.coachModeRecruitFlippingEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoRecruiting: draft.coachModeAutoRecruitingEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.coachModeAutoProgressPlayers: draft.coachModeAutoProgressPlayersEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.coachModeUserAutoProgression: draft.coachModeUserAutoProgressionEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.coachModeCpuManageBudget: draft.coachModeCpuManageBudgetEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.coachModeCpuManageStaff: draft.coachModeCpuManageStaffEnabled = value === "yes"; break;
-    case LEAGUE_SETUP_CUSTOM_IDS.coachModeCpuManageFacilities: draft.coachModeCpuManageFacilitiesEnabled = value === "yes"; break;
     case LEAGUE_SETUP_CUSTOM_IDS.ballHawk: draft.ballHawk = value as LeagueSetupDraft["ballHawk"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.heatSeeker: draft.heatSeeker = value as LeagueSetupDraft["heatSeeker"]; break;
     case LEAGUE_SETUP_CUSTOM_IDS.switchAssist: draft.switchAssist = value as LeagueSetupDraft["switchAssist"]; break;
@@ -513,25 +452,6 @@ export async function handleLeagueSetupButton(interaction: Extract<Interaction, 
     return interaction.update(draft.editMode ? buildSettingsPickerWindow(draft) : buildLeagueSetupWindow(draft));
   }
 
-  // Conference Assignments (CFB): "Back to Conferences" / "Cancel" both return to the main screen.
-  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignCancel) {
-    leagueSetupSessions.set(interaction.user.id, draft);
-    return interaction.update(buildConferenceAssignmentsWindow(draft));
-  }
-
-  // Conference Assignments (CFB): "Continue"/"Save & Back" — team-level moves are already
-  // persisted as they happen, so this just navigates onward.
-  if (interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignDone) {
-    if (draft.editMode) {
-      draft.step = "settings_picker";
-      leagueSetupSessions.set(interaction.user.id, draft);
-      return interaction.update(buildSettingsPickerWindow(draft, "dynasty"));
-    }
-    draft.step = getNextLeagueSetupStep("conference_assignments", draft);
-    leagueSetupSessions.set(interaction.user.id, draft);
-    return interaction.update(buildLeagueSetupWindow(draft));
-  }
-
   if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:`)) {
     const section = interaction.customId.slice(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:`.length);
     const sectionStart: Record<string, LeagueSetupDraft["step"]> = {
@@ -539,8 +459,7 @@ export async function handleLeagueSetupButton(interaction: Extract<Interaction, 
       server_setup: "server_setup",
       rules: "regular_season_streaming",
       gameplay: "difficulty",
-      franchise: "coach_firing_policy",
-      dynasty: "dynasty_structure"
+      franchise: "coach_firing_policy"
     };
     draft.step = sectionStart[section] ?? "review";
     // Editing this section will walk forward through STEP_ORDER like normal — flag it so every
@@ -704,7 +623,7 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
   const draft = leagueSetupSessions.get(interaction.user.id);
   if (!draft) return interaction.reply({ content: "League Setup session expired. Open Admin Panel → League Setup again.", flags: MessageFlags.Ephemeral });
 
-  if ((draft.game === "madden_26" || draft.game === "madden_27") && draft.seedDefaultSchedule == null) {
+  if (draft.seedDefaultSchedule == null) {
     return interaction.reply({
       content: "Answer the Default NFL Schedule question before saving.",
       flags: MessageFlags.Ephemeral,
@@ -738,11 +657,9 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       roleWarnings.push(`Role setup failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    // New leagues always begin in the preseason: Madden calls this Training Camp, CFB has no
-    // such period and starts at Preseason (the week before the Week 0 regular-season slate).
-    // The first advance into regular-season Week 1 (Madden) / Week 0 (CFB) is the one place
-    // where REC imports the full regular-season schedule.
-    const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek(draft.game === "cfb_27" ? "preseason" : "training_camp");
+    // New leagues always begin in the preseason (Training Camp). The first advance into
+    // regular-season Week 1 is where REC imports the full regular-season schedule.
+    const { weekNumber, seasonStage } = mapSeasonWeekToLeagueWeek("training_camp");
     try {
       await recApi.setLeagueWeek({ guildId: interaction.guildId, weekNumber, seasonStage });
     } catch (error) {
@@ -764,12 +681,9 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       console.error("[ERROR] Failed to save server setup routes:", error);
     }
 
-    const isCfb = draft.game === "cfb_27";
     let scheduleNote: string | null = formatDefaultScheduleSeedResult(result.defaultScheduleSeed);
     if (!scheduleNote && Array.isArray(result.defaultTeams) && result.defaultTeams.length > 0) {
-      scheduleNote = isCfb
-        ? `Default College Football 27 teams created (${result.defaultTeams.length} teams).`
-        : `Default NFL teams created (${result.defaultTeams.length} teams).`;
+      scheduleNote = `Default NFL teams created (${result.defaultTeams.length} teams).`;
     }
 
     const wantsLinking = draft.linkTeamsAfterSetup;
@@ -782,18 +696,16 @@ export async function handleLeagueSetupSave(interaction: Extract<Interaction, { 
       `League: **${result.league.name}**`,
       "",
       `Type: ${result.configuration.roster_type}`,
-      isCfb ? "Starts: Season 1, Preseason" : "Starts: Season 1, Training Camp",
+      "Starts: Season 1, Training Camp",
       `Economy: ${result.configuration.coin_economy_enabled ? "Enabled" : "Disabled"}`,
       `Regular Season Streaming: ${result.configuration.regular_season_streaming_requirement}`,
       `Postseason Streaming: ${result.configuration.postseason_streaming_requirement}`,
       `Injuries: ${result.configuration.injury_policy}`,
       "",
       "Discord Roles: **REC League Member**, **REC League Comp. Committee**, and **REC League Commissioner**",
-      isCfb
-        ? `CFB Teams: **${result.defaultTeams?.length ?? 136} default teams** seeded automatically`
-        : isRiseToImmortalityDraft(draft)
-          ? "Users register into a **pool**. The virtual rookie draft links them to franchises on the site and Discord. Unused teams stay CPU. Discord is for announcements, renders, and status."
-          : "NFL Teams: **32 default teams** seeded automatically",
+      isRiseToImmortalityDraft(draft)
+        ? "Users register into a **pool**. The virtual rookie draft links them to franchises on the site and Discord. Unused teams stay CPU. Discord is for announcements, renders, and status."
+        : "NFL Teams: **32 default teams** seeded automatically",
       ...roleWarnings,
       ...(scheduleNote ? ["", scheduleNote] : []),
       "",

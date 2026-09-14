@@ -26,20 +26,11 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   slidersAdjusted: "rec:league_setup:sliders_adjusted",
   difficultyCustomModal: "rec:league_setup:difficulty_custom_modal",
   difficultyCustomInput: "rec:league_setup:difficulty_custom_input",
-  coachXpSetting: "rec:league_setup:coach_xp_setting",
   quarterLength: "rec:league_setup:quarter_length",
   acceleratedClockEnabled: "rec:league_setup:accelerated_clock_enabled",
   acceleratedClockSeconds: "rec:league_setup:accelerated_clock_seconds",
   salaryCap: "rec:league_setup:salary_cap",
   tradeDeadline: "rec:league_setup:trade_deadline",
-  // CFB 27 dynasty-only settings (shown when game === "cfb_27").
-  dynastyStructure: "rec:league_setup:dynasty_structure",
-  recruitingDifficulty: "rec:league_setup:recruiting_difficulty",
-  transferPortal: "rec:league_setup:transfer_portal",
-  coachCarousel: "rec:league_setup:coach_carousel",
-  conferenceRealignment: "rec:league_setup:conference_realignment",
-  homeFieldAdvantage: "rec:league_setup:home_field_advantage",
-  stadiumPulse: "rec:league_setup:stadium_pulse",
   abilities: "rec:league_setup:abilities",
   wearAndTear: "rec:league_setup:wear_and_tear",
   injuryPolicy: "rec:league_setup:injury_policy",
@@ -88,43 +79,26 @@ export const LEAGUE_SETUP_CUSTOM_IDS = {
   attrCapGroupPrefix: "rec:league_setup:attr_cap_group",
   attrCapModalPrefix: "rec:league_setup:attr_cap_modal",
   attrCapModalInput: "rec:league_setup:attr_cap_input",
-  // CFB 27: Active Rosters replaces the League Type select (see getNextLeagueSetupStep / buildLeagueTypeWindow).
-  activeRosters: "rec:league_setup:active_rosters",
-  // CFB 27: seed the league's initial rosters from the CFB 27 baseline dataset when enabled.
-  trackRosters: "rec:league_setup:track_rosters",
-  // Conference realignment editor (CFB 27 only, shown when conferenceRealignment === "allowed").
-  conferenceAssignGroupPrefix: "rec:league_setup:conf_assign_group",
-  conferenceAssignTargetSelect: "rec:league_setup:conf_assign_target",
-  conferenceAssignDone: "rec:league_setup:conf_assign_done",
-  conferenceAssignCancel: "rec:league_setup:conf_assign_cancel",
-  // Franchise/coach-mode/assist settings (shared across Madden and CFB) — each is its own
-  // dedicated step (see LeagueSetupStep / STEP_ORDER below), not a bundled multi-question screen.
+  // Franchise/coach-mode/assist settings — each is its own dedicated step (see LeagueSetupStep /
+  // STEP_ORDER below), not a bundled multi-question screen.
   coachFiringPolicy: "rec:league_setup:coach_firing_policy",
   preorderBonuses: "rec:league_setup:preorder_bonuses",
   coachModeEnabled: "rec:league_setup:coach_mode_enabled",
   coachModeAutoPass: "rec:league_setup:coach_mode_auto_pass",
   coachModeAutoSnap: "rec:league_setup:coach_mode_auto_snap",
   coachModeCoachSuggestions: "rec:league_setup:coach_mode_coach_suggestions",
-  coachModeRecruitFlipping: "rec:league_setup:coach_mode_recruit_flipping",
-  coachModeAutoRecruiting: "rec:league_setup:coach_mode_auto_recruiting",
-  coachModeAutoProgressPlayers: "rec:league_setup:coach_mode_auto_progress_players",
-  coachModeUserAutoProgression: "rec:league_setup:coach_mode_user_auto_progression",
-  coachModeCpuManageBudget: "rec:league_setup:coach_mode_cpu_manage_budget",
-  coachModeCpuManageStaff: "rec:league_setup:coach_mode_cpu_manage_staff",
-  coachModeCpuManageFacilities: "rec:league_setup:coach_mode_cpu_manage_facilities",
   ballHawk: "rec:league_setup:ball_hawk",
   heatSeeker: "rec:league_setup:heat_seeker",
   switchAssist: "rec:league_setup:switch_assist"
 } as const;
 
-export type LeagueSetupSettingsCategory = "features" | "purchases" | "server" | "rules" | "dynasty" | "gameplay" | "franchise" | "play_call";
+export type LeagueSetupSettingsCategory = "features" | "purchases" | "server" | "rules" | "gameplay" | "franchise" | "play_call";
 
-export type LeagueGame = "madden_26" | "madden_27" | "cfb_27";
+export type LeagueGame = "madden_26" | "madden_27";
 
 export const LEAGUE_GAME_OPTIONS: Record<LeagueGame, string> = {
   madden_26: "Madden NFL 26",
-  madden_27: "Madden NFL 27",
-  cfb_27: "College Football 27"
+  madden_27: "Madden NFL 27"
 };
 
 export type LeagueSetupStep =
@@ -133,16 +107,6 @@ export type LeagueSetupStep =
   | "immortality_offense_position"
   | "immortality_defense_position"
   | "immortality_team_pool"
-  | "track_rosters"
-  | "dynasty_structure"
-  | "recruiting_difficulty"
-  | "coach_xp_setting"
-  | "transfer_portal"
-  | "coach_carousel"
-  | "conference_realignment"
-  | "conference_assignments"
-  | "home_field_advantage"
-  | "stadium_pulse"
   | "economy"
   | "custom_players"
   | "legends"
@@ -181,13 +145,6 @@ export type LeagueSetupStep =
   | "coach_mode_auto_pass"
   | "coach_mode_auto_snap"
   | "coach_mode_coach_suggestions"
-  | "coach_mode_recruit_flipping"
-  | "coach_mode_auto_recruiting"
-  | "coach_mode_auto_progress_players"
-  | "coach_mode_user_auto_progression"
-  | "coach_mode_cpu_manage_budget"
-  | "coach_mode_cpu_manage_staff"
-  | "coach_mode_cpu_manage_facilities"
   | "ball_hawk"
   | "heat_seeker"
   | "switch_assist"
@@ -215,10 +172,6 @@ export type LeagueSetupDraft = {
   immortalityOffensePosition: "QB" | "HB" | "WR" | "TE";
   immortalityDefensePosition: "CB" | "FS" | "SS" | "MIKE";
   immortalityTeamPool: "default_nfl" | "custom_32";
-  /** CFB 27 only: replaces League Type. On = ratings/styles track real-world changes; off = static. */
-  activeRostersEnabled: boolean;
-  /** CFB 27 only: seed the league's initial rosters from the CFB 27 baseline dataset at creation. */
-  trackRostersEnabled: boolean;
   seasonWeek: string;
   coinEconomyEnabled: boolean;
   customPlayersEnabled: boolean;
@@ -267,7 +220,6 @@ export type LeagueSetupDraft = {
   difficulty: "rookie" | "pro" | "all_pro" | "all_madden";
   slidersAdjusted: boolean;
   difficultyCustomSettings: string;
-  coachXpSetting: "casual" | "career";
   quarterLengthMinutes: number;
   acceleratedClockEnabled: boolean;
   acceleratedClockMinimumSeconds: number;
@@ -275,36 +227,15 @@ export type LeagueSetupDraft = {
   tradeDeadlineEnabled: boolean;
   abilitiesEnabled: boolean;
   wearAndTearEnabled: boolean;
-  // Franchise settings (shared across Madden and CFB).
   coachFiringPolicy: "off" | "on" | "cpu_only";
   preorderBonusesEnabled: boolean;
   coachModeEnabled: boolean;
   coachModeAutoPassEnabled: boolean;
   coachModeAutoSnapEnabled: boolean;
   coachModeCoachSuggestionsEnabled: boolean;
-  // Coach Mode sub-toggles below only apply when game === "cfb_27".
-  coachModeRecruitFlippingEnabled: boolean;
-  coachModeAutoRecruitingEnabled: boolean;
-  coachModeAutoProgressPlayersEnabled: boolean;
-  coachModeUserAutoProgressionEnabled: boolean;
-  coachModeCpuManageBudgetEnabled: boolean;
-  coachModeCpuManageStaffEnabled: boolean;
-  coachModeCpuManageFacilitiesEnabled: boolean;
   ballHawk: "on" | "off" | "keep_individual";
   heatSeeker: "on" | "off" | "keep_individual";
   switchAssist: "on" | "off" | "keep_individual";
-  // CFB 27 dynasty settings (only meaningful when game === "cfb_27").
-  dynastyType: "real" | "mixed";
-  recruitingDifficulty: "easy" | "normal" | "hard";
-  transferPortalEnabled: boolean;
-  coachCarouselEnabled: boolean;
-  conferenceRealignment: "allowed" | "locked";
-  /** Team abbreviation -> conference override, set via the conference_assignments step (CFB 27 only). */
-  conferenceAssignments: Record<string, string>;
-  homeFieldAdvantageEnabled: boolean;
-  stadiumPulseEnabled: boolean;
-  /** Derived from dynastyType: Mixed Teams ⇒ true, Real Teams ⇒ false. */
-  teamBuilderAllowed: boolean;
   offensivePlayCallLimitsEnabled: boolean;
   offensivePlayCallLimit?: number | null;
   offensivePlayCallCooldownEnabled: boolean;
@@ -347,16 +278,6 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "immortality_offense_position",
   "immortality_defense_position",
   "immortality_team_pool",
-  "track_rosters",
-  "dynasty_structure",
-  "recruiting_difficulty",
-  "coach_xp_setting",
-  "transfer_portal",
-  "coach_carousel",
-  "conference_realignment",
-  "conference_assignments",
-  "home_field_advantage",
-  "stadium_pulse",
   "economy",
   "custom_players",
   "legends",
@@ -395,13 +316,6 @@ const STEP_ORDER: LeagueSetupStep[] = [
   "coach_mode_auto_pass",
   "coach_mode_auto_snap",
   "coach_mode_coach_suggestions",
-  "coach_mode_recruit_flipping",
-  "coach_mode_auto_recruiting",
-  "coach_mode_auto_progress_players",
-  "coach_mode_user_auto_progression",
-  "coach_mode_cpu_manage_budget",
-  "coach_mode_cpu_manage_staff",
-  "coach_mode_cpu_manage_facilities",
   "ball_hawk",
   "heat_seeker",
   "switch_assist",
@@ -430,8 +344,6 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     immortalityOffensePosition: "QB",
     immortalityDefensePosition: "MIKE",
     immortalityTeamPool: "default_nfl",
-    activeRostersEnabled: true,
-    trackRostersEnabled: false,
     seasonWeek: "training_camp",
     coinEconomyEnabled: false,
     customPlayersEnabled: false,
@@ -480,7 +392,6 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     difficulty: "all_madden",
     slidersAdjusted: false,
     difficultyCustomSettings: "",
-    coachXpSetting: "casual",
     quarterLengthMinutes: 8,
     acceleratedClockEnabled: true,
     acceleratedClockMinimumSeconds: 20,
@@ -494,25 +405,9 @@ export function createDefaultLeagueSetupDraft(name: string): LeagueSetupDraft {
     coachModeAutoPassEnabled: false,
     coachModeAutoSnapEnabled: false,
     coachModeCoachSuggestionsEnabled: false,
-    coachModeRecruitFlippingEnabled: false,
-    coachModeAutoRecruitingEnabled: false,
-    coachModeAutoProgressPlayersEnabled: false,
-    coachModeUserAutoProgressionEnabled: false,
-    coachModeCpuManageBudgetEnabled: false,
-    coachModeCpuManageStaffEnabled: false,
-    coachModeCpuManageFacilitiesEnabled: false,
     ballHawk: "keep_individual",
     heatSeeker: "keep_individual",
     switchAssist: "keep_individual",
-    dynastyType: "real",
-    recruitingDifficulty: "normal",
-    transferPortalEnabled: true,
-    coachCarouselEnabled: true,
-    conferenceRealignment: "locked",
-    conferenceAssignments: {},
-    homeFieldAdvantageEnabled: true,
-    stadiumPulseEnabled: true,
-    teamBuilderAllowed: false,
     offensivePlayCallLimitsEnabled: false,
     offensivePlayCallLimit: null,
     offensivePlayCallCooldownEnabled: false,
@@ -587,13 +482,10 @@ export function isRiseToImmortalityDraft(draft: Pick<LeagueSetupDraft, "leagueTy
 }
 
 export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetupDraft): LeagueSetupStep {
-  const isCfb = draft.game === "cfb_27";
   const isRise = isRiseToImmortalityDraft(draft);
 
-  // The CFB dynasty block (dynasty_structure … stadium_pulse) sits between league_type and
-  // economy. Madden titles skip the entire block; CFB walks through it via STEP_ORDER.
   // Rise to Immortality picks the league-wide cornerstone positions, then skips store setup.
-  if (step === "league_type" && !isCfb) {
+  if (step === "league_type") {
     if (isRise) return "immortality_offense_position";
     return "economy";
   }
@@ -601,40 +493,18 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
   if (step === "immortality_defense_position") return "immortality_team_pool";
   if (step === "immortality_team_pool") return "server_setup";
 
-  // CFB has Campus Legends (a plain toggle rendered by buildPurchaseSettingWindow) but no
-  // Age Resets or Contract Purchases — skip those purchase steps.
-  if (isCfb && step === "dev_upgrades") return "attribute_purchases";
-  // Player trait purchases have been retired app-wide — always skip this step regardless
-  // of how it was reached (CFB never offered it; Madden used to via the attribute chain).
-  if (step === "player_trait_purchases") return isCfb ? "server_setup" : "contract_purchases";
-
-  // Conference realignment editor only applies when realignment is allowed (CFB only —
-  // conference_realignment is unreachable for Madden titles, see the dynasty-block skip above).
-  if (step === "conference_realignment" && draft.conferenceRealignment !== "allowed") return "home_field_advantage";
-
-  // CFB has no Salary Cap, Trade Deadline, or Abilities gameplay toggles.
-  if (isCfb && step === "accelerated_clock_seconds") return "wear_and_tear";
-
-  if (isCfb && step === "fair_sim_rules") return "review";
-
-  // CFB has no NFL default-schedule seeding question.
-  if (isCfb && step === "activity_requirements") return "fair_sim_rules";
-
-  // CFB drops Position Change Policy entirely, Coach Abilities, and Trades Allowed
-  // after Custom Playbooks — it keeps Custom Coaches Required and Custom Playbooks Allowed.
-  if (isCfb && step === "fourth_down_playoff") return "custom_coaches_required";
-  if (isCfb && step === "custom_playbooks_allowed") return "difficulty";
+  // Player trait purchases have been retired app-wide — always skip this step.
+  if (step === "player_trait_purchases") return "contract_purchases";
 
   // Coach Mode is not a Madden 26 franchise setting (likely returns for Madden 27).
   if (draft.game === "madden_26" && step === "preorder_bonuses") return "ball_hawk";
 
   // Coach Mode sub-settings only apply when Coach Mode itself is enabled — skip straight past
-  // all ten individual sub-toggle steps to the assist settings block.
+  // the sub-toggle steps to the assist settings block.
   if (step === "coach_mode_enabled" && !draft.coachModeEnabled) return "ball_hawk";
 
-  // The last Madden-visible Coach Mode sub-toggle is Coach Suggestions — the remaining seven
-  // (recruiting/staff/budget management) are CFB-only, so Madden jumps straight to Ball Hawk.
-  if (!isCfb && step === "coach_mode_coach_suggestions") return "ball_hawk";
+  // Coach Suggestions is the last Coach Mode sub-toggle — jump straight to Ball Hawk after it.
+  if (step === "coach_mode_coach_suggestions") return "ball_hawk";
 
   // Rise to Immortality locks trades, salary cap, and injuries — skip those questions.
   if (isRise && step === "coach_abilities_restricted") return "difficulty";
@@ -656,9 +526,7 @@ export function getNextLeagueSetupStep(step: LeagueSetupStep, draft: LeagueSetup
   }
 
   // Skip accelerated clock seconds question if accelerated clock is disabled.
-  // CFB then skips straight past the Madden-only salary cap / trade deadline / abilities toggles.
   if (step === "accelerated_clock_enabled" && !draft.acceleratedClockEnabled) {
-    if (isCfb) return "wear_and_tear";
     if (isRise) return "abilities";
     return "salary_cap";
   }

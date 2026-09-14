@@ -8,7 +8,7 @@
 //   league-setup-purchases.ts  — economy + purchase-cap feature config, core attributes
 //   league-setup-server.ts     — server/channel assignment config
 //   league-setup-rules.ts      — streaming, 4th down, position/trade/CPU policy windows
-//   league-setup-gameplay.ts   — difficulty/clock/CFB dynasty/play-call windows
+//   league-setup-gameplay.ts   — difficulty/clock/coach-mode/play-call windows
 //   league-setup-review.ts     — settings picker, review windows, top-level dispatch
 
 export {
@@ -76,16 +76,11 @@ export {
 export {
   buildDifficultyWindow,
   buildSlidersAdjustedWindow,
-  buildCoachXpSettingWindow,
   buildDifficultyCustomModal,
   buildQuarterLengthWindow,
   buildAcceleratedClockEnabledWindow,
   buildAcceleratedClockSecondsWindow,
   buildBooleanGameplayWindow,
-  buildDynastyStructureWindow,
-  buildRecruitingDifficultyWindow,
-  buildConferenceRealignmentWindow,
-  buildCfbToggleWindow,
   buildInjuryPolicyWindow,
   buildAdvanceTimingWindow,
   buildAdvanceTimingOtherModal,
@@ -99,12 +94,7 @@ export {
   buildCoachModeSubSettingWindow,
   findCoachModeSubSetting,
   COACH_MODE_SUB_SETTINGS,
-  type CoachModeSubSetting,
-  buildConferenceAssignmentsWindow,
-  buildConferenceGroupWindow,
-  buildConferenceTargetWindow,
-  conferenceGroupBrowseCustomId,
-  conferenceAssignTargetCustomId
+  type CoachModeSubSetting
 } from "./league-setup-gameplay.js";
 
 export {
@@ -112,7 +102,6 @@ export {
   buildDefaultScheduleConfirmWindow,
   buildSettingsPickerWindow,
   buildLeagueSetupReviewWindow,
-  buildCfbReviewWindow,
   buildLeagueSetupWindow,
   applyLeagueSetupDependencies
 } from "./league-setup-review.js";

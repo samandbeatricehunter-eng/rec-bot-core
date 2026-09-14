@@ -810,8 +810,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.purchaseCapPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.coreAttrsPrefix}:`)) return handleLeagueSetupSelect(interaction);
       if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.attrCapGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
-      if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignGroupPrefix}:`)) return handleLeagueSetupSelect(interaction);
-      if (interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignTargetSelect}:`)) return handleLeagueSetupSelect(interaction);
     }
 
     if (interaction.isButton()) {
@@ -845,8 +843,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.purchaseCoreAttrsDone ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideOpen ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.attrCapOverrideDone ||
-        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignDone ||
-        interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.conferenceAssignCancel ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.forceWinRulesDone ||
         interaction.customId === LEAGUE_SETUP_CUSTOM_IDS.fairSimRulesDone ||
         interaction.customId.startsWith(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:`)

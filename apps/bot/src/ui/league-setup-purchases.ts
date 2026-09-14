@@ -230,16 +230,8 @@ export function buildPurchaseSettingWindow(draft: LeagueSetupDraft) {
   if (!isPurchaseFeatureStep(draft.step)) return buildLeagueTypeWindow(draft);
   const config = PURCHASE_FEATURE_STEPS[draft.step];
   const enabled = Boolean(draft[config.enabledKey]);
-  // CFB calls these "Custom Recruits" rather than "Custom Players".
-  const isCfbRecruits = draft.game === "cfb_27" && draft.step === "custom_players";
-  // CFB calls Legends "Campus Legends" — same season-cap model as Madden Legends underneath.
-  const isCfbCampusLegends = draft.game === "cfb_27" && draft.step === "legends";
-  const title = isCfbRecruits ? "Custom Recruits" : isCfbCampusLegends ? "Campus Legends" : config.title;
-  const description = isCfbRecruits
-    ? "Custom Recruits: Allows users to purchase and create custom recruits added to the recruiting pool and reserved for their program. Recruits are built using template archetypes and a range of 'creation points' based on how much the user spends when purchasing the recruit package."
-    : isCfbCampusLegends
-    ? "Campus Legends: Allows users to purchase college football legends to be added to their program instantly."
-    : config.description;
+  const title = config.title;
+  const description = config.description;
   const embed = new EmbedBuilder()
     .setTitle(`League Setup: ${title}`)
     .setDescription([

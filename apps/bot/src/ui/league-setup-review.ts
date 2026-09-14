@@ -43,21 +43,15 @@ import {
   buildBooleanGameplayWindow,
   buildCoachFiringPolicyWindow,
   buildCoachModeSubSettingWindow,
-  buildConferenceAssignmentsWindow,
-  buildConferenceRealignmentWindow,
-  buildDynastyStructureWindow,
   buildHeatSeekerWindow,
   buildInjuryPolicyWindow,
   buildAdvanceTimingWindow,
   buildPlayCallNumberWindow,
   buildPreorderBonusesWindow,
   buildQuarterLengthWindow,
-  buildRecruitingDifficultyWindow,
   buildSwitchAssistWindow,
-  buildCfbToggleWindow,
   buildDifficultyWindow,
   buildSlidersAdjustedWindow,
-  buildCoachXpSettingWindow,
   COACH_MODE_SUB_SETTINGS,
   findCoachModeSubSetting
 } from "./league-setup-gameplay.js";
@@ -95,31 +89,26 @@ export function buildTeamLinkingOptionalWindow(draft: LeagueSetupDraft) {
 }
 
 function defaultScheduleSeasonLabel(game: LeagueSetupDraft["game"]) {
-  if (game === "madden_26" || game === "madden_27") {
-    return getDefaultNflSeasonLabelForGame(game as MaddenLeagueGame);
-  }
-  return null;
+  return getDefaultNflSeasonLabelForGame(game as MaddenLeagueGame);
 }
 
 export function buildDefaultScheduleConfirmWindow(draft: LeagueSetupDraft) {
   const seasonLabel = defaultScheduleSeasonLabel(draft.game);
-  const description = seasonLabel
-    ? [
-        `REC can pre-load the real NFL **${seasonLabel} regular-season matchups** (Weeks 1–18) for a new franchise.`,
-        "",
-        "Only choose **Yes** if your Madden league is in **Franchise Year 1** and still using that NFL season in-game.",
-        "",
-        "If your franchise is already several seasons deep, choose **No** — the default schedule would be out of date. You can enter or import the current schedule later.",
-        "",
-        "This seeds **matchups only**, not scores or results. Playoffs are not seeded."
-      ].join("\n")
-    : "Default NFL schedule seeding is only available for Madden NFL leagues.";
+  const description = [
+    `REC can pre-load the real NFL **${seasonLabel} regular-season matchups** (Weeks 1–18) for a new franchise.`,
+    "",
+    "Only choose **Yes** if your Madden league is in **Franchise Year 1** and still using that NFL season in-game.",
+    "",
+    "If your franchise is already several seasons deep, choose **No** — the default schedule would be out of date. You can enter or import the current schedule later.",
+    "",
+    "This seeds **matchups only**, not scores or results. Playoffs are not seeded."
+  ].join("\n");
 
   return {
     embeds: [baseEmbed("League Setup: Default NFL Schedule", draft).setDescription(description)],
     components: [
-      selectRow(LEAGUE_SETUP_CUSTOM_IDS.defaultScheduleConfirm, seasonLabel ? `Franchise Year 1 in the ${seasonLabel} NFL season?` : "Seed default NFL schedule?", [
-        option(`Yes — seed ${seasonLabel ?? "default"} regular-season matchups`, "yes"),
+      selectRow(LEAGUE_SETUP_CUSTOM_IDS.defaultScheduleConfirm, `Franchise Year 1 in the ${seasonLabel} NFL season?`, [
+        option(`Yes — seed ${seasonLabel} regular-season matchups`, "yes"),
         option("No — skip default schedule seeding", "no")
       ]),
       buildNavigationRow()
@@ -133,7 +122,6 @@ function settingsCategoryLabel(category: LeagueSetupSettingsCategory) {
     case "purchases": return "Purchases";
     case "server": return "Server Setup";
     case "rules": return "Rules & Policies";
-    case "dynasty": return "Dynasty Settings";
     case "gameplay": return "Gameplay Settings";
     case "franchise": return "Franchise Settings";
     case "play_call": return "Play Call Settings";
@@ -141,7 +129,6 @@ function settingsCategoryLabel(category: LeagueSetupSettingsCategory) {
 }
 
 export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: LeagueSetupSettingsCategory) {
-  const isCfb = draft.game === "cfb_27";
   const isRise = isRiseToImmortalityDraft(draft);
   if (!category) {
     const categoryChoices = [
@@ -149,11 +136,8 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       ...(isRise ? [] : [option("Purchases", "category:purchases")]),
       option("Server Setup", "category:server"),
       option("Rules & Policies", "category:rules"),
-      ...(isCfb ? [option("Dynasty Settings", "category:dynasty")] : []),
       option("Gameplay Settings", "category:gameplay"),
-      // CFB folds Coach Firing/Preorder Bonuses/Coach Mode/Assists into Dynasty Settings —
-      // it's not called "Franchise" there. Madden keeps its own Franchise Settings category.
-      ...(isCfb ? [] : [option("Franchise Settings", "category:franchise")]),
+      option("Franchise Settings", "category:franchise"),
       option("Play Call Settings", "category:play_call")
     ];
 
@@ -175,15 +159,9 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
     features: [
       ...(isRise ? [] : [option("Economy", "economy")]),
       option("Activity Requirements (Fair Sim / Force Win)", "activity_requirements"),
-      ...(isCfb ? [] : [option("Default NFL Schedule (Franchise Year 1)", "default_schedule_confirm")])
+      option("Default NFL Schedule (Franchise Year 1)", "default_schedule_confirm")
     ],
-    purchases: isCfb ? [
-      option("Custom Recruits", "custom_players"),
-      option("Campus Legends", "legends"),
-      option("Dev Upgrades", "dev_upgrades"),
-      option("Attribute Purchases", "attribute_purchases"),
-      option("Attribute Core Attributes", "attribute_core_attributes"),
-    ] : [
+    purchases: [
       option("Custom Players", "custom_players"),
       option("Legends", "legends"),
       option("Dev Upgrades", "dev_upgrades"),
@@ -195,16 +173,7 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
     server: [
       option("Server Channel Assignments", "server_setup")
     ],
-    rules: isCfb ? [
-      option("Regular Season Streaming", "regular_season_streaming"),
-      option("Regular Season Streaming Side", "regular_season_streaming_side"),
-      option("Postseason Streaming", "postseason_streaming"),
-      option("Postseason Streaming Side", "postseason_streaming_side"),
-      option("4th Down Rules (Regular Season)", "fourth_down_regular"),
-      option("4th Down Rules (Playoff)", "fourth_down_playoff"),
-      option("Custom Coaches Required?", "custom_coaches_required"),
-      option("Custom Playbooks Allowed?", "custom_playbooks_allowed")
-    ] : [
+    rules: [
       option("Regular Season Streaming", "regular_season_streaming"),
       option("Regular Season Streaming Side", "regular_season_streaming_side"),
       option("Postseason Streaming", "postseason_streaming"),
@@ -217,35 +186,7 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Position Change Policy", "position_changes"),
       ...(isRise ? [] : [option("Trades Allowed", "trade_approval")]),
     ],
-    dynasty: [
-      option("Dynasty Structure", "dynasty_structure"),
-      option("Recruiting Difficulty", "recruiting_difficulty"),
-      option("Coach XP Setting", "coach_xp_setting"),
-      option("Transfer Portal", "transfer_portal"),
-      option("Coach Carousel", "coach_carousel"),
-      option("Conference Realignment", "conference_realignment"),
-      ...(draft.conferenceRealignment === "allowed" ? [option("Conference Assignments", "conference_assignments")] : []),
-      option("Home-Field Advantage", "home_field_advantage"),
-      option("Stadium Pulse", "stadium_pulse"),
-      // CFB calls this section "Dynasty" rather than "Franchise" — these live in the
-      // Dynasty category here instead of a separate Franchise category (Madden-only).
-      option("Coach Firing", "coach_firing_policy"),
-      option("Preorder Bonuses", "preorder_bonuses"),
-      option("Coach Mode", "coach_mode_enabled"),
-      ...(draft.coachModeEnabled ? COACH_MODE_SUB_SETTINGS.filter((setting) => !setting.cfbOnly || isCfb).map((setting) => option(setting.label, setting.step)) : []),
-      option("Ball Hawk", "ball_hawk"),
-      option("Heat Seeker", "heat_seeker"),
-      option("Switch Assist", "switch_assist")
-    ],
-    gameplay: isCfb ? [
-      option("Difficulty", "difficulty"),
-      option("Sliders Adjusted", "sliders_adjusted"),
-      option("Quarter Length", "quarter_length"),
-      option("Accelerated Clock", "accelerated_clock_enabled"),
-      option("Wear & Tear", "wear_and_tear"),
-      option("Injuries", "injury_policy"),
-      option("Advance Timing", "advance_timing")
-    ] : [
+    gameplay: [
       option("Difficulty", "difficulty"),
       option("Sliders Adjusted", "sliders_adjusted"),
       option("Quarter Length", "quarter_length"),
@@ -263,7 +204,7 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
       option("Coach Firing", "coach_firing_policy"),
       option("Preorder Bonuses", "preorder_bonuses"),
       option("Coach Mode", "coach_mode_enabled"),
-      ...(draft.coachModeEnabled ? COACH_MODE_SUB_SETTINGS.filter((setting) => !setting.cfbOnly || isCfb).map((setting) => option(setting.label, setting.step)) : []),
+      ...(draft.coachModeEnabled ? COACH_MODE_SUB_SETTINGS.map((setting) => option(setting.label, setting.step)) : []),
       option("Ball Hawk", "ball_hawk"),
       option("Heat Seeker", "heat_seeker"),
       option("Switch Assist", "switch_assist")
@@ -294,7 +235,6 @@ export function buildSettingsPickerWindow(draft: LeagueSetupDraft, category?: Le
 }
 
 function formatFranchiseSettingsReview(draft: LeagueSetupDraft) {
-  const isCfb = draft.game === "cfb_27";
   const lines = [
     `Coach Firing: ${fmt(draft.coachFiringPolicy)}`,
     `Preorder Bonuses: ${yesNo(draft.preorderBonusesEnabled)}`,
@@ -306,17 +246,6 @@ function formatFranchiseSettingsReview(draft: LeagueSetupDraft) {
       `  Autosnap: ${yesNo(draft.coachModeAutoSnapEnabled)}`,
       `  Coach Suggestions: ${yesNo(draft.coachModeCoachSuggestionsEnabled)}`
     );
-    if (isCfb) {
-      lines.push(
-        `  Recruit Flipping: ${yesNo(draft.coachModeRecruitFlippingEnabled)}`,
-        `  Auto Recruiting: ${yesNo(draft.coachModeAutoRecruitingEnabled)}`,
-        `  Auto Progress Players: ${yesNo(draft.coachModeAutoProgressPlayersEnabled)}`,
-        `  User Coach Auto Progression: ${yesNo(draft.coachModeUserAutoProgressionEnabled)}`,
-        `  CPU Manage Budget: ${yesNo(draft.coachModeCpuManageBudgetEnabled)}`,
-        `  CPU Manage Staff: ${yesNo(draft.coachModeCpuManageStaffEnabled)}`,
-        `  CPU Manage Facilities Spending: ${yesNo(draft.coachModeCpuManageFacilitiesEnabled)}`
-      );
-    }
   }
   lines.push(
     `Ball Hawk: ${fmt(draft.ballHawk)}`,
@@ -327,8 +256,6 @@ function formatFranchiseSettingsReview(draft: LeagueSetupDraft) {
 }
 
 export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
-  if (draft.game === "cfb_27") return buildCfbReviewWindow(draft);
-
   const embed = new EmbedBuilder()
     .setTitle("Review League Setup")
     .setDescription([`League: **${draft.name}**`, `League Password: ${draft.leaguePassword ? draft.leaguePassword : "Not set / public"}`, "", "Review the configuration below, then save the league. Use the section buttons below to jump back and change answers."].join("\n"))
@@ -406,7 +333,7 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
       {
         name: "Gameplay",
         value: [
-          `Difficulty: ${formatDifficultyLabel(draft.difficulty, false)}`,
+          `Difficulty: ${formatDifficultyLabel(draft.difficulty)}`,
           `Sliders Adjusted: ${yesNo(draft.slidersAdjusted)}`,
           `Quarter Length: ${draft.quarterLengthMinutes}`,
           `Accelerated Clock: ${boolText(draft.acceleratedClockEnabled)}${draft.acceleratedClockEnabled ? ` (${draft.acceleratedClockMinimumSeconds}s)` : ""}`,
@@ -464,110 +391,6 @@ export function buildLeagueSetupReviewWindow(draft: LeagueSetupDraft) {
   return { embeds: [embed], components: [saveRow, actionRow, buildNavigationRow()] };
 }
 
-export function buildCfbReviewWindow(draft: LeagueSetupDraft) {
-  const embed = new EmbedBuilder()
-    .setTitle("Review CFB 27 Dynasty Setup")
-    .setDescription([`League: **${draft.name}**`, `League Password: ${draft.leaguePassword ? draft.leaguePassword : "Not set / public"}`, "", "Review your College Football 27 dynasty configuration, then save. Use the section buttons below to jump back and change answers."].join("\n"))
-    .addFields(
-      {
-        name: "Identity",
-        value: [
-          `Game: ${LEAGUE_GAME_OPTIONS[draft.game] ?? draft.game}`,
-          `Active Rosters: ${yesNo(draft.activeRostersEnabled)}`,
-          `Track Rosters: ${yesNo(draft.trackRostersEnabled)}`,
-          `Teams Replaced with Customs: ${yesNo(draft.dynastyType === "mixed")}`,
-          `Team Builder: ${yesNo(draft.teamBuilderAllowed)}`,
-          "Starts: Season 1, Preseason"
-        ].join("\n"),
-        inline: true
-      },
-      {
-        name: "Dynasty Settings",
-        value: [
-          `Recruiting Difficulty: ${fmt(draft.recruitingDifficulty)}`,
-          `Coach XP: ${fmt(draft.coachXpSetting)}`,
-          `Transfer Portal: ${yesNo(draft.transferPortalEnabled)}`,
-          `Coach Carousel: ${yesNo(draft.coachCarouselEnabled)}`,
-          `Conference Realignment: ${fmt(draft.conferenceRealignment)}`,
-          ...(draft.conferenceRealignment === "allowed" ? [`Conferences Reassigned: ${Object.keys(draft.conferenceAssignments).length}`] : []),
-          `Home-Field Advantage: ${yesNo(draft.homeFieldAdvantageEnabled)}`,
-          `Stadium Pulse: ${yesNo(draft.stadiumPulseEnabled)}`,
-          `Wear & Tear: ${boolText(draft.wearAndTearEnabled)}`,
-          "",
-          formatFranchiseSettingsReview(draft)
-        ].join("\n"),
-        inline: true
-      },
-      {
-        name: "Features",
-        value: [
-          `Economy: ${yesNo(draft.coinEconomyEnabled)}`,
-          `Custom Recruits: ${yesNo(draft.customPlayersEnabled)}`,
-          `Campus Legends: ${yesNo(draft.legendsEnabled)}`,
-          `Dev Upgrades: ${yesNo(draft.devUpgradesEnabled)}`,
-          `Attribute Purchases: ${yesNo(draft.attributePurchasesEnabled)}`,
-          "",
-          formatPurchaseCapsReview(draft)
-        ].join("\n"),
-        inline: false
-      },
-      {
-        name: "Server Setup",
-        value: Object.entries(LEAGUE_SETUP_SERVER_CHANNEL_OPTIONS)
-          .map(([, config]) => `${config.label}: ${formatChannelValue((draft as any)[config.field])}`)
-          .join("\n"),
-        inline: false
-      },
-      {
-        name: "Rules",
-        value: [
-          `Regular Season Streaming: ${fmt(draft.regularSeasonStreamingRequirement)}`,
-          `Regular Season Streaming Side: ${fmt(draft.regularSeasonStreamingSide)}`,
-          `Postseason Streaming: ${fmt(draft.postseasonStreamingRequirement)}`,
-          `Postseason Streaming Side: ${fmt(draft.postseasonStreamingSide)}`,
-          `4th Down (Regular Season): ${fmt(draft.fourthDownRuleTypeRegular)}${draft.fourthDownRuleTypeRegular === "custom" ? ` - ${draft.customFourthDownRuleRegular || "Custom text missing"}` : ""}`,
-          `4th Down (Playoff): ${fmt(draft.fourthDownRuleTypePlayoff)}${draft.fourthDownRuleTypePlayoff === "custom" ? ` - ${draft.customFourthDownRulePlayoff || "Custom text missing"}` : ""}`,
-          `Custom Coaches Required: ${yesNo(draft.customCoachesRequired)}`,
-          `Custom Playbooks Allowed: ${yesNo(draft.customPlaybooksAllowed)}`,
-          `Fair Sim: ${formatFwFsRules(draft).fairSim}`,
-          `Force Win: ${formatFwFsRules(draft).forceWin}`
-        ].join("\n"),
-        inline: false
-      },
-      {
-        name: "Gameplay",
-        value: [
-          `Difficulty: ${formatDifficultyLabel(draft.difficulty, true)}`,
-          `Sliders Adjusted: ${yesNo(draft.slidersAdjusted)}`,
-          `Quarter Length: ${draft.quarterLengthMinutes}`,
-          `Accelerated Clock: ${boolText(draft.acceleratedClockEnabled)}${draft.acceleratedClockEnabled ? ` (${draft.acceleratedClockMinimumSeconds}s)` : ""}`,
-          `Injuries: ${fmt(draft.injuryPolicy)}`,
-          `Advance Timing: ${draft.advanceTiming === "other" ? (draft.advanceTimingOther || "Other") : draft.advanceTiming}`,
-          `Offense Limit: ${draft.offensivePlayCallLimitsEnabled ? `${draft.offensivePlayCallLimit ?? "?"} max/game` : "Off"}`,
-          `Offense Cooldown: ${draft.offensivePlayCallCooldownEnabled ? `${draft.offensivePlayCallCooldown ?? "?"} plays before repeat` : "Off"}`,
-          `Defense Limit: ${draft.defensivePlayCallLimitsEnabled ? `${draft.defensivePlayCallLimit ?? "?"} max/game` : "Off"}`,
-          `Defense Cooldown: ${draft.defensivePlayCallCooldownEnabled ? `${draft.defensivePlayCallCooldown ?? "?"} plays before repeat` : "Off"}`
-        ].join("\n"),
-        inline: false
-      }
-    )
-    .setFooter({ text: "Economy payouts activate for linked users when Coin Economy is enabled." });
-
-  const editRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:dynasty`).setLabel("Edit Dynasty").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:features`).setLabel("Edit Features").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:server_setup`).setLabel("Edit Server").setStyle(ButtonStyle.Secondary)
-  );
-
-  const actionRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:rules`).setLabel("Edit Rules").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`${LEAGUE_SETUP_CUSTOM_IDS.reviewJump}:gameplay`).setLabel("Edit Gameplay").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(LEAGUE_SETUP_CUSTOM_IDS.save).setLabel("Save Dynasty Setup").setStyle(ButtonStyle.Success)
-  );
-
-  return { embeds: [embed], components: [editRow, actionRow, buildNavigationRow()] };
-}
-
 // Injects a "Back to Review" button into a step window's last button-only row (or a new row
 // if there's still room under Discord's 5-action-row limit) when the commissioner got here via
 // an "Edit X" button on the pre-save Review screen — lets them bail straight back to Review
@@ -615,15 +438,6 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
     case "immortality_offense_position": return buildImmortalityPositionWindow(draft, "offense");
     case "immortality_defense_position": return buildImmortalityPositionWindow(draft, "defense");
     case "immortality_team_pool": return buildImmortalityTeamPoolWindow(draft);
-    case "track_rosters": return buildCfbToggleWindow(draft, "CFB Setup: Track Rosters", LEAGUE_SETUP_CUSTOM_IDS.trackRosters, "Seed this league's initial rosters from the CFB 27 baseline roster dataset? Every team starts with the game-year reference roster instead of an empty one.", "Track Rosters from baseline?");
-    case "dynasty_structure": return buildDynastyStructureWindow(draft);
-    case "recruiting_difficulty": return buildRecruitingDifficultyWindow(draft);
-    case "transfer_portal": return buildCfbToggleWindow(draft, "CFB Setup: Transfer Portal", LEAGUE_SETUP_CUSTOM_IDS.transferPortal, "Is the Transfer Portal active? Players may enter/leave via the portal between seasons.", "Transfer Portal enabled?");
-    case "coach_carousel": return buildCfbToggleWindow(draft, "CFB Setup: Coach Carousel", LEAGUE_SETUP_CUSTOM_IDS.coachCarousel, "Is the Coach Carousel active? Coaches may be hired away or change programs between seasons.", "Coach Carousel enabled?");
-    case "conference_realignment": return buildConferenceRealignmentWindow(draft);
-    case "conference_assignments": return buildConferenceAssignmentsWindow(draft);
-    case "home_field_advantage": return buildCfbToggleWindow(draft, "CFB Setup: Home-Field Advantage", LEAGUE_SETUP_CUSTOM_IDS.homeFieldAdvantage, "Enable Home-Field Advantage? Hostile road environments shake the play-art and pressure the visiting offense.", "Home-Field Advantage enabled?");
-    case "stadium_pulse": return buildCfbToggleWindow(draft, "CFB Setup: Stadium Pulse", LEAGUE_SETUP_CUSTOM_IDS.stadiumPulse, "Enable Stadium Pulse? Crowd energy builds with momentum and affects the on-field atmosphere.", "Stadium Pulse enabled?");
     case "economy": return isRiseToImmortalityDraft(draft) ? buildRiseLockedEconomyWindow(draft) : buildFeatureDecisionWindow(draft);
     case "custom_players":
     case "legends":
@@ -647,7 +461,6 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
     case "trade_approval": return buildTradeApprovalWindow(draft);
     case "difficulty": return buildDifficultyWindow(draft);
     case "sliders_adjusted": return buildSlidersAdjustedWindow(draft);
-    case "coach_xp_setting": return buildCoachXpSettingWindow(draft);
     case "quarter_length": return buildQuarterLengthWindow(draft);
     case "accelerated_clock_enabled": return buildAcceleratedClockEnabledWindow(draft);
     case "accelerated_clock_seconds": return buildAcceleratedClockSecondsWindow(draft);
@@ -663,13 +476,6 @@ function buildLeagueSetupStepWindow(draft: LeagueSetupDraft) {
     case "coach_mode_auto_pass":
     case "coach_mode_auto_snap":
     case "coach_mode_coach_suggestions":
-    case "coach_mode_recruit_flipping":
-    case "coach_mode_auto_recruiting":
-    case "coach_mode_auto_progress_players":
-    case "coach_mode_user_auto_progression":
-    case "coach_mode_cpu_manage_budget":
-    case "coach_mode_cpu_manage_staff":
-    case "coach_mode_cpu_manage_facilities":
       return buildCoachModeSubSettingWindow(draft, findCoachModeSubSetting(draft.step));
     case "ball_hawk": return buildBallHawkWindow(draft);
     case "heat_seeker": return buildHeatSeekerWindow(draft);
@@ -721,49 +527,11 @@ export function applyLeagueSetupDependencies(draft: LeagueSetupDraft) {
     draft.linkTeamsAfterSetup = false;
   }
 
-  // CFB: Team Builder availability is coupled to the dynasty structure.
-  // Mixed Teams ⇒ team builder on; Real Teams ⇒ off.
-  draft.teamBuilderAllowed = draft.dynastyType === "mixed";
-
-  // CFB has Campus Legends (a plain toggle) but no Age Resets or Contract Purchases —
-  // keep those off so they can never persist on.
-  if (draft.game === "cfb_27") {
-    draft.ageResetsEnabled = false;
-    draft.ageResetsSeasonCap = 0;
-    draft.contractAdjustmentPurchasesEnabled = false;
-    draft.contractPurchasesSeasonCap = 0;
-    // CFB has no salary cap, trade deadline, or abilities toggle.
-    draft.salaryCapEnabled = false;
-    draft.tradeDeadlineEnabled = false;
-  }
-
-  // Conference assignment overrides only make sense for CFB leagues that allow realignment.
-  if (draft.game !== "cfb_27" || draft.conferenceRealignment !== "allowed") {
-    draft.conferenceAssignments = {};
-  }
-
   // Coach Mode sub-toggles only apply when Coach Mode itself is enabled.
   if (!draft.coachModeEnabled) {
     draft.coachModeAutoPassEnabled = false;
     draft.coachModeAutoSnapEnabled = false;
     draft.coachModeCoachSuggestionsEnabled = false;
-    draft.coachModeRecruitFlippingEnabled = false;
-    draft.coachModeAutoRecruitingEnabled = false;
-    draft.coachModeAutoProgressPlayersEnabled = false;
-    draft.coachModeUserAutoProgressionEnabled = false;
-    draft.coachModeCpuManageBudgetEnabled = false;
-    draft.coachModeCpuManageStaffEnabled = false;
-    draft.coachModeCpuManageFacilitiesEnabled = false;
-  }
-  // The extra Coach Mode sub-toggles (recruiting/staff/budget management) are CFB-only.
-  if (draft.game !== "cfb_27") {
-    draft.coachModeRecruitFlippingEnabled = false;
-    draft.coachModeAutoRecruitingEnabled = false;
-    draft.coachModeAutoProgressPlayersEnabled = false;
-    draft.coachModeUserAutoProgressionEnabled = false;
-    draft.coachModeCpuManageBudgetEnabled = false;
-    draft.coachModeCpuManageStaffEnabled = false;
-    draft.coachModeCpuManageFacilitiesEnabled = false;
   }
 
   draft.streamingRequirement = draft.regularSeasonStreamingRequirement;
