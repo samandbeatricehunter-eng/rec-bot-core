@@ -4168,8 +4168,8 @@ button.poty:disabled {
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
-  font-size:.62rem;
-  letter-spacing:.08em;
+  font-size:.52rem;
+  letter-spacing:.06em;
   opacity:.82;
   font-weight:700;
 }
@@ -4179,15 +4179,15 @@ button.poty:disabled {
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
-  font-size:1rem;
-  letter-spacing:.04em;
+  font-size:.78rem;
+  letter-spacing:.03em;
   font-weight:800;
 }
 .rec-leader-name > em {
   display:block;
   margin-top:2px;
-  font-size:.58rem;
-  letter-spacing:.1em;
+  font-size:.5rem;
+  letter-spacing:.08em;
   font-style:normal;
   opacity:.7;
 }
@@ -4232,7 +4232,7 @@ button.poty:disabled {
 }
 .hub-div-standing-city {
   font-weight: 400;
-  font-size: 13px;
+  font-size: 12px;
   letter-spacing: .04em;
   margin: 0 0 1px;
   opacity: 1;
@@ -4244,7 +4244,7 @@ button.poty:disabled {
 }
 .hub-div-standing-nick {
   font-weight: 700;
-  font-size: 20px;
+  font-size: 18px;
   letter-spacing: 0;
   text-shadow:
     0 1px 0 #000,
@@ -4256,8 +4256,10 @@ button.poty:disabled {
     3px 6px 7px rgba(0,0,0,.55);
 }
 .hub-div-standing-power { display:none; }
-.hub-div-standing-nick-row { display:flex; align-items:baseline; gap:5px; min-width:0; }
-.hub-div-standing-nick-row .hub-div-standing-nick { width:auto; flex:0 1 auto; }
+.hub-div-standing-nick-row { display:flex; align-items:baseline; gap:5px; min-width:0; width:100%; }
+/* Keep nick width parent-constrained (not content-sized) so JS font-fit can't
+   chase its own clientWidth and flicker through ResizeObserver. */
+.hub-div-standing-nick-row .hub-div-standing-nick { flex:1 1 0; min-width:0; width:auto; }
 /* Power rank, inline next to the nickname -- replaces the separate Power Rankings page. */
 .hub-div-standing-rank {
   flex:none;

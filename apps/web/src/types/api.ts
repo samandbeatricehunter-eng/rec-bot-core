@@ -65,6 +65,8 @@ export type TeamScheduleManualWeek = {
 export type TeamScheduleManualState = {
   team: { id: string; name: string; abbreviation: string };
   seasonNumber: number;
+  currentSeasonNumber?: number;
+  seasonNumbers?: number[];
   game: string | null;
   weeks: TeamScheduleManualWeek[];
 };

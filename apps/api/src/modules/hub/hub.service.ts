@@ -1466,12 +1466,23 @@ export async function getHubBootstrapStatus(guildId: string, discordId: string) 
 // schedule builder's data shape (results, pending box scores, byes) but resolves the team
 // from the caller's own active assignment instead of an arbitrary teamId, so it can sit
 // behind a plain "member" permission check instead of co_commissioner.
-export async function getMyTeamSchedule(guildId: string, discordId: string) {
+export async function getMyTeamSchedule(guildId: string, discordId: string, seasonNumber?: number | null) {
   const context = await getCurrentLeagueContext(guildId);
   const userId = await userIdForDiscord(discordId);
   const assignment = await activeAssignment(context.leagueId, userId);
   if (!assignment?.team_id) throw new ApiError(404, "You don't have a team linked in this league.");
-  return getTeamScheduleManualState({ guildId, teamId: assignment.team_id });
+  const currentSeasonNumber = Number(context.rec_leagues.season_number ?? context.rec_leagues.display_season_number ?? 1);
+  const [state, seasonsRows] = await Promise.all([
+    getTeamScheduleManualState({ guildId, teamId: assignment.team_id, seasonNumber }),
+    supabase.from("rec_seasons").select("display_season_number").eq("league_id", context.leagueId).order("display_season_number", { ascending: false }),
+  ]);
+  if (seasonsRows.error) throw new ApiError(500, "We couldn't load league seasons. Please try again.", seasonsRows.error);
+  const seasonNumbers = [...new Set<number>([
+    currentSeasonNumber,
+    Number(state.seasonNumber),
+    ...(seasonsRows.data ?? []).map((row: any) => Number(row.display_season_number)).filter((n: number) => Number.isFinite(n) && n > 0),
+  ])].sort((a, b) => b - a);
+  return { ...state, currentSeasonNumber, seasonNumbers };
 }
 
 // Wallet card's "View Transactions" modal — most-recent N ledger rows regardless of age,

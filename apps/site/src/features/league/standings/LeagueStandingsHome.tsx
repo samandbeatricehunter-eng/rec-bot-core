@@ -169,24 +169,43 @@ function StandingIdentity({ city, nick, rank, eaUsername }: { city: string; nick
     const nickEl = nickRef.current;
     if (!wrap || !nickEl) return;
     let cancelled = false;
+    let fitting = false;
+    let resizeTimer: number | null = null;
 
     const fit = () => {
-      if (cancelled) return;
-      const nickSize = fitLabelToWidth(nickEl, 26, 16);
-      if (cityEl) {
-        const cityMax = Math.min(14, nickSize * CITY_TO_NICK_RATIO);
-        fitLabelToWidth(cityEl, cityMax, Math.min(cityMax, 8));
+      if (cancelled || fitting) return;
+      fitting = true;
+      try {
+        const nickSize = fitLabelToWidth(nickEl, 22, 13);
+        if (cityEl) {
+          const cityMax = Math.min(12, nickSize * CITY_TO_NICK_RATIO);
+          fitLabelToWidth(cityEl, cityMax, Math.min(cityMax, 8));
+        }
+      } finally {
+        // Ignore ResizeObserver callbacks caused by our own font-size writes this frame.
+        requestAnimationFrame(() => { fitting = false; });
       }
     };
 
     fit();
-    requestAnimationFrame(fit);
     void document.fonts?.ready?.then(() => { if (!cancelled) fit(); });
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fit) : null;
-    ro?.observe(wrap);
+
+    // Observe the team row (stable grid cell), not the identity wrap — fitting shrinks
+    // text inside the wrap and used to retrigger itself in a size-flicker loop.
+    const teamRow = wrap.closest(".hub-div-standing-team");
+    const onResize = () => {
+      if (fitting) return;
+      if (resizeTimer != null) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(fit, 80);
+    };
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onResize) : null;
+    if (teamRow) ro?.observe(teamRow);
+    else window.addEventListener("resize", onResize);
     return () => {
       cancelled = true;
+      if (resizeTimer != null) window.clearTimeout(resizeTimer);
       ro?.disconnect();
+      window.removeEventListener("resize", onResize);
     };
   }, [city, nick]);
 

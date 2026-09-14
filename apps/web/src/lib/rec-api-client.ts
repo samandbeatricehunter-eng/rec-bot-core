@@ -506,8 +506,10 @@ export const recApi = {
     recApiFetch<{ posted: true; streamLogId: string; watchPath: string; service: string | null }>("/v1/hub/matchups/stream/share", { method: "POST", body: JSON.stringify(input) }),
   getHubStreamingAccounts: (input: { guildId: string }) =>
     recApiFetch<{ accounts: Array<{ platform: string; login: string; displayName: string | null; streamUrl: string }>; configured: Record<string, boolean> }>("/v1/hub/streaming/accounts", { method: "POST", body: JSON.stringify(input) }),
-  getMyTeamSchedule: (guildId: string) =>
-    recApiFetch<TeamScheduleManualState>("/v1/hub/my-team-schedule", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getMyTeamSchedule: (input: { guildId: string; seasonNumber?: number | null } | string) => {
+    const body = typeof input === "string" ? { guildId: input } : input;
+    return recApiFetch<TeamScheduleManualState>("/v1/hub/my-team-schedule", { method: "POST", body: JSON.stringify(body) });
+  },
   getMyHighlightWeekCounts: (guildId: string) =>
     recApiFetch<{ seasonNumber: number; counts: Record<number, number> }>("/v1/hub/highlights/my-week-counts", { method: "POST", body: JSON.stringify({ guildId }) }),
   getTeamSchedule: (input: { guildId: string; teamId: string }) =>

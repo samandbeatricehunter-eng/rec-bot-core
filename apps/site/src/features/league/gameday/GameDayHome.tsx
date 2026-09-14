@@ -5,7 +5,6 @@ import {
   coinsNumber,
   parlayOdds,
   potentialPayout,
-  regularSeasonWeeks,
   stageForWeek,
   stageHasScheduledGames,
   stageLabel,
@@ -137,60 +136,6 @@ function WagerSlip({ panel }: { panel: WagerPanel }) {
   );
 }
 
-function ScheduleWeekList({
-  weeks,
-  game,
-  currentWeek,
-  highlightCounts,
-  onUploadHighlight,
-}: {
-  weeks: TeamScheduleManualState["weeks"];
-  game?: LeagueGame;
-  currentWeek?: number;
-  highlightCounts?: Record<number, number>;
-  onUploadHighlight?: (week: TeamScheduleManualState["weeks"][number]) => void;
-}) {
-  return (
-    <div className="hub-schedule-week-list">
-      {weeks.map((week) => {
-        const eligibleForActions =
-          week.alreadyConfirmed && !week.isBye && Boolean(week.gameId) &&
-          (currentWeek == null || week.weekNumber <= currentWeek);
-        const highlightCount = highlightCounts?.[week.weekNumber] ?? 0;
-        const missingHighlight = eligibleForActions && highlightCount < 2;
-        const isPostseasonUndetermined = !week.alreadyConfirmed && !week.isBye && Boolean(game) && week.weekNumber > regularSeasonWeeks(game!);
-        return (
-          <article key={week.weekNumber} className={`hub-schedule-week ${week.alreadyConfirmed ? (week.confirmedMatchupType ?? "cpu") : week.isBye ? "bye" : isPostseasonUndetermined ? "postseason-tbd" : "missing"}${week.matchupCard ? " has-card" : ""}`}>
-            {week.matchupCard ? (
-              <div className="hub-schedule-mini-card hub-schedule-week-info">
-                <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
-                <MatchupCard game={week.matchupCard} showReactions={false} passive />
-              </div>
-            ) : (
-              <div className="hub-schedule-week-info">
-                <span className="hub-schedule-week-label">Week {week.weekNumber}</span>
-                {week.isBye ? <strong>Bye Week</strong>
-                  : game && week.weekNumber > regularSeasonWeeks(game) ? <strong className="hub-schedule-postseason-tbd">Postseason — Not Yet Determined</strong>
-                  : <strong className="hub-schedule-missing">Missing Matchup</strong>}
-              </div>
-            )}
-            <div className="hub-schedule-week-aside">
-              {onUploadHighlight ? <span className="hub-schedule-highlight-chip">Highlights {highlightCount}/2</span> : null}
-              {onUploadHighlight && missingHighlight ? (
-                <div className="hub-schedule-week-actions">
-                  <button type="button" className="btn btn-secondary btn-compact" onClick={() => onUploadHighlight(week)}>
-                    Upload
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </article>
-        );
-      })}
-    </div>
-  );
-}
-
 /**
  * Game Day — matchups-only (mine / gotw / schedule / myschedule + wager + highlight modals).
  * Site-owned; team/home/store bodies live in other features/league modules.
@@ -221,9 +166,9 @@ export function GameDayHome({ showGameDayNav = true }: { showGameDayNav?: boolea
   const [requestHelpGame, setRequestHelpGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [lateSubmissionsOpen, setLateSubmissionsOpen] = useState(false);
   const [mySchedule, setMySchedule] = useState<TeamScheduleManualState | null>(null);
+  const [myScheduleSeason, setMyScheduleSeason] = useState<number | null>(null);
+  const [myScheduleLoading, setMyScheduleLoading] = useState(false);
   const [myScheduleError, setMyScheduleError] = useState<string | null>(null);
-  const [myHighlightCounts, setMyHighlightCounts] = useState<Record<number, number> | null>(null);
-  const [scheduleHighlightWeek, setScheduleHighlightWeek] = useState<TeamScheduleManualState["weeks"][number] | null>(null);
   const [lateSubmissionsWeek, setLateSubmissionsWeek] = useState<number | undefined>(undefined);
   const [gotwGuessing, setGotwGuessing] = useState<GotwGuessingRecordsResponse | null>(null);
 
@@ -235,7 +180,6 @@ export function GameDayHome({ showGameDayNav = true }: { showGameDayNav?: boolea
     next.delete("openModal");
     if (requested === "schedule" && (hub?.league.rosterType !== "rise_to_immortality" || hub?.league.riseHubUnlocked === true)) {
       next.set("view", "myschedule");
-      void viewMySchedule();
     } else if (requested === "wager" && hub?.league.rosterType !== "rise_to_immortality") {
       openSportsbook();
     }
@@ -340,26 +284,24 @@ export function GameDayHome({ showGameDayNav = true }: { showGameDayNav?: boolea
     return null;
   }
 
-  async function viewMySchedule() {
-    if (auth.status !== "ready") return;
-    setMyScheduleError(null);
-    if (mySchedule) return;
-    try {
-      const [schedule, highlightCounts] = await Promise.all([
-        recApi.getMyTeamSchedule(auth.guildId),
-        recApi.getMyHighlightWeekCounts(auth.guildId).catch(() => ({ counts: {} })),
-      ]);
-      setMySchedule(schedule);
-      setMyHighlightCounts(highlightCounts.counts);
-    } catch (cause) {
-      setMyScheduleError(cause instanceof Error ? cause.message : "Your schedule could not be loaded.");
-    }
-  }
-
   useEffect(() => {
-    if (gameDayView === "myschedule") void viewMySchedule();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameDayView, auth.status === "ready" ? auth.guildId : null]);
+    if (gameDayView !== "myschedule" || auth.status !== "ready") return;
+    let cancelled = false;
+    setMyScheduleLoading(true);
+    setMyScheduleError(null);
+    recApi.getMyTeamSchedule({ guildId: auth.guildId, seasonNumber: myScheduleSeason })
+      .then((schedule) => {
+        if (cancelled) return;
+        setMySchedule(schedule);
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        setMySchedule(null);
+        setMyScheduleError(cause instanceof Error ? cause.message : "Your schedule could not be loaded.");
+      })
+      .finally(() => { if (!cancelled) setMyScheduleLoading(false); });
+    return () => { cancelled = true; };
+  }, [gameDayView, auth.status, auth.status === "ready" ? auth.guildId : null, myScheduleSeason]);
 
   async function voteGotw(pollId: string, selectedTeamId: string) {
     if (auth.status !== "ready" || !matchupSchedule) return;
@@ -598,15 +540,20 @@ export function GameDayHome({ showGameDayNav = true }: { showGameDayNav?: boolea
 
             {gameDayView === "gotw" ? (
               <section className="hub-matchup-section hub-gotw-page">
-                {auth.status === "ready" && gotwGames.length ? (
-                  <GotwVotingCarousel
-                    guildId={auth.guildId}
-                    games={gotwGames}
-                    guessingRecord={gotwGuessing?.mine}
-                    onVote={voteGotw}
-                    onOpenWager={isRise ? undefined : (game) => void openWager(game)}
-                  />
-                ) : (() => {
+                {(() => {
+                  const state = renderMatchupLoadState("Loading Game of the Week...");
+                  if (state) return state;
+                  if (auth.status === "ready" && gotwGames.length) {
+                    return (
+                      <GotwVotingCarousel
+                        guildId={auth.guildId}
+                        games={gotwGames}
+                        guessingRecord={gotwGuessing?.mine}
+                        onVote={voteGotw}
+                        onOpenWager={isRise ? undefined : (game) => void openWager(game)}
+                      />
+                    );
+                  }
                   const empty = matchupSchedule?.isOffseason
                     ? offseasonEmptyCopy(matchupSchedule.offseasonStageLabel)
                     : noGotwEmptyCopy();
@@ -704,23 +651,89 @@ export function GameDayHome({ showGameDayNav = true }: { showGameDayNav?: boolea
             ) : null}
 
             {gameDayView === "myschedule" ? (
-              <SectionFrame eyebrow="Full season" title="My Schedule" className="hub-matchup-section">
+              <SectionFrame eyebrow="Archive & slate" title="My Schedule" className="hub-matchup-section">
                 {myScheduleError ? (
                   <div className="hub-empty">
                     <p>{myScheduleError}</p>
-                    <Button variant="secondary" onClick={() => { setMySchedule(null); void viewMySchedule(); }}>Try again</Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setMySchedule(null);
+                        setMyScheduleLoading(true);
+                        setMyScheduleError(null);
+                        if (auth.status !== "ready") return;
+                        recApi.getMyTeamSchedule({ guildId: auth.guildId, seasonNumber: myScheduleSeason })
+                          .then(setMySchedule)
+                          .catch((cause) => setMyScheduleError(cause instanceof Error ? cause.message : "Your schedule could not be loaded."))
+                          .finally(() => setMyScheduleLoading(false));
+                      }}
+                    >
+                      Try again
+                    </Button>
                   </div>
-                ) : !mySchedule ? (
-                  <p className="hub-empty">Loading your schedule...</p>
-                ) : (
-                  <ScheduleWeekList
-                    weeks={mySchedule.weeks}
-                    game={mySchedule.game as LeagueGame}
-                    currentWeek={hub.league.weekNumber}
-                    highlightCounts={myHighlightCounts ?? undefined}
-                    onUploadHighlight={(week) => setScheduleHighlightWeek(week)}
-                  />
-                )}
+                ) : myScheduleLoading || !mySchedule ? (
+                  <GameDayEmpty title="Loading your schedule..." />
+                ) : (() => {
+                  const seasonNumbers = mySchedule.seasonNumbers?.length
+                    ? mySchedule.seasonNumbers
+                    : [mySchedule.seasonNumber];
+                  const currentSeasonNumber = mySchedule.currentSeasonNumber ?? mySchedule.seasonNumber;
+                  const myGames = mySchedule.weeks
+                    .map((week) => week.matchupCard)
+                    .filter((game): game is NonNullable<typeof game> => Boolean(game));
+                  const h2hGames = myGames.filter((game) => game.matchupType === "h2h");
+                  const cpuGames = myGames.filter((game) => game.matchupType === "human_cpu" || game.matchupType === "cpu");
+                  return (
+                    <>
+                      <div className="hub-schedule-pickers">
+                        <label className="hub-week-select">
+                          <span>Season</span>
+                          <select
+                            className="form-input"
+                            value={mySchedule.seasonNumber}
+                            onChange={(event) => setMyScheduleSeason(Number(event.target.value))}
+                          >
+                            {seasonNumbers.map((season) => (
+                              <option key={season} value={season}>
+                                Season {season}{season === currentSeasonNumber ? " (Current)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      {!myGames.length ? (
+                        <GameDayEmpty title="No matchups on your schedule for this season." detail="Pick another season to browse past games." />
+                      ) : (
+                        <div className="hub-schedule-stack">
+                          <section className="hub-schedule-group">
+                            <h3>H2H Matchups</h3>
+                            {h2hGames.length ? (
+                              <div className="rec-matchup-list">
+                                {h2hGames.map((game, index) => (
+                                  <ExpandableMatchupCard key={game.gameId} game={game} featured={game.isGameOfWeek || index === 0} />
+                                ))}
+                              </div>
+                            ) : (
+                              <GameDayEmpty title="No H2H matchups this season." detail="Human vs CPU games are listed below when available." />
+                            )}
+                          </section>
+                          <section className="hub-schedule-group">
+                            <h3>Human vs CPU</h3>
+                            {cpuGames.length ? (
+                              <div className="rec-matchup-list">
+                                {cpuGames.map((game, index) => (
+                                  <ExpandableMatchupCard key={game.gameId} game={game} featured={index === 0} />
+                                ))}
+                              </div>
+                            ) : (
+                              <GameDayEmpty title="No CPU matchups this season." />
+                            )}
+                          </section>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </SectionFrame>
             ) : null}
           </div>
@@ -749,14 +762,6 @@ export function GameDayHome({ showGameDayNav = true }: { showGameDayNav?: boolea
           guildId={auth.guildId}
           onClose={() => setRequestHelpGame(null)}
           onSubmitted={() => setRequestHelpGame(null)}
-        />
-      )}
-      {scheduleHighlightWeek && scheduleHighlightWeek.gameId && auth.status === "ready" && (
-        <HighlightUploadModal
-          guildId={auth.guildId}
-          gameId={scheduleHighlightWeek.gameId}
-          onClose={() => setScheduleHighlightWeek(null)}
-          onSubmitted={() => { setScheduleHighlightWeek(null); setMySchedule(null); void viewMySchedule(); }}
         />
       )}
       {wagerPanel && (
