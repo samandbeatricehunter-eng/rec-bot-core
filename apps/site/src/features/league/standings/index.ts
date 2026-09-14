@@ -1,1 +1,1 @@
-export { LeagueStandingsHome } from "../../../../../web/src/routes/hub/LeagueStandingsHome.js";
+export { LeagueStandingsHome } from "./LeagueStandingsHome.js";

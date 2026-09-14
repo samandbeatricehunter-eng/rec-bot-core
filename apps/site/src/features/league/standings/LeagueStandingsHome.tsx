@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { getTeamByAbbreviation, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
-import { useReadyAuth } from "../../lib/auth-context.js";
-import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
-import { recApi } from "../../lib/rec-api-client.js";
-import { readStandingsBoardCache, writeStandingsBoardCache, type StandingsBoardResponse } from "../../lib/standings-board-cache.js";
-import { ErrorState } from "../../components/ui/ErrorState.js";
-import { LoadingState } from "../../components/ui/LoadingState.js";
-import { TeamLogo } from "../../components/ui/TeamLogo.js";
+import { useReadyAuth } from "@rec/hub-ui";
+import { resolveTeamLogoAbbr } from "../../../../../web/src/lib/team-logos.js";
+import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
+import { readStandingsBoardCache, writeStandingsBoardCache, type StandingsBoardResponse } from "../../../../../web/src/lib/standings-board-cache.js";
+import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
+import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
+import { TeamLogo } from "../../../../../web/src/components/ui/TeamLogo.js";
 
 type PowerRankingTeam = NonNullable<StandingsBoardResponse["powerRankings"]>["teams"][number];
 type SosTeam = NonNullable<StandingsBoardResponse["sos"]>["teams"][number];

@@ -8,16 +8,16 @@ import {
   NFL_TEAM_PRIMARY_COLORS,
 } from "@rec/shared";
 import { useSearchParams } from "react-router-dom";
-import { useReadyAuth } from "../../lib/auth-context.js";
-import { recApi } from "../../lib/rec-api-client.js";
-import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
-import { Card } from "../../components/ui/Card.js";
-import { ErrorState } from "../../components/ui/ErrorState.js";
-import { LoadingState } from "../../components/ui/LoadingState.js";
-import { PageHeader } from "../../components/ui/PageHeader.js";
-import { Modal } from "../../components/ui/Modal.js";
-import { TeamLogo } from "../../components/ui/TeamLogo.js";
-import { PlayerPhoto } from "../../components/hub/PlayerPhoto.js";
+import { useReadyAuth } from "@rec/hub-ui";
+import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
+import { resolveTeamLogoAbbr } from "../../../../../web/src/lib/team-logos.js";
+import { Card } from "../../../../../web/src/components/ui/Card.js";
+import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
+import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
+import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
+import { Modal } from "../../../../../web/src/components/ui/Modal.js";
+import { TeamLogo } from "../../../../../web/src/components/ui/TeamLogo.js";
+import { PlayerPhoto } from "../../../../../web/src/components/hub/PlayerPhoto.js";
 
 type StatsResponse = Awaited<ReturnType<typeof recApi.getLeagueStats>>;
 type StatsPlayer = StatsResponse["players"][number];

@@ -4,12 +4,6 @@ export { LeagueThemeProvider, useLeagueTheme } from "../../../apps/web/src/lib/l
 export { HubChromeProvider, useHubChrome } from "../../../apps/web/src/lib/hub-chrome-context.js";
 export { FantasyDraftCard } from "../../../apps/web/src/routes/hub/FantasyDraftCard.js";
 export { FantasyDraftBoardPage } from "../../../apps/web/src/routes/hub/FantasyDraftBoardPage.js";
-export { RulesHome } from "../../../apps/web/src/routes/hub/RulesHome.js";
-export { LeagueHistoryHome, SeasonHistoryDetail } from "../../../apps/web/src/routes/hub/LeagueHistoryHome.js";
-export { LeagueStatsHome } from "../../../apps/web/src/routes/hub/LeagueStatsHome.js";
-export { LeagueRecordsHome } from "../../../apps/web/src/routes/hub/LeagueRecordsHome.js";
-export { LeagueStandingsHome } from "../../../apps/web/src/routes/hub/LeagueStandingsHome.js";
-export { LeagueCareerStatsHome } from "../../../apps/web/src/routes/hub/LeagueCareerStatsHome.js";
 export { StatsMiniNav, type StatsNavId } from "../../../apps/web/src/components/hub/StatsMiniNav.js";
 export { TeamMiniNav } from "../../../apps/web/src/components/hub/TeamMiniNav.js";
 export { SectionMiniNav } from "../../../apps/web/src/components/hub/SectionMiniNav.js";

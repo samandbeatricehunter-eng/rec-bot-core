@@ -67,8 +67,8 @@ multi-section `HubHomeBridge`.
 | Home | season snapshot in page | `features/league/home/LeagueHomePage` |
 | Game Day | `gameday/GameDayRouteRail` | `gameday/GameDayPage` → site-owned `GameDayHome` (matchups-only) |
 | Team | `team/TeamRouteRail` | `TeamHomePage` + roster/store/trades placeholders |
-| Stats | `stats/StatsRouteRail` | site re-exports of web page modules |
-| Rules | — | site re-export of `RulesHome` |
+| Stats | `stats/StatsRouteRail` | site-owned bodies (`LeagueStatsHome`, career/standings/records/history) |
+| Rules | — | site-owned `RulesHome` |
 | Mgmt | `management/MgmtRouteRail` | mgmt pages still via `@rec/hub-ui` providers/pages |
 
 Retired from the product surface:
@@ -81,8 +81,8 @@ Default league landing is `/l/:leagueId/home`.
 ## Next (physical move / delete hub-ui)
 
 1. ~~Finish Game Day: move `GameDayHome` into `features/league/gameday`, delete `HubHome.tsx`.~~ Done.
-2. Move stats/standings/records/history/rules/mgmt page source files into site features
-   (replace deep re-exports).
+2. ~~Move stats/standings/records/history/rules page sources into site features.~~ Done.
+   Still to move: **mgmt** page source files (still via `@rec/hub-ui`).
 3. Move hub CSS bundles into `apps/site/src/styles` per feature.
 4. Collapse `@rec/hub-ui` to providers-only, then remove the package and `apps/web`.
 5. Move remaining Game Day leaf components (`MatchupCard`, wager helpers, empty states) out of
