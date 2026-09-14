@@ -4271,9 +4271,13 @@ button.hub-div-standing-team:focus-visible {
 .hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids {
   margin: 0;
 }
-.hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids dt,
+/* Luma-aware ink (--team-ink) so SITE/DISCORD/EA stay readable on dark and light washes. */
+.hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids dt {
+  color: color-mix(in srgb, var(--team-ink, #fff) 78%, transparent);
+}
 .hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids dd {
-  color: #111;
+  color: var(--team-ink, #fff);
+  font-weight: 700;
 }
 .hub-div-standing-mgmt-ids > div {
   display: grid;
@@ -4284,7 +4288,7 @@ button.hub-div-standing-team:focus-visible {
 }
 .hub-div-standing-mgmt-ids dt {
   margin: 0;
-  color: rgba(255,255,255,.72);
+  color: color-mix(in srgb, var(--team-ink, #fff) 72%, transparent);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .06em;
@@ -4292,7 +4296,7 @@ button.hub-div-standing-team:focus-visible {
 }
 .hub-div-standing-mgmt-ids dd {
   margin: 0;
-  color: #fff;
+  color: var(--team-ink, #fff);
   font-size: 11px;
   font-weight: 600;
   overflow: hidden;
