@@ -263,8 +263,7 @@ function AutoPilotPanel({ guildId, leagueId }: { guildId: string; leagueId: stri
     <div>
       <p className="form-hint" style={{ marginTop: 0 }}>
         Toggles in-game AutoPilot for a team. EA expires it automatically after the given number
-        of weeks — requests through the scheduling system default to 1 week; use this to grant a
-        longer stretch.
+        of weeks — use this to grant a longer stretch than the default.
       </p>
       <label className="form-field">
         <span className="form-label">Team</span>

@@ -18,7 +18,6 @@ import { GotwVotingCarousel } from "../../../../../web/src/components/hub/GotwVo
 import { GameDayEmpty, byeWeekEmptyCopy, noGotwEmptyCopy, noScheduleEmptyCopy, offseasonEmptyCopy } from "../../../../../web/src/components/hub/GameDayEmpty.js";
 import { MatchupGameMedia } from "../../../../../web/src/components/hub/MatchupGameMedia.js";
 import { MatchupTeamLeaders } from "../../../../../web/src/components/hub/MatchupTeamLeaders.js";
-import { HeroSchedulingStatus } from "../../../../../web/src/components/hub/HeroSchedulingStatus.js";
 import { ShareStreamModal } from "../../../../../web/src/components/hub/ShareStreamModal.js";
 import { RequestHelpSheet } from "../../../../../web/src/components/matchups/RequestHelpSheet.js";
 import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
@@ -525,9 +524,6 @@ export function GameDayHome({ showGameDayNav = true }: { showGameDayNav?: boolea
                   </div>
                 ) : heroMatchup ? (
                   <div className="hub-hero-matchup-stack">
-                    {auth.status === "ready" && heroMatchup.matchupType === "h2h" && (
-                      <HeroSchedulingStatus guildId={auth.guildId} gameId={heroMatchup.gameId} reloadKey={matchupReloadKey} />
-                    )}
                     <div
                       role="button"
                       tabIndex={0}

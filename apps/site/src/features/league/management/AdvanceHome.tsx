@@ -97,7 +97,6 @@ function AdvanceScoreReview() {
   // synchronously, no grace period. Warn before that happens, not after.
   const [rolloverHighlightCount, setRolloverHighlightCount] = useState<number | null>(null);
   const [rolloverWarningLoading, setRolloverWarningLoading] = useState(false);
-  const [schedulingByGameId, setSchedulingByGameId] = useState<Record<string, string>>({});
   const [advanceProgress, setAdvanceProgress] = useState<AdvanceProgress | null>(null);
 
   useEffect(() => {
@@ -113,9 +112,6 @@ function AdvanceScoreReview() {
         recApi.listGotwPollsForWeek({ guildId, weekNumber: res.currentWeek }).then((r) => setGotwPolls(r.polls)).catch(() => setGotwPolls([]));
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load this week's games."));
-    recApi.getWeekSchedulingStatus(guildId)
-      .then((res) => setSchedulingByGameId(Object.fromEntries(res.games.map((g) => [g.gameId, g.status]))))
-      .catch(() => setSchedulingByGameId({}));
   }
   useEffect(load, [guildId]);
 
@@ -284,11 +280,6 @@ function AdvanceScoreReview() {
                 )}
                 {!g.needsInput && <Badge status="approved">{g.existingResultSource ?? "Has result"}</Badge>}
                 {g.needsInput && <Badge status="pending">Needs input</Badge>}
-                {g.isH2h && (
-                  <Badge status={!g.needsInput ? "approved" : ["confirmed", "live"].includes(schedulingByGameId[g.gameId] ?? "") ? "info" : "pending"}>
-                    {!g.needsInput ? "Played" : schedulingByGameId[g.gameId] === "live" ? "Live" : schedulingByGameId[g.gameId] === "confirmed" ? "Scheduled" : "Not Scheduled"}
-                  </Badge>
-                )}
                 {g.eaForceWinAction?.status === "success" && g.eaForceWinAction.side !== "cleared" ? (
                   <span title={`EA accepted this Force Win command and REC logged it at ${new Date(g.eaForceWinAction.at).toLocaleString()} -- the in-game result is set.`}>
                     <Badge status="approved">
