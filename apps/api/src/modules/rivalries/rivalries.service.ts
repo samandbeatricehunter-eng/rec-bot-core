@@ -14,38 +14,6 @@ export type RivalryDetailsInput = {
   streakLength: number;
 };
 
-// CFB support has been removed; this seed catalog was CFB-only, so ensureLeagueRivalries is
-// permanently a no-op now (kept, rather than deleted, since team-ownership.service.ts still
-// calls it — cheap to leave as a guarded no-op instead of touching that call site too).
-export async function ensureLeagueRivalries(leagueId: string, game: string | null | undefined) {
-  if (game !== "cfb_27") return;
-  const [teams, catalog] = await Promise.all([
-    supabase.from("rec_teams").select("id,abbreviation,is_relocated").eq("league_id", leagueId),
-    supabase.from("rec_cfb_rivalry_catalog").select("*"),
-  ]);
-  if (teams.error || catalog.error) throw new ApiError(500, "Failed to load rivalry seed data.", teams.error ?? catalog.error);
-  const byAbbr = new Map((teams.data ?? []).filter((team: any) => !team.is_relocated).map((team: any) => [String(team.abbreviation).toUpperCase(), team]));
-  const rows = (catalog.data ?? []).flatMap((item: any) => {
-    const a: any = byAbbr.get(String(item.team_a_abbreviation).toUpperCase());
-    const b: any = byAbbr.get(String(item.team_b_abbreviation).toUpperCase());
-    if (!a || !b) return [];
-    const streakWinnerTeamId = item.streak_winner_abbreviation === item.team_a_abbreviation ? a.id : item.streak_winner_abbreviation === item.team_b_abbreviation ? b.id : null;
-    return [{
-      id: randomUUID(), league_id: leagueId, catalog_id: item.id, team_a_id: a.id, team_b_id: b.id,
-      rivalry_name: item.rivalry_name, first_year_played: item.first_year_played,
-      baseline_team_a_wins: item.team_a_wins, baseline_team_b_wins: item.team_b_wins, baseline_ties: item.ties,
-      baseline_last_game_team_a_score: item.last_game_team_a_score, baseline_last_game_team_b_score: item.last_game_team_b_score,
-      baseline_streak_winner_team_id: streakWinnerTeamId, baseline_streak_length: item.streak_length,
-      team_a_wins: item.team_a_wins, team_b_wins: item.team_b_wins, ties: item.ties,
-      last_game_team_a_score: item.last_game_team_a_score, last_game_team_b_score: item.last_game_team_b_score,
-      streak_winner_team_id: streakWinnerTeamId, streak_length: item.streak_length, is_seeded: true, is_active: true,
-    }];
-  });
-  if (!rows.length) return;
-  const seeded = await supabase.from("rec_league_rivalries").upsert(rows, { onConflict: "league_id,team_a_id,team_b_id", ignoreDuplicates: true });
-  if (seeded.error) throw new ApiError(500, "Failed to seed league rivalries.", seeded.error);
-}
-
 export async function clearRivalriesForCustomTeam(leagueId: string, teamId: string) {
   const result = await supabase.from("rec_league_rivalries").delete().eq("league_id", leagueId).or(`team_a_id.eq.${teamId},team_b_id.eq.${teamId}`);
   if (result.error) throw new ApiError(500, "Failed to clear inherited rivalries for the custom team.", result.error);

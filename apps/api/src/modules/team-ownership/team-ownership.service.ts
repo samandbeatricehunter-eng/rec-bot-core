@@ -7,7 +7,7 @@ import { writeAuditLog } from "../audit/audit.service.js";
 import { getCurrentLeagueContext, isSiteOnlyDiscordId, recUserIdFromSiteOnlyDiscordId } from "../league-context/league-context.service.js";
 import { trySeedDefaultScheduleAfterTeamsReady } from "../schedule/schedule.service.js";
 import { syncScheduleGameUserIdsForLeague, syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
-import { clearRivalriesForCustomTeam, ensureLeagueRivalries } from "../rivalries/rivalries.service.js";
+import { clearRivalriesForCustomTeam } from "../rivalries/rivalries.service.js";
 import { addMemberRole, ensureManagedRoleId, ensureManagedRolesPositioned, getGuildMemberDisplayNameMap, listGuildMembers, postDiscordChannelMessage, removeMemberRole, setGuildMemberNickname, type DiscordGuildMemberSummary } from "../../lib/discord-guild.js";
 import { REC_MANAGED_ROLES, type RecManagedRoleKey } from "@rec/shared";
 import { isHeadCommissionerAssignment, parseAssignmentAuthority, buildManagedTeamNickname, type AssignableRoleKey } from "./assignment-authority.js";
@@ -187,7 +187,6 @@ export async function createDefaultTeamsForLeague(leagueId: string, game: string
   }));
   const result = await supabase.from("rec_teams").insert(rows).select("*");
   if (result.error) throw new ApiError(500, "We couldn't create the default league teams. Please try again.", result.error);
-  await ensureLeagueRivalries(leagueId, game ?? null);
   syncRecruitingAd(leagueId);
   return { teams: result.data };
 }
@@ -212,7 +211,6 @@ export async function createDefaultTeamsForGuild(input: CreateDefaultTeamsInput)
     teams: rows,
     blockIfRelocated: false,
   });
-  await ensureLeagueRivalries(league.id, league.game);
   syncRecruitingAd(league.id);
 
   await writeAuditLog({
@@ -254,7 +252,6 @@ export async function resetDefaultTeamsForGuild(input: ResetDefaultTeamsInput) {
     teams: rows,
     blockIfRelocated: true,
   });
-  await ensureLeagueRivalries(league.id, league.game);
   syncRecruitingAd(league.id);
 
   await writeAuditLog({

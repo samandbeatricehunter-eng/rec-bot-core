@@ -8,7 +8,6 @@ import {
   REC_DEV_TRAITS,
   REC_NAME_CORPUS_VERSION,
   REC_OVR_MODEL_VERSION,
-  canonicalReplacementPosition,
   calculateRecAttributeCost,
   evaluateRecCustomPlayerBuild,
   formatCoins,
@@ -52,29 +51,9 @@ type Identity = {
   college?: string; bodyType?: string; cardRenderId?: string;
 };
 
-// CFB-only — Madden custom players keep the flat 60-84in / 140-400lb range below. These
-// ceilings are the mid-upper end of each position group's real-world FBS height distribution
-// (roughly the 85th-90th percentile), not the absolute outlier max. "avg" is the midpoint of
-// the position's typical range and is what the per-inch-over-average creation-point surcharge
-// is measured from — it is deliberately lower than the max ceiling.
-const CFB_POSITION_HEIGHT: Record<string, { max: number; avg: number }> = {
-  QB: { max: 77, avg: 75 },
-  HB: { max: 73, avg: 71 }, FB: { max: 73, avg: 71 },
-  WR: { max: 76, avg: 73 },
-  TE: { max: 78, avg: 77 },
-  LT: { max: 79, avg: 77 }, LG: { max: 79, avg: 77 }, C: { max: 79, avg: 77 }, RG: { max: 79, avg: 77 }, RT: { max: 79, avg: 77 },
-  LE: { max: 78, avg: 76 }, RE: { max: 78, avg: 76 }, DT: { max: 78, avg: 76 },
-  LOLB: { max: 76, avg: 74 }, MLB: { max: 76, avg: 74 }, ROLB: { max: 76, avg: 74 },
-  CB: { max: 74, avg: 71 },
-  FS: { max: 75, avg: 72 }, SS: { max: 75, avg: 72 },
-};
-const CFB_HEIGHT_FLOOR = 65;
-const CFB_HEIGHT_OVERAGE_COST_PER_INCH = 100;
-
-// Madden equivalent — same position set (REC_CUSTOM_PLAYER_POSITIONS), same reasoning as
-// CFB_POSITION_HEIGHT above (85th-90th percentile of each position's real-world height
-// distribution), so a custom player can't be built taller than the position has ever
-// realistically run (e.g. a 7'0" linebacker) regardless of game.
+// Custom players can't be built taller than the position has ever realistically run (e.g. a
+// 7'0" linebacker) — ceilings are the mid-upper end of each position group's real-world height
+// distribution (roughly the 85th-90th percentile), not the absolute outlier max.
 const MADDEN_POSITION_HEIGHT: Record<string, { max: number }> = {
   QB: { max: 77 },
   HB: { max: 73 }, FB: { max: 75 },
@@ -88,7 +67,9 @@ const MADDEN_POSITION_HEIGHT: Record<string, { max: number }> = {
 };
 const MADDEN_HEIGHT_FLOOR = 65;
 
-const CFB_BODY_TYPE_WEIGHT: Record<string, { min: number; max: number }> = {
+// Body build catalog for the card-appearance body type — weight itself stays free-range for
+// Madden (140-400 lbs, checked separately below); this only validates bodyType is a known key.
+const BODY_TYPE_CATALOG: Record<string, { min: number; max: number }> = {
   standard: { min: 175, max: 230 },
   thin: { min: 180, max: 236 },
   heavy: { min: 280, max: 400 },
@@ -96,14 +77,7 @@ const CFB_BODY_TYPE_WEIGHT: Record<string, { min: number; max: number }> = {
   muscular: { min: 210, max: 285 },
 };
 
-function heightOverageCost(position: string, heightInches: number): number {
-  const avg = CFB_POSITION_HEIGHT[position.toUpperCase()]?.avg ?? heightInches;
-  return Math.max(0, heightInches - avg) * CFB_HEIGHT_OVERAGE_COST_PER_INCH;
-}
-
-function gameFamily(game: string): RecGameFamily { return game === "cfb_27" ? "CFB" : "MADDEN"; }
 function gameYear(game: string): number { const match = game.match(/(\d{2})$/); return match ? Number(match[1]) : 27; }
-function defaultDev(game: RecGameFamily, tier: RecPackageTier) { return tier >= 3 ? (game === "CFB" ? "impact" : "star") : "normal"; }
 
 // Legends are the game's own "already famous" catalog for this game family — letting a custom
 // player claim an exact legend name would be confusing at best (two "Deion Sanders" on a
@@ -120,30 +94,13 @@ async function assertNameNotLegend(game: RecGameFamily, identity: Identity) {
 function validateIdentity(game: RecGameFamily, identity: Identity, position: string) {
   if (!identity.firstName?.trim() || !identity.lastName?.trim()) throw new ApiError(400, "First and last name are required.");
   if (!Number.isInteger(identity.jerseyNumber) || identity.jerseyNumber < 0 || identity.jerseyNumber > 99) throw new ApiError(400, "Jersey number must be 0-99.");
-  if (game === "CFB") {
-    if (identity.college) throw new ApiError(400, "CFB custom players do not use a college field.");
-    // Only first/last name, jersey #, handedness, height, weight, and body type are editable
-    // for a CFB custom player — hometown/state are not editable in-game (the wizard no longer
-    // collects them) and everything else about their physical build comes from ratings.
-    const heightRule = CFB_POSITION_HEIGHT[position.toUpperCase()];
-    const heightMax = heightRule?.max ?? 84;
-    if (!Number.isInteger(identity.heightInches) || identity.heightInches < CFB_HEIGHT_FLOOR || identity.heightInches > heightMax) {
-      throw new ApiError(400, `Height for this position must be between 5'5" and ${Math.floor(heightMax / 12)}'${heightMax % 12}".`);
-    }
-    if (!identity.bodyType || !CFB_BODY_TYPE_WEIGHT[identity.bodyType]) throw new ApiError(400, "A body type is required.");
-    const weightRule = CFB_BODY_TYPE_WEIGHT[identity.bodyType];
-    if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < weightRule.min || identity.weightLbs > weightRule.max) {
-      throw new ApiError(400, `Weight for the ${identity.bodyType} body type must be between ${weightRule.min} and ${weightRule.max} pounds.`);
-    }
-  } else {
-    const heightMax = MADDEN_POSITION_HEIGHT[position.toUpperCase()]?.max ?? 84;
-    if (!Number.isInteger(identity.heightInches) || identity.heightInches < MADDEN_HEIGHT_FLOOR || identity.heightInches > heightMax) {
-      throw new ApiError(400, `Height for this position must be between 5'5" and ${Math.floor(heightMax / 12)}'${heightMax % 12}".`);
-    }
-    if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) throw new ApiError(400, "Weight must be 140-400 pounds.");
-    // Body build is card-appearance only for Madden (weight stays free-range).
-    if (!identity.bodyType || !CFB_BODY_TYPE_WEIGHT[identity.bodyType]) throw new ApiError(400, "A body type is required for the player card appearance.");
+  const heightMax = MADDEN_POSITION_HEIGHT[position.toUpperCase()]?.max ?? 84;
+  if (!Number.isInteger(identity.heightInches) || identity.heightInches < MADDEN_HEIGHT_FLOOR || identity.heightInches > heightMax) {
+    throw new ApiError(400, `Height for this position must be between 5'5" and ${Math.floor(heightMax / 12)}'${heightMax % 12}".`);
   }
+  if (!Number.isInteger(identity.weightLbs) || identity.weightLbs < 140 || identity.weightLbs > 400) throw new ApiError(400, "Weight must be 140-400 pounds.");
+  // Body build is card-appearance only for Madden (weight stays free-range).
+  if (!identity.bodyType || !BODY_TYPE_CATALOG[identity.bodyType]) throw new ApiError(400, "A body type is required for the player card appearance.");
   if (!identity.cardRenderId || !isCustomPlayerRenderAllowed({
     cardRenderId: identity.cardRenderId,
     bodyBuild: identity.bodyType,
@@ -175,7 +132,7 @@ async function contextFor(guildId: string, discordId: string) {
 
 export async function getCustomPlayerConfig(guildId: string, discordId: string) {
   const { context, baseline, teamId, seasonNumber } = await contextFor(guildId, discordId);
-  const game = gameFamily(context.rec_leagues.game);
+  const game: RecGameFamily = "MADDEN";
   const year = gameYear(context.rec_leagues.game);
   const config = await supabase.from("rec_league_configuration")
     .select("coin_economy_enabled,custom_players_enabled,custom_players_season_cap,purchase_deadlines,purchase_caps_reset_at")
@@ -188,12 +145,9 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
   if (capsResetAt) buildsQuery = buildsQuery.gt("created_at", capsResetAt);
   const builds = await buildsQuery;
   if (builds.error) throw new ApiError(500, "We couldn't load your custom-player season usage. Please try again.", builds.error);
-  // Only recruits/manually-added players are eligible replacement targets — the default
-  // baseline roster (is_default_player = true) is never selectable here.
-  let rosterQuery = supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait,madden_player_id")
-    .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
-  if (game === "CFB") rosterQuery = rosterQuery.eq("is_default_player", false);
-  const roster = await rosterQuery.order("overall_rating", { ascending: true });
+  const roster = await supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait,madden_player_id")
+    .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"])
+    .order("overall_rating", { ascending: true });
   if (roster.error) throw new ApiError(500, "We couldn't load your roster for replacement. Please try again.", roster.error);
   const activeRosterCount = await supabase.from("rec_players").select("id", { count: "exact", head: true })
     .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
@@ -210,9 +164,7 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     purchaseDeadlinesEnabled: config.data?.purchase_deadlines_enabled ?? true,
     packages: await configuredPackages(game, year), positions: REC_CUSTOM_PLAYER_POSITIONS,
     devTraits: REC_DEV_TRAITS[game],
-    // CFB: no dev-trait picker in the wizard — the inserted player just inherits whatever
-    // trait the replaced player already has (or "normal" with no replacement).
-    devTraitInherited: game === "CFB",
+    devTraitInherited: false,
     archetypes: Object.fromEntries(REC_CUSTOM_PLAYER_POSITIONS.map((position) => [position, listRecArchetypes(game, position)])),
     attributes: [...attributes].sort().map((code) => ({ code, displayName: getRecAttributeDisplayName(code) })),
     replacementPlayers: roster.data ?? [],
@@ -220,18 +172,13 @@ export async function getCustomPlayerConfig(guildId: string, discordId: string) 
     // roster never applied), the replacement step is skipped and the build adds a brand-new
     // player instead of replacing one. Whenever eligible (non-default) players exist,
     // replacement stays mandatory.
-    replacementRequired: game === "MADDEN" || (roster.data ?? []).length > 0,
+    replacementRequired: true,
     // Active players exist, but none are eligible replacement targets (the whole roster is
     // still the untouched default baseline) — the purchase can't proceed until the user tracks
     // a recruit or manually adds a player via Edit Roster.
     blockedNoEligibleReplacement: (activeRosterCount.count ?? 0) > 0 && (roster.data ?? []).length === 0,
-    contractNotice: game === "MADDEN" ? "The outgoing player may be at any position. Your custom player receives the game's lowest available salary and bonus on a 3-year contract." : "The outgoing player may be at any position and is deleted from this league roster only.",
-    // CFB: in-game editors can't swap a recruit's face/model, so the replaced player's look
-    // carries over. Madden: the created player is a fresh create — face is chosen from the
-    // 150 card-render catalog (wizard Step 4); the replaced player only supplies the EA slot.
-    appearanceNotice: game === "MADDEN"
-      ? "Madden custom players do not inherit the replaced player's face or body. Set height, weight, and body type on this step, then pick a card headshot on Card Appearance. The player you replace only frees an EA roster slot."
-      : "This player inherits the in-game appearance (face/model) of whichever player they replace — only height, weight, and body type can be changed afterward. Pick a replacement you're comfortable with visually.",
+    contractNotice: "The outgoing player may be at any position. Your custom player receives the game's lowest available salary and bonus on a 3-year contract.",
+    appearanceNotice: "Madden custom players do not inherit the replaced player's face or body. Set height, weight, and body type on this step, then pick a card headshot on Card Appearance. The player you replace only frees an EA roster slot.",
     versions: { package: REC_CUSTOM_PLAYER_PACKAGE_VERSION, cost: REC_CUSTOM_PLAYER_COST_VERSION, archetype: REC_ARCHETYPE_CONFIG_VERSION, rules: REC_BUILD_RULES_VERSION, ovr: REC_OVR_MODEL_VERSION, names: REC_NAME_CORPUS_VERSION },
   };
 }
@@ -264,7 +211,7 @@ export async function getCustomPlayerDraft(guildId: string, discordId: string) {
 
 export async function saveCustomPlayerDraft(guildId: string, discordId: string, draft: WizardDraft) {
   const { context, baseline, teamId, seasonNumber } = await contextFor(guildId, discordId);
-  const game = gameFamily(context.rec_leagues.game);
+  const game: RecGameFamily = "MADDEN";
   const year = gameYear(context.rec_leagues.game);
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
   const now = new Date();
@@ -305,10 +252,9 @@ export function evaluateCustomPlayer(input: { game: RecGameFamily; packageTier: 
   } catch (error) {
     throw new ApiError(400, error instanceof Error ? error.message : "Unsupported archetype for this position.");
   }
-  // CFB dev trait is inherited from the replaced player, never purchased — no CP cost for it.
   let netDevelopmentCost = 0;
   try {
-    netDevelopmentCost = input.game === "CFB" ? 0 : getRecNetDevelopmentCost(input.game, input.packageTier, input.developmentTrait);
+    netDevelopmentCost = getRecNetDevelopmentCost(input.game, input.packageTier, input.developmentTrait);
   } catch (error) {
     throw new ApiError(400, error instanceof Error ? error.message : "Unsupported development trait for this package.");
   }
@@ -327,7 +273,7 @@ export async function submitCustomPlayer(input: {
   attributes: Record<string, number>; replacementPlayerId: string | null;
 }) {
   const { context, baseline, teamId, seasonNumber } = await contextFor(input.guildId, input.discordId);
-  const game = gameFamily(context.rec_leagues.game); const year = gameYear(context.rec_leagues.game);
+  const game: RecGameFamily = "MADDEN"; const year = gameYear(context.rec_leagues.game);
   const config = await getCustomPlayerConfig(input.guildId, input.discordId);
   if (!config.enabled) throw new ApiError(400, "Custom-player purchases are disabled for this league.");
   if (config.seasonCap > 0 && config.seasonUsed >= config.seasonCap) throw new ApiError(409, "You have reached this season's custom-player cap.");
@@ -346,47 +292,26 @@ export async function submitCustomPlayer(input: {
   // approved build creates a brand-new player instead of replacing an outgoing row.
   let replacement: { data: Record<string, unknown> | null } = { data: null };
   if (input.replacementPlayerId) {
-    let replacementQuery = supabase.from("rec_players").select("*").eq("id", input.replacementPlayerId)
-      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
-    if (game === "CFB") replacementQuery = replacementQuery.eq("is_default_player", false);
-    const found = await replacementQuery.maybeSingle();
-    if (found.error || !found.data) throw new ApiError(400, game === "CFB" ? "Select an active recruit/added player from your roster to replace." : "Select an active player from your roster to provide the Madden EA identity slot.");
+    const found = await supabase.from("rec_players").select("*").eq("id", input.replacementPlayerId)
+      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"])
+      .maybeSingle();
+    if (found.error || !found.data) throw new ApiError(400, "Select an active player from your roster to provide the Madden EA identity slot.");
     replacement = found as { data: Record<string, unknown> };
   } else if (config.replacementRequired) {
     throw new ApiError(400, "This team has eligible players — select one to replace. Skipping the replacement is only allowed while none are eligible yet.");
   }
 
-  // CFB position is locked to the replaced player — the in-game roster editor can't change a
-  // player's position, so this recruit inherits it. The client's position input is ignored
-  // for CFB (authoritative: derived from the replacement row); with no replacement (an
-  // unseeded-league brand-new add) the submitted position stands. The replaced player's
-  // position is the roster's raw code (SAM/WILL/MIKE/LEDGE/REDGE for CFB edge/LB slots) —
-  // canonicalize it, or isRecCustomPlayerPosition/getRecArchetype below reject it outright.
-  const effectivePosition = game === "CFB" && replacement.data ? canonicalReplacementPosition(String(replacement.data.position)) : input.position;
-  // CFB locks the recruit's position to the replaced player. The wizard must build for that
-  // position — a cross-position replacement (e.g. LG agile build replacing a TE) used to throw
-  // an uncaught "Unsupported archetype" 500 from getRecArchetype. Reject with a clear 400.
-  if (game === "CFB" && replacement.data) {
-    const submittedPosition = canonicalReplacementPosition(input.position) || input.position.trim().toUpperCase();
-    if (effectivePosition !== submittedPosition) {
-      throw new ApiError(400, `CFB custom players inherit the replaced player's position (${effectivePosition}). Rebuild this player as a ${effectivePosition}, or pick a ${submittedPosition} replacement.`);
-    }
-  }
+  const effectivePosition = input.position;
   validateIdentity(game, input.identity, effectivePosition);
   await assertNameNotLegend(game, input.identity);
 
-  // CFB dev trait is earned in-game, not purchased — the wizard never lets a CFB build
-  // choose one. The inserted player inherits whatever trait the replaced player already
-  // has (or starts "normal" when there's no replacement, i.e. an unseeded-league new add).
-  const effectiveDevTrait = game === "CFB" ? String(replacement.data?.dev_trait ?? "normal") : input.developmentTrait;
+  const effectiveDevTrait = input.developmentTrait;
 
   const evaluation = evaluateCustomPlayer({ game, packageTier: input.packageTier, position: effectivePosition, archetypeKey: input.archetypeKey, developmentTrait: effectiveDevTrait, attributes: input.attributes, mode: "submit" });
   if (!evaluation.valid) throw new ApiError(400, evaluation.violations.map((violation) => violation.message).join(" "));
-  // CFB-only surcharge for building above a position's real-world average height — deducted
-  // from the same creation-point budget as attributes/development, not a separate coin cost.
-  const heightSurcharge = game === "CFB" ? heightOverageCost(effectivePosition, input.identity.heightInches) : 0;
+  const heightSurcharge = 0;
   if (heightSurcharge > evaluation.pointsRemaining) {
-    throw new ApiError(400, `That height costs ${heightSurcharge} creation points (${CFB_HEIGHT_OVERAGE_COST_PER_INCH}/inch over the position average) — only ${evaluation.pointsRemaining} remain. Lower the height or free up points elsewhere.`);
+    throw new ApiError(400, `That height costs ${heightSurcharge} creation points — only ${evaluation.pointsRemaining} remain. Lower the height or free up points elsewhere.`);
   }
   const pointsRemainingAfterHeight = evaluation.pointsRemaining - heightSurcharge;
   const pkg = (await configuredPackages(game, year))[input.packageTier - 1] ?? getRecCustomPlayerPackage(game, input.packageTier, year);
@@ -423,7 +348,7 @@ export async function submitCustomPlayer(input: {
     replacement_player_snapshot: replacement.data ?? {},
     game_family: game, game_year: year, package_tier: input.packageTier, package_key: pkg.key, position: effectivePosition,
     selected_archetype_key: input.archetypeKey, inferred_archetype_key: evaluation.inferredArchetypeKey, development_trait: effectiveDevTrait,
-    identity: input.identity, body_type: game === "CFB" ? input.identity.bodyType : null, height_overage_cost: heightSurcharge,
+    identity: input.identity, body_type: null, height_overage_cost: heightSurcharge,
     attributes: input.attributes, evaluation, coin_price: pkg.coinPrice, creation_point_budget: evaluation.creationPoints,
     attribute_points_spent: evaluation.attributeCost, development_points_spent: evaluation.netDevelopmentCost, creation_points_spent: evaluation.totalCost + heightSurcharge,
     creation_points_remaining: pointsRemainingAfterHeight, unused_cp_refund_coins: unspentCpRewardCoins, estimated_ovr_raw: evaluation.rawOverall,
