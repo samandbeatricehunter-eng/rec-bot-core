@@ -11,7 +11,7 @@ function isActive(pathname: string, to: string) {
   return pathname === to || pathname.startsWith(`${to}/`);
 }
 
-/** Opens a HubHome modal via query bridge (footer lives outside HubHome). */
+/** Opens a league modal via query bridge (footer lives outside page bodies). */
 function openModalHref(leagueId: string, modal: string) {
   if (modal === "wager") return `/l/${leagueId}/matchups?openModal=wager`;
   return `/l/${leagueId}/home?openModal=${modal}`;

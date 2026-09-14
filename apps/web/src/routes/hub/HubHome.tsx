@@ -1,4 +1,4 @@
-﻿import { lazy, Suspense, useEffect, useMemo, useState, type ReactElement } from "react";
+﻿import { useEffect, useMemo, useState, type ReactElement } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { americanFromDecimal, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, coinsNumber, parlayOdds, potentialPayout, regularSeasonWeeks, stageForWeek, stageHasScheduledGames, stageLabel, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { ArrowDown, ArrowUp, ChevronLeft, RefreshCw, ScrollText, ShoppingBag, SlidersHorizontal, Star, TrendingUp, UserPlus, UsersRound } from "lucide-react";
@@ -27,30 +27,9 @@ import { StatusChip } from "../../components/design-system/StatusChip.js";
 import { useIsMobile } from "../../hooks/useIsMobile.js";
 import { LateSubmissionsModal } from "../../components/hub/LateSubmissionsModal.js";
 import { HighlightUploadModal } from "../../components/hub/HighlightUploadModal.js";
-import { EditRosterRequestModal } from "../../components/hub/EditRosterRequestModal.js";
 import { MatchupCard } from "../../components/matchups/MatchupCard.js";
 import { ExpandableMatchupCard } from "../../components/matchups/ExpandableMatchupCard.js";
 import { useHubChrome } from "../../lib/hub-chrome-context.js";
-import { TeamMiniNav } from "../../components/hub/TeamMiniNav.js";
-
-// Code-split: these destination surfaces/heavy modals are each only rendered behind a specific
-// section/purchaseType/wizard-open condition, but were previously statically imported into this
-// file's own bundle -- meaning every hub visitor downloaded and parsed all of TradeCenterHome
-// (1300+ lines), RosterHome, the store purchase forms, etc. up front regardless of whether they
-// ever open Roster, Trades, or the Store, directly inflating the hub's initial load time (see
-// docs/handoff/docs/MASTER_PLAN.md's "League Hub: lazy-load destination surfaces" item). Each is
-// wrapped in <Suspense> at its render site below.
-const RosterHome = lazy(() => import("../roster/RosterHome.js").then((m) => ({ default: m.RosterHome })));
-const TradeCenterHome = lazy(() => import("./TradeCenterHome.js").then((m) => ({ default: m.TradeCenterHome })));
-const LegendPurchasePanel = lazy(() => import("./LegendPurchasePanel.js").then((m) => ({ default: m.LegendPurchasePanel })));
-const FantasyDraftCard = lazy(() => import("./FantasyDraftCard.js").then((m) => ({ default: m.FantasyDraftCard })));
-const AttributePurchaseBuilder = lazy(() => import("../../components/hub/AttributePurchaseBuilder.js").then((m) => ({ default: m.AttributePurchaseBuilder })));
-const CustomPlayerWizard = lazy(() => import("../../components/hub/CustomPlayerWizard.js").then((m) => ({ default: m.CustomPlayerWizard })));
-const RelocateTeamWizard = lazy(() => import("../../components/hub/RelocateTeamWizard.js").then((m) => ({ default: m.RelocateTeamWizard })));
-
-function HubSurfaceFallback() {
-  return <div className="hub-empty" role="status">Loading...</div>;
-}
 
 type HubSection = "league" | "store" | "team" | "roster" | "openTeams" | "schedules" | "trades";
 type LeagueSubTab = "matchups";
@@ -404,7 +383,8 @@ function ScheduleWeekList({
     })}
   </div>;
 }
-export function HubHome({ showGameDayNav = true, showTeamNav = true }: { showGameDayNav?: boolean; showTeamNav?: boolean } = {}) {
+/** Game Day only — team/home/store bodies live in apps/site features/league. */
+export function GameDayHome({ showGameDayNav = true }: { showGameDayNav?: boolean } = {}) {
   const auth = useAuth();
   const hubChrome = useHubChrome();
   const isMobile = useIsMobile();
@@ -430,7 +410,7 @@ export function HubHome({ showGameDayNav = true, showTeamNav = true }: { showGam
   }), [economyValues]);
   const [error, setError] = useState<string | null>(null);
   const [setupAccess, setSetupAccess] = useState<{ leagueExists: boolean; canSetup: boolean } | null>(null);
-  const [section, setSection] = useState<HubSection>(() => parseHubSection(searchParams.get("section")) ?? "league");
+  const [section, setSection] = useState<HubSection>("league");
   const [subTab, setSubTab] = useState<LeagueSubTab>(() => parseLeagueSubTab(searchParams.get("subTab")) ?? "matchups");
   const [matchupWeek, setMatchupWeek] = useState<number | null>(null);
   const [matchupSeason, setMatchupSeason] = useState<number | null>(null);
@@ -508,19 +488,18 @@ export function HubHome({ showGameDayNav = true, showTeamNav = true }: { showGam
   const [financialModalOpen, setFinancialModalOpen] = useState(false);
   const [financialsTab, setFinancialsTab] = useState<"ledger" | "transfer">("ledger");
 
-  // Bridge for sticky footer More items (and any remaining ?openModal= deep links).
-  // Site chrome renders outside HubHome's component tree (sibling in SiteShell), so it can't
-  // call HubHome's local modal setters directly. It navigates with ?openModal=<key>; this effect
-  // opens the matching modal once and strips the param so refresh/back doesn't reopen it.
+  // Game Day deep links only — retire/financials are handled on League Home / Team Home.
   useEffect(() => {
     const requested = searchParams.get("openModal");
     if (!requested) return;
-    if (requested === "schedule" && (hub?.league.rosterType !== "rise_to_immortality" || hub?.league.riseHubUnlocked === true)) void viewMySchedule();
-    else if (requested === "financials") setFinancialModalOpen(true);
-    else if (requested === "wager" && hub?.league.rosterType !== "rise_to_immortality") openSportsbook();
-    else if (requested === "retire") { setRetireError(null); setRetireNickname(""); setRetireStep(1); setRetireModalOpen(true); }
     const next = new URLSearchParams(searchParams);
     next.delete("openModal");
+    if (requested === "schedule" && (hub?.league.rosterType !== "rise_to_immortality" || hub?.league.riseHubUnlocked === true)) {
+      next.set("view", "myschedule");
+      void viewMySchedule();
+    } else if (requested === "wager" && hub?.league.rosterType !== "rise_to_immortality") {
+      openSportsbook();
+    }
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -917,53 +896,7 @@ export function HubHome({ showGameDayNav = true, showTeamNav = true }: { showGam
   return <div className="hub-page" data-bg={isRise ? "rise" : isCfbLeague ? "cfb" : "madden"}>
     <div className="hub-body">
       <main className="hub-content">
-    {section === "openTeams" ? <section className="hub-section hub-open-teams-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">Available programs</p><h2>Open Teams</h2><p>Unlinked members can request one of these programs from their Discord Hub link.</p></div></div>{openTeamsError ? <div className="hub-empty"><p>{openTeamsError}</p><Button variant="secondary" onClick={() => { setOpenTeams(null); void viewOpenTeams(); }}>Try again</Button></div> : openTeams === null ? <p className="hub-empty">Loading available teams...</p> : openTeams.length === 0 ? <p className="hub-empty">All teams are currently assigned.</p> : <div className="hub-open-team-conferences">{Object.entries(openTeamsByConference).map(([conference, teams]) => <section key={conference}><h3>{conference}</h3><div>{teams.map((team) => <article key={team.id}><UsersRound size={17} /><span><strong>{team.name}</strong>{team.division && team.division !== "Teams" ? <small>{team.division}</small> : null}</span></article>)}</div></section>)}</div>}</section> : section === "schedules" ? <section className="hub-section hub-team-schedules-page"><div className="hub-section-heading"><div><p className="hub-eyebrow">League calendar</p><h2>Team Schedules</h2><p>Select a linked team to view its complete season.</p></div></div><label className="form-field"><span className="form-label">Team</span><select className="form-input" value={teamScheduleTeamId ?? ""} onChange={(event) => { if (event.target.value) void loadTeamSchedule(event.target.value); }}><option value="">{linkedTeams === null ? "Loading teams..." : "Select a team"}</option>{(linkedTeams ?? []).filter((row) => row.team).map((row) => <option key={row.team!.id} value={row.team!.id}>{row.team!.name} · {row.user?.display_name ?? "Coach"}</option>)}</select></label>{teamScheduleError ? <div className="hub-empty"><p>{teamScheduleError}</p></div> : !teamScheduleTeamId ? <p className="hub-empty">Pick a linked team to view its season schedule.</p> : !teamSchedule ? <p className="hub-empty">Loading schedule...</p> : <ScheduleWeekList weeks={teamSchedule.weeks} />}</section> : section === "team" ? <section className="hub-section hub-my-team">{showTeamNav ? <TeamMiniNav active="team" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /> : null}<div className="hub-section-heading"><div><p className="hub-eyebrow">Full coach profile</p><h2>{my.teamName ?? profile.teamName ?? "No team linked"}</h2><p>{coachName}</p></div></div>
-      <MyTeamRecordRow my={my} profile={profile} />
-      {/* Body intentionally cleared for a redesign -- was MaddenMyTeamGrid (stat grid + quick
-          action cards) on the live (non-CFB) path, CFB-only dead code before that. TeamMiniNav,
-          the heading above, and the record row stay; rebuild the rest fresh. */}
-      {!isCfbLeague && careerStatsModalOpen && <Modal title="Career Stats" onClose={() => setCareerStatsModalOpen(false)}>
-        <ProfileStats values={profile.careerStats} hideBoxScoresUploaded />
-        <p className="hub-muted">League career only — global totals live on My Account. Player-level career stats aren't tracked yet — League Stats has a per-player season breakdown.</p>
-      </Modal>}
-      {!isCfbLeague && powerRankingsModalOpen && <Modal title="Power Rankings" onClose={() => setPowerRankingsModalOpen(false)}>
-        {hub.powerRankings?.teams?.length ? <RankingListSearch
-          items={hub.powerRankings.teams}
-          getSearchText={(team) => team.teamName}
-          emptyLabel="Power rankings will appear after the first completed slate."
-          renderItem={(team) => <article key={team.teamId} className={team.isHuman ? "human" : ""}>
-            <strong>#{team.rank}</strong><div><span>{team.teamName}</span><small><RankChange change={team.change} /> · Score {Number(team.score).toFixed(3)}</small></div>
-          </article>}
-        /> : <p className="hub-empty">Power rankings will appear after the first completed slate.</p>}
-        {gotwGuessing?.records?.length ? (
-          <div className="hub-gotw-guessing-section">
-            <h3>GOTW Guessing Records</h3>
-            {gotwGuessing.records.map((record) => (
-              <article key={record.user_id} className="hub-gotw-guessing-row">
-                <span>{record.displayName}</span>
-                <small>{record.wins}-{record.losses}{record.ties ? `-${record.ties}` : ""}{record.current_streak > 1 ? ` · ${record.current_streak}-game streak` : ""}</small>
-              </article>
-            ))}
-          </div>
-        ) : null}
-      </Modal>}
-      {!isCfbLeague && bankModalOpen && <Modal title="Bank" onClose={() => setBankModalOpen(false)}>
-        <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
-      </Modal>}
-      {!isCfbLeague && financialModalOpen && <Modal title="Financials" onClose={() => setFinancialModalOpen(false)}>
-        <div className="hub-modal-pill-row">
-          <button type="button" className={financialsTab === "ledger" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => setFinancialsTab("ledger")}>Ledger</button>
-          <button type="button" className={financialsTab === "transfer" ? "hub-modal-pill is-active" : "hub-modal-pill"} onClick={() => setFinancialsTab("transfer")}>Transfer</button>
-        </div>
-        {financialsTab === "ledger" ? (
-          <FinancialLedger summary={profile.financialSummary} />
-        ) : (
-          <WalletSavingsCard guildId={auth.status === "ready" ? auth.guildId : ""} wallet={Number(my.wallet ?? 0)} savings={Number(my.savings ?? 0)} onTransferred={load} />
-        )}
-      </Modal>}
-      {!hub.canManageLeague && <div className="hub-retire-league"><Button variant="danger" onClick={() => { setRetireError(null); setRetireNickname(""); setRetireStep(1); setRetireModalOpen(true); }}>Retire from League</Button></div>}</section> : section === "store" ? <section className="hub-section hub-store">{showTeamNav ? <TeamMiniNav active="store" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /> : null}</section> : section === "roster" ? <>{showTeamNav ? <TeamMiniNav active="roster" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /> : null}{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<Suspense fallback={<HubSurfaceFallback />}><RosterHome /></Suspense></> : section === "trades" ? <>{showTeamNav ? <TeamMiniNav active="trades" leagueId={hub.league.id} isRise={isRise} tradesUnlocked={!isRise || rtiGates?.tradesUnlocked !== false} storeUnlocked={!isRise || Boolean(rtiGates?.storeUnlocked)} progressionAvailable={isRise} /> : null}{!isCfbLeague && <div className="hub-subpage-back"><Button variant="ghost" size="compact" onClick={() => selectSection("team")}><ChevronLeft size={16} /> Back to My Team</Button></div>}<Suspense fallback={<HubSurfaceFallback />}><TradeCenterHome /></Suspense></> : <div className="hub-league-tab">
-      {subTab === "matchups" && (
-        <>
+    <div className="hub-league-tab">
           {showGameDayNav ? <GameDayMiniNav active={gameDayView} leagueId={hub.league.id} /> : null}
 
           {gameDayView === "mine" ? (
@@ -1155,10 +1088,8 @@ export function HubHome({ showGameDayNav = true, showTeamNav = true }: { showGam
                   />}
             </SectionFrame>
           ) : null}
-        </>
-      )}
 
-    </div>}
+    </div>
       </main>
     </div>
 
@@ -1166,7 +1097,6 @@ export function HubHome({ showGameDayNav = true, showTeamNav = true }: { showGam
     {highlightUploadGame && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={highlightUploadGame.gameId} onClose={() => setHighlightUploadGame(null)} onSubmitted={() => { setHighlightUploadGame(null); setMatchupReloadKey((value) => value + 1); }} />}
     {requestHelpGame && auth.status === "ready" && <RequestHelpSheet matchup={requestHelpGame} guildId={auth.guildId} onClose={() => setRequestHelpGame(null)} onSubmitted={() => setRequestHelpGame(null)} />}
     {scheduleHighlightWeek && scheduleHighlightWeek.gameId && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={scheduleHighlightWeek.gameId} onClose={() => setScheduleHighlightWeek(null)} onSubmitted={() => { setScheduleHighlightWeek(null); setMySchedule(null); void viewMySchedule(); }} />}
-    {editRosterOpen && auth.status === "ready" && <EditRosterRequestModal guildId={auth.guildId} onClose={() => setEditRosterOpen(false)} onDone={() => setEditRosterOpen(false)} />}
     {wagerPanel && <Modal title={`Sportsbook · ${wagerPanel.label}`} panelClassName="hub-wager-slip-modal" hideHeader onClose={() => setWagerPanel(null)}><div className="hub-wager-modal">
       <header className="hub-wager-modal-brand">
         <span>REC League eSports</span>
@@ -1213,58 +1143,9 @@ export function HubHome({ showGameDayNav = true, showTeamNav = true }: { showGam
         </> : <div className="hub-peer-board hub-peer-board-tab"><h3>Open Wager Board</h3>{wagerPanel.board.length ? wagerPanel.board.map((wager) => <article key={wager.id}><div><strong>{wager.gameLabel}</strong><span>{displayLabel(wager.market)} · <CoinAmount amount={wager.stake} /> · {displayLabel(wager.challengeType)}</span></div>{wager.canAccept ? <Button variant="secondary" size="compact" disabled={wagerPanel.busy} onClick={() => void acceptPeer(wager.id)}>Accept</Button> : <StatusChip status={wager.isMine ? "pending" : "locked"} label={wager.isMine ? "Your offer" : "Unavailable"} />}</article>) : <p className="hub-empty">No open user wagers yet.</p>}</div>}
       </>}
     </div></Modal>}
-    {relocateWizardOpen && auth.status === "ready" && (
-      <Modal title="Relocate / Custom Team" onClose={() => setRelocateWizardOpen(false)}>
-        <Suspense fallback={<HubSurfaceFallback />}>
-          <RelocateTeamWizard
-            guildId={auth.guildId}
-            onApplied={(message) => {
-              setRelocateNotice(message);
-              setRelocateWizardOpen(false);
-              void load();
-            }}
-          />
-        </Suspense>
-      </Modal>
-    )}
-    {retireModalOpen && <Modal title={retireStep === 1 ? "Retire from League" : "Confirm retirement"} onClose={() => !retireBusy && setRetireModalOpen(false)}><div className="hub-retire-confirm">
-      {retireStep === 1 ? <>
-        <p>Type your team's currently displayed nickname exactly to continue. Your team will become open and you will lose access to this league.</p>
-        <p className="hub-muted">Required nickname: <strong>{heroTeam}</strong></p>
-        <label className="form-field"><span className="form-label">Team nickname</span><input className="form-input" value={retireNickname} autoComplete="off" disabled={retireBusy} onChange={(event) => setRetireNickname(event.target.value)} /></label>
-        {retireError && <p className="hub-transfer-status">{retireError}</p>}
-        <div className="advance-modal-actions">
-          <Button variant="ghost" disabled={retireBusy} onClick={() => setRetireModalOpen(false)}>Cancel</Button>
-          <Button variant="danger" disabled={retireBusy} onClick={() => {
-            if (retireNickname.trim() !== String(heroTeam).trim()) {
-              setRetireError("Nickname must match exactly.");
-              return;
-            }
-            setRetireError(null);
-            setRetireStep(2);
-          }}>Continue</Button>
-        </div>
-      </> : <>
-        <p>This cannot be undone. Retire <strong>{heroTeam}</strong> from <strong>{hub.league.name}</strong>?</p>
-        {retireError && <p className="hub-transfer-status">{retireError}</p>}
-        <div className="advance-modal-actions">
-          <Button variant="ghost" disabled={retireBusy} onClick={() => setRetireStep(1)}>Back</Button>
-          <Button variant="danger" disabled={retireBusy} onClick={async () => {
-            setRetireBusy(true); setRetireError(null);
-            try {
-              await hubChrome.retireFromCurrentLeague();
-              setRetireModalOpen(false);
-              setRetireStep(1);
-              setRetireNickname("");
-            } catch (error) {
-              setRetireError(error instanceof Error ? error.message : "Failed to retire from this league.");
-            } finally {
-              setRetireBusy(false);
-            }
-          }}>{retireBusy ? "Retiring..." : "Confirm Retirement"}</Button>
-        </div>
-      </>}
-    </div></Modal>}
     {lateSubmissionsOpen && auth.status === "ready" && <LateSubmissionsModal guildId={auth.guildId} currentWeek={hub.league.weekNumber} initialWeek={lateSubmissionsWeek} onClose={() => { setLateSubmissionsOpen(false); setLateSubmissionsFocus(null); setLateSubmissionsWeek(undefined); }} />}
   </div>;
 }
+
+/** @deprecated Use GameDayHome — HubHome is Game Day only now. */
+export const HubHome = GameDayHome;

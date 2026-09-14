@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { HubHome } from "@rec/hub-ui";
+import { GameDayHome } from "@rec/hub-ui";
 
 /**
- * Game Day body owned by apps/site. Top rail is GameDayRouteRail; this page only hosts the
- * matchup views that still live in the legacy HubHome matchups branch.
+ * Game Day body owned by apps/site. Top rail is GameDayRouteRail; matchup views still
+ * render via GameDayHome in apps/web until the remaining hooks/modals move here.
  */
 export function GameDayPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -19,5 +19,5 @@ export function GameDayPage() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  return <HubHome showGameDayNav={false} />;
+  return <GameDayHome showGameDayNav={false} />;
 }

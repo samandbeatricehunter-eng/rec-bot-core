@@ -65,7 +65,7 @@ multi-section `HubHomeBridge`.
 | Family | Rail | Body |
 |--------|------|------|
 | Home | season snapshot in page | `features/league/home/LeagueHomePage` |
-| Game Day | `gameday/GameDayRouteRail` | `gameday/GameDayPage` (wraps legacy HubHome matchups) |
+| Game Day | `gameday/GameDayRouteRail` | `gameday/GameDayPage` → `GameDayHome` (matchups-only; still in apps/web) |
 | Team | `team/TeamRouteRail` | `TeamHomePage` + roster/store/trades placeholders |
 | Stats | `stats/StatsRouteRail` | site re-exports of web page modules |
 | Rules | — | site re-export of `RulesHome` |
@@ -80,8 +80,8 @@ Default league landing is `/l/:leagueId/home`.
 
 ## Next (physical move / delete hub-ui)
 
-1. Move Game Day implementation out of `HubHome.tsx` into `features/league/gameday` modules
-   (hooks, matchup views, wager modal) so HubHome can be deleted.
+1. Finish Game Day: move `GameDayHome` hooks/matchup views/wager modal from
+   `apps/web/.../HubHome.tsx` into `features/league/gameday` modules, then delete HubHome.
 2. Move stats/standings/records/history/rules/mgmt page source files into site features
    (replace deep re-exports).
 3. Move hub CSS bundles into `apps/site/src/styles` per feature.
