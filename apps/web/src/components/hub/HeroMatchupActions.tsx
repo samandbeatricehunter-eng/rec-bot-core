@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BarChart3, ClipboardList, Film, LifeBuoy, Share2 } from "lucide-react";
+import { Film, LifeBuoy, Share2 } from "lucide-react";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { HubMatchupGame } from "../../types/api.js";
 import { Modal } from "../ui/Modal.js";
@@ -13,20 +13,14 @@ type SchedulingSnapshot = Awaited<ReturnType<typeof recApi.getSchedulingMatchupS
 export function HeroMatchupActions({
   guildId,
   matchup,
-  boxScoreMode,
   onChanged,
-  onOpenBoxScore,
-  onOpenPlayerStats,
   onOpenShareStream,
   onUploadHighlight,
   onOpenRequestHelp,
 }: {
   guildId: string;
   matchup: HubMatchupGame;
-  boxScoreMode: boolean;
   onChanged: () => void;
-  onOpenBoxScore?: () => void;
-  onOpenPlayerStats?: () => void;
   onOpenShareStream?: () => void;
   onUploadHighlight?: () => void;
   onOpenRequestHelp?: () => void;
@@ -167,8 +161,6 @@ export function HeroMatchupActions({
         </>}
       </div>
       {matchup.involvesMe && <div className="matchup-actions hub-hero-game-actions" role="group" aria-label="Game tools">
-        {boxScoreMode && <button type="button" className="matchup-action" disabled={!onOpenBoxScore || matchup.isFinal || Boolean(matchup.boxScoreSubmissionId)} onClick={onOpenBoxScore}><ClipboardList size={16} /> Box Score</button>}
-        {boxScoreMode && <button type="button" className="matchup-action" disabled={!onOpenPlayerStats || !matchup.boxScoreSubmissionId || matchup.boxScoreStatus === "denied"} onClick={onOpenPlayerStats}><BarChart3 size={16} /> Player Stats</button>}
         <button type="button" className="matchup-action" disabled={!onOpenShareStream} onClick={onOpenShareStream}><Share2 size={16} /> Share Stream</button>
         <button type="button" className="matchup-action" disabled={!onUploadHighlight} onClick={onUploadHighlight}><Film size={16} /> Upload Highlight(s)</button>
         <button type="button" className="matchup-action" disabled={!isH2h || !onOpenRequestHelp} title={schedulingInactiveReason} onClick={onOpenRequestHelp}><LifeBuoy size={16} /> Request Help</button>
@@ -209,7 +201,7 @@ export function HeroMatchupActions({
 
     {completedOpen && <Modal title="Game Completed" onClose={() => setCompletedOpen(false)}>
       <div className="hub-hero-action-modal">
-        <p>Mark this game over. Scores are optional and can still be verified through the normal box-score workflow.</p>
+        <p>Mark this game over. Scores are optional and can still be corrected later once the official result imports.</p>
         <div className="hub-hero-score-inputs">
           <label className="form-field"><span className="form-label">{matchup.awayTeamName} score</span><input className="form-input" type="number" min="0" step="1" value={awayScore} onChange={(event) => setAwayScore(event.target.value)} /></label>
           <label className="form-field"><span className="form-label">{matchup.homeTeamName} score</span><input className="form-input" type="number" min="0" step="1" value={homeScore} onChange={(event) => setHomeScore(event.target.value)} /></label>

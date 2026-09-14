@@ -32,10 +32,8 @@ export type TeamManagementSummaryRow = {
   scheduleStatus: "empty" | "partial" | "complete";
   gamesScheduled: number;
   gamesExpected: number;
-  /** Confirmed H2H regular-season games at or before the league's current week with no result and no pending box-score submission. */
+  /** Confirmed H2H regular-season games at or before the league's current week with no recorded result. */
   missingBoxScoreCount: number;
-  /** Confirmed H2H regular-season games with a pending box-score submission awaiting review. */
-  awaitingReviewCount: number;
   record: { wins: number; losses: number; ties: number };
   /** Imported EA gamertag/PSN from the last Madden hub import; null for CPU or unimported teams. */
   eaUsername: string | null;
@@ -154,7 +152,6 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
     const scheduleStatus: "empty" | "partial" | "complete" = gamesScheduled === 0 ? "empty" : gamesScheduled >= gamesExpected ? "complete" : "partial";
 
     let missingBoxScoreCount = 0;
-    let awaitingReviewCount = 0;
     let wins = 0;
     let losses = 0;
     let ties = 0;
@@ -170,8 +167,6 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
           if (won) wins++;
           else losses++;
         }
-      } else if (isH2hGame && extra?.pendingBoxScoreSubmissionId) {
-        awaitingReviewCount++;
       } else if (isH2hGame && seasonHasStarted && g.week_number <= currentWeek) {
         // Only a game whose week has already been reached counts as "missing" — a
         // confirmed-but-future matchup just hasn't been played yet. CPU/filler games
@@ -212,7 +207,6 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
       gamesScheduled,
       gamesExpected,
       missingBoxScoreCount,
-      awaitingReviewCount,
       record: { wins, losses, ties },
       eaUsername: typeof team.ea_username === "string" && team.ea_username.trim() ? team.ea_username.trim() : null,
     };

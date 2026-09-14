@@ -860,8 +860,7 @@ async function loadHub(guildId: string, discordId: string) {
     };
   });
 
-  const [weeklySubmission, reactions, views, storyReactions, storyComments, gameReactions, highlightGameUsers, liveGameTeamsRes, streamViews, streamReactions] = await Promise.all([
-    weeklyGame ? supabase.from("rec_box_score_submissions").select("id").eq("game_id", weeklyGame.gameId).eq("status", "approved").limit(1).maybeSingle() : Promise.resolve({ data: null as { id: string } | null }),
+  const [reactions, views, storyReactions, storyComments, gameReactions, highlightGameUsers, liveGameTeamsRes, streamViews, streamReactions] = await Promise.all([
     ids.length ? supabase.from("rec_highlight_reactions").select("highlight_post_id,user_id,reaction_key").in("highlight_post_id", ids) : Promise.resolve({ data: [], error: null }),
     ids.length ? supabase.from("rec_highlight_views").select("highlight_post_id").in("highlight_post_id", ids) : Promise.resolve({ data: [], error: null }),
     storyIds.length ? supabase.from("rec_story_reactions").select("story_id,user_id,reaction_key").in("story_id", storyIds) : Promise.resolve({ data: [], error: null }),
@@ -878,7 +877,6 @@ async function loadHub(guildId: string, discordId: string) {
   ]);
   const weeklyGameLedger = (weeklyLedgers.data ?? []).find((row: any) =>
     String(row.source_reference?.gameId ?? row.source_reference?.game_id ?? "") === String(weeklyGame?.gameId ?? "")
-    || String(row.source_reference?.submissionId ?? "") === String(weeklySubmission.data?.id ?? "")
   );
   const weeklyGameBasePaid = Number(weeklyGameLedger?.amount ?? 0);
   const paid = (rows: any[]) => rows.filter((row) => row.status === "issued" || row.status === "approved").reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
@@ -1988,10 +1986,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     };
   };
   const gameIds = (games.data ?? []).map((game: any) => game.id).filter(Boolean);
-  const [boxScores, gameReactionsForWeek, gameScheduling] = await Promise.all([
-    gameIds.length
-      ? supabase.from("rec_box_score_submissions").select("id,game_id,status,denied_reason,updated_at").in("game_id", gameIds).in("status", ["pending", "approved", "denied"]).order("updated_at", { ascending: true })
-      : Promise.resolve({ data: [], error: null }),
+  const [gameReactionsForWeek, gameScheduling] = await Promise.all([
     gameIds.length
       ? supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key,comment").in("game_id", gameIds)
       : Promise.resolve({ data: [], error: null }),
@@ -2001,10 +1996,8 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       ? supabase.from("rec_game_scheduling").select("game_id,scheduled_for,fw_flagged,fw_flagged_for_user_id").in("game_id", gameIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (boxScores.error) throw new ApiError(500, "We couldn't load matchup box-score status. Please try again.", boxScores.error);
   if (gameReactionsForWeek.error) throw new ApiError(500, "We couldn't load matchup reactions. Please try again.", gameReactionsForWeek.error);
   if (gameScheduling.error) throw new ApiError(500, "We couldn't load matchup scheduling status. Please try again.", gameScheduling.error);
-  const boxScoreByGameId = new Map<string, any>((boxScores.data ?? []).map((row: any) => [row.game_id, row]));
   const schedulingByGameId = new Map<string, any>((gameScheduling.data ?? []).map((row: any) => [row.game_id, row]));
   const mappedGames = (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).map((game: any) => {
       const result = resultByTeams.get(`${game.home_team?.id}:${game.away_team?.id}`) ?? null;
@@ -2033,13 +2026,12 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         : staleStream ? "awaiting_result"
         : (homeStream || awayStream) ? "live"
         : "scheduled";
-      const boxScore = boxScoreByGameId.get(game.id) ?? null;
       const gameReactionRows = (gameReactionsForWeek.data ?? []).filter((reaction: any) => reaction.game_id === game.id);
       // Older GOTW rows can point at a superseded rec_games id after a schedule refresh.
       // Team identity is the durable fallback so a game's poll is never silently dropped.
       const gamePoll = pollForGame(game);
       const gameVotes = gamePoll ? votesByPollId.get(gamePoll.id) ?? [] : [];
-      const gotwHasFinal = isFinal || Boolean(boxScore && boxScore.status !== "denied");
+      const gotwHasFinal = isFinal;
       const gotwCanVote = Boolean(gamePoll && gamePoll.status === "open" && !gotwHasFinal);
       const gotw = gamePoll ? {
         pollId: gamePoll.id,
@@ -2094,9 +2086,6 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
           : null,
         wageringOpen: String(game.status ?? "scheduled").toLowerCase() === "scheduled" && !isFinal,
         winnerTeamId: result?.winning_team_id ?? null,
-        boxScoreSubmissionId: boxScore?.id ?? null,
-        boxScoreStatus: boxScore?.status ?? null,
-        boxScoreDeniedReason: boxScore?.status === "denied" ? (boxScore?.denied_reason ?? null) : null,
         reactionCounts: Object.fromEntries(["love", "like", "goty", "dislike", "poop"].map((key) => [key, gameReactionRows.filter((reaction: any) => reaction.reaction_key === key).length])),
         myReactions: gameReactionRows.filter((reaction: any) => reaction.user_id === userId).map((reaction: any) => reaction.reaction_key),
         myGotyComment: gameReactionRows.find((reaction: any) => reaction.user_id === userId && reaction.reaction_key === "goty")?.comment ?? null,

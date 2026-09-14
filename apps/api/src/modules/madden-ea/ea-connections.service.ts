@@ -16,7 +16,7 @@ import { mapWithConcurrency } from "../../lib/concurrency.js";
 import { ApiError } from "../../lib/errors.js";
 import type { CompanionConnection } from "../madden-companion/madden-companion.service.js";
 import { ingestCompanionPayload, recUserIdFromDiscordId, syncCompanionScheduleResultsIntoGameResults } from "../madden-companion/madden-companion.service.js";
-import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
+import { processGameIntelligence } from "../game-intelligence/persistence.js";
 import { issueAndGradeWeeklyTeamChallengesForGame } from "../weekly-challenges/weekly-challenge-issuance.service.js";
 import { reconcileApprovedMaddenPurchases } from "../purchases/purchases.service.js";
 import { reconcileImmortalityUpgradeVerifications } from "../immortality/immortality.service.js";

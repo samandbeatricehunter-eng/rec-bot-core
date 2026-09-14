@@ -12,8 +12,6 @@ import { Table, Th, Td } from "../../../components/ui/Table.js";
 import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { Tooltip } from "../../../components/ui/Tooltip.js";
-import { EnterFinalScoreModal } from "./EnterFinalScoreModal.js";
-import { WatchedPlayersPanel } from "./WatchedPlayersPanel.js";
 
 type WeekPick = {
   isBye: boolean;
@@ -26,8 +24,6 @@ type WeekPick = {
   isNationalChampionship: boolean;
 };
 type SavedResult = { weekNumber: number; skipped: boolean; reason?: string };
-
-type ActiveModal = { type: "score"; week: TeamScheduleManualWeek };
 
 function pickForWeek(week: TeamScheduleManualWeek, teams: ScheduleTeam[], fallback?: WeekPick): WeekPick {
   if (week.alreadyConfirmed && week.confirmedOpponentTeamId && week.confirmedHomeAway) {
@@ -133,10 +129,9 @@ function RivalryEditor({ week, guildId, teamId, teamName, onSaved }: { week: Tea
 
 // The whole-season, single-page form this Activity exists to demonstrate — every week is
 // a row here instead of Discord's forced one-week-at-a-time wizard (apps/bot/src/flows/
-// cfb-team-schedule-manual.ts), and there's no 25-option select cap to work around. Weeks
-// that already have a real matchup are also where box-score upload, review, and manual
-// final-score entry live — a commissioner opening this screen for an in-progress team sees
-// real, populated data immediately, and can resolve that week's result right from this row.
+// cfb-team-schedule-manual.ts), and there's no 25-option select cap to work around. Results
+// come from EA import or Advance's manual score entry — this screen only manages the
+// matchup itself (opponent/home-away/bye/bowl), not scores.
 // Game-generic (cfb_27 | madden_26 | madden_27) — stage labels come from the loaded team's
 // actual league.game, not a hardcoded guess.
 export function TeamScheduleForm() {
@@ -148,7 +143,6 @@ export function TeamScheduleForm() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [results, setResults] = useState<SavedResult[] | null>(null);
-  const [activeModal, setActiveModal] = useState<ActiveModal | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [customBowl, setCustomBowl] = useState<{ weekNumber: number; name: string } | null>(null);
   const [editingWeeks, setEditingWeeks] = useState<Set<number>>(new Set());
@@ -195,18 +189,14 @@ export function TeamScheduleForm() {
       const result = await recApi.commitTeamScheduleDecisions({ guildId, teamId, decisions, byeWeeks, firstRoundByeWeeks });
       setResults(result.saved);
       setEditingWeeks(new Set());
-      // Newly-confirmed weeks need to switch over to their populated, box-score-ready
-      // display without a manual page reload.
+      // Newly-confirmed weeks need to switch over to their populated display without a
+      // manual page reload.
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save schedule.");
     } finally {
       setSaving(false);
     }
-  }
-
-  function closeModal() {
-    setActiveModal(null);
   }
 
   async function removeGame(week: TeamScheduleManualWeek) {
@@ -229,12 +219,6 @@ export function TeamScheduleForm() {
   function cancelEditWeek(week: TeamScheduleManualWeek) {
     setPicks((prev) => ({ ...prev, [week.weekNumber]: pickForWeek(week, teams ?? []) }));
     setEditingWeeks((prev) => { const next = new Set(prev); next.delete(week.weekNumber); return next; });
-  }
-
-  async function afterResolved(message: string) {
-    setNotice(message);
-    closeModal();
-    await load();
   }
 
   if (error) return <ErrorState message={error} />;
@@ -270,11 +254,8 @@ export function TeamScheduleForm() {
               const savedResult = resultByWeek.get(week.weekNumber);
               const resultLabel = resultLabelForDisplayedTeam(week);
               // Any confirmed matchup — regular season or a manually-declared playoff/bowl
-              // game, played or not yet played — gets the read-only card with Upload Box
-              // Score / Enter Results actions. Previously this also required a result or
-              // box-score submission to already exist, which meant a playoff game entered
-              // through this screen (no auto-generated placeholder result row, unlike
-              // regular-season games) could never reach those actions at all.
+              // game, played or not yet played — gets the read-only card. Results come from
+              // EA import or Advance's manual score entry, not from this screen.
               const showConfirmedView = week.alreadyConfirmed && !editingWeeks.has(week.weekNumber);
 
               if (showConfirmedView) {
@@ -298,13 +279,7 @@ export function TeamScheduleForm() {
                     </Td>
                     <Td data-label="Actions">
                       <div className="team-schedule-actions-row">
-                        <Button
-                          variant="secondary"
-                          onClick={() => setActiveModal({ type: "score", week })}
-                        >
-                          {week.result ? "Correct Results" : "Enter Results"}
-                        </Button>
-                        {!week.result && (
+                        {!week.result ? (
                           <>
                             <Button variant="secondary" disabled={saving} onClick={() => setEditingWeeks((prev) => new Set(prev).add(week.weekNumber))}>
                               Edit
@@ -313,6 +288,8 @@ export function TeamScheduleForm() {
                               Remove
                             </Button>
                           </>
+                        ) : (
+                          <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>Result recorded</span>
                         )}
                       </div>
                     </Td>
@@ -391,7 +368,7 @@ export function TeamScheduleForm() {
                       savedResult.skipped ? <Badge status="denied">skipped ({savedResult.reason})</Badge> : <Badge status="approved">saved</Badge>
                     ) : (
                       <span style={{ color: "var(--text-muted)", fontSize: "var(--text-xs)" }}>
-                        {week.alreadyConfirmed ? "Update the matchup, then Save Schedule Changes to resubmit" : "Pick an opponent and Save Season to unlock box score entry"}
+                        {week.alreadyConfirmed ? "Update the matchup, then Save Schedule Changes to resubmit" : "Pick an opponent and Save Season to confirm this matchup"}
                       </span>
                     )}
                     {editingWeeks.has(week.weekNumber) && (
@@ -412,20 +389,7 @@ export function TeamScheduleForm() {
         </Button>
       </div>
 
-      <WatchedPlayersPanel guildId={guildId} teamId={teamId!} />
       {customBowl ? <div className="modal-backdrop"><Card className="stat-edit-modal"><h2>Name custom bowl</h2><label className="form-field"><span className="form-label">Bowl name</span><input className="form-input" maxLength={100} autoFocus value={customBowl.name} onChange={(event) => setCustomBowl({ ...customBowl, name: event.target.value })} /></label><div className="form-actions"><Button variant="primary" disabled={!customBowl.name.trim()} onClick={() => { updatePick(customBowl.weekNumber, { bowlName: customBowl.name.trim(), isBowlGame: true }); setCustomBowl(null); }}>Use Custom Bowl</Button><Button variant="ghost" onClick={() => setCustomBowl(null)}>Cancel</Button></div></Card></div> : null}
-
-      {activeModal?.type === "score" && (
-        <EnterFinalScoreModal
-          guildId={guildId}
-          gameId={activeModal.week.gameId!}
-          existing={activeModal.week.result}
-          {...homeAwayLabels(activeModal.week, state.team.name)}
-          {...homeAwayTeamIds(activeModal.week, teamId!)}
-          onClose={closeModal}
-          onSaved={() => afterResolved("Results saved.")}
-        />
-      )}
     </div>
   );
 }

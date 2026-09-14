@@ -38,7 +38,6 @@ import { hubRoutes } from "./modules/hub/hub.routes.js";
 import { weeklyChallengesRoutes } from "./modules/weekly-challenges/weekly-challenges.routes.js";
 import { renderRoutes } from "./modules/render/render.routes.js";
 import { debugStreamDownloadRoutes } from "./modules/streaming/debug-stream-download.routes.js";
-import { watchedPlayersRoutes } from "./modules/watched-players/watched-players.routes.js";
 import { maddenCompanionRoutes } from "./modules/madden-companion/madden-companion.routes.js";
 import { maddenEaRoutes } from "./modules/madden-ea/madden-ea.routes.js";
 import { eaAdminActionRoutes } from "./modules/madden-ea/ea-admin-actions.routes.js";
@@ -103,7 +102,6 @@ export async function registerRoutes(app: FastifyInstance) {
   await hubRoutes(app);
   await renderRoutes(app);
   await debugStreamDownloadRoutes(app);
-  await watchedPlayersRoutes(app);
   await maddenCompanionRoutes(app);
   await maddenEaRoutes(app);
   await eaAdminActionRoutes(app);

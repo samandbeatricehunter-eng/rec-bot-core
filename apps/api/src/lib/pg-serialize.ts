@@ -10,7 +10,6 @@
  * `information_schema` columns where `data_type = 'ARRAY'`.
  */
 export const NATIVE_PG_ARRAY_COLUMNS = new Set([
-  "rec_box_score_submissions.extra_discord_message_ids",
   "rec_league_configuration.force_win_rules_regular",
   "rec_league_configuration.force_win_rules_postseason",
   "rec_league_configuration.fair_sim_rules_regular",

@@ -128,7 +128,7 @@ export async function getCurrentLeagueContext(guildId: string): Promise<CurrentL
 }
 
 // Reverse of findCurrentLeagueContext — callers that only have a leagueId (e.g. the
-// box-score-intelligence pipeline, which runs off a submission row, not a Discord
+// game-intelligence pipeline, which runs off an EA-import batch, not a Discord
 // interaction) use this to find the guild + configured channel routes for posting back
 // to Discord. Returns null for a league with no primary server link (a standalone,
 // non-Discord-linked league).

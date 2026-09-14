@@ -302,12 +302,14 @@ function phaseForWeek(weekNumber: number, game: string | null) {
   return stageForWeek(weekNumber, game);
 }
 
+// box_score / box_score_screenshot = legacy source values from the retired box-score/OCR
+// systems -- kept here (not written anymore) so historical results with those sources still
+// count as resolved/already-paid.
 const BOX_SCORE_SOURCES = ["box_score", "box_score_screenshot"];
 // Sources that already settle a game so the advance wizard doesn't re-ask for it.
-// schedule_screenshot = scores pre-logged from a League Schedule screenshot upload.
 // manual = scores/outcomes entered via the Manual Scores tool.
 // madden_companion_import = scores pre-logged from a Madden Companion App schedule export.
-const RESOLVED_RESULT_SOURCES = [...BOX_SCORE_SOURCES, "schedule_screenshot", "manual", "madden_companion_import"];
+const RESOLVED_RESULT_SOURCES = [...BOX_SCORE_SOURCES, "manual", "madden_companion_import"];
 
 // Extracted so the multi-week Advance Jump preview can walk several future weeks'
 // worth of "games needing input" without mutating any league state (getAdvanceWeekGames
@@ -331,24 +333,14 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
     .eq("phase", phase);
   if (error) throw new ApiError(500, "We couldn't load the week schedule. Please try again.", error);
 
-  const [results, boxScores] = await Promise.all([
-    supabase
-      .from("rec_game_results")
-      .select("id,external_game_id,home_team_id,away_team_id,source,home_score,away_score")
-      .eq("league_id", context.leagueId)
-      .eq("season_number", seasonNumber)
-      .eq("week_number", weekNumber),
-    supabase
-      .from("rec_box_score_submissions")
-      .select("id,game_id,status")
-      .eq("league_id", context.leagueId)
-      .eq("season_number", seasonNumber)
-      .eq("week_number", weekNumber)
-      .in("status", ["pending", "approved"]),
-  ]);
+  const results = await supabase
+    .from("rec_game_results")
+    .select("id,external_game_id,home_team_id,away_team_id,source,home_score,away_score")
+    .eq("league_id", context.leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber);
 
   if (results.error) throw new ApiError(500, "We couldn't load existing game results right now. Please try again.", results.error);
-  if (boxScores.error) throw new ApiError(500, "We couldn't load box score submissions right now. Please try again.", boxScores.error);
 
   // Live assignments — schedule seed often writes null home_user_id/away_user_id before
   // coaches claim teams. Game channels (and advance H2H filtering) must not treat those
@@ -362,7 +354,6 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
   if (assignments.error) throw new ApiError(500, "We couldn't load team assignments for this week's games. Please try again.", assignments.error);
   const userByTeam = new Map((assignments.data ?? []).map((row: any) => [row.team_id, row.user_id as string]));
 
-  const boxScoreGameIds = new Set((boxScores.data ?? []).map((row) => String(row.game_id)).filter(Boolean));
   const resultByMatchup = new Map<string, { source: string | null; home_score: number | null; away_score: number | null }>(
     (results.data ?? []).map((row: any) => [`${row.home_team_id}:${row.away_team_id}`, { source: row.source ?? null, home_score: row.home_score ?? null, away_score: row.away_score ?? null }]),
   );
@@ -401,11 +392,10 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
   }
 
   const mapped = (games ?? []).map((game: any) => {
-    const hasBoxScore = boxScoreGameIds.has(String(game.id));
     const resultRow = resultByMatchup.get(`${game.home_team_id}:${game.away_team_id}`) ?? null;
     const existingSource = resultRow?.source ?? null;
     const hasOfficialResult = existingSource != null && RESOLVED_RESULT_SOURCES.includes(String(existingSource));
-    const needsInput = !hasBoxScore && !hasOfficialResult;
+    const needsInput = !hasOfficialResult;
     const homeUserId = userByTeam.get(game.home_team_id) ?? game.home_user_id ?? null;
     const awayUserId = userByTeam.get(game.away_team_id) ?? game.away_user_id ?? null;
     const isH2h = Boolean(homeUserId && awayUserId);
@@ -418,7 +408,6 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
       awayUserId,
       homeTeamName: formatTeamDisplayName(game.home_team) ?? game.home_team?.name ?? "Home",
       awayTeamName: formatTeamDisplayName(game.away_team) ?? game.away_team?.name ?? "Away",
-      hasBoxScore,
       existingResultSource: existingSource,
       needsInput,
       isCpuGame: !isH2h,
@@ -587,7 +576,7 @@ export type WeeklyH2hGame = {
   awayUserId: string | null;
   homeTeamName: string;
   awayTeamName: string;
-  status: "missing" | "awaiting_review" | "final";
+  status: "missing" | "final";
   result: { homeScore: number; awayScore: number; isTie: boolean; winnerTeamName: string | null } | null;
 };
 
@@ -630,8 +619,6 @@ export async function getWeeklyH2hGames(guildId: string): Promise<{ weekLabel: s
       status = "final";
       const winnerTeamName = extra.result.isTie ? null : extra.result.homeScore > extra.result.awayScore ? homeTeamName : awayTeamName;
       result = { homeScore: extra.result.homeScore, awayScore: extra.result.awayScore, isTie: extra.result.isTie, winnerTeamName };
-    } else if (extra?.pendingBoxScoreSubmissionId) {
-      status = "awaiting_review";
     }
     return { gameId: g.id, homeUserId: g.home_user_id ?? null, awayUserId: g.away_user_id ?? null, homeTeamName, awayTeamName, status, result };
   });
@@ -1232,7 +1219,7 @@ export async function completeAdvanceWeek(input: {
   });
 
   // Career badges are always computed continuously from all-time stored games (see
-  // box-score-intelligence/persistence.ts), and game/season-scope badges naturally
+  // game-intelligence/persistence.ts), and game/season-scope badges naturally
   // start fresh once the next season's games begin — no season-end conversion or
   // wipe step needed.
 

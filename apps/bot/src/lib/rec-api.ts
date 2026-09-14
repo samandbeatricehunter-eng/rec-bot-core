@@ -645,9 +645,6 @@ export const recApi = {
   syncDiscordMemberRole: (input: { guildId: string; discordId: string; roleKey: "member" | "compCommittee" | "commissioner" }) =>
     recFetch<{ ok: true }>("/v1/roles/discord-sync", { method: "POST", body: JSON.stringify(input) }),
 
-  submitPlayerStatLine: (input: { guildId: string; discordId: string; playerName: string; category: string; statLines: Array<{ statKey: string; label: string; value: number }> }) => recFetch<any>("/v1/watched-players/submit-stat-line", { method: "POST", body: JSON.stringify(input) }),
-  listMyWatchedPlayers: (input: { guildId: string; discordId: string }) => recFetch<{ players: Array<{ id: string; playerName: string; position: string }> }>("/v1/watched-players/my-list", { method: "POST", body: JSON.stringify(input) }),
-  removeMyPlayerStatLine:(input:{guildId:string;discordId:string;playerName:string;category:string})=>recFetch<any>("/v1/watched-players/remove-stat-line",{method:"POST",body:JSON.stringify(input)}),
   saveWeeklyPanelState: (input: { guildId: string; seasonNumber: number; seasonStage: string; weekNumber: number | null; channelId: string; messageId: string }) => recFetch<any>("/v1/submission-state/panel/save", { method: "POST", body: JSON.stringify(input) }),
 
   listScheduleTeams: (guildId: string) =>

@@ -42,11 +42,6 @@ test("jsonb objects are JSON-stringified", () => {
 });
 
 test("other native text[] columns stay JS arrays", () => {
-  const ids = ["111", "222"];
-  assert.equal(
-    serializePgValue("rec_box_score_submissions", "extra_discord_message_ids", ids),
-    ids,
-  );
   const roles = ["commissioner"];
   assert.equal(serializePgValue("rec_user_league_history", "roles", roles), roles);
 });

@@ -32,9 +32,6 @@ import type {
   LinkedTeamsResponse,
   ManualScoreRecordResult,
   MentionableList,
-  PerformanceTag,
-  WatchedPlayer,
-  PlayerStatSubmission,
   WeeklyH2hGamesResponse,
   HubReactionKey,
   HubResponse,
@@ -789,30 +786,9 @@ export const recApi = {
     recApiFetch<any>("/v1/legends/purchase", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   cancelHubLegend: (input: { guildId: string; legendId: string }) =>
     recApiFetch<{ ok: true; refunded: number }>("/v1/legends/cancel", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
-  // Manual final-score entry (schedule builder)
-  recordManualScore: (input: { guildId: string; gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null; manualStats?: { home?: Record<string, unknown>; away?: Record<string, unknown> }; performanceTags?: { home?: PerformanceTag[]; away?: PerformanceTag[] } }) =>
+  // Manual final-score entry (Advance)
+  recordManualScore: (input: { guildId: string; gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null }) =>
     recApiFetch<ManualScoreRecordResult>("/v1/league-week/manual-scores/record", { method: "POST", body: JSON.stringify(input) }),
-
-  // Players to Watch (per-team persistent list, selectable when tagging a game result)
-  listWatchedPlayers: (guildId: string, teamId: string) =>
-    recApiFetch<{ players: WatchedPlayer[] }>("/v1/watched-players/list", { method: "POST", body: JSON.stringify({ guildId, teamId }) }),
-  listMyWatchedPlayers: (input: { guildId: string; discordId?: string }) =>
-    recApiFetch<{ players: WatchedPlayer[] }>("/v1/watched-players/my-list", { method: "POST", body: JSON.stringify(input) }),
-  submitPlayerStatLine: (input: { guildId: string; discordId?: string; playerName: string; category: string; statLines: Array<{ statKey: string; label: string; value: number }> }) =>
-    recApiFetch<{ ok: true }>("/v1/watched-players/submit-stat-line", { method: "POST", body: JSON.stringify(input) }),
-  createWatchedPlayer: (input: { guildId: string; teamId: string; playerName: string; position: string; classYear?: WatchedPlayer["classYear"] }) =>
-    recApiFetch<{ player: WatchedPlayer }>("/v1/watched-players/create", { method: "POST", body: JSON.stringify(input) }),
-  updateWatchedPlayer: (input: { guildId: string; id: string; playerName: string; position: string; classYear?: WatchedPlayer["classYear"] }) =>
-    recApiFetch<{ player: WatchedPlayer }>("/v1/watched-players/update", { method: "POST", body: JSON.stringify(input) }),
-  removeWatchedPlayer: (guildId: string, id: string) =>
-    recApiFetch<{ removed: true }>("/v1/watched-players/remove", { method: "POST", body: JSON.stringify({ guildId, id }) }),
-  createMyWatchedPlayer: (input: { guildId: string; discordId?: string; playerName: string; position: string; classYear?: WatchedPlayer["classYear"] }) =>
-    recApiFetch<{ player: WatchedPlayer }>("/v1/watched-players/create-mine", { method: "POST", body: JSON.stringify(input) }),
-  removeMyWatchedPlayer: (input: { guildId: string; discordId?: string; id: string }) =>
-    recApiFetch<{ removed: true }>("/v1/watched-players/remove-mine", { method: "POST", body: JSON.stringify(input) }),
-  listPlayerStatSubmissions: (guildId:string) => recApiFetch<{submissions:PlayerStatSubmission[]}>("/v1/player-stats/submissions/list",{method:"POST",body:JSON.stringify({guildId})}),
-  updatePlayerStatSubmission: (input:{guildId:string;id:string;playerName?:string;status?:"submitted"|"approved"|"rejected";lines?:Array<{category:string;stats:Record<string,number>}>}) => recApiFetch<{updated:true}>("/v1/player-stats/submissions/update",{method:"POST",body:JSON.stringify(input)}),
-  removePlayerStatSubmission: (guildId:string,id:string) => recApiFetch<{removed:true}>("/v1/player-stats/submissions/remove",{method:"POST",body:JSON.stringify({guildId,id})}),
 
   // Commissioner notification center
   listCommissionerNotifications: (guildId: string) =>

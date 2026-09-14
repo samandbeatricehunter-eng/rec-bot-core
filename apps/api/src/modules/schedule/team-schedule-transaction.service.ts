@@ -61,8 +61,7 @@ export async function commitTeamScheduleDecisionsTransactional(input: {
     const existing = weekNumbers.length ? await client.query(
       `select g.id,g.week_number,g.home_team_id,g.away_team_id,g.external_game_id,
               exists(select 1 from rec_game_results r where r.league_id=g.league_id and r.season_number=$3
-                and r.week_number=g.week_number and r.home_team_id=g.home_team_id and r.away_team_id=g.away_team_id) as has_result,
-              exists(select 1 from rec_box_score_submissions b where b.game_id=g.id and b.status in ('pending','approved')) as has_box_score
+                and r.week_number=g.week_number and r.home_team_id=g.home_team_id and r.away_team_id=g.away_team_id) as has_result
        from rec_games g
        where g.league_id=$1 and g.season_id=$2 and g.week_number=any($4::int[])
          and (g.home_team_id=any($5::uuid[]) or g.away_team_id=any($5::uuid[]))`,
@@ -87,9 +86,9 @@ export async function commitTeamScheduleDecisionsTransactional(input: {
     for (const game of relevantExisting) {
       const desired = desiredByWeek.get(Number(game.week_number));
       const exact = desired && game.home_team_id === desired.homeTeamId && game.away_team_id === desired.awayTeamId;
-      const locked = Boolean(game.has_result || game.has_box_score);
+      const locked = Boolean(game.has_result);
       if (locked && !exact) {
-        throw new ApiError(409, `Week ${game.week_number} already has a recorded result or box score; its participants cannot be changed.`);
+        throw new ApiError(409, `Week ${game.week_number} already has a recorded result; its participants cannot be changed.`);
       }
       if (locked && exact) preserveIds.add(String(game.id));
       else deleteIds.push(String(game.id));
@@ -199,16 +198,15 @@ export async function removeTeamScheduleGame(input: {
     const existing = await client.query(
       `select g.id,
               exists(select 1 from rec_game_results r where r.league_id=g.league_id and r.season_number=$3
-                and r.week_number=g.week_number and r.home_team_id=g.home_team_id and r.away_team_id=g.away_team_id) as has_result,
-              exists(select 1 from rec_box_score_submissions b where b.game_id=g.id and b.status in ('pending','approved')) as has_box_score
+                and r.week_number=g.week_number and r.home_team_id=g.home_team_id and r.away_team_id=g.away_team_id) as has_result
        from rec_games g
        where g.league_id=$1 and g.season_id=$2 and g.week_number=$4 and (g.home_team_id=$5 or g.away_team_id=$5)`,
       [leagueId, seasonId, seasonNumber, input.weekNumber, input.teamId],
     );
     const game = existing.rows[0];
     if (!game) throw new ApiError(404, "No scheduled game found for that week.");
-    if (game.has_result || game.has_box_score) {
-      throw new ApiError(409, "This game already has a recorded result or box score — reverse that first before removing it.");
+    if (game.has_result) {
+      throw new ApiError(409, "This game already has a recorded result — reverse that first before removing it.");
     }
     await client.query(`delete from rec_games where id=$1`, [game.id]);
     await client.query("commit");

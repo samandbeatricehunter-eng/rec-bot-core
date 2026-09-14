@@ -250,9 +250,11 @@ export async function issueAndGradeWeeklyTeamChallenges(input: {
   return results;
 }
 
-/** Grades both teams in a game -- the natural call site is right after rec_team_game_stats rows
- * exist for a game (same trigger processGameIntelligence uses; see box-score-intelligence/
- * persistence.ts's callers in ea-connections.service.ts and manual-scores.service.ts). */
+/** Grades both teams in a game -- derives which teams to grade from rec_team_game_stats rows
+ * for this game_id, so it's only a real trigger after EA import writes those rows (same
+ * trigger processGameIntelligence uses, see game-intelligence/persistence.ts). Also called
+ * after manual score entry (manual-scores.service.ts), which writes no team stats, so it's a
+ * harmless no-op there today -- kept as the call site in case that changes. */
 export async function issueAndGradeWeeklyTeamChallengesForGame(input: {
   leagueId: string; seasonNumber: number; weekNumber: number; gameId: string;
 }): Promise<void> {

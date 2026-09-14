@@ -59,27 +59,21 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
   return confirmedByWeek;
 }
 
-// The web dashboard's schedule builder is also where box scores get uploaded/reviewed and
-// final scores get manually recorded (see team-schedule.service.ts's plan doc) — every
-// week row needs to know not just "who's the opponent" but "does this game already have a
-// result, or a box-score submission awaiting review," so the UI can show the right actions
-// instead of asking the commissioner to open each game to check.
+// The web dashboard's schedule builder is also where final scores get manually recorded —
+// every week row needs to know whether this game already has a result, so the UI can show
+// the right actions instead of asking the commissioner to open each game to check.
 type GameResultAndSubmission = {
   result: { homeScore: number; awayScore: number; isTie: boolean; source: string } | null;
-  pendingBoxScoreSubmissionId: string | null;
-  boxScoreSubmissionId: string | null;
-  boxScoreStatus: string | null;
 };
 
 export type GameResultLookupDescriptor = { id: string; weekNumber: number; homeTeamId: string; awayTeamId: string };
 
 // Exported so the bulk team-management-summary aggregation (team-schedule-summary.service.ts)
-// can reuse this instead of duplicating the result/pending-submission query per team.
+// can reuse this instead of duplicating the result query per team.
 //
 // rec_game_results has no game_id column — a result is a standalone row correlated to a
 // scheduled matchup by (league_id, season_number, week_number, home_team_id, away_team_id),
-// same as manual-scores.service.ts's listManualScoreGames. rec_box_score_submissions DOES
-// have game_id, so that half stays a direct lookup.
+// same as manual-scores.service.ts's listManualScoreGames.
 export async function loadResultsAndPendingSubmissions(
   leagueId: string,
   seasonNumber: number,
@@ -87,41 +81,24 @@ export async function loadResultsAndPendingSubmissions(
 ): Promise<Map<string, GameResultAndSubmission>> {
   const byGameId = new Map<string, GameResultAndSubmission>();
   if (!games.length) return byGameId;
-  const gameIds = games.map((g) => g.id);
   const weekNumbers = [...new Set(games.map((g) => g.weekNumber))];
 
-  const [resultsRes, submissionsRes] = await Promise.all([
-    supabase
-      .from("rec_game_results")
-      .select("week_number,home_team_id,away_team_id,home_score,away_score,is_tie,source")
-      .eq("league_id", leagueId)
-      .eq("season_number", seasonNumber)
-      .in("week_number", weekNumbers),
-    supabase.from("rec_box_score_submissions").select("id,game_id,status,updated_at,created_at").in("status", ["pending", "approved"]).in("game_id", gameIds),
-  ]);
+  const resultsRes = await supabase
+    .from("rec_game_results")
+    .select("week_number,home_team_id,away_team_id,home_score,away_score,is_tie,source")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .in("week_number", weekNumbers);
   if (resultsRes.error) throw new ApiError(500, "Failed to load existing game results.", resultsRes.error);
-  if (submissionsRes.error) throw new ApiError(500, "Failed to load pending box score submissions.", submissionsRes.error);
 
   const resultByMatchup = new Map<string, any>(
     (resultsRes.data ?? []).map((row: any) => [`${row.week_number}:${row.home_team_id}:${row.away_team_id}`, row]),
   );
-  const submissionByGameId = new Map<string, any>();
-  for (const row of submissionsRes.data ?? []) {
-    if (!row.game_id) continue;
-    const current = submissionByGameId.get(row.game_id);
-    if (!current || String(row.updated_at ?? row.created_at ?? "") > String(current.updated_at ?? current.created_at ?? "")) {
-      submissionByGameId.set(row.game_id, row);
-    }
-  }
 
   for (const g of games) {
     const row = resultByMatchup.get(`${g.weekNumber}:${g.homeTeamId}:${g.awayTeamId}`);
-    const submission = submissionByGameId.get(g.id) ?? null;
     byGameId.set(g.id, {
       result: row ? { homeScore: row.home_score, awayScore: row.away_score, isTie: row.is_tie, source: row.source } : null,
-      pendingBoxScoreSubmissionId: submission?.status === "pending" ? submission.id : null,
-      boxScoreSubmissionId: submission?.id ?? null,
-      boxScoreStatus: submission?.status ?? null,
     });
   }
   return byGameId;
@@ -166,9 +143,6 @@ export type TeamScheduleManualWeek = {
   confirmedMatchupType: "h2h" | "cpu" | null;
   gameId: string | null;
   result: { homeScore: number; awayScore: number; isTie: boolean; source: string } | null;
-  pendingBoxScoreSubmissionId: string | null;
-  boxScoreSubmissionId: string | null;
-  boxScoreStatus: string | null;
   byeType: "regular_season" | "cfp_first_round";
   postseasonRound: string | null;
   bowlName: string | null;
@@ -289,9 +263,6 @@ export async function getTeamScheduleManualState(input: {
         : null,
       wageringOpen: false,
       winnerTeamId: null,
-      boxScoreSubmissionId: extra?.boxScoreSubmissionId ?? null,
-      boxScoreStatus: extra?.boxScoreStatus ?? null,
-      boxScoreDeniedReason: null,
       reactionCounts: { love: 0, like: 0, goty: 0, dislike: 0, poop: 0 },
       myReactions: [] as Array<"love" | "like" | "goty" | "dislike" | "poop">,
       streams: [] as never[],
@@ -306,9 +277,6 @@ export async function getTeamScheduleManualState(input: {
       confirmedMatchupType: confirmed?.matchupType ?? null,
       gameId: confirmed?.gameId ?? null,
       result: extra?.result ?? null,
-      pendingBoxScoreSubmissionId: extra?.pendingBoxScoreSubmissionId ?? null,
-      boxScoreSubmissionId: extra?.boxScoreSubmissionId ?? null,
-      boxScoreStatus: extra?.boxScoreStatus ?? null,
       isBye: !confirmed && byeByWeek.has(weekNumber),
       byeType: (byeByWeek.get(weekNumber) ?? (weekNumber === 16 ? "cfp_first_round" : "regular_season")) as "regular_season" | "cfp_first_round",
       postseasonRound: confirmed?.postseasonRound ?? (weekNumber >= 15 ? ["conference_championship", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"][weekNumber - 15] : null),
@@ -414,12 +382,9 @@ export async function commitTeamScheduleDecisions(input: {
     if (conflicts.length) {
       const gameDescriptors = conflicts.map((game: any) => ({ id: game.id, weekNumber: game.week_number, homeTeamId: game.home_team_id, awayTeamId: game.away_team_id }));
       const locked = await loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors);
-      const lockedConflict = gameDescriptors.find((game: any) => {
-        const extra = locked.get(game.id);
-        return extra?.result || extra?.boxScoreSubmissionId;
-      });
+      const lockedConflict = gameDescriptors.find((game: any) => locked.get(game.id)?.result);
       if (lockedConflict) {
-        saved.push({ weekNumber: decision.weekNumber, skipped: true, reason: "locked_result_or_box_score" });
+        saved.push({ weekNumber: decision.weekNumber, skipped: true, reason: "locked_result" });
         continue;
       }
       const removal = await supabase.from("rec_games").delete().in("id", conflicts.map((game: any) => game.id));

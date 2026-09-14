@@ -2,6 +2,7 @@ node_modules
 .pnpm-store
 .corepack
 dist
+*.tsbuildinfo
 .env
 .env.*
 !.env.example

@@ -2144,61 +2144,6 @@ export const recTeamStandingsSnapshots = pgTable("rec_team_standings_snapshots",
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
-export const recBoxScoreSubmissions = pgTable("rec_box_score_submissions", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
-  seasonNumber: integer("season_number"),
-  weekNumber: integer("week_number"),
-  phase: text("phase"),
-  submittedByDiscordId: text("submitted_by_discord_id").notNull(),
-  submittedByUserId: uuid("submitted_by_user_id").references(() => recUsers.id),
-  discordGuildId: text("discord_guild_id"),
-  discordChannelId: text("discord_channel_id"),
-  discordMessageId: text("discord_message_id"),
-  imageUrls: jsonb("image_urls").$type<Record<string, unknown> | null>(),
-  team1Abbr: text("team1_abbr"),
-  team2Abbr: text("team2_abbr"),
-  homeTeamId: uuid("home_team_id").references(() => recTeams.id),
-  awayTeamId: uuid("away_team_id").references(() => recTeams.id),
-  homeUserId: uuid("home_user_id").references(() => recUsers.id),
-  awayUserId: uuid("away_user_id").references(() => recUsers.id),
-  homeScore: integer("home_score"),
-  awayScore: integer("away_score"),
-  quarterScores: jsonb("quarter_scores").$type<Record<string, unknown> | null>(),
-  teamStats: jsonb("team_stats").$type<Record<string, unknown> | null>(),
-  gameId: uuid("game_id").references(() => recGames.id),
-  parseWarnings: jsonb("parse_warnings").$type<Record<string, unknown> | null>(),
-  comebackDeficit: integer("comeback_deficit"),
-  comebackDeficitQuarter: integer("comeback_deficit_quarter"),
-  comebackRate: numeric("comeback_rate"),
-  comebackWinnerTeamId: uuid("comeback_winner_team_id").references(() => recTeams.id),
-  fourthQuarterComeback: boolean("fourth_quarter_comeback").notNull().default(false),
-  status: text("status").notNull().default("draft"),
-  reviewedByDiscordId: text("reviewed_by_discord_id"),
-  reviewedAt: timestamp("reviewed_at", { withTimezone: true, mode: "string" }),
-  deniedReason: text("denied_reason"),
-  payoutIssued: boolean("payout_issued").notNull().default(false),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
-  parseLabelSamples: jsonb("parse_label_samples").$type<Record<string, unknown> | null>(),
-  team1Id: uuid("team1_id"),
-  team2Id: uuid("team2_id"),
-  flagged: boolean("flagged").notNull().default(false),
-  flagReasons: jsonb("flag_reasons").$type<Record<string, unknown> | null>(),
-  ledgerDiscordMessageId: text("ledger_discord_message_id"),
-  imageStorageUrl: text("image_storage_url"),
-  entryMethod: text("entry_method").notNull().default("box_score")
-});
-
-export const recOcrLabelAliases = pgTable("rec_ocr_label_aliases", {
-  id: uuid("id").primaryKey(),
-  rawLabel: text("raw_label").notNull(),
-  canonicalKey: text("canonical_key").notNull(),
-  hitCount: integer("hit_count").notNull().default(1),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
 export const recTeamGameStats = pgTable("rec_team_game_stats", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull(),
@@ -2240,27 +2185,6 @@ export const recTeamGameStats = pgTable("rec_team_game_stats", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
-export const recUserBoxScoreProfileStats = pgTable("rec_user_box_score_profile_stats", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id").notNull().references(() => recUsers.id),
-  leagueId: uuid("league_id").references(() => recLeagues.id),
-  seasonNumber: integer("season_number"),
-  scope: text("scope").notNull(),
-  gamesLogged: integer("games_logged").notNull().default(0),
-  boxScoresUploaded: integer("box_scores_uploaded").notNull().default(0),
-  totalYards: bigint("total_yards", { mode: "number" }).notNull().default(0),
-  passingYards: bigint("passing_yards", { mode: "number" }).notNull().default(0),
-  rushingYards: bigint("rushing_yards", { mode: "number" }).notNull().default(0),
-  firstDowns: bigint("first_downs", { mode: "number" }).notNull().default(0),
-  turnoversGenerated: bigint("turnovers_generated", { mode: "number" }).notNull().default(0),
-  turnoversCommitted: bigint("turnovers_committed", { mode: "number" }).notNull().default(0),
-  turnoverDifferential: bigint("turnover_differential", { mode: "number" }).notNull().default(0),
-  redZoneOffPctAvg: integer("red_zone_off_pct_avg").notNull().default(0),
-  redZoneDefPctAvg: integer("red_zone_def_pct_avg").notNull().default(0),
-  activeStreak: text("active_streak").notNull().default("—"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
 export const recTeamLinkRequests = pgTable("rec_team_link_requests", {
   id: uuid("id").primaryKey(),
   guildId: text("guild_id").notNull(),
@@ -2297,10 +2221,7 @@ export const recSeasonUserDisplayRecords = pgTable("rec_season_user_display_reco
 
 export type RecCommissionersInbox = typeof recCommissionersInbox.$inferSelect;
 export type RecTeamStandingsSnapshot = typeof recTeamStandingsSnapshots.$inferSelect;
-export type RecBoxScoreSubmission = typeof recBoxScoreSubmissions.$inferSelect;
-export type RecOcrLabelAlias = typeof recOcrLabelAliases.$inferSelect;
 export type RecTeamGameStats = typeof recTeamGameStats.$inferSelect;
-export type RecUserBoxScoreProfileStats = typeof recUserBoxScoreProfileStats.$inferSelect;
 export type RecTeamLinkRequest = typeof recTeamLinkRequests.$inferSelect;
 export type RecSeasonUserDisplayRecord = typeof recSeasonUserDisplayRecords.$inferSelect;
 
@@ -2400,35 +2321,6 @@ export const recGameProfiles = pgTable("rec_game_profiles", {
   profile: jsonb("profile").$type<Record<string, unknown> | null>(),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
-export const recWatchedPlayers = pgTable("rec_watched_players", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull(),
-  teamId: uuid("team_id").notNull(),
-  playerName: text("player_name").notNull(),
-  position: text("position").notNull(),
-  classYear: text("class_year"),
-  isActive: boolean("is_active").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
-});
-
-export const recGamePerformanceTags = pgTable("rec_game_performance_tags", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull(),
-  gameId: uuid("game_id").notNull().references(() => recGames.id, { onDelete: "cascade" }),
-  seasonNumber: integer("season_number").notNull(),
-  weekNumber: integer("week_number").notNull(),
-  teamId: uuid("team_id").notNull(),
-  subjectType: text("subject_type").notNull(),
-  watchedPlayerId: uuid("watched_player_id"),
-  rosterPlayerId: uuid("roster_player_id"),
-  unit: text("unit"),
-  statLines: jsonb("stat_lines").$type<Array<{ statKey: string; label: string; value: number }>>().notNull(),
-  performanceGrade: text("performance_grade").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
 });
 
 export const recGameStories = pgTable("rec_game_stories", {
@@ -3007,22 +2899,6 @@ export const recCommissionersInboxRelations = relations(recCommissionersInbox, (
 export const recTeamStandingsSnapshotsRelations = relations(recTeamStandingsSnapshots, ({ one }) => ({
   league: one(recLeagues, { fields: [recTeamStandingsSnapshots.leagueId], references: [recLeagues.id] }),
   team: one(recTeams, { fields: [recTeamStandingsSnapshots.teamId], references: [recTeams.id] })
-}));
-
-export const recBoxScoreSubmissionsRelations = relations(recBoxScoreSubmissions, ({ one }) => ({
-  league: one(recLeagues, { fields: [recBoxScoreSubmissions.leagueId], references: [recLeagues.id] }),
-  submittedByUser: one(recUsers, { fields: [recBoxScoreSubmissions.submittedByUserId], references: [recUsers.id], relationName: "recBoxScoreSubmissionsSubmittedByUser" }),
-  homeTeam: one(recTeams, { fields: [recBoxScoreSubmissions.homeTeamId], references: [recTeams.id], relationName: "recBoxScoreSubmissionsHomeTeam" }),
-  awayTeam: one(recTeams, { fields: [recBoxScoreSubmissions.awayTeamId], references: [recTeams.id], relationName: "recBoxScoreSubmissionsAwayTeam" }),
-  homeUser: one(recUsers, { fields: [recBoxScoreSubmissions.homeUserId], references: [recUsers.id], relationName: "recBoxScoreSubmissionsHomeUser" }),
-  awayUser: one(recUsers, { fields: [recBoxScoreSubmissions.awayUserId], references: [recUsers.id], relationName: "recBoxScoreSubmissionsAwayUser" }),
-  game: one(recGames, { fields: [recBoxScoreSubmissions.gameId], references: [recGames.id] }),
-  comebackWinnerTeam: one(recTeams, { fields: [recBoxScoreSubmissions.comebackWinnerTeamId], references: [recTeams.id], relationName: "recBoxScoreSubmissionsComebackWinnerTeam" })
-}));
-
-export const recUserBoxScoreProfileStatsRelations = relations(recUserBoxScoreProfileStats, ({ one }) => ({
-  user: one(recUsers, { fields: [recUserBoxScoreProfileStats.userId], references: [recUsers.id] }),
-  league: one(recLeagues, { fields: [recUserBoxScoreProfileStats.leagueId], references: [recLeagues.id] })
 }));
 
 export const recTeamLinkRequestsRelations = relations(recTeamLinkRequests, ({ one }) => ({

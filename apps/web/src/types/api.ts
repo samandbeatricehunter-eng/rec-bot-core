@@ -44,9 +44,6 @@ export type TeamScheduleManualWeek = {
   confirmedMatchupType: "h2h" | "cpu" | null;
   gameId: string | null;
   result: { homeScore: number; awayScore: number; isTie: boolean; source: string } | null;
-  pendingBoxScoreSubmissionId: string | null;
-  boxScoreSubmissionId: string | null;
-  boxScoreStatus: string | null;
   isBye: boolean;
   byeType: "regular_season" | "cfp_first_round";
   postseasonRound: string | null;
@@ -100,7 +97,6 @@ export type TeamManagementSummaryRow = {
   gamesScheduled: number;
   gamesExpected: number;
   missingBoxScoreCount: number;
-  awaitingReviewCount: number;
   record: { wins: number; losses: number; ties: number };
   eaUsername: string | null;
 };
@@ -156,17 +152,6 @@ export type ManualScoreRecordResult = {
   hasRealScores: boolean;
   isTie: boolean;
   outcome: "home" | "away" | "tie";
-};
-
-// Players to Watch
-export type ClassYear = "freshman" | "sophomore" | "junior" | "senior";
-export type WatchedPlayer = { id: string; teamId: string; playerName: string; position: string; classYear: ClassYear | null };
-export type PerformanceTag = {
-  subjectType: "player" | "unit";
-  watchedPlayerId?: string | null;
-  unit?: "offense" | "defense" | "special_teams" | null;
-  statLines?: Array<{ statKey: string; label: string; value: number }>;
-  performanceGrade: "standout" | "solid" | "neutral" | "poor";
 };
 
 // Commissioner notification center (1d) — one unified shape covering ten heterogeneous
@@ -306,7 +291,6 @@ export type TeamLinkMatrix = {
   teams: Array<{ id: string; name: string; abbreviation: string; conference: string | null; division: string | null; discordId: string | null }>;
   users: Array<{ discordId: string; displayName: string; username: string }>;
 };
-export type PlayerStatSubmission = { id:string; seasonNumber:number; seasonStage:string; weekNumber:number|null; teamId:string; teamName:string; gameId:string; submittedByDiscordId:string; playerName:string; status:"draft"|"submitted"|"approved"|"rejected"; reviewedByDiscordId:string|null; reviewedAt:string|null; createdAt:string; lines:Array<{id:string;category:string;stats:Record<string,number>;updatedAt:string}> };
 export type RoleMgmtRoleKey = "member" | "compCommittee" | "commissioner";
 
 // Settings (Phase 2) — apps/api/src/modules/setup/setup.schemas.ts's CreateLeagueSchema has
@@ -325,7 +309,6 @@ export type AdvanceGame = {
   awayUserId: string | null;
   homeTeamName: string;
   awayTeamName: string;
-  hasBoxScore: boolean;
   existingResultSource: string | null;
   needsInput: boolean;
   isCpuGame: boolean;
@@ -599,7 +582,7 @@ export type WeeklyH2hGame = {
   gameId: string;
   homeTeamName: string;
   awayTeamName: string;
-  status: "missing" | "awaiting_review" | "final";
+  status: "missing" | "final";
   result: { homeScore: number; awayScore: number; isTie: boolean; winnerTeamName: string | null } | null;
   reactionCounts: { like: number; dislike: number };
   myReaction: "like" | "dislike" | null;
@@ -660,9 +643,6 @@ export type HubMatchupSchedule = {
     forceWinSide: "home" | "away" | null;
     wageringOpen: boolean;
     winnerTeamId: string | null;
-    boxScoreSubmissionId: string | null;
-    boxScoreStatus: string | null;
-    boxScoreDeniedReason: string | null;
     reactionCounts: Record<"love" | "like" | "goty" | "dislike" | "poop", number>;
     myReactions: Array<"love" | "like" | "goty" | "dislike" | "poop">;
     myGotyComment?: string | null;

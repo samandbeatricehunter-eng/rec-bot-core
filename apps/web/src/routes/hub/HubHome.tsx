@@ -22,10 +22,9 @@ import { ShareStreamModal } from "../../components/hub/ShareStreamModal.js";
 import { RequestHelpSheet } from "../../components/matchups/RequestHelpSheet.js";
 import { randomDefenseName } from "../../lib/defense-names.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
-import { PLAYER_STAT_CATEGORY_OPTIONS, PLAYER_STAT_FIELDS } from "../../lib/player-stat-fields.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
-import type { GotwGuessingRecordsResponse, HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MatchupPreview as MatchupPreviewData, MyEosPayoutProgress, MyWagersResponse, NonRtiMediaDayResponse, OpenTeam, PeerWagerBoardResponse, RosterPlayer, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WatchedPlayer, WeekWagerLinesResponse } from "../../types/api.js";
+import type { GotwGuessingRecordsResponse, HubMatchupSchedule, HubReactionKey, HubResponse, LinkedTeamRow, MatchupPreview as MatchupPreviewData, MyEosPayoutProgress, MyWagersResponse, NonRtiMediaDayResponse, OpenTeam, PeerWagerBoardResponse, RosterPlayer, StoryComment, StorePurchaseContext, TeamScheduleManualState, WagerOptionsResponse, WeekWagerLinesResponse } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
 import { ErrorPopup } from "../../components/ui/ErrorPopup.js";
 import { Button } from "../../components/ui/Button.js";
@@ -585,14 +584,9 @@ export function HubHome() {
   const [mediaDayOpen, setMediaDayOpen] = useState(false);
   const [mediaNotice, setMediaNotice] = useState<string | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
-  const [playerStatsGame, setPlayerStatsGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [shareStreamGame, setShareStreamGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [highlightUploadGame, setHighlightUploadGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
   const [requestHelpGame, setRequestHelpGame] = useState<HubMatchupSchedule["games"][number] | null>(null);
-  const [myWatchedPlayers, setMyWatchedPlayers] = useState<WatchedPlayer[] | null>(null);
-  const [playerStatsDraft, setPlayerStatsDraft] = useState({ playerName: "", watchedPlayerId: "", category: "passing", values: {} as Record<string, string> });
-  const [playerStatsNotice, setPlayerStatsNotice] = useState<string | null>(null);
-  const [playerStatsBusy, setPlayerStatsBusy] = useState(false);
   const [lateSubmissionsOpen, setLateSubmissionsOpen] = useState(false);
   const [retireModalOpen, setRetireModalOpen] = useState(false);
   const [retireBusy, setRetireBusy] = useState(false);
@@ -1203,36 +1197,6 @@ export function HubHome() {
     finally { setMediaBusy(false); }
   }
 
-  async function openPlayerStats(game: HubMatchupSchedule["games"][number]) {
-    if (auth.status !== "ready") return;
-    setPlayerStatsGame(game);
-    setPlayerStatsNotice(null);
-    setPlayerStatsDraft({ playerName: "", watchedPlayerId: "", category: "passing", values: {} });
-    setMyWatchedPlayers(null);
-    try { setMyWatchedPlayers((await recApi.listMyWatchedPlayers({ guildId: auth.guildId })).players); }
-    catch (cause) { setPlayerStatsNotice(cause instanceof Error ? cause.message : "Could not load your players to watch."); setMyWatchedPlayers([]); }
-  }
-
-  async function submitPlayerStats() {
-    if (auth.status !== "ready" || !playerStatsGame) return;
-    const selectedPlayer = myWatchedPlayers?.find((player) => player.id === playerStatsDraft.watchedPlayerId);
-    const playerName = selectedPlayer?.playerName ?? playerStatsDraft.playerName.trim();
-    const statLines = (PLAYER_STAT_FIELDS[playerStatsDraft.category] ?? []).flatMap(([statKey, label]) => {
-      const raw = playerStatsDraft.values[statKey]?.trim();
-      if (!raw) return [];
-      const value = Number(raw);
-      return Number.isFinite(value) ? [{ statKey, label, value }] : [];
-    });
-    if (!playerName || !statLines.length) { setPlayerStatsNotice("Pick or enter a player and add at least one stat."); return; }
-    setPlayerStatsBusy(true); setPlayerStatsNotice(null);
-    try {
-      await recApi.submitPlayerStatLine({ guildId: auth.guildId, playerName, category: playerStatsDraft.category, statLines });
-      setPlayerStatsNotice("Player stats submitted.");
-      setPlayerStatsDraft({ playerName: "", watchedPlayerId: "", category: playerStatsDraft.category, values: {} });
-    } catch (cause) { setPlayerStatsNotice(cause instanceof Error ? cause.message : "Player stats submission failed."); }
-    finally { setPlayerStatsBusy(false); }
-  }
-
   async function voteGotw(pollId: string, selectedTeamId: string) {
     if (auth.status !== "ready" || !matchupSchedule) return;
     await recApi.voteGameOfWeek({ guildId: auth.guildId, pollId, selectedTeamId });
@@ -1358,8 +1322,6 @@ export function HubHome() {
     );
   }
   const readyGuildId = auth.status === "ready" ? auth.guildId : null;
-  // Box-score data mode was removed; every league is on EA import (or manual) now.
-  const boxScoreMode = false;
   const isRise = hub.league.rosterType === "rise_to_immortality";
   const riseHubUnlocked = !isRise || hub.league.riseHubUnlocked === true;
   const rtiGates = hub.league.rtiGates ?? null;
@@ -1739,9 +1701,7 @@ export function HubHome() {
                   {auth.status === "ready" && <HeroMatchupActions
                     guildId={auth.guildId}
                     matchup={heroMatchup}
-                    boxScoreMode={boxScoreMode}
                     onChanged={() => setMatchupReloadKey((value) => value + 1)}
-                    onOpenPlayerStats={() => void openPlayerStats(heroMatchup)}
                     onOpenShareStream={() => setShareStreamGame(heroMatchup)}
                     onUploadHighlight={() => setHighlightUploadGame(heroMatchup)}
                     onOpenRequestHelp={heroMatchup.matchupType === "h2h" ? () => setRequestHelpGame(heroMatchup) : undefined}
@@ -1934,14 +1894,6 @@ export function HubHome() {
     {requestHelpGame && auth.status === "ready" && <RequestHelpSheet matchup={requestHelpGame} guildId={auth.guildId} onClose={() => setRequestHelpGame(null)} onSubmitted={() => setRequestHelpGame(null)} />}
     {scheduleHighlightWeek && scheduleHighlightWeek.gameId && auth.status === "ready" && <HighlightUploadModal guildId={auth.guildId} gameId={scheduleHighlightWeek.gameId} onClose={() => setScheduleHighlightWeek(null)} onSubmitted={() => { setScheduleHighlightWeek(null); setMySchedule(null); void viewMySchedule(); }} />}
     {editRosterOpen && auth.status === "ready" && <EditRosterRequestModal guildId={auth.guildId} onClose={() => setEditRosterOpen(false)} onDone={() => setEditRosterOpen(false)} />}
-    {playerStatsGame && <Modal title="Players to Watch" onClose={() => setPlayerStatsGame(null)}><div className="hub-submission-modal">
-      {playerStatsNotice && <p className="hub-transfer-status">{playerStatsNotice}</p>}<p className="hub-muted">{playerStatsGame.awayTeamName} at {playerStatsGame.homeTeamName}</p>
-      <label className="form-field"><span className="form-label">Player</span><select className="form-input" value={playerStatsDraft.watchedPlayerId} onChange={(event) => { const player = myWatchedPlayers?.find((item) => item.id === event.target.value); setPlayerStatsDraft((current) => ({ ...current, watchedPlayerId: event.target.value, playerName: player?.playerName ?? "" })); }}><option value="">Enter a new player</option>{(myWatchedPlayers ?? []).map((player) => <option key={player.id} value={player.id}>{player.playerName} - {player.position}</option>)}</select></label>
-      {!playerStatsDraft.watchedPlayerId && <label className="form-field"><span className="form-label">Player name</span><input className="form-input" value={playerStatsDraft.playerName} onChange={(event) => setPlayerStatsDraft((current) => ({ ...current, playerName: event.target.value }))} /></label>}
-      <label className="form-field"><span className="form-label">Category</span><select className="form-input" value={playerStatsDraft.category} onChange={(event) => setPlayerStatsDraft((current) => ({ ...current, category: event.target.value, values: {} }))}>{PLAYER_STAT_CATEGORY_OPTIONS.map((category) => <option key={category} value={category}>{displayLabel(category)}</option>)}</select></label>
-      <div className="hub-submission-grid">{(PLAYER_STAT_FIELDS[playerStatsDraft.category] ?? []).map(([key, label]) => <label className="form-field" key={key}><span className="form-label">{label}</span><input className="form-input" type="number" min="0" value={playerStatsDraft.values[key] ?? ""} onChange={(event) => setPlayerStatsDraft((current) => ({ ...current, values: { ...current.values, [key]: event.target.value } }))} /></label>)}</div>
-      <Button variant="primary" disabled={playerStatsBusy} onClick={() => void submitPlayerStats()}>{playerStatsBusy ? "Submitting..." : "Submit Player Stats"}</Button>
-    </div></Modal>}
     {wagerPanel && <Modal title={`Sportsbook · ${wagerPanel.label}`} panelClassName="hub-wager-slip-modal" hideHeader onClose={() => setWagerPanel(null)}><div className="hub-wager-modal">
       <header className="hub-wager-modal-brand">
         <span>REC League eSports</span>

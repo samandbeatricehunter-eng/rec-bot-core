@@ -9,11 +9,9 @@ import { gameResultsApplyKey, rebuildOfficialRecordsAfterBoxScore } from "../off
 import { invalidateLeagueComputeCaches } from "../../lib/compute-cache.js";
 import { snapshotPowerRankings } from "../schedule/power-rankings.service.js";
 import { formatTeamDisplayName } from "../users/user-profile-stats.service.js";
-import { processGameIntelligence } from "../box-score-intelligence/persistence.js";
 import { issueAndGradeWeeklyTeamChallengesForGame } from "../weekly-challenges/weekly-challenge-issuance.service.js";
 import { settleGotwPollsForGame } from "../gotw/gotw.service.js";
 import { closeWageringForGame } from "../wagers/wagers.service.js";
-import { randomUUID } from "node:crypto";
 
 const MANUAL_SOURCE = "manual";
 
@@ -37,23 +35,9 @@ async function loadWeekContext(guildId: string, weekNumber?: number | null) {
   return { context, leagueId: context.leagueId, seasonNumber, seasonId, weekNumber: week };
 }
 
-// Games with a box-score submission (pending or approved) are authoritative and can't
-// be overridden here — correct them through Box Scores instead.
-async function boxScoreGameIds(leagueId: string, seasonNumber: number, weekNumber: number): Promise<Set<string>> {
-  const { data, error } = await supabase
-    .from("rec_box_score_submissions")
-    .select("game_id")
-    .eq("league_id", leagueId)
-    .eq("season_number", seasonNumber)
-    .eq("week_number", weekNumber)
-    .in("status", ["pending", "approved"]);
-  if (error) throw new ApiError(500, "We couldn't load box scores for the week right now. Please try again.", error);
-  return new Set((data ?? []).map((r) => String(r.game_id)).filter(Boolean));
-}
-
-// List scheduled games for a week that are still eligible for manual entry — games
-// already locked by a box-score submission are left out entirely, since those can't
-// be overridden here.
+// List scheduled games for a week that are still eligible for manual entry — games with an
+// EA-imported result are left out entirely, since that's the authoritative source and can't
+// be overridden here (re-import the week to change it).
 export async function listManualScoreGames(input: {
   guildId: string;
   weekNumber?: number | null;
@@ -66,15 +50,12 @@ export async function listManualScoreGames(input: {
   if (error) throw new ApiError(500, "We couldn't load this week's scheduled games. Please try again.", error);
   if (!games?.length) throw new ApiError(400, `No games are scheduled for Week ${weekNumber}. Import the schedule first, then try again.`);
 
-  const [results, boxScored] = await Promise.all([
-    supabase
-      .from("rec_game_results")
-      .select("home_team_id,away_team_id,source,home_score,away_score,is_tie")
-      .eq("league_id", leagueId)
-      .eq("season_number", seasonNumber)
-      .eq("week_number", weekNumber),
-    boxScoreGameIds(leagueId, seasonNumber, weekNumber),
-  ]);
+  const results = await supabase
+    .from("rec_game_results")
+    .select("home_team_id,away_team_id,source,home_score,away_score,is_tie")
+    .eq("league_id", leagueId)
+    .eq("season_number", seasonNumber)
+    .eq("week_number", weekNumber);
   if (results.error) throw new ApiError(500, "We couldn't load existing game results right now. Please try again.", results.error);
 
   const resultByMatchup = new Map<string, any>((results.data ?? []).map((row: any) => [`${row.home_team_id}:${row.away_team_id}`, row]));
@@ -82,8 +63,8 @@ export async function listManualScoreGames(input: {
     (results.data ?? []).filter((row: any) => row.source === "madden_companion_import").map((row: any) => `${row.home_team_id}:${row.away_team_id}`),
   );
 
-  // Box-scored games and EA-imported results are both off-limits for manual entry.
-  const eligible = (games as any[]).filter((g) => !boxScored.has(String(g.id)) && !importedMatchups.has(`${g.home_team_id}:${g.away_team_id}`));
+  // EA-imported results are off-limits for manual entry.
+  const eligible = (games as any[]).filter((g) => !importedMatchups.has(`${g.home_team_id}:${g.away_team_id}`));
   const mapped: ManualScoreGame[] = eligible.map((g) => {
     const existing = resultByMatchup.get(`${g.home_team_id}:${g.away_team_id}`) ?? null;
     return {
@@ -100,14 +81,6 @@ export async function listManualScoreGames(input: {
   return { seasonNumber, weekNumber, games: mapped, lockedCount: games.length - eligible.length };
 }
 
-export type PerformanceTagInput = {
-  subjectType: "player" | "unit";
-  watchedPlayerId?: string | null;
-  unit?: "offense" | "defense" | "special_teams" | null;
-  statLines?: Array<{ statKey: string; label: string; value: number }>;
-  performanceGrade: "standout" | "solid" | "neutral" | "poor";
-};
-
 export async function recordManualGameResult(input: {
   guildId: string;
   gameId: string;
@@ -115,8 +88,6 @@ export async function recordManualGameResult(input: {
   homeScore?: number | null;
   awayScore?: number | null;
   submittedByDiscordId?: string | null;
-  manualStats?: { home?: Record<string, any>; away?: Record<string, any> } | null;
-  performanceTags?: { home?: PerformanceTagInput[]; away?: PerformanceTagInput[] } | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
   const seasonNumber = resolveSeasonNumber(context);
@@ -132,14 +103,6 @@ export async function recordManualGameResult(input: {
   if (!game.data) throw new ApiError(404, "Scheduled game not found.");
 
   const weekNumber = game.data.week_number;
-  const boxScored = await supabase
-    .from("rec_box_score_submissions")
-    .select("id")
-    .eq("game_id", input.gameId)
-    .in("status", ["pending", "approved"])
-    .limit(1);
-  if (boxScored.error) throw new ApiError(500, "We couldn't check for an existing box score. Please try again.", boxScored.error);
-  if (boxScored.data?.length) throw new ApiError(409, "This game already has a box score submission — correct it through Box Scores instead.");
 
   // Imported results are hard-locked: the EA import is the source of truth for scores, so
   // manual entry can never quietly overwrite what the game reported. Re-import to change.
@@ -203,7 +166,6 @@ export async function recordManualGameResult(input: {
       homeTeamId,
       awayTeamId,
     }),
-    manual_stats: input.manualStats ?? null,
     created_at: now,
     updated_at: now,
   };
@@ -237,90 +199,9 @@ export async function recordManualGameResult(input: {
   });
   invalidateLeagueComputeCaches(input.guildId);
 
-  const homeStats = input.manualStats?.home ?? {};
-  const awayStats = input.manualStats?.away ?? {};
-  const hasManualStats = Object.values(homeStats).some((value) => value !== null && value !== "" && value !== undefined) || Object.values(awayStats).some((value) => value !== null && value !== "" && value !== undefined);
-  if (hasManualStats) {
-    const old = await supabase.from("rec_box_score_submissions").select("id").eq("game_id", input.gameId).eq("entry_method", "manual");
-    const oldIds = (old.data ?? []).map((row: any) => row.id);
-    if (oldIds.length) {
-      await supabase.from("rec_team_game_stats").delete().in("submission_id", oldIds);
-      await supabase.from("rec_box_score_submissions").delete().in("id", oldIds);
-    }
-    const account = input.submittedByDiscordId
-      ? await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.submittedByDiscordId).maybeSingle()
-      : { data: null };
-    const submissionId = randomUUID();
-    const submission = await supabase.from("rec_box_score_submissions").insert({
-      id: submissionId, league_id: context.leagueId, season_number: seasonNumber, week_number: weekNumber,
-      phase: game.data.phase, submitted_by_discord_id: input.submittedByDiscordId ?? "commissioner-manual-entry",
-      submitted_by_user_id: account.data?.user_id ?? null, discord_guild_id: input.guildId, image_urls: [],
-      home_team_id: homeTeamId, away_team_id: awayTeamId, home_user_id: game.data.home_user_id, away_user_id: game.data.away_user_id,
-      home_score: homeScore, away_score: awayScore, quarter_scores: { home: homeStats.quarterScores ?? [], away: awayStats.quarterScores ?? [] },
-      team_stats: { home: homeStats, away: awayStats }, game_id: input.gameId, parse_warnings: [], status: "approved",
-      reviewed_by_discord_id: input.submittedByDiscordId ?? null, reviewed_at: now, entry_method: "manual", created_at: now, updated_at: now,
-    });
-    if (submission.error) throw new ApiError(500, "We couldn't create the manual stat submission. Please try again.", submission.error);
-
-    const numberOrNull = (value: unknown) => value === "" || value == null ? null : Number(value);
-    const statsRow = (stats: Record<string, any>, opponent: Record<string, any>, side: "home" | "away") => ({
-      id: randomUUID(), league_id: context.leagueId, season_number: seasonNumber, week_number: weekNumber, phase: game.data.phase,
-      game_id: input.gameId, submission_id: submissionId,
-      team_id: side === "home" ? homeTeamId : awayTeamId, opponent_team_id: side === "home" ? awayTeamId : homeTeamId,
-      user_id: side === "home" ? game.data.home_user_id : game.data.away_user_id, opponent_user_id: side === "home" ? game.data.away_user_id : game.data.home_user_id,
-      is_home: side === "home", result: isTie ? "tie" : (side === effectiveOutcome ? "win" : "loss"),
-      points_for: side === "home" ? homeScore : awayScore, points_against: side === "home" ? awayScore : homeScore,
-      off_yards_gained: numberOrNull(stats.offYardsGained), off_rush_yards: numberOrNull(stats.offRushYards), off_pass_yards: numberOrNull(stats.offPassYards),
-      off_first_down: numberOrNull(stats.offFirstDown), punt_return_yards: numberOrNull(stats.puntReturnYards), kick_return_yards: numberOrNull(stats.kickReturnYards),
-      total_yards_gained: numberOrNull(stats.totalYardsGained), turnovers_committed: numberOrNull(stats.turnoversCommitted), red_zone_off_percentage: numberOrNull(stats.redZoneOffPercentage),
-      generated_turnovers: numberOrNull(stats.generatedTurnovers ?? opponent.turnoversCommitted), yards_allowed: numberOrNull(stats.yardsAllowed ?? opponent.offYardsGained),
-      rush_yards_allowed: numberOrNull(stats.rushYardsAllowed ?? opponent.offRushYards), pass_yards_allowed: numberOrNull(stats.passYardsAllowed ?? opponent.offPassYards),
-      first_downs_allowed: numberOrNull(stats.firstDownsAllowed ?? opponent.offFirstDown), red_zone_def_percentage: numberOrNull(stats.redZoneDefPercentage),
-      comeback_deficit: numberOrNull(stats.comebackDeficit), comeback_deficit_quarter: numberOrNull(stats.comebackDeficitQuarter), comeback_rate: numberOrNull(stats.comebackRate),
-      fourth_quarter_comeback: Boolean(stats.fourthQuarterComeback), quarter_scores: stats.quarterScores ?? null,
-      offensive_stats: { third_down_conversions: numberOrNull(stats.thirdDownConversions), fourth_down_conversions: numberOrNull(stats.fourthDownConversions), two_point_conversions: numberOrNull(stats.twoPointConversions) },
-      defensive_stats: { third_down_conversions: numberOrNull(opponent.thirdDownConversions), fourth_down_conversions: numberOrNull(opponent.fourthDownConversions), two_point_conversions: numberOrNull(opponent.twoPointConversions), red_zone_off_percentage: numberOrNull(opponent.redZoneOffPercentage) },
-      created_at: now,
-    });
-    const statsInsert = await supabase.from("rec_team_game_stats").insert([statsRow(homeStats, awayStats, "home"), statsRow(awayStats, homeStats, "away")]);
-    if (statsInsert.error) throw new ApiError(500, "We couldn't save the manually entered team stats. Please try again.", statsInsert.error);
-  }
-
-  // Independent of team stats — a commissioner might tag players/units without filling any
-  // team-stat fields. Delete-then-insert on re-save, matching the idempotent pattern above.
-  const homeTags = input.performanceTags?.home ?? [];
-  const awayTags = input.performanceTags?.away ?? [];
-  const hasPerformanceTags = homeTags.length > 0 || awayTags.length > 0;
-  if (hasPerformanceTags) {
-    await supabase.from("rec_game_performance_tags").delete().eq("game_id", input.gameId);
-    const tagRow = (tag: PerformanceTagInput, teamId: string) => ({
-      id: randomUUID(), league_id: context.leagueId, game_id: input.gameId, season_number: seasonNumber, week_number: weekNumber,
-      team_id: teamId, subject_type: tag.subjectType,
-      watched_player_id: tag.subjectType === "player" ? tag.watchedPlayerId ?? null : null,
-      unit: tag.subjectType === "unit" ? tag.unit ?? null : null,
-      stat_lines: tag.statLines ?? [], performance_grade: tag.performanceGrade,
-      created_at: now, updated_at: now,
-    });
-    const tagsInsert = await supabase.from("rec_game_performance_tags").insert([
-      ...homeTags.map((tag) => tagRow(tag, homeTeamId)),
-      ...awayTags.map((tag) => tagRow(tag, awayTeamId)),
-    ]);
-    if (tagsInsert.error) throw new ApiError(500, "We couldn't save the performance tags. Please try again.", tagsInsert.error);
-  }
-
-  // processGameIntelligence builds its story from rec_team_game_stats rows — it can only
-  // run when team stats actually exist. Performance tags entered without team stats are
-  // still saved above (for reference / a later box-score pass) but can't drive story
-  // generation on their own since there's no GameStats to derive a winner/loser from.
-  if (hasManualStats) {
-    const submission = await supabase.from("rec_box_score_submissions").select("id").eq("game_id", input.gameId).eq("entry_method", "manual").maybeSingle();
-    if (submission.data?.id) {
-      await processGameIntelligence({ id: submission.data.id, league_id: context.leagueId, season_number: seasonNumber, week_number: weekNumber, game_id: input.gameId });
-    }
-    await issueAndGradeWeeklyTeamChallengesForGame({
-      leagueId: context.leagueId, seasonNumber, weekNumber, gameId: input.gameId,
-    }).catch((err) => console.error(`[ERROR] Weekly team challenge grading failed for game ${input.gameId} (non-fatal):`, err));
-  }
+  await issueAndGradeWeeklyTeamChallengesForGame({
+    leagueId: context.leagueId, seasonNumber, weekNumber, gameId: input.gameId,
+  }).catch((err) => console.error(`[ERROR] Weekly team challenge grading failed for game ${input.gameId} (non-fatal):`, err));
 
   await rebuildSeasonDisplayRecords(context.leagueId, seasonNumber).catch((err) => {
     console.error("[ERROR] rebuildSeasonDisplayRecords failed after manual score entry (non-fatal):", err);
