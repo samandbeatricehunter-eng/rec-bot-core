@@ -4732,8 +4732,18 @@ button.hub-div-standing-team:focus-visible {
     grid-template-columns: 1fr;
   }
 }
-.hub-season-form-card strong { gap:4px; }
-.hub-season-form-card strong > em { margin-right:2px; color:#fff; font-size:.8rem; font-style:normal; }
+.hub-season-form-card strong {
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow: visible;
+}
+.hub-season-form-card strong > em {
+  flex: 0 0 auto;
+  margin-right: 2px;
+  color: #fff;
+  font-size: .8rem;
+  font-style: normal;
+}
 .hub-season-form-card strong > small { color:rgba(255,255,255,.55); }
 .hub-season-form-game { position:relative; display:inline-grid; width:25px; height:25px; place-items:center; }
 .hub-season-form-game .team-logo { width:23px; height:23px; object-fit:contain; opacity:.72; }

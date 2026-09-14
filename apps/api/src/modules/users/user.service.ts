@@ -24,7 +24,7 @@ import {
 } from "./user-profile-stats.service.js";
 
 // Badges were removed app-wide; the identity inference below now scores purely on tracked
-// stats (each group's old `badges` set â€” used to match earned badge keys â€” is gone, since
+// stats (each group's old `badges` set — used to match earned badge keys — is gone, since
 // there's nothing left to match against).
 const IDENTITY_GROUPS = [
   {
@@ -171,7 +171,7 @@ export async function transferSavings(discordId: string, amount: number, directi
   await assertSiteAccountForEconomy(baseline.user.id);
   const amountInt = Math.floor(amount);
 
-  // A single atomic UPDATE with the balance floor baked into the WHERE clause â€” replaces a
+  // A single atomic UPDATE with the balance floor baked into the WHERE clause — replaces a
   // former read-then-absolute-overwrite that could silently erase a concurrent debit landing
   // on the same wallet row (the transfer would "restore" a stale balance, canceling the debit
   // while the user kept whatever it paid for).
@@ -693,7 +693,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string, 
       pointsAgainst: seasonRecordData.points_against ?? 0,
       text: recordText(seasonRecordData),
       boxScoresUploaded: seasonStats?.boxScoresUploaded ?? 0,
-      activeStreak: seasonStats?.activeStreak ?? "â€”",
+      activeStreak: seasonStats?.activeStreak ?? "—",
     },
     leagueCareerRecord: {
       wins: leagueCareerTotals.wins,
@@ -701,7 +701,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string, 
       ties: leagueCareerTotals.ties,
       pointDifferential: leagueCareerTotals.pointDifferential,
       text: recordText(leagueCareerTotals),
-      activeStreak: careerStats?.activeStreak ?? "â€”",
+      activeStreak: careerStats?.activeStreak ?? "—",
     },
     globalRecord: {
       wins: globalRecord.wins ?? 0,
@@ -715,7 +715,7 @@ export async function getUserSnapshot(targetDiscordId: string, guildId: string, 
       text: recordText(globalRecord),
       playoffText: playoffText(globalRecord),
       superbowlText: superbowlText(globalRecord),
-      activeStreak: careerStats?.activeStreak ?? "â€”",
+      activeStreak: careerStats?.activeStreak ?? "—",
     },
     gameGlobalRecord: leagueId ? buildGameGlobalRecordDisplay(gameGlobalRecord, leagueGame) : null,
     powerRank: rankRow ? { rank: rankRow.rank, score: rankRow.score, sosScore: sosRow?.sosFullPerGame ?? sosRow?.sosFull ?? null } : null,
@@ -1052,7 +1052,7 @@ function streakFromGames(games: any[], userId: string): string {
     else if (res === type) streak += 1;
     else break;
   }
-  return type && streak > 0 ? `${type}${streak}` : "â€”";
+  return type && streak > 0 ? `${type}${streak}` : "—";
 }
 
 
@@ -1143,20 +1143,20 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     displayRecord = displayRecordResult.data ?? null;
 
     if (assignment?.team_id) {
-      // Preseason has no scheduled slate for anyone â€” never surface a matchup here even if
+      // Preseason has no scheduled slate for anyone — never surface a matchup here even if
       // one was already entered into the schedule builder ahead of time.
       if (isPreseason) {
         currentMatchup = "Preseason (No Games)";
       } else if (!isGameplayStage) {
         // Offseason stages (end of season recap, transfer portal, signing day, etc.) have no
-        // real slate for anyone â€” never run the games query, since a stale row left over from
+        // real slate for anyone — never run the games query, since a stale row left over from
         // the last real gameplay week at this same week_number would otherwise surface as a
         // live-looking opponent.
         currentMatchup = stageDisplay(stage);
       } else {
         // Every season restarts at week_number=1, so without a season_id filter this can match
         // last season's game at the same week number instead of the current one once a league
-        // is on its second (or later) season â€” the exact bug behind the hero card showing a
+        // is on its second (or later) season — the exact bug behind the hero card showing a
         // stale opponent from a prior season.
         const seasonId = await seasonIdP;
         const games = await leagueWeekGamesQuery(supabase, { leagueId: league.id, seasonId, weekNumber: currentWeek },
@@ -1189,7 +1189,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
             .maybeSingle();
 
           // Drive the label off this specific game's own flags, not the league's overall
-          // stage â€” during a CFP round, teams not in the bracket are simultaneously playing
+          // stage — during a CFP round, teams not in the bracket are simultaneously playing
           // a separately-scheduled bowl game, and a bracket game can itself also carry a bowl
           // name (e.g. a CFP quarterfinal hosted at the Fiesta Bowl). Show whichever apply.
           const postseasonRoundLabel = game.postseason_round ? stageLabel(String(game.postseason_round), currentWeek, league.game) : null;
@@ -1197,7 +1197,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
           if (postseasonRoundLabel || bowlLabel) {
             gotwStatus = postseasonRoundLabel && bowlLabel ? `${postseasonRoundLabel} Â· ${bowlLabel}` : (postseasonRoundLabel ?? bowlLabel)!;
           } else if (isPostseason) {
-            // Postseason week, but this game isn't flagged as a bracket or bowl game â€”
+            // Postseason week, but this game isn't flagged as a bracket or bowl game —
             // fall back to the league's overall stage name rather than showing nothing.
             gotwStatus = stageLabel(stage, currentWeek, league.game);
           } else if (!gotw.error && gotw.data) {
@@ -1205,7 +1205,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
           }
         } else if (isGameplayStage) {
           // A real gameplay week (regular season or postseason) with no rec_games row for
-          // this team â€” distinguish a deliberately-scheduled bye from a matchup the
+          // this team — distinguish a deliberately-scheduled bye from a matchup the
           // commissioner just hasn't entered yet.
           const byeCheck = await supabase
             .from("rec_team_byes")
@@ -1243,7 +1243,7 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     baseline.legacyBaseline?.global_record as Record<string, unknown> | null | undefined,
   );
 
-  // GOTW voting record â€” read from the settled aggregate table (populated by settleGotwVotes
+  // GOTW voting record — read from the settled aggregate table (populated by settleGotwVotes
   // during advance). The raw rec_game_of_week_votes table can have null user_id when the
   // Discordâ†’user lookup fails at vote-cast time, so the aggregate is more reliable.
   let gotwVotingRecord: { correct: number; total: number; accuracy: number } | null = null;
@@ -1262,10 +1262,10 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
   const projectedInterest = Math.min(SAVINGS_INTEREST_MAX_PER_ADVANCE, Math.floor(savingsBalance * SAVINGS_INTEREST_RATE));
 
   // User/opponent current streaks and opponent season record.
-  let userStreakText = "â€”";
-  let opponentRecordText = "â€”";
+  let userStreakText = "—";
+  let opponentRecordText = "—";
   let opponentPointDifferential = 0;
-  let opponentStreakText = "â€”";
+  let opponentStreakText = "—";
   let recentForm: Array<{ result: "W" | "L" | "T"; opponentName: string; opponentAbbr: string | null; opponentLogoUrl: string | null }> = [];
   if (league?.id) {
     const { data: userGames } = await supabase

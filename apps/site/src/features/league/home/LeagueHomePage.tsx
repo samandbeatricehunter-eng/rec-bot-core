@@ -136,7 +136,7 @@ export function LeagueHomePage() {
           playerXpProgress={playerXpProgress}
           teamXpProgress={teamXpProgress}
           recentForm={recentForm}
-          userStreakText={my.userStreakText}
+          userStreakText={(my.userStreakText === "â€”" ? "—" : my.userStreakText) ?? "—"}
           onOpenWallet={() => setSnapshotFundsKind("wallet")}
           onOpenSavings={() => setSnapshotFundsKind("savings")}
         />

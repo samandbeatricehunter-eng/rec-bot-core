@@ -122,7 +122,12 @@ export function TeamStatusStrip({
         </article>
         <article>
           <span>Career post-season record</span>
-          <strong>{profile.globalRecord?.playoffText ?? "0-0"}</strong>
+          <strong>
+            {profile.globalRecord?.playoffText ?? "0-0"}
+            {" "}
+            ({profile.globalRecord?.superbowlText
+              ?? `${Number(profile.globalRecord?.superbowlWins ?? 0)}-${Number(profile.globalRecord?.superbowlLosses ?? 0)}`})
+          </strong>
         </article>
       </div>
       <div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="Team views">

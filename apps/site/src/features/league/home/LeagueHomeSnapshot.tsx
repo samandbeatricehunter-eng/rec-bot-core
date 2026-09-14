@@ -119,15 +119,15 @@ export function LeagueHomeSnapshot({
         <div className="hub-season-snapshot-grid hub-season-snapshot-secondary" aria-label="Team progression snapshot">
           <Link to={`/l/${leagueId}/standings?view=power`}><span>Power ranking</span><strong>{heroRank}</strong></Link>
           <Link className="hub-season-form-card" to={`/l/${leagueId}/matchups?view=myschedule`}>
-            <span>Recent form · Streak</span>
+            <span>Streak · Recent form</span>
             <strong>
-              {recentForm.length ? [...recentForm].reverse().map((game, index) => (
+              <em>{userStreakText ?? "—"}</em>
+              {recentForm.length ? recentForm.map((game, index) => (
                 <span className={`hub-season-form-game is-${game.result.toLowerCase()}`} key={`${game.opponentName}-${index}`} title={`${game.result} vs ${game.opponentName}`}>
                   <TeamLogo abbreviation={game.opponentAbbr} logoUrl={game.opponentLogoUrl} alt={game.opponentName} />
                   <b>{game.result}</b>
                 </span>
               )) : <small>—</small>}
-              <em>{userStreakText ?? "—"}</em>
             </strong>
           </Link>
           <Link className="hub-season-team-xp" to={`/l/${leagueId}/player-progression`}>
