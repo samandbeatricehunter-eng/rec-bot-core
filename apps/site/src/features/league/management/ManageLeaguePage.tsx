@@ -1,27 +1,40 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useReadyAuth } from "@rec/hub-ui";
+import { DiscordServerSettings } from "../../../components/DiscordServerSettings.js";
 import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
 import type { HubMatchupGame, HubMatchupSchedule } from "../../../../../web/src/types/api.js";
 import { Button } from "../../../../../web/src/components/ui/Button.js";
 import { Modal } from "../../../../../web/src/components/ui/Modal.js";
-import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
 import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
 import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
+import { SettingsHome } from "./settings/SettingsHome.js";
 
 type ForceChoice = "clear" | "home" | "away";
 type ForceStatus = "home_win" | "away_win" | "cleared" | null;
+type ManageLeagueView = "schedule" | "discord" | "league" | "gameplay";
 
 type ForceableMeta = {
   lastForceStatus: ForceStatus;
   lastForceAt: string | null;
 };
 
+const HEADER_VIEWS: Array<{ id: Exclude<ManageLeagueView, "schedule">; top: string; bottom: string }> = [
+  { id: "discord", top: "Discord", bottom: "Settings" },
+  { id: "league", top: "League", bottom: "Settings" },
+  { id: "gameplay", top: "Gameplay", bottom: "Settings" },
+];
+
 const MATCHUP_SORT: Record<HubMatchupGame["matchupType"], number> = {
   h2h: 0,
   human_cpu: 1,
   cpu: 2,
 };
+
+function parseView(raw: string | null): ManageLeagueView {
+  if (raw === "discord" || raw === "league" || raw === "gameplay") return raw;
+  return "schedule";
+}
 
 function teamNick(game: HubMatchupGame, side: "away" | "home"): string {
   if (side === "away") {
@@ -50,7 +63,7 @@ function isEaConnectionBroken(message: string): boolean {
     || lower.includes("reconnect")
     || lower.includes("expired")
     || lower.includes("import data")
-    || lower.includes("connect") && lower.includes("ea")
+    || (lower.includes("connect") && lower.includes("ea"))
   );
 }
 
@@ -74,10 +87,46 @@ function sortWeekGames(games: HubMatchupGame[]): HubMatchupGame[] {
   });
 }
 
-/** Manage League — current-week schedule with per-game EA force-result controls. */
-export function ManageLeaguePage() {
-  const { leagueId = "" } = useParams();
-  const { guildId } = useReadyAuth();
+function ManageLeagueHeader({
+  active,
+  onSelect,
+}: {
+  active: ManageLeagueView;
+  onSelect: (view: ManageLeagueView) => void;
+}) {
+  return (
+    <header className="page-header mgmt-league-title-block">
+      <div className="page-header-copy">
+        <h1>Manage League</h1>
+      </div>
+      <nav className="mgmt-league-header-nav" aria-label="Manage League sections">
+        {HEADER_VIEWS.map((item) => {
+          const selected = active === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={selected ? "is-selected" : undefined}
+              aria-pressed={selected}
+              onClick={() => onSelect(selected ? "schedule" : item.id)}
+            >
+              <span>{item.top}</span>
+              <strong>{item.bottom}</strong>
+            </button>
+          );
+        })}
+      </nav>
+    </header>
+  );
+}
+
+function ManageLeagueScheduleBody({
+  leagueId,
+  guildId,
+}: {
+  leagueId: string;
+  guildId: string;
+}) {
   const [schedule, setSchedule] = useState<HubMatchupSchedule | null>(null);
   const [forceByGameId, setForceByGameId] = useState<Record<string, ForceableMeta>>({});
   const [error, setError] = useState<string | null>(null);
@@ -89,11 +138,13 @@ export function ManageLeaguePage() {
     setError(null);
     const [nextSchedule, forceable] = await Promise.all([
       recApi.getHubMatchupSchedule({ guildId }),
-      recApi.eaAdminListForceableMatches({ guildId, leagueId }).catch(() => ({ matches: [] as Array<{
-        gameId: string;
-        lastForceStatus: ForceStatus;
-        lastForceAt: string | null;
-      }> })),
+      recApi.eaAdminListForceableMatches({ guildId, leagueId }).catch(() => ({
+        matches: [] as Array<{
+          gameId: string;
+          lastForceStatus: ForceStatus;
+          lastForceAt: string | null;
+        }>,
+      })),
     ]);
     setSchedule(nextSchedule);
     const map: Record<string, ForceableMeta> = {};
@@ -152,43 +203,21 @@ export function ManageLeaguePage() {
     }
   }
 
-  if (error && !schedule) {
-    return (
-      <div>
-        <PageHeader title="Manage League" subtitle="Current week schedule and force results." />
-        <ErrorState message={error} onRetry={() => void load()} />
-      </div>
-    );
-  }
-
-  if (!schedule) {
-    return (
-      <div>
-        <PageHeader title="Manage League" subtitle="Current week schedule and force results." />
-        <LoadingState label="Loading week schedule…" />
-      </div>
-    );
-  }
+  if (error && !schedule) return <ErrorState message={error} />;
+  if (!schedule) return <LoadingState label="Loading week schedule…" />;
 
   const weekLabel = `Week ${schedule.selectedWeek}`;
 
   return (
-    <div>
-      <PageHeader
-        title="Manage League"
-        subtitle={`${weekLabel} schedule — user games, then human vs CPU, then CPU vs CPU.`}
-      />
-
+    <>
+      <p className="mgmt-league-schedule-lead">{weekLabel} — user games, then human vs CPU, then CPU vs CPU.</p>
       {rowError ? <p className="mgmt-league-schedule-error">{rowError}</p> : null}
-
       {games.length === 0 ? (
         <p className="hub-empty">No games scheduled for this week.</p>
       ) : (
         <div className="mgmt-league-schedule" role="list" aria-label={`${weekLabel} matchups`}>
           {games.map((game) => {
             const force = forceByGameId[game.gameId];
-            const forceable = Boolean(force) || game.gameId in forceByGameId;
-            // Forceable list only includes EA-imported games; treat missing as not forceable.
             const canForce = Object.prototype.hasOwnProperty.call(forceByGameId, game.gameId);
             const choice = choiceFromStatus(force?.lastForceStatus ?? null);
             const busy = busyGameId === game.gameId;
@@ -214,7 +243,7 @@ export function ManageLeaguePage() {
                   {gameStatusLabel(game, force)}
                 </div>
                 <label className="mgmt-league-schedule-control">
-                  <span className="visually-hidden">Set game result</span>
+                  <span className="sr-only">Set game result</span>
                   <select
                     className="form-input"
                     value={choice}
@@ -262,9 +291,37 @@ export function ManageLeaguePage() {
           </p>
         </Modal>
       ) : null}
-    </div>
+    </>
   );
 }
 
-/** @deprecated Prefer ManageLeaguePage — kept for existing import paths. */
-export const ManageLeaguePlaceholderPage = ManageLeaguePage;
+/** Manage League — schedule by default; Discord / League / Gameplay settings via header buttons. */
+export function ManageLeaguePage() {
+  const { leagueId = "" } = useParams();
+  const { guildId } = useReadyAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = parseView(searchParams.get("view"));
+
+  function setView(next: ManageLeagueView) {
+    const params = new URLSearchParams(searchParams);
+    if (next === "schedule") params.delete("view");
+    else params.set("view", next);
+    setSearchParams(params, { replace: true });
+  }
+
+  return (
+    <div>
+      <ManageLeagueHeader active={view} onSelect={setView} />
+      {view === "schedule" ? (
+        <ManageLeagueScheduleBody leagueId={leagueId} guildId={guildId} />
+      ) : view === "discord" ? (
+        <>
+          <DiscordServerSettings leagueId={leagueId} />
+          <SettingsHome mode="discord" />
+        </>
+      ) : (
+        <SettingsHome mode={view} />
+      )}
+    </div>
+  );
+}

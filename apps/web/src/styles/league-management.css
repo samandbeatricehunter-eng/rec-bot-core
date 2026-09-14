@@ -74,6 +74,11 @@
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(6px);
 }
+.league-mgmt-content > div > .page-header.mgmt-league-title-block {
+  width: min(100%, 34rem);
+  max-width: min(100%, 34rem);
+  gap: 12px;
+}
 .page-header-copy {
   width: 100%;
 }
@@ -1068,6 +1073,55 @@
 .hub-troubleshoot-check small { color:var(--text-muted); }
 
 /* Manage League — current-week force-result schedule */
+.mgmt-league-header-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+}
+.mgmt-league-header-nav button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 54px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.mgmt-league-header-nav button span {
+  color: rgba(255, 255, 255, 0.72);
+  font: 400 0.62rem / 0.92 "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.mgmt-league-header-nav button strong {
+  margin: 0;
+  font: 700 clamp(0.86rem, 2vw, 1.05rem) / 1 "REC Quantico", "Arial Narrow", Impact, sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.mgmt-league-header-nav button:hover {
+  border-color: var(--accent-bright);
+  background: rgba(28, 13, 13, 0.65);
+}
+.mgmt-league-header-nav button.is-selected {
+  border-color: rgba(255, 70, 70, 0.75);
+  background: linear-gradient(180deg, rgba(90, 18, 18, 0.95), rgba(40, 10, 10, 0.98));
+  box-shadow: inset 0 0 0 1px rgba(255, 120, 90, 0.25), 0 0 14px rgba(255, 40, 40, 0.22);
+}
+.mgmt-league-schedule-lead {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
 .mgmt-league-schedule {
   display: flex;
   flex-direction: column;

@@ -23,6 +23,9 @@ const TOP_TABS = [
 ] as const;
 type TopTab = (typeof TOP_TABS)[number]["key"];
 
+/** Embeddable slice of Settings for Manage League header destinations. */
+export type SettingsHomeMode = "full" | "discord" | "league" | "gameplay";
+
 function summarizeValue(field: { type: string; options?: { value: string; label: string }[] }, value: unknown): string {
   if (field.type === "toggle") return value ? "Enabled" : "Disabled";
   if (field.type === "enum") return field.options?.find((o) => o.value === value)?.label ?? "Not set";
@@ -38,7 +41,7 @@ function summarizeValue(field: { type: string; options?: { value: string; label:
 // One generic renderer for every category in settings-fields.ts's schema, presented as a
 // block card (bold-label summary rows) with a + that opens the full editor in a modal — the
 // same pattern ChannelSettings.tsx uses for the Discord tab.
-export function SettingsHome() {
+export function SettingsHome({ mode = "full" }: { mode?: SettingsHomeMode }) {
   const { guildId } = useReadyAuth();
   const [draft, setDraft] = useState<LeagueSettingsDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +50,15 @@ export function SettingsHome() {
   // A deep link can pass a specific settings-category key (e.g. "gameplay" from the
   // post-creation slider-configuration prompt) instead of a top-tab key -- treat any
   // unrecognized value as "open League Settings", not "fall back to Discord".
-  const topTab: TopTab = requestedCategory === "delete-league" || requestedCategory === "discord" ? requestedCategory : requestedCategory ? "league" : "discord";
+  const topTab: TopTab = mode === "discord"
+    ? "discord"
+    : mode === "league" || mode === "gameplay"
+      ? "league"
+      : requestedCategory === "delete-league" || requestedCategory === "discord"
+        ? requestedCategory
+        : requestedCategory
+          ? "league"
+          : "discord";
   function setTopTab(next: TopTab) {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("category", next);
@@ -83,7 +94,9 @@ export function SettingsHome() {
   if (error && !draft) {
     return (
       <div>
-        <PageHeader title="Settings" subtitle="League configuration — economy, rules, gameplay, and more." />
+        {mode === "full" ? (
+          <PageHeader title="Settings" subtitle="League configuration — economy, rules, gameplay, and more." />
+        ) : null}
         <ErrorState message={error} />
       </div>
     );
@@ -92,7 +105,12 @@ export function SettingsHome() {
 
   const isRise = draft.leagueType === "rise_to_immortality";
   const game = String(draft.game ?? "");
-  const visibleCategories = SETTINGS_CATEGORIES.filter((c) => isSettingsCategoryVisible(c) && (c.key !== "rise" || isRise));
+  const visibleCategories = SETTINGS_CATEGORIES.filter((c) => {
+    if (!isSettingsCategoryVisible(c) || (c.key === "rise" && !isRise)) return false;
+    if (mode === "gameplay") return c.key === "gameplay";
+    if (mode === "league") return c.key !== "gameplay";
+    return true;
+  });
 
   function openEdit(categoryKey: string) {
     setEditDraft(draft);
@@ -138,21 +156,25 @@ export function SettingsHome() {
 
   return (
     <div>
-      <PageHeader title="Settings" subtitle="League configuration — economy, rules, gameplay, and more." />
+      {mode === "full" ? (
+        <PageHeader title="Settings" subtitle="League configuration — economy, rules, gameplay, and more." />
+      ) : null}
       {notice && <p style={{ color: "var(--success)", marginTop: 0 }}>{notice}</p>}
       {error && <ErrorState message={error} />}
 
-      <nav className="settings-nav" aria-label="Settings sections" style={{ marginBottom: "var(--space-4)" }}>
-        <div className="settings-nav-group-tabs">
-          {TOP_TABS.map((tab) => (
-            <Button key={tab.key} variant={tab.key === topTab ? "primary" : "secondary"} onClick={() => setTopTab(tab.key)}>
-              {tab.label}
-            </Button>
-          ))}
-        </div>
-      </nav>
+      {mode === "full" ? (
+        <nav className="settings-nav" aria-label="Settings sections" style={{ marginBottom: "var(--space-4)" }}>
+          <div className="settings-nav-group-tabs">
+            {TOP_TABS.map((tab) => (
+              <Button key={tab.key} variant={tab.key === topTab ? "primary" : "secondary"} onClick={() => setTopTab(tab.key)}>
+                {tab.label}
+              </Button>
+            ))}
+          </div>
+        </nav>
+      ) : null}
 
-      {topTab === "discord" ? (
+      {topTab === "discord" || mode === "discord" ? (
         <ChannelSettings />
       ) : topTab === "delete-league" ? (
         <DeleteLeagueHome />
