@@ -99,6 +99,9 @@ export type TeamManagementSummaryRow = {
   missingBoxScoreCount: number;
   record: { wins: number; losses: number; ties: number };
   eaUsername: string | null;
+  primaryColor: string | null;
+  logoUrl: string | null;
+  originalAbbreviation: string | null;
 };
 
 export type TeamManagementSummary = {

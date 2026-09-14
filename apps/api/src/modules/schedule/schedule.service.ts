@@ -116,7 +116,7 @@ export async function listScheduleTeams(guildId: string) {
   const context = await getCurrentLeagueContext(guildId);
   const { data, error } = await supabase
     .from("rec_teams")
-    .select("id,name,abbreviation,display_city,display_nick,display_abbr,conference,division,is_relocated,ea_username")
+    .select("id,name,abbreviation,display_city,display_nick,display_abbr,conference,division,is_relocated,ea_username,primary_color,logo_url,original_abbreviation")
     .eq("league_id", context.leagueId)
     .order("conference", { ascending: true })
     .order("division", { ascending: true })

@@ -37,6 +37,12 @@ export type TeamManagementSummaryRow = {
   record: { wins: number; losses: number; ties: number };
   /** Imported EA gamertag/PSN from the last Madden hub import; null for CPU or unimported teams. */
   eaUsername: string | null;
+  /** Commissioner/custom override; stock teams usually fall back to the NFL catalog on the client. */
+  primaryColor: string | null;
+  /** Custom/relocated uploaded logo; null means use the stock abbr PNG. */
+  logoUrl: string | null;
+  /** Pre-relocate stock abbr, used for logo/color fallback when display abbr is custom. */
+  originalAbbreviation: string | null;
 };
 
 export type TeamManagementSummary = {
@@ -209,6 +215,11 @@ export async function getTeamManagementSummary(guildId: string, seasonNumber?: n
       missingBoxScoreCount,
       record: { wins, losses, ties },
       eaUsername: typeof team.ea_username === "string" && team.ea_username.trim() ? team.ea_username.trim() : null,
+      primaryColor: typeof team.primary_color === "string" && team.primary_color.trim() ? team.primary_color.trim() : null,
+      logoUrl: typeof team.logo_url === "string" && team.logo_url.trim() ? team.logo_url.trim() : null,
+      originalAbbreviation: typeof team.original_abbreviation === "string" && team.original_abbreviation.trim()
+        ? team.original_abbreviation.trim()
+        : null,
     };
   });
 

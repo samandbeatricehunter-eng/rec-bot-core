@@ -4249,6 +4249,53 @@ button.poty:disabled {
   text-overflow:ellipsis;
   max-width:100%;
 }
+button.hub-div-standing-team {
+  width: 100%;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+}
+button.hub-div-standing-team:hover,
+button.hub-div-standing-team:focus-visible {
+  border-color: rgba(255,255,255,.65);
+  filter: brightness(1.08);
+}
+.hub-div-standing-mgmt-ids {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+  min-width: 0;
+}
+.hub-div-standing-mgmt-ids > div {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr);
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+}
+.hub-div-standing-mgmt-ids dt {
+  margin: 0;
+  color: rgba(255,255,255,.72);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.hub-div-standing-mgmt-ids dd {
+  margin: 0;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hub-div-standing-team.is-open-team .hub-div-standing-marker {
+  background: rgba(0,0,0,.45);
+  color: #ffe27a;
+}
 .hub-div-standing-record {
   justify-self:end;
   z-index:1;
