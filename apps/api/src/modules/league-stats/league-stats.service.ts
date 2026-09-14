@@ -95,7 +95,7 @@ export async function getLeagueStatsForLeagueId(leagueId: string, input: { teamI
        select player_id,jsonb_object_agg(key,total order by key) as stats from numeric_stats group by player_id
      ), player_rows as (
        select p.id,p.full_name as "fullName",p.position,p.jersey_number as "jerseyNumber",p.photo_url as "photoUrl",
-              p.dev_trait as "devTrait",p.team_id as "teamId",t.name as "teamName",t.abbreviation as "teamAbbreviation",
+              p.dev_trait as "devTrait",p.overall_rating as "overallRating",p.team_id as "teamId",t.name as "teamName",t.abbreviation as "teamAbbreviation",
               coalesce(x.stats,'{}'::jsonb) as stats
          from rec_players p left join rec_teams t on t.id=p.team_id left join totals x on x.player_id=p.id
         where p.league_id=$1 and coalesce(p.roster_status,'active')='active' ${filter}

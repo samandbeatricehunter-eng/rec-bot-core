@@ -3,9 +3,12 @@ import { getStatShortLabel } from "@rec/shared";
 import { recApi } from "../../lib/rec-api-client.js";
 import { PlayerPhoto } from "./PlayerPhoto.js";
 
-type StatsPlayer = Awaited<ReturnType<typeof recApi.getLeagueStats>>["players"][number];
+type StatsPlayer = Awaited<ReturnType<typeof recApi.getLeagueStats>>["players"][number] & {
+  overallRating?: number | null;
+  stats?: Record<string, number | string | null | undefined>;
+};
 
-const SCORE_KEYS = [
+const IMPACT_STAT_KEYS = [
   "pass_yards",
   "rush_yards",
   "receiving_yards",
@@ -17,16 +20,35 @@ const SCORE_KEYS = [
   "interceptions",
 ] as const;
 
-function productionScore(player: StatsPlayer) {
-  return SCORE_KEYS.reduce((sum, key) => sum + (Number(player.stats[key]) || 0), 0);
+function statValue(player: StatsPlayer, key: string): number {
+  return Number(player.stats?.[key]) || 0;
+}
+
+/** Season production impact — same relative weights as Player of the Week offense/defense. */
+function impactScore(player: StatsPlayer): number {
+  return (
+    statValue(player, "pass_yards") * 0.04
+    + (statValue(player, "rush_yards") + statValue(player, "receiving_yards")) * 0.1
+    + (statValue(player, "pass_tds") + statValue(player, "rush_tds") + statValue(player, "receiving_tds")) * 6
+    + statValue(player, "tackles")
+    + statValue(player, "sacks") * 4
+    + statValue(player, "interceptions") * 4
+  );
+}
+
+/** Top-player rank: OVR + season impact. With no production yet, pure OVR wins (not roster order). */
+function topPlayerScore(player: StatsPlayer): number {
+  return (Number(player.overallRating) || 0) + impactScore(player);
 }
 
 function headlineLine(player: StatsPlayer): string {
-  const ordered = SCORE_KEYS
-    .map((key) => ({ key, value: Number(player.stats[key]) || 0 }))
+  const ordered = IMPACT_STAT_KEYS
+    .map((key) => ({ key, value: statValue(player, key) }))
     .filter((row) => row.value > 0)
     .sort((a, b) => b.value - a.value);
-  if (!ordered.length) return "No production logged";
+  if (!ordered.length) {
+    return player.overallRating != null ? `${player.overallRating} OVR` : "No production logged";
+  }
   return ordered
     .slice(0, 2)
     .map((row) => `${row.value.toLocaleString("en-US")} ${getStatShortLabel(row.key)}`)
@@ -43,7 +65,11 @@ function TeamColumn({
   players: StatsPlayer[];
 }) {
   const top = useMemo(
-    () => [...players].sort((a, b) => productionScore(b) - productionScore(a)).slice(0, 3),
+    () => [...players]
+      .sort((a, b) => topPlayerScore(b) - topPlayerScore(a)
+        || (Number(b.overallRating) || 0) - (Number(a.overallRating) || 0)
+        || String(a.fullName ?? "").localeCompare(String(b.fullName ?? "")))
+      .slice(0, 3),
     [players],
   );
 
@@ -58,17 +84,17 @@ function TeamColumn({
       ) : (
         <ol>
           {top.map((player, index) => (
-            <li key={player.id}>
+            <li key={String(player.id)}>
               <em>#{index + 1}</em>
               <PlayerPhoto
-                photoUrl={player.photoUrl}
+                photoUrl={typeof player.photoUrl === "string" ? player.photoUrl : null}
                 loading="lazy"
                 className="hub-matchup-team-leaders-photo"
-                fallback={<span className="hub-matchup-team-leaders-fallback">{player.position ?? "—"}</span>}
+                fallback={<span className="hub-matchup-team-leaders-fallback">{String(player.position ?? "—")}</span>}
               />
               <div>
-                <strong>{player.fullName}</strong>
-                <span>{player.position ?? "—"} · {headlineLine(player)}</span>
+                <strong>{String(player.fullName ?? "Player")}</strong>
+                <span>{String(player.position ?? "—")} · {headlineLine(player)}</span>
               </div>
             </li>
           ))}
@@ -78,7 +104,7 @@ function TeamColumn({
   );
 }
 
-/** Top 3 producers for each side of a matchup (season scope). */
+/** Top 3 players per side — ranked by OVR + season impact, not production alone. */
 export function MatchupTeamLeaders({
   guildId,
   awayTeamId,
@@ -105,7 +131,7 @@ export function MatchupTeamLeaders({
     const load = async (teamId: string | null) => {
       if (!teamId) return [] as StatsPlayer[];
       const result = await recApi.getLeagueStats({ guildId, teamId, scope: "season" });
-      return result.players;
+      return result.players as StatsPlayer[];
     };
 
     Promise.all([load(awayTeamId), load(homeTeamId)])
@@ -143,7 +169,7 @@ export function MatchupTeamLeaders({
     <section className="hub-matchup-team-leaders" aria-label="Top players">
       <header className="hub-matchup-team-leaders-head">
         <span>Top players</span>
-        <small>Season production · top 3 per team</small>
+        <small>OVR + impact · top 3 per team</small>
       </header>
       <div className="hub-matchup-team-leaders-grid">
         <TeamColumn label="Away" teamName={awayTeamName} players={away} />
