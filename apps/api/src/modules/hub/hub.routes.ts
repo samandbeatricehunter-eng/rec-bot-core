@@ -54,6 +54,7 @@ import {
   relocateHubTeam,
   reviewCustomTeamIdentity,
   submitCustomTeamIdentity,
+  updateTeamIdentityAsCommissioner,
 } from "../team-ownership/team-identity.service.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
@@ -545,6 +546,26 @@ export async function hubRoutes(app: FastifyInstance) {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       if (auth.mode === "bot") throw new ApiError(400, "Custom team review requires a user session.");
       return reply.send(await reviewCustomTeamIdentity({ ...body, reviewerDiscordId: auth.discordId }));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/hub/teams/identity", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        teamId: z.string().uuid(),
+        displayCity: z.string().min(1).max(64),
+        displayNick: z.string().min(1).max(64),
+        displayAbbr: z.string().min(2).max(4),
+        logoUrl: z.string().min(1).nullable().optional(),
+        keepStockLogo: z.boolean().optional(),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot") throw new ApiError(400, "Team identity edits require a user session.");
+      return reply.send(await updateTeamIdentityAsCommissioner({
+        ...body,
+        requestedByDiscordId: auth.discordId,
+      }));
     } catch (error) { return sendError(reply, error); }
   });
 

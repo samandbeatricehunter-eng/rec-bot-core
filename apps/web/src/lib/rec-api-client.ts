@@ -469,6 +469,29 @@ export const recApi = {
     recApiFetch<{ pendingApproval: true; header: string }>("/v1/hub/relocation/custom", { method: "POST", body: JSON.stringify(input) }),
   reviewCustomTeamIdentity: (input: { guildId: string; inboxId: string; action: "approve" | "deny"; deniedReason?: string }) =>
     recApiFetch<{ reviewed: true; decision: "approve" | "deny" }>("/v1/hub/relocation/review", { method: "POST", body: JSON.stringify({ ...input, reviewedByDiscordId: "web-dashboard" }) }),
+  updateTeamIdentityAsCommissioner: (input: {
+    guildId: string;
+    teamId: string;
+    displayCity: string;
+    displayNick: string;
+    displayAbbr: string;
+    logoUrl?: string | null;
+    keepStockLogo?: boolean;
+  }) =>
+    recApiFetch<{
+      team: {
+        id: string;
+        name: string;
+        abbreviation: string | null;
+        displayCity: string | null;
+        displayNick: string | null;
+        displayAbbr: string | null;
+        logoUrl: string | null;
+        primaryColor: string | null;
+        originalAbbreviation: string | null;
+        isRelocated: boolean;
+      };
+    }>("/v1/hub/teams/identity", { method: "POST", body: JSON.stringify(input) }),
   // Same remount-refetch cost as getHub above -- fires again on every return trip to the
   // league tab. Short TTL since scores/streams here update live during game days.
   getHubMatchupSchedule: (input: { guildId: string; weekNumber?: number | null; seasonNumber?: number | null }) =>
@@ -749,6 +772,24 @@ export const recApi = {
     recApiFetch<unknown>(REC_API_ROUTES.linkUserToTeam, { method: "POST", body: JSON.stringify(input) }),
   unlinkTeam: (input: { guildId: string; teamId: string }) =>
     recApiFetch<unknown>(REC_API_ROUTES.unlinkTeam, { method: "POST", body: JSON.stringify(input) }),
+  getManageUserActivity: (input: { guildId: string; teamId: string; userId: string }) =>
+    recApiFetch<{
+      events: Array<{ id: string; actionKey: string; summary: string; metadata: Record<string, unknown>; teamId: string | null; createdAt: string }>;
+    }>("/v1/manage-users/activity", { method: "POST", body: JSON.stringify(input) }),
+  getManageUserTransactions: (input: { guildId: string; teamId: string; userId: string }) =>
+    recApiFetch<{
+      wallet: { walletBalance: number; savingsBalance: number };
+      transactions: Array<{ id: string; amount: number; transactionType: string | null; description: string | null; createdAt: string }>;
+      pending: {
+        purchases: Array<{ id: string; purchaseType: string | null; status: string; amount: number | null; createdAt: string }>;
+        inbox: Array<{ id: string; queueType: string; header: string | null; createdAt: string }>;
+      };
+    }>("/v1/manage-users/transactions", { method: "POST", body: JSON.stringify(input) }),
+  suspendManageUser: (input: { guildId: string; teamId: string; userId: string; advances: number; reason: string }) =>
+    recApiFetch<{ suspended: true; suspensionId: string; remainingAdvances: number; endsAt: string }>(
+      "/v1/manage-users/suspend",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
 
   transferMyFunds: (input: { guildId: string; amount: number; direction: "to_savings" | "from_savings" }) =>
     recApiFetch<{ transferred: number; direction: string; wallet_balance: number; savings_balance: number }>("/v1/users/me/wallet/transfer", { method: "POST", body: JSON.stringify(input) }),

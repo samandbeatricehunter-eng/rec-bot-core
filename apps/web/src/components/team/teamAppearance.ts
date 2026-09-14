@@ -1,5 +1,5 @@
 import { NFL_TEAM_PRIMARY_COLORS, NFL_TEAM_SECONDARY_COLORS, getTeamByAbbreviation } from "@rec/shared";
-import { resolveTeamLogoAbbr } from "../../../../web/src/lib/team-logos.js";
+import { resolveTeamLogoAbbr } from "../../lib/team-logos.js";
 
 export type TeamAppearanceInput = {
   abbreviation?: string | null;

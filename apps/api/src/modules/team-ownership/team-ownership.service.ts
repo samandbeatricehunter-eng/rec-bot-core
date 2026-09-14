@@ -136,7 +136,7 @@ export async function clearDiscordTeamIdentityForUsers(input: { leagueId: string
   if (!targets.length) return { cleared: [], failed: [] };
   const accounts = await supabase.from("rec_discord_accounts").select("user_id,discord_id").in("user_id", targets);
   if (accounts.error) throw new ApiError(500, "We couldn't load Discord accounts for team cleanup. Please try again.", accounts.error);
-  const roles = await Promise.all((['member', 'compCommittee', 'commissioner'] as const)
+  const roles = await Promise.all((['member', 'compCommittee', 'commissioner', 'suspended'] as const)
     .map(async (key) => await bestEffort("discord.ensure_managed_role", () => ensureManagedRoleId(guildId!, key), { guildId }) ?? null));
   const cleared: string[] = [];
   const failed: Array<{ userId: string; reason: string }> = [];
@@ -1055,6 +1055,18 @@ export async function unlinkTeamForGuild(input: UnlinkTeamInput) {
   if (result.error) throw new ApiError(500, "We couldn't unlink that team assignment. Please try again.", result.error);
   await syncScheduleGameUserIdsForTeams(league.id, [input.teamId]);
   const cleanup = await clearDiscordTeamIdentityForUsers({ leagueId: league.id, guildId: input.guildId, userIds: (result.data ?? []).map((row) => row.user_id).filter(Boolean) });
+
+  const { recordUserActivity } = await import("../users/user-activity.service.js");
+  for (const row of result.data ?? []) {
+    if (!row.user_id) continue;
+    await recordUserActivity({
+      leagueId: league.id,
+      userId: row.user_id,
+      teamId: input.teamId,
+      actionKey: "team_unlinked",
+      summary: "Team link removed by commissioner.",
+    });
+  }
 
   await writeAuditLog({
     action: "teams.unlinked",

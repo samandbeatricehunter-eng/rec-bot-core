@@ -78,6 +78,12 @@ export const REC_MANAGED_ROLES = {
   member: { name: "REC League Member", color: 0x87ceeb },
   compCommittee: { name: "REC League Comp. Committee", color: 0xc27c0e },
   commissioner: { name: "REC League Commissioner", color: 0xd4af37 },
+  /**
+   * Discord guild role (literal name "SUSPENDED"). Created/granted via Discord REST the same
+   * way as Member / Commish — not a site-only flag. Mute overwrites on the game-channels
+   * category deny Send Messages for anyone holding this Discord role.
+   */
+  suspended: { name: "SUSPENDED", color: 0x992d22 },
   discordOnly: { name: "REC Discord Only", color: 0x808080 },
 } as const;
 

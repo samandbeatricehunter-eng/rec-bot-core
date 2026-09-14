@@ -402,3 +402,80 @@ export async function reviewCustomTeamIdentity(input: {
   });
   return { reviewed: true as const, decision: "approve" as const, team: saved };
 }
+
+/** Commissioner Manage Teams modal — apply city/nick/abbr/logo directly (no approval queue). */
+export async function updateTeamIdentityAsCommissioner(input: {
+  guildId: string;
+  teamId: string;
+  displayCity: string;
+  displayNick: string;
+  displayAbbr: string;
+  logoUrl?: string | null;
+  keepStockLogo?: boolean;
+  requestedByDiscordId?: string;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  const existing = await supabase
+    .from("rec_teams")
+    .select("*")
+    .eq("id", input.teamId)
+    .eq("league_id", context.leagueId)
+    .maybeSingle();
+  if (existing.error) throw new ApiError(500, "We couldn't load that team. Please try again.", existing.error);
+  if (!existing.data) throw new ApiError(404, "That team was not found in this league.");
+
+  const city = input.displayCity.trim();
+  const nick = input.displayNick.trim();
+  if (city.length < 2 || nick.length < 2) throw new ApiError(400, "Enter a city name and a nickname.");
+  const abbr = normalizeAbbr(input.displayAbbr);
+  const rawColor = String(existing.data.primary_color ?? "").trim();
+  const primaryColor = HEX.test(rawColor) ? rawColor.toUpperCase() : "#FFFFFF";
+
+  const keepStockLogo = input.keepStockLogo === true
+    || (input.logoUrl === undefined && !existing.data.logo_url);
+  const logoUrl = input.logoUrl !== undefined ? input.logoUrl : (existing.data.logo_url ?? null);
+
+  const saved = await applyIdentity({
+    leagueId: context.leagueId,
+    guildId: input.guildId,
+    teamId: input.teamId,
+    displayCity: city,
+    displayNick: nick,
+    displayAbbr: abbr,
+    primaryColor,
+    logoUrl,
+    keepStockLogo,
+  });
+
+  await writeAuditLog({
+    action: "team.identity.commissioner_update",
+    entityType: "rec_teams",
+    entityId: input.teamId,
+    newValue: {
+      name: saved.name,
+      displayCity: saved.display_city,
+      displayNick: saved.display_nick,
+      displayAbbr: saved.display_abbr,
+      logoUrl: saved.logo_url,
+    },
+    reason: input.requestedByDiscordId
+      ? `Manage Teams identity edit by discord:${input.requestedByDiscordId}`
+      : "Manage Teams identity edit",
+    source: "manual_admin_entry",
+  });
+
+  return {
+    team: {
+      id: saved.id as string,
+      name: saved.name as string,
+      abbreviation: (saved.abbreviation as string | null) ?? null,
+      displayCity: (saved.display_city as string | null) ?? null,
+      displayNick: (saved.display_nick as string | null) ?? null,
+      displayAbbr: (saved.display_abbr as string | null) ?? null,
+      logoUrl: (saved.logo_url as string | null) ?? null,
+      primaryColor: (saved.primary_color as string | null) ?? null,
+      originalAbbreviation: (saved.original_abbreviation as string | null) ?? null,
+      isRelocated: Boolean(saved.is_relocated),
+    },
+  };
+}

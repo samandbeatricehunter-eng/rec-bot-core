@@ -1,12 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { getTeamByAbbreviation, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { useReadyAuth } from "@rec/hub-ui";
-import { resolveTeamLogoAbbr } from "../../../../../web/src/lib/team-logos.js";
 import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
 import { readStandingsBoardCache, writeStandingsBoardCache, type StandingsBoardResponse } from "../../../../../web/src/lib/standings-board-cache.js";
 import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
 import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
-import { TeamLogo } from "../../../../../web/src/components/ui/TeamLogo.js";
+import { normalizeConference, normalizeDivision, resolveTeamAppearance, TeamColorBlock } from "../../../../../web/src/components/team/index.js";
 
 type PowerRankingTeam = NonNullable<StandingsBoardResponse["powerRankings"]>["teams"][number];
 type SosTeam = NonNullable<StandingsBoardResponse["sos"]>["teams"][number];
@@ -38,44 +36,6 @@ function normalizeDivision(value: string | null | undefined): (typeof NFL_DIVISI
     if (lower === division.toLowerCase() || lower.endsWith(` ${division.toLowerCase()}`)) return division;
   }
   return null;
-}
-
-function teamPrimaryColor(team: PowerRankingTeam) {
-  const raw = typeof team.primaryColor === "string" ? team.primaryColor.trim() : "";
-  if (raw && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw)) return raw;
-  const abbr = resolveTeamLogoAbbr(team.abbr);
-  if (abbr && NFL_TEAM_PRIMARY_COLORS[abbr]) return NFL_TEAM_PRIMARY_COLORS[abbr];
-  return "#1a1d24";
-}
-
-function contrastingInk(hex: string) {
-  const raw = hex.replace("#", "");
-  const full = raw.length === 3 ? raw.split("").map((c) => c + c).join("") : raw;
-  const n = Number.parseInt(full, 16);
-  if (!Number.isFinite(n)) return "#fff";
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  return luma > 0.62 ? "#111111" : "#ffffff";
-}
-
-function teamIdentity(team: PowerRankingTeam): { city: string; nick: string } {
-  const abbr = resolveTeamLogoAbbr(team.abbr);
-  const catalog = abbr ? getTeamByAbbreviation(abbr) : undefined;
-  let nick = team.nick?.trim() || "";
-  let city = team.city?.trim() || "";
-  if ((!nick || !city) && catalog?.name) {
-    const parts = catalog.name.trim().split(/\s+/);
-    if (!nick) nick = parts[parts.length - 1] ?? "";
-    if (!city) city = parts.slice(0, -1).join(" ");
-  }
-  if ((!nick || !city) && team.teamName) {
-    const parts = team.teamName.trim().split(/\s+/);
-    if (!nick) nick = parts[parts.length - 1] ?? team.teamName;
-    if (!city && parts.length > 1) city = parts.slice(0, -1).join(" ");
-  }
-  return { city: city || team.abbr || "", nick: nick || team.teamName };
 }
 
 function sortStandings(a: PowerRankingTeam, b: PowerRankingTeam) {
@@ -253,9 +213,13 @@ function StandingTeamBlock({
   view: StandingsView;
   sos: SosTeam | null;
 }) {
-  const color = teamPrimaryColor(team);
-  const ink = contrastingInk(color);
-  const { city, nick } = teamIdentity(team);
+  const appearance = resolveTeamAppearance({
+    abbreviation: team.abbr,
+    primaryColor: team.primaryColor,
+    displayCity: team.city,
+    displayNick: team.nick,
+    name: team.teamName,
+  });
   const showPlayoff = view === "division";
 
   let metric: ReactNode = formatRecord(team);
@@ -275,17 +239,30 @@ function StandingTeamBlock({
   const sosTitle = sos ? ` · SoS ${sos.sosFull.toFixed(2)} (remaining ${sos.sosRemaining.toFixed(2)})` : "";
 
   return (
-    <article
-      className={`hub-div-standing-team${showPlayoff && (team.playoffMarker === "Y" || team.playoffMarker === "Z") ? " is-division-leader" : ""}`}
-      style={{ ["--team-color" as string]: color, ["--team-ink" as string]: ink }}
+    <TeamColorBlock
+      abbreviation={team.abbr}
+      primaryColor={team.primaryColor}
+      displayCity={team.city}
+      displayNick={team.nick}
+      name={team.teamName}
+      className={showPlayoff && (team.playoffMarker === "Y" || team.playoffMarker === "Z") ? "is-division-leader" : undefined}
       title={`${team.teamName}${sosTitle}`}
-    >
-      <TeamLogo abbreviation={team.abbr} alt="" className="hub-div-standing-logo" priority />
-      <StandingIdentity city={city} nick={nick} rank={team.rank ?? null} eaUsername={team.eaUsername ?? null} />
-      <strong className="hub-div-standing-record">{metric}</strong>
-      {conferenceRank != null ? <span className="hub-div-standing-conf-rank">{conferenceRank}</span> : null}
-      {showPlayoff && team.playoffMarker ? <span className="hub-div-standing-marker">{team.playoffMarker}</span> : null}
-    </article>
+      identitySlot={
+        <StandingIdentity
+          city={appearance.city}
+          nick={appearance.nick}
+          rank={team.rank ?? null}
+          eaUsername={team.eaUsername ?? null}
+        />
+      }
+      trailing={
+        <>
+          <strong className="hub-div-standing-record">{metric}</strong>
+          {conferenceRank != null ? <span className="hub-div-standing-conf-rank">{conferenceRank}</span> : null}
+          {showPlayoff && team.playoffMarker ? <span className="hub-div-standing-marker">{team.playoffMarker}</span> : null}
+        </>
+      }
+    />
   );
 }
 

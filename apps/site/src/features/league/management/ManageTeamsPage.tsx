@@ -1,18 +1,17 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
 import { useReadyAuth } from "@rec/hub-ui";
 import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
 import type { TeamManagementSummaryRow } from "../../../../../web/src/types/api.js";
 import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
 import { DivisionTeamsBoard } from "./DivisionTeamsBoard.js";
+import { ManageTeamIdentityModal } from "./ManageTeamIdentityModal.js";
 
-/** Division-grouped board showing EA names; click a team to open its management page. */
+/** Division-grouped board; click a team to edit logo / abbr / city / nick. */
 export function ManageTeamsPage() {
   const { guildId } = useReadyAuth();
-  const { leagueId = "" } = useParams();
-  const navigate = useNavigate();
   const [teams, setTeams] = useState<TeamManagementSummaryRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<TeamManagementSummaryRow | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,15 +28,30 @@ export function ManageTeamsPage() {
     <div>
       <PageHeader
         title="Manage Teams"
-        subtitle="Pick a team to open its dedicated management page."
+        subtitle="Click a team to update its logo, abbreviation, city, or nickname."
       />
       <DivisionTeamsBoard
         teams={teams}
         mode="teams"
         loading={!teams && !error}
         error={error}
-        onTeamClick={(team) => navigate(`/l/${leagueId}/mgmt/teams/${team.id}`)}
+        onTeamClick={setSelected}
       />
+      {selected ? (
+        <ManageTeamIdentityModal
+          guildId={guildId}
+          team={selected}
+          onClose={() => setSelected(null)}
+          onSaved={(next) => {
+            setTeams((prev) =>
+              prev
+                ? prev.map((row) => (row.id === next.id ? { ...row, ...next } : row))
+                : prev,
+            );
+            setSelected(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

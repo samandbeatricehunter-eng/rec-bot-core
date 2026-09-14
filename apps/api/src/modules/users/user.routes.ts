@@ -18,6 +18,11 @@ import {
 import { supabase } from "../../lib/supabase.js";
 import { findCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { getLeagueHistoryForDiscord } from "./league-history.service.js";
+import {
+  getManageUserActivityLog,
+  getManageUserTransactions,
+  suspendManageUser,
+} from "./user-moderation.service.js";
 export async function userRoutes(app: FastifyInstance) {
   app.get("/v1/users/me/league-history", async (request, reply) => {
     try {
@@ -103,6 +108,45 @@ export async function userRoutes(app: FastifyInstance) {
         };
       });
       return reply.send({ coaches });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/manage-users/activity", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        teamId: z.string().uuid(),
+        userId: z.string().uuid(),
+      }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await getManageUserActivityLog(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/manage-users/transactions", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        teamId: z.string().uuid(),
+        userId: z.string().uuid(),
+      }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      return reply.send(await getManageUserTransactions(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/manage-users/suspend", async (request, reply) => {
+    try {
+      const body = z.object({
+        guildId: z.string().min(1),
+        teamId: z.string().uuid(),
+        userId: z.string().uuid(),
+        advances: z.number().int().min(1).max(52),
+        reason: z.string().min(3).max(500),
+      }).parse(request.body);
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
+      if (auth.mode === "bot") throw new Error("Suspension requires a user session.");
+      return reply.send(await suspendManageUser({ ...body, requestedByDiscordId: auth.discordId }));
     } catch (error) { return sendError(reply, error); }
   });
 }

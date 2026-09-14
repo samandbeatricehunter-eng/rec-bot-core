@@ -4207,7 +4207,7 @@ button.poty:disabled {
 }
 .hub-div-standing-nick {
   font-weight: 700;
-  font-size: 24px;
+  font-size: 20px;
   letter-spacing: 0;
   text-shadow:
     0 1px 0 #000,
@@ -4267,6 +4267,13 @@ button.hub-div-standing-team:focus-visible {
   gap: 2px;
   margin: 4px 0 0;
   min-width: 0;
+}
+.hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids {
+  margin: 0;
+}
+.hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids dt,
+.hub-div-standing-team.is-users-block .hub-div-standing-mgmt-ids dd {
+  color: #111;
 }
 .hub-div-standing-mgmt-ids > div {
   display: grid;
@@ -5864,3 +5871,66 @@ button.hub-div-standing-team:focus-visible {
   .hub-matchup-team-leaders-grid { grid-template-columns: 1fr; }
   .hub-schedule-pickers .hub-week-select { grid-template-columns: 1fr; width: min(100%, 280px); }
 }
+
+/* Manage Teams — identity edit modal */
+.mgmt-team-identity-modal { max-width: 420px; }
+.mgmt-team-identity-body { display: grid; gap: var(--space-3); }
+.mgmt-team-identity-logo {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin: 0 auto var(--space-1);
+  padding: var(--space-3);
+  border: 1px dashed rgba(255,255,255,.28);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,.03);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+.mgmt-team-identity-logo:hover:not(:disabled),
+.mgmt-team-identity-logo:focus-visible { border-color: var(--gold); color: var(--text-primary); }
+.mgmt-team-identity-logo:disabled { opacity: .6; cursor: wait; }
+.mgmt-team-identity-logo-img,
+.mgmt-team-identity-logo .team-logo {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+}
+.mgmt-team-identity-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.mgmt-team-identity-input-row .form-input:read-only {
+  opacity: .92;
+  cursor: default;
+}
+.mgmt-team-identity-pencil {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-strong, rgba(255,255,255,.14));
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,.04);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.mgmt-team-identity-pencil:hover,
+.mgmt-team-identity-pencil:focus-visible {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.mgmt-team-identity-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+.form-error { margin: 0; color: var(--danger, #ff6b6b); font-size: var(--text-sm); }

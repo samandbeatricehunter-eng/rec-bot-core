@@ -20,7 +20,20 @@ const DISCORD_API_BASE = "https://discord.com/api/v10";
 // 32 bits, hence bigint.
 const PERMISSION_ADMINISTRATOR = 1n << 3n;
 const PERMISSION_MANAGE_GUILD = 1n << 5n;
+const PERMISSION_ADD_REACTIONS = 1n << 6n;
 const PERMISSION_VIEW_CHANNEL = 1n << 10n;
+const PERMISSION_SEND_MESSAGES = 1n << 11n;
+const PERMISSION_CREATE_PUBLIC_THREADS = 1n << 35n;
+const PERMISSION_CREATE_PRIVATE_THREADS = 1n << 36n;
+const PERMISSION_SEND_MESSAGES_IN_THREADS = 1n << 38n;
+
+/** Deny speaking rights for the SUSPENDED role on a game-channels category (inherited by child channels). */
+const PERMISSION_SUSPENDED_MUTE =
+  PERMISSION_SEND_MESSAGES
+  | PERMISSION_SEND_MESSAGES_IN_THREADS
+  | PERMISSION_ADD_REACTIONS
+  | PERMISSION_CREATE_PUBLIC_THREADS
+  | PERMISSION_CREATE_PRIVATE_THREADS;
 
 type CacheEntry<T> = { value: T; expiresAt: number };
 const CACHE_TTL_MS = 60_000;
@@ -114,6 +127,11 @@ export async function restrictChannelToRoles(guildId: string, channelId: string,
   for (const roleId of roleIds) {
     await putChannelPermissionOverwrite(channelId, roleId, 0, PERMISSION_VIEW_CHANNEL, 0n);
   }
+}
+
+/** Apply (or refresh) the SUSPENDED role mute overwrite on the game-channels category. */
+export async function applySuspendedRoleMuteOnCategory(categoryChannelId: string, suspendedRoleId: string): Promise<void> {
+  await putChannelPermissionOverwrite(categoryChannelId, suspendedRoleId, 0, 0n, PERMISSION_SUSPENDED_MUTE);
 }
 
 export async function listGuildChannels(guildId: string) {
@@ -796,7 +814,7 @@ export async function ensureManagedRolesPositioned(guildId: string): Promise<voi
   if (botHighestPosition <= 0) return;
 
   const byName = new Map(allRoles.map((r) => [r.name, r]));
-  const order: RecManagedRoleKey[] = ["commissioner", "compCommittee", "member", "discordOnly"];
+  const order: RecManagedRoleKey[] = ["commissioner", "compCommittee", "member", "suspended", "discordOnly"];
   const updates: Array<{ id: string; position: number }> = [];
   let nextPosition = botHighestPosition - 1;
   for (const key of order) {

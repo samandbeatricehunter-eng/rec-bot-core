@@ -1,11 +1,17 @@
 import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from "react";
-import { TeamLogo } from "../../../../web/src/components/ui/TeamLogo.js";
+import { TeamLogo } from "../ui/TeamLogo.js";
 import { resolveTeamAppearance, type TeamAppearanceInput } from "./teamAppearance.js";
 
 type TeamColorBlockProps = TeamAppearanceInput & {
   className?: string;
   title?: string;
-  /** Middle column under city/nick (identity lines, etc.). */
+  disabled?: boolean;
+  /**
+   * Replaces the default city/nick column entirely (still left of `trailing`).
+   * Use for font-fit standings identity or league-leader player rows.
+   */
+  identitySlot?: ReactNode;
+  /** Middle column under city/nick when using the default identity. */
   details?: ReactNode;
   /** Right-side metric (record, status chip, etc.). */
   trailing?: ReactNode;
@@ -20,6 +26,8 @@ type TeamColorBlockProps = TeamAppearanceInput & {
 export function TeamColorBlock({
   className,
   title,
+  disabled = false,
+  identitySlot,
   details,
   trailing,
   children,
@@ -35,6 +43,17 @@ export function TeamColorBlock({
   } as CSSProperties;
   const classes = ["hub-div-standing-team", className].filter(Boolean).join(" ");
 
+  const identity = identitySlot ?? (
+    <div className="hub-div-standing-identity">
+      {appearance.city ? <small className="hub-div-standing-city">{appearance.city}</small> : null}
+      <span className="hub-div-standing-nick-row">
+        <strong className="hub-div-standing-nick">{appearance.nick}</strong>
+      </span>
+      {details}
+      {children}
+    </div>
+  );
+
   const body = (
     <>
       <TeamLogo
@@ -44,14 +63,8 @@ export function TeamColorBlock({
         className="hub-div-standing-logo"
         priority
       />
-      <div className="hub-div-standing-identity">
-        {appearance.city ? <small className="hub-div-standing-city">{appearance.city}</small> : null}
-        <span className="hub-div-standing-nick-row">
-          <strong className="hub-div-standing-nick">{appearance.nick}</strong>
-        </span>
-        {details}
-        {children}
-      </div>
+      {identity}
+      {identitySlot ? <>{details}{children}</> : null}
       {trailing}
     </>
   );
@@ -64,6 +77,7 @@ export function TeamColorBlock({
         style={style}
         title={title}
         onClick={onClick}
+        disabled={disabled}
       >
         {body}
       </button>

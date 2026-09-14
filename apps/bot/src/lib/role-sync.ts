@@ -121,7 +121,13 @@ async function ensureRole(guild: Guild, input: { name: string; color: number }) 
   });
 }
 
-async function orderRecRoles(guild: Guild, roles: { member: Role; compCommittee: Role; commissioner: Role; discordOnly: Role }) {
+async function orderRecRoles(guild: Guild, roles: {
+  member: Role;
+  compCommittee: Role;
+  commissioner: Role;
+  suspended: Role;
+  discordOnly: Role;
+}) {
   const botMember = guild.members.me;
 
   if (!botMember?.permissions.has(PermissionFlagsBits.ManageRoles)) {
@@ -147,8 +153,12 @@ async function orderRecRoles(guild: Guild, roles: { member: Role; compCommittee:
     .setPosition(Math.max(1, targetBasePosition - 2), { reason: "REC authority role hierarchy" })
     .catch(() => undefined);
 
+  await roles.suspended
+    .setPosition(Math.max(1, targetBasePosition - 3), { reason: "REC suspended role hierarchy" })
+    .catch(() => undefined);
+
   await roles.discordOnly
-    .setPosition(Math.max(1, targetBasePosition - 3), { reason: "REC Discord-only insignia" })
+    .setPosition(Math.max(1, targetBasePosition - 4), { reason: "REC Discord-only insignia" })
     .catch(() => undefined);
 }
 
@@ -157,6 +167,7 @@ export async function ensureRecBaseRoles(guild: Guild) {
     member: await ensureRole(guild, REC_MANAGED_ROLES.member),
     compCommittee: await ensureRole(guild, REC_MANAGED_ROLES.compCommittee),
     commissioner: await ensureRole(guild, REC_MANAGED_ROLES.commissioner),
+    suspended: await ensureRole(guild, REC_MANAGED_ROLES.suspended),
     discordOnly: await ensureRole(guild, REC_MANAGED_ROLES.discordOnly),
   };
 

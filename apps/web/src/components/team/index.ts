@@ -1,16 +1,19 @@
-export { TeamColorBlock, TeamColorBlockShell } from "./TeamColorBlock.js";
 export {
   NFL_STOCK_TEAM_APPEARANCE,
-  contrastingInk,
   resolveTeamAppearance,
-  type TeamAppearance,
+  contrastingInk,
   type TeamAppearanceInput,
+  type TeamAppearance,
 } from "./teamAppearance.js";
 export {
+  TeamColorBlock,
+  TeamColorBlockShell,
+} from "./TeamColorBlock.js";
+export {
+  useNflDivisionBuckets,
   NflDivisionBoard,
   NflDivisionColumn,
   normalizeConference,
   normalizeDivision,
-  useNflDivisionBuckets,
   type DivisionBucket,
 } from "./NflDivisionBoard.js";

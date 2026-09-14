@@ -7,6 +7,7 @@ import { wipeCpuTeamSeasonStats } from "../cpu-team-stats/cpu-team-stats.service
 import { wipeBacklogForSeason } from "../economy/economy-backlog.js";
 import { recordHubAnnouncement } from "../hub/hub.service.js";
 import { generateRollingDraftClass, syncDraftOrderFromLeagueStandings } from "../draft-picks/draft-picks.service.js";
+import { tickSuspensionsOnAdvance } from "../users/user-moderation.service.js";
 
 type SetLeagueWeekInput = {
   guildId: string;
@@ -33,17 +34,24 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     && input.seasonStage !== "regular_season";
   // Hitting preseason always means the next consecutive season, in every league — this is
   // the ONE rule for when the season number advances, so it applies regardless of which
-  // caller (Advance wizard, manual Set Week, etc.) triggers the transition. An explicit
-  // input.seasonNumber (e.g. the Discord "Set Season" override) still wins when given.
+  // caller (Advance wizard, manual Set Week, etc.) triggers the transition.
   // Madden's actual stage name here is "preseason_training_camp" (league-stage.ts's "draft" ->
   // "preseason_training_camp" transition), not "preseason" -- CFB uses "preseason" directly.
   // Checking only the literal "preseason" string meant season_number NEVER advanced for any
   // Madden league: the season "reset" to Week 1 but stayed tagged under the same season_id,
   // so schedule regeneration doubled up Week 1 (old completed games + new ones sharing a
   // season) and every season-scoped stat/record silently mixed the two seasons together.
+  //
+  // completeAdvanceWeek used to pass the *current* seasonNumber into this call on every
+  // advance. Because `input.seasonNumber ?? autoBump` treats any defined value as authoritative,
+  // that froze Madden leagues on season 1 forever through the draft -> training camp boundary.
+  // Entering preseason always bumps at least +1; an explicit seasonNumber may only raise further
+  // (commissioner Set Season), never pin the league to the season that just ended.
   const isPreseasonStageName = (stage: string) => stage === "preseason" || stage === "preseason_training_camp";
   const enteringPreseason = isPreseasonStageName(input.seasonStage) && !isPreseasonStageName(previousStage);
-  const effectiveSeasonNumber = input.seasonNumber ?? (enteringPreseason ? previousSeasonNumber + 1 : undefined);
+  const effectiveSeasonNumber = enteringPreseason
+    ? Math.max(previousSeasonNumber + 1, input.seasonNumber ?? 0)
+    : input.seasonNumber;
   const payload = {
     current_week: input.weekNumber,
     season_stage: input.seasonStage,
@@ -135,20 +143,6 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
     const announcementsWipe = await supabase.from("rec_hub_announcements").delete()
       .eq("league_id", context.leagueId).eq("season_number", previousSeasonNumber);
     if (announcementsWipe.error) console.error("[ERROR] Failed to wipe hub announcements on season rollover:", announcementsWipe.error);
-
-    // CFB's store (custom recruits, Campus Legends, dev upgrades, attributes, traits) is
-    // locked through Season 1 (see CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES in
-    // purchases.service.ts) and opens automatically the moment the league rolls into Season
-    // 2 — announce that transition the same way any other hub announcement goes out.
-    if (context.rec_leagues.game === "cfb_27" && previousSeasonNumber < 2 && effectiveSeasonNumber >= 2) {
-      await recordHubAnnouncement({
-        guildId: input.guildId,
-        title: "The REC Store Is Open!",
-        body: "Season 2 has arrived — Custom Recruits, Campus Legends, Development Upgrades, Attribute Points, and Traits are now unlocked in the REC Store.",
-      }).catch((error) => {
-        console.error("[ERROR] Failed to post CFB store-unlock announcement:", error);
-      });
-    }
   }
 
   const seasonNumber = Number(effectiveSeasonNumber ?? result.data.season_number ?? result.data.display_season_number ?? 1);
@@ -168,6 +162,10 @@ export async function setLeagueWeek(input: SetLeagueWeekInput) {
   }).catch((error) => {
     console.error("[ERROR] Failed to apply savings interest on advance:", error);
     return { applied: false as const, reason: "error" as const, usersCredited: 0, totalInterest: 0 };
+  });
+
+  await tickSuspensionsOnAdvance({ leagueId: context.leagueId, guildId: input.guildId }).catch((error) => {
+    console.error("[ERROR] Failed to tick advance-based suspensions (non-fatal):", error);
   });
 
   return {

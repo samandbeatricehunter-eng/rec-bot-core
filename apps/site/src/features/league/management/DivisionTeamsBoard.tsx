@@ -6,7 +6,7 @@ import {
   NflDivisionColumn,
   TeamColorBlock,
   useNflDivisionBuckets,
-} from "../../../components/team/index.js";
+} from "../../../../../web/src/components/team/index.js";
 
 export type DivisionTeamsBoardMode = "users" | "teams";
 
@@ -15,19 +15,8 @@ function formatRecord(team: TeamManagementSummaryRow) {
   return ties > 0 ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
 }
 
-function MgmtTeamBlock({
-  team,
-  mode,
-  onTeamClick,
-}: {
-  team: TeamManagementSummaryRow;
-  mode: DivisionTeamsBoardMode;
-  onTeamClick?: (team: TeamManagementSummaryRow) => void;
-}) {
-  const open = !team.linkedUser;
-  const interactive = mode === "teams" && onTeamClick;
-
-  const details = mode === "users" ? (
+function linkedIds(team: TeamManagementSummaryRow) {
+  return (
     <dl className="hub-div-standing-mgmt-ids">
       <div>
         <dt>Site</dt>
@@ -42,31 +31,54 @@ function MgmtTeamBlock({
         <dd>{team.eaUsername?.trim() || "—"}</dd>
       </div>
     </dl>
-  ) : (
-    <small className="hub-div-standing-ea">
-      {open ? "CPU - OPEN" : (team.eaUsername?.trim() || "—")}
-    </small>
   );
+}
+
+function MgmtTeamBlock({
+  team,
+  mode,
+  onTeamClick,
+}: {
+  team: TeamManagementSummaryRow;
+  mode: DivisionTeamsBoardMode;
+  onTeamClick?: (team: TeamManagementSummaryRow) => void;
+}) {
+  const open = !team.linkedUser;
+  const interactive = Boolean(onTeamClick) && (mode === "teams" || (mode === "users" && !open));
+  const appearance = {
+    abbreviation: team.abbreviation,
+    displayAbbr: team.displayAbbr,
+    originalAbbreviation: team.originalAbbreviation,
+    primaryColor: team.primaryColor,
+    logoUrl: team.logoUrl,
+    displayCity: team.displayCity,
+    displayNick: team.displayNick,
+    name: team.name,
+  };
+
+  if (mode === "users") {
+    return (
+      <TeamColorBlock
+        {...appearance}
+        title={team.name}
+        className={["is-users-block", open ? "is-open-team" : null].filter(Boolean).join(" ") || undefined}
+        identitySlot={<div className="hub-div-standing-identity">{linkedIds(team)}</div>}
+        onClick={interactive ? () => onTeamClick?.(team) : undefined}
+      />
+    );
+  }
 
   return (
     <TeamColorBlock
-      abbreviation={team.abbreviation}
-      displayAbbr={team.displayAbbr}
-      originalAbbreviation={team.originalAbbreviation}
-      primaryColor={team.primaryColor}
-      logoUrl={team.logoUrl}
-      displayCity={team.displayCity}
-      displayNick={team.displayNick}
-      name={team.name}
+      {...appearance}
       title={team.name}
       className={open ? "is-open-team" : undefined}
-      details={details}
-      trailing={
-        <>
-          {open ? <span className="hub-div-standing-marker">OPEN</span> : null}
-          <strong className="hub-div-standing-record">{formatRecord(team)}</strong>
-        </>
+      details={
+        <small className="hub-div-standing-ea">
+          {open ? "CPU - OPEN" : (team.eaUsername?.trim() || "—")}
+        </small>
       }
+      trailing={<strong className="hub-div-standing-record">{formatRecord(team)}</strong>}
       onClick={interactive ? () => onTeamClick?.(team) : undefined}
     />
   );
