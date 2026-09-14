@@ -181,7 +181,7 @@ export function SettingsHome({ mode = "full" }: { mode?: SettingsHomeMode }) {
       ) : (
         <>
           {visibleCategories.map((category) => (
-            <Card key={category.key} style={{ marginBottom: "var(--space-3)" }}>
+            <Card key={category.key} className="site-visibility-block">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
                 <p style={{ fontWeight: 500, fontSize: "var(--text-sm)", color: "var(--text-secondary)", margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>{category.label}</p>
                 <button type="button" aria-label={`Edit ${category.label}`} className="btn-icon" onClick={() => openEdit(category.key)}>

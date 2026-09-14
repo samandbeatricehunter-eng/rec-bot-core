@@ -106,7 +106,7 @@ export function ChannelSettings() {
       const routes = blockRoutes(block);
       if (!routes.length) return null;
       return (
-        <Card key={block} style={{ marginBottom: "var(--space-3)" }}>
+        <Card key={block} className="site-visibility-block">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--space-2)" }}>
             <p style={{ fontWeight: 500, fontSize: "var(--text-sm)", color: "var(--text-secondary)", margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</p>
             <button type="button" aria-label={`Edit ${label}`} className="btn-icon" onClick={() => setEditBlock(block)}>

@@ -1359,7 +1359,21 @@ h1, h2, h3, .site-wordmark {
   gap: var(--space-4);
   padding: var(--space-6) var(--space-5);
 }
-/* Compact Discord link plate for Manage League / Settings — not a full-bleed page card. */
+/* Shared dark visibility plate for compact settings / Discord link blocks. */
+.site-visibility-block,
+.card.site-visibility-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(100%, 36rem);
+  margin: 0 auto var(--space-3);
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, rgba(8, 10, 14, 0.82), rgba(5, 7, 10, 0.88));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+}
 .site-discord-server-block {
   display: flex;
   flex-direction: column;
