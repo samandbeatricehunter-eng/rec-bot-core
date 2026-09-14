@@ -2,7 +2,6 @@
 export { InjectedAuthProvider, useAuth, useReadyAuth } from "../../../apps/web/src/lib/auth-context.js";
 export { LeagueThemeProvider, useLeagueTheme } from "../../../apps/web/src/lib/league-theme-context.js";
 export { HubChromeProvider, useHubChrome } from "../../../apps/web/src/lib/hub-chrome-context.js";
-export { GameDayHome, HubHome } from "../../../apps/web/src/routes/hub/HubHome.js";
 export { FantasyDraftCard } from "../../../apps/web/src/routes/hub/FantasyDraftCard.js";
 export { FantasyDraftBoardPage } from "../../../apps/web/src/routes/hub/FantasyDraftBoardPage.js";
 export { RulesHome } from "../../../apps/web/src/routes/hub/RulesHome.js";
