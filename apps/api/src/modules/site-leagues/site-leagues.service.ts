@@ -1,4 +1,4 @@
-import { CFB_27_TEAMS, gameplaySeasonStages, isRiseToImmortalityLeagueType, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
+import { gameplaySeasonStages, isRiseToImmortalityLeagueType, riseHubUnlocked, stageHasScheduledGames, stageLabel, type ImmortalityState } from "@rec/shared";
 import { getPgPool } from "../../db/client.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
@@ -10,10 +10,6 @@ import { siteOnlyDiscordId } from "../../lib/user-auth.js";
 import { clearDiscordTeamIdentityForUsers } from "../team-ownership/team-ownership.service.js";
 import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
 import { syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.js";
-
-const CFB_DEFAULT_CONFERENCE = new Map(
-  CFB_27_TEAMS.map((team) => [team.abbreviation.toUpperCase(), team.conference]),
-);
 
 /** Linked REC profile (username optional — used by chrome/league selector). */
 export async function requireLinkedRecUser(authUserId: string): Promise<{
@@ -77,7 +73,6 @@ export type SiteLeagueSummary = {
 };
 
 const GAME_LABELS: Record<string, string> = {
-  cfb_27: "CFB 27",
   madden_26: "Madden 26",
   madden_27: "Madden 27",
 };
@@ -316,7 +311,7 @@ export async function listMySiteLeagues(input: {
       // This enrichment pass never updated the label to match -- it stayed at whatever the
       // initial (often stale/default) value was, e.g. showing "Week 1" for a league that's
       // actually still in preseason training camp.
-      league.seasonStageLabel = stageLabel(stage, week ?? 1, game as "madden_26" | "madden_27" | "cfb_27");
+      league.seasonStageLabel = stageLabel(stage, week ?? 1, game);
       league.rosterType = row.roster_type ? String(row.roster_type) : null;
       if (isRiseToImmortalityLeagueType(String(league.rosterType ?? ""))) {
         const chapter = row.rise_chapter_state ? String(row.rise_chapter_state) as ImmortalityState : "REGISTRATION";
@@ -342,7 +337,7 @@ export async function listMySiteLeagues(input: {
         league.rtiTradesUnlocked = true;
         league.rtiStoreUnlocked = true;
       }
-      league.seasonStageLabel = stageLabel(stage, week ?? 1, game as "madden_26" | "madden_27" | "cfb_27");
+      league.seasonStageLabel = stageLabel(stage, week ?? 1, game);
       if (!stageHasScheduledGames(stage, game)) {
         league.matchupKind = "offseason";
         league.matchupLabel = "Offseason";
@@ -858,8 +853,8 @@ export type SiteLeagueTickerItem = {
   gameId: string;
   awayTeamName: string;
   homeTeamName: string;
-  // Logo assets only exist for the 32 standard Madden teams — null for CFB schools and
-  // relocated/custom teams (see homeTeamAbbr/awayTeamAbbr on getHubMatchupSchedule's games).
+  // Logo assets only exist for the 32 standard Madden teams — null for relocated/custom teams
+  // (see homeTeamAbbr/awayTeamAbbr on getHubMatchupSchedule's games).
   awayTeamAbbr: string | null;
   homeTeamAbbr: string | null;
   awayScore: number | null;
@@ -899,7 +894,7 @@ async function loadSiteLeagueTicker(input: {
   // shares the league-page critical path with getHub. Scores, LIVE, and FINAL
   // still render; pre-game lines stay on the hub wager board.
   const items = h2hGames.map((game) => {
-    const isLive = game.streams.length > 0 && !game.isFinal;
+    const isLive = !game.isFinal && (game.displayStatus === "live" || game.streams.length > 0);
     return {
       gameId: game.gameId,
       awayTeamName: game.awayTeamName,
@@ -972,13 +967,6 @@ export type SiteLeagueSearchFilters = {
   templateId?: string;
   sort?: "name_asc" | "name_desc" | "open_teams" | "newest";
   limit?: number;
-};
-
-export type SiteLeagueConferenceReassignment = {
-  abbreviation: string;
-  name: string;
-  fromConference: string;
-  toConference: string;
 };
 
 export type SiteLeagueSearchHit = {
@@ -1059,26 +1047,6 @@ export type SiteLeagueSearchHit = {
   positionChangePolicy: string | null;
   positionChangePolicyDescription: string | null;
 
-  // CFB
-  coachModeEnabled: boolean;
-  activeRostersEnabled: boolean | null;
-  dynastyType: string | null;
-  conferenceRealignment: string | null;
-  conferenceReassignments: SiteLeagueConferenceReassignment[];
-  recruitingDifficulty: string | null;
-  coachXpSetting: string | null;
-  transferPortalEnabled: boolean | null;
-  homeFieldAdvantageEnabled: boolean | null;
-  coachCarouselEnabled: boolean | null;
-  stadiumPulseEnabled: boolean | null;
-  coachModeRecruitFlippingEnabled: boolean | null;
-  coachModeAutoRecruitingEnabled: boolean | null;
-  coachModeAutoProgressPlayersEnabled: boolean | null;
-  coachModeUserAutoProgressionEnabled: boolean | null;
-  coachModeCpuManageBudgetEnabled: boolean | null;
-  coachModeCpuManageStaffEnabled: boolean | null;
-  coachModeCpuManageFacilitiesEnabled: boolean | null;
-
   // Cross play
   crossPlayEnabled: boolean;
   requiredConsole: string | null;
@@ -1145,9 +1113,7 @@ export async function searchSiteLeagues(input: {
   }
   if (input.filters.difficulty) {
     params.push(input.filters.difficulty);
-    where.push(`case when l.game='cfb_27'
-      then coalesce(c.cfb_difficulty,case c.difficulty when 'all_madden' then 'heisman' when 'all_pro' then 'all_american' when 'pro' then 'varsity' else 'freshman' end)
-      else c.difficulty end = $${params.length}`);
+    where.push(`c.difficulty = $${params.length}`);
   }
   if (input.filters.streamingRequirement) {
     params.push(input.filters.streamingRequirement);
@@ -1263,35 +1229,8 @@ export async function searchSiteLeagues(input: {
         coalesce(c.trade_deadline_enabled, false) as trade_deadline_enabled,
         c.position_change_policy,
         c.position_change_policy_description,
-        coalesce(c.coach_mode_enabled, false) as coach_mode_enabled,
-        c.active_rosters_enabled,
-        c.dynasty_type,
-        c.conference_realignment,
-        c.recruiting_difficulty,
-        c.coach_xp_setting,
-        c.transfer_portal_enabled,
-        c.home_field_advantage_enabled,
-        c.coach_carousel_enabled,
-        c.stadium_pulse_enabled,
-        c.coach_mode_recruit_flipping_enabled,
-        c.coach_mode_auto_recruiting_enabled,
-        c.coach_mode_auto_progress_players_enabled,
-        c.coach_mode_user_auto_progression_enabled,
-        c.coach_mode_cpu_manage_budget_enabled,
-        c.coach_mode_cpu_manage_staff_enabled,
-        c.coach_mode_cpu_manage_facilities_enabled,
         coalesce(c.cross_play_enabled, true) as cross_play_enabled,
         c.required_console,
-        (
-          select coalesce(json_agg(json_build_object(
-            'abbreviation', t.abbreviation,
-            'name', t.name,
-            'conference', t.conference
-          ) order by t.name), '[]'::json)
-          from rec_teams t
-          where t.league_id = l.id
-            and l.game = 'cfb_27'
-        ) as cfb_teams,
         (
           select count(*)::int
           from rec_teams t
@@ -1361,24 +1300,6 @@ export async function searchSiteLeagues(input: {
     const currentWeek =
       row.current_week == null ? null : Number(row.current_week);
     const seasonNumber = Number(row.season_number ?? 1);
-    const cfbTeams = Array.isArray(row.cfb_teams)
-      ? (row.cfb_teams as Array<{ abbreviation: string; name: string; conference: string | null }>)
-      : [];
-    const conferenceReassignments: SiteLeagueConferenceReassignment[] = [];
-    if (game === "cfb_27" && String(row.conference_realignment ?? "") === "allowed") {
-      for (const team of cfbTeams) {
-        const abbr = String(team.abbreviation ?? "").toUpperCase();
-        const toConference = String(team.conference ?? "").trim();
-        const fromConference = CFB_DEFAULT_CONFERENCE.get(abbr) ?? "";
-        if (!toConference || !fromConference || toConference === fromConference) continue;
-        conferenceReassignments.push({
-          abbreviation: team.abbreviation,
-          name: team.name,
-          fromConference,
-          toConference,
-        });
-      }
-    }
 
     const regularStream =
       (row.regular_season_streaming_requirement as string | null) ??
@@ -1395,7 +1316,7 @@ export async function searchSiteLeagues(input: {
       game,
       gameLabel: gameLabelFor(game),
       seasonStage,
-      seasonStageLabel: stageLabel(seasonStage, currentWeek ?? 1, game as "madden_26" | "madden_27" | "cfb_27"),
+      seasonStageLabel: stageLabel(seasonStage, currentWeek ?? 1, game),
       seasonNumber,
       currentWeek,
       openTeamCount: Number(row.open_team_count ?? 0),
@@ -1482,53 +1403,6 @@ export async function searchSiteLeagues(input: {
       positionChangePolicy: (row.position_change_policy as string | null) ?? null,
       positionChangePolicyDescription:
         (row.position_change_policy_description as string | null) ?? null,
-
-      coachModeEnabled: Boolean(row.coach_mode_enabled),
-      activeRostersEnabled:
-        row.active_rosters_enabled == null ? null : Boolean(row.active_rosters_enabled),
-      dynastyType: (row.dynasty_type as string | null) ?? null,
-      conferenceRealignment: (row.conference_realignment as string | null) ?? null,
-      conferenceReassignments,
-      recruitingDifficulty: (row.recruiting_difficulty as string | null) ?? null,
-      coachXpSetting: (row.coach_xp_setting as string | null) ?? null,
-      transferPortalEnabled:
-        row.transfer_portal_enabled == null ? null : Boolean(row.transfer_portal_enabled),
-      homeFieldAdvantageEnabled:
-        row.home_field_advantage_enabled == null
-          ? null
-          : Boolean(row.home_field_advantage_enabled),
-      coachCarouselEnabled:
-        row.coach_carousel_enabled == null ? null : Boolean(row.coach_carousel_enabled),
-      stadiumPulseEnabled:
-        row.stadium_pulse_enabled == null ? null : Boolean(row.stadium_pulse_enabled),
-      coachModeRecruitFlippingEnabled:
-        row.coach_mode_recruit_flipping_enabled == null
-          ? null
-          : Boolean(row.coach_mode_recruit_flipping_enabled),
-      coachModeAutoRecruitingEnabled:
-        row.coach_mode_auto_recruiting_enabled == null
-          ? null
-          : Boolean(row.coach_mode_auto_recruiting_enabled),
-      coachModeAutoProgressPlayersEnabled:
-        row.coach_mode_auto_progress_players_enabled == null
-          ? null
-          : Boolean(row.coach_mode_auto_progress_players_enabled),
-      coachModeUserAutoProgressionEnabled:
-        row.coach_mode_user_auto_progression_enabled == null
-          ? null
-          : Boolean(row.coach_mode_user_auto_progression_enabled),
-      coachModeCpuManageBudgetEnabled:
-        row.coach_mode_cpu_manage_budget_enabled == null
-          ? null
-          : Boolean(row.coach_mode_cpu_manage_budget_enabled),
-      coachModeCpuManageStaffEnabled:
-        row.coach_mode_cpu_manage_staff_enabled == null
-          ? null
-          : Boolean(row.coach_mode_cpu_manage_staff_enabled),
-      coachModeCpuManageFacilitiesEnabled:
-        row.coach_mode_cpu_manage_facilities_enabled == null
-          ? null
-          : Boolean(row.coach_mode_cpu_manage_facilities_enabled),
 
       crossPlayEnabled: Boolean(row.cross_play_enabled ?? true),
       requiredConsole: (row.required_console as string | null) ?? null,

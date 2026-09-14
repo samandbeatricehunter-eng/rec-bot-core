@@ -15,7 +15,7 @@ export function MatchupStickyHeader({
   onOpenChat: () => void;
   onOpenActions: () => void;
 }) {
-  const isLive = !matchup.isFinal && matchup.streams.length > 0;
+  const isLive = !matchup.isFinal && (matchup.displayStatus === "live" || matchup.streams.length > 0);
   return (
     <div className="matchup-sticky-header">
       <span className="matchup-sticky-header__teams">

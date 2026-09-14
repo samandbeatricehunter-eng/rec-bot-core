@@ -42,10 +42,11 @@ import { syncScheduleGameUserIdsForTeams } from "../schedule/sync-game-user-ids.
 import { syncLeagueRecruitingAd } from "../recruiting-board/recruiting-board.service.js";
 import { setMemberRole } from "../roles/roles.service.js";
 
-// A posted stream's link and its "LIVE" tag stay active for 2 hours, then close — no REC
-// stream runs longer than that, so anything older is treated as ended for display/watch.
-// This is a read-time window only; the compliance log itself is untouched (payouts still count).
-const STREAM_LIVE_WINDOW_MS = 2 * 60 * 60 * 1000;
+// A posted stream's link and its "LIVE" tag stay active for 1 hour, then close — no REC
+// stream runs longer than that for display purposes, so anything older is treated as ended
+// for the LIVE badge / watch chips. This is a read-time window only; the compliance log
+// itself is untouched (payouts still count).
+const STREAM_LIVE_WINDOW_MS = 1 * 60 * 60 * 1000;
 /** Hub carousel only needs a recent slice — a full-season highlight dump plus Discord
  * CDN refreshes was dominating cold hub loads. */
 const HUB_HIGHLIGHT_LIMIT = 24;
@@ -1884,7 +1885,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     leagueSeasonGamesQuery(supabase, { leagueId: context.leagueId, seasonId }, "week_number").order("week_number", { ascending: true }),
     supabase.from("rec_game_results").select("home_team_id,away_team_id,home_score,away_score,is_tie,winning_team_id,source").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
     // No `gte(posted_at, streamLiveSince())` floor here (unlike the "watch now" queries
-    // elsewhere) — a stream older than the 2h live window still tells us the game was
+    // elsewhere) — a stream older than the 1h live window still tells us the game was
     // actually played, which the status computation below needs even after the badge expires.
     supabase.from("rec_stream_compliance_logs").select("id,user_id,message_url,posted_at,details").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).eq("status", "posted").is("ended_at", null).order("posted_at", { ascending: false }),
     supabase.from("rec_stream_views").select("stream_log_id").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek),
@@ -2020,7 +2021,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
       const homeStreamRaw = showStreams ? streamByUser.get(game.home_user_id) ?? null : null;
       const awayStreamRaw = showStreams ? streamByUser.get(game.away_user_id) ?? null : null;
       const streamIsLive = (stream: any) => Boolean(stream?.posted_at) && Date.now() - new Date(stream.posted_at).getTime() < STREAM_LIVE_WINDOW_MS;
-      // The "watch now" badges only ever show a currently-live stream -- once the 2h window
+      // The "watch now" badges only ever show a currently-live stream -- once the 1h window
       // closes the stream itself goes stale for viewing, but its existence still means the
       // game was actually played (see displayStatus below), so homeStreamRaw/awayStreamRaw
       // (unfiltered by recency) are kept around for that computation.

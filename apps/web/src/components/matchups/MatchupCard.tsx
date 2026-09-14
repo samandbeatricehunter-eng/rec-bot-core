@@ -158,7 +158,7 @@ export function MatchupCard({
       onClick={passive ? stopCardNav : undefined}
       onPointerDown={passive ? stopCardNav : undefined}
     >
-      {game.streams.length > 0 && !game.isFinal && <span className="rec-matchup-card__live">Live</span>}
+      {(!game.isFinal && (game.displayStatus === "live" || game.streams.length > 0)) && <span className="rec-matchup-card__live">Live</span>}
       <div className="rec-matchup-card__board">
         <div className="rec-matchup-card__team rec-matchup-card__team--away" style={{ "--team-color": game.awayTeamColor, "--team-text": readableText(game.awayTeamColor) } as CSSProperties}>
           <TeamLogo abbreviation={game.awayTeamAbbr} logoUrl={game.awayTeamLogoUrl} alt={game.awayTeamMascot} className="rec-matchup-card__team-logo" priority={renderMode === "discord"} />
