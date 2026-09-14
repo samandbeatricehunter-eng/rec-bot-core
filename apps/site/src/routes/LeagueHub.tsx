@@ -21,7 +21,6 @@ import {
   MgmtStatusStrip,
   NflPlayoffBracket,
   NotificationsHome,
-  PlayerStatsReview,
   PublishingHome,
   LeagueHistoryHome,
   LeagueRecordsHome,
@@ -251,7 +250,6 @@ function HubMgmtRoutes({ leagueId }: { leagueId: string }) {
       <Route path="commissioner-chat" element={<Navigate replace to="../inbox" />} />
       <Route path="manage-league" element={<Navigate replace to="../teams" />} />
       <Route path="manage-league/roles" element={<MgmtSubPage><RolesHome /></MgmtSubPage>} />
-      <Route path="manage-league/player-stats" element={<MgmtSubPage><PlayerStatsReview /></MgmtSubPage>} />
       <Route path="manage-league/playoff-bracket" element={<MgmtSubPage><NflPlayoffBracket /></MgmtSubPage>} />
       <Route path="manage-league/teams" element={<MgmtSubPage><TeamOwnershipTable /></MgmtSubPage>} />
       <Route path="manage-league/teams/link" element={<MgmtSubPage><LinkTeamForm /></MgmtSubPage>} />

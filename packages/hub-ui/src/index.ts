@@ -38,7 +38,6 @@ export { RosterPoolEditor } from "../../../apps/web/src/routes/league-mgmt/manag
 export { TeamOwnershipTable } from "../../../apps/web/src/routes/league-mgmt/manage-league/TeamOwnershipTable.js";
 export { LinkTeamForm } from "../../../apps/web/src/routes/league-mgmt/manage-league/LinkTeamForm.js";
 export { RolesHome } from "../../../apps/web/src/routes/league-mgmt/manage-league/RolesHome.js";
-export { PlayerStatsReview } from "../../../apps/web/src/routes/league-mgmt/manage-league/PlayerStatsReview.js";
 export { NotificationsHome } from "../../../apps/web/src/routes/league-mgmt/notifications/NotificationsHome.js";
 export { DeleteLeagueHome } from "../../../apps/web/src/routes/league-mgmt/delete-league/DeleteLeagueHome.js";
 export { SettingsHome } from "../../../apps/web/src/routes/league-mgmt/settings/SettingsHome.js";
