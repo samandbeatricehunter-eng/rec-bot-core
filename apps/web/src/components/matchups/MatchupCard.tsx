@@ -172,11 +172,18 @@ export function MatchupCard({
         </div>
         <div className="rec-matchup-card__center">
           {topTag}
-          <div className="rec-matchup-card__result">
-            {game.isFinal && game.awayScore != null && game.homeScore != null
-              ? <><b>{game.awayScore}</b><span>Final</span><b>{game.homeScore}</b></>
-              : <span className="rec-matchup-card__at">VS</span>}
-          </div>
+          {game.isFinal && game.awayScore != null && game.homeScore != null ? (
+            <div className="rec-matchup-card__result rec-matchup-card__result--final">
+              <b>{game.awayScore}</b>
+              <span className="rec-matchup-card__score-sep" aria-hidden="true">–</span>
+              <b>{game.homeScore}</b>
+              <em className="rec-matchup-card__final-label">Final</em>
+            </div>
+          ) : (
+            <div className="rec-matchup-card__result">
+              <span className="rec-matchup-card__at">VS</span>
+            </div>
+          )}
           {game.matchupType !== "h2h" && <small>CPU</small>}
           {bottomTags.length > 0 && <div className="rec-matchup-card__ctag rec-matchup-card__ctag--bottom">{bottomTags}</div>}
         </div>
@@ -193,8 +200,6 @@ export function MatchupCard({
       </div>
       {!game.isFinal && game.scheduledFor ? (
         <div className="rec-matchup-card__meta-bar">{formatScheduledTime(game.scheduledFor)}</div>
-      ) : game.isFinal ? (
-        <div className="rec-matchup-card__meta-bar">FINAL</div>
       ) : null}
       {reactionsEnabled && !reactionsBelow ? (
         <div className="rec-matchup-card__reactions" onClick={stopCardNav} onPointerDown={stopCardNav}>

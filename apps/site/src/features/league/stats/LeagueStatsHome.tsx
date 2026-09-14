@@ -228,6 +228,12 @@ const LEADER_CATEGORIES = [
   { label: "Interceptions", primaryKey: "interceptions", stats: [{ label: "INT", key: "interceptions" }, { label: "PBU", key: "pass_deflections" }] },
 ] as const;
 
+function splitPlayerName(fullName: string): { first: string; last: string } {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { first: parts[0] ?? fullName, last: "" };
+  return { first: parts.slice(0, -1).join(" "), last: parts[parts.length - 1]! };
+}
+
 function LeagueLeadersView({ guildId }: { guildId: string }) {
   const { data, error } = useLeagueStats(guildId);
   const [openPlayer, setOpenPlayer] = useState<StatsPlayer | null>(null);
@@ -246,9 +252,18 @@ function LeagueLeadersView({ guildId }: { guildId: string }) {
             const player = playersById.get(leader.playerId);
             const abbr = resolveTeamLogoAbbr(leader.teamAbbreviation ?? "");
             const color = abbr && NFL_TEAM_PRIMARY_COLORS[abbr] ? NFL_TEAM_PRIMARY_COLORS[abbr] : "#1a1d24";
+            const { first, last } = splitPlayerName(leader.playerName);
+            const position = player?.position ?? leader.position ?? "—";
             return <button key={leader.playerId} type="button" className="hub-div-standing-team rec-leader-block" style={{ ["--team-color" as string]: color }} onClick={() => player && setOpenPlayer(player)} disabled={!player}>
               <TeamLogo abbreviation={leader.teamAbbreviation} alt="" className="hub-div-standing-logo" priority />
-              <span className="rec-leader-person"><PlayerAvatar player={{ photoUrl: player?.photoUrl ?? null, position: player?.position ?? leader.position ?? null }} /><span className="rec-leader-name">{leader.playerName} - {player?.position ?? leader.position ?? "—"}</span></span>
+              <span className="rec-leader-person">
+                <PlayerAvatar player={{ photoUrl: player?.photoUrl ?? null, position: player?.position ?? leader.position ?? null }} />
+                <span className="rec-leader-name">
+                  <span>{first}</span>
+                  {last ? <strong>{last}</strong> : null}
+                  <em>{position}</em>
+                </span>
+              </span>
               <span className="rec-leader-stats">{stats.map((stat) => {
                 const value = stat.key === primaryKey ? leader.value : (player?.stats[stat.key] ?? 0);
                 return <strong key={stat.key}><small>{stat.label}</small>{stat.key.endsWith("_yards") ? Number(value).toLocaleString() : formatStatValue(stat.key, value)}</strong>;

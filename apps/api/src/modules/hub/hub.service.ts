@@ -1890,7 +1890,7 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     // Every H2H game from Conference Championship forward is GOTW-eligible in CFB, so a
     // week can now carry many concurrent polls, not just one — fetch them all instead of
     // the single most-recent poll.
-    supabase.from("rec_game_of_week_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).in("status", ["open", "closed"]).order("created_at", { ascending: false }),
+    supabase.from("rec_game_of_week_polls").select("*").eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", selectedWeek).in("status", ["open", "closed"]).order("updated_at", { ascending: false }),
     // Rank/record badges on each matchup card -- best-effort (60s-cached internally) so a power-
     // rankings hiccup never breaks the whole schedule load, just leaves ranks/records unset.
     bestEffort("hub.matchup_schedule.power_rankings", () => computePowerRankings(input.guildId), { guildId: input.guildId }).then((v) => v ?? { teams: [] as any[] }),
@@ -1901,7 +1901,19 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
   // Regular-season GOTW is singular. A legacy creation path could leave one poll per matchup,
   // making every schedule card look featured; keep only the newest poll for those weeks.
   // Postseason rounds intentionally permit multiple simultaneous GOTW polls.
-  const loadedPolls = gotwPoll.data ?? [];
+  // Also merge polls keyed by this week's game ids — season_number on a poll can lag the
+  // game's season after a rollover, which would otherwise hide a live GOTW entirely.
+  const gameIdsForWeek = (games.data ?? []).map((game: any) => game.id).filter(Boolean);
+  const pollsByGameId = gameIdsForWeek.length
+    ? await supabase.from("rec_game_of_week_polls").select("*").eq("league_id", context.leagueId).in("game_id", gameIdsForWeek).in("status", ["open", "closed"]).order("updated_at", { ascending: false })
+    : { data: [] as any[], error: null };
+  if (pollsByGameId.error) throw new ApiError(500, "We couldn't load GOTW polls for this week's games. Please try again.", pollsByGameId.error);
+  const loadedPollsById = new Map<string, any>();
+  for (const poll of [...(gotwPoll.data ?? []), ...(pollsByGameId.data ?? [])]) {
+    if (poll?.id) loadedPollsById.set(poll.id, poll);
+  }
+  const loadedPolls = [...loadedPollsById.values()].sort((a, b) =>
+    Date.parse(String(b.updated_at ?? b.created_at ?? 0)) - Date.parse(String(a.updated_at ?? a.created_at ?? 0)));
   const polls = selectedWeek <= regularSeasonWeeks(context.rec_leagues.game)
     ? loadedPolls.slice(0, 1)
     : loadedPolls;

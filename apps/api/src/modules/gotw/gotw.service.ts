@@ -10,6 +10,7 @@ import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { getLeagueConfigAsDraft } from "../setup/setup.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 import { getGlobalEconomyConfig } from "../economy/global-economy-config.service.js";
+import { regularSeasonWeeks } from "@rec/shared";
 
 function gotwStreamingAnnouncement(draft: any, awayMention: string, homeMention: string) {
   const requirement = draft?.gotwStreamingRequirement ?? "recommended";
@@ -81,7 +82,18 @@ export async function createGotwPoll(input: {
   expiresAt?: string | null;
 }) {
   const context = await getCurrentLeagueContext(input.guildId);
-  const seasonNumber = resolveSeasonNumber(context);
+  // Prefer the game's season over league.season_number — those can drift after a rollover
+  // (polls tagged S1 while the game already lives on the S2 season_id).
+  const gameSeason = await supabase
+    .from("rec_games")
+    .select("id, season:rec_seasons!rec_games_season_id_fkey(display_season_number)")
+    .eq("id", input.gameId)
+    .maybeSingle();
+  if (gameSeason.error) throw new ApiError(500, "We couldn't resolve that GOTW game's season. Please try again.", gameSeason.error);
+  const seasonFromGame = Number((gameSeason.data as any)?.season?.display_season_number);
+  const seasonNumber = Number.isFinite(seasonFromGame) && seasonFromGame > 0
+    ? seasonFromGame
+    : resolveSeasonNumber(context);
   const now = new Date().toISOString();
   const existing = await supabase.from("rec_game_of_week_polls").select("id")
     .eq("league_id", context.leagueId).eq("season_number", seasonNumber)
@@ -115,6 +127,19 @@ export async function createGotwPoll(input: {
     .select("id")
     .single();
   if (error) throw new ApiError(500, "We couldn't create that GOTW poll. Please try again.", error);
+  // Regular season only allows one featured GOTW — cancel any other open polls for the week
+  // so a prior all-H2H assign (or a season-number mismatch repair) doesn't leave multiples live.
+  if (data?.id && input.weekNumber <= regularSeasonWeeks(context.rec_leagues.game)) {
+    const cancelled = await supabase
+      .from("rec_game_of_week_polls")
+      .update({ status: "cancelled", closed_at: now, updated_at: now })
+      .eq("league_id", context.leagueId)
+      .eq("season_number", seasonNumber)
+      .eq("week_number", input.weekNumber)
+      .eq("status", "open")
+      .neq("id", data.id);
+    if (cancelled.error) throw new ApiError(500, "We couldn't clear competing GOTW polls. Please try again.", cancelled.error);
+  }
   if (!existing.data) {
     await announceGotwInExistingGameChannel({
       guildId: input.guildId,
