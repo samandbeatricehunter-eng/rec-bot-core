@@ -121,7 +121,7 @@ export function TeamStatusStrip({
           <strong>{profile.globalRecord?.text ?? "0-0-0"}</strong>
         </article>
         <article>
-          <span>Career post-season record</span>
+          <span>Career post-season (SB)</span>
           <strong>
             {profile.globalRecord?.playoffText ?? "0-0"}
             {" "}

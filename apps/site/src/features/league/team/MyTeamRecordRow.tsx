@@ -16,7 +16,7 @@ export function MyTeamRecordRow({
       <article><span>Season record</span><strong>{my.leagueSeasonRecordText ?? "0-0-0"}</strong></article>
       <article><span>Post-season record</span><strong>{my.leagueSeasonPlayoffText ?? "0-0"}</strong></article>
       <article><span>Career record</span><strong>{profile.globalRecord?.text ?? "0-0-0"}</strong></article>
-      <article><span>Career post-season record</span><strong>{profile.globalRecord?.playoffText ?? "0-0"}</strong></article>
+      <article><span>Career post-season (SB)</span><strong>{profile.globalRecord?.playoffText ?? "0-0"}{profile.globalRecord?.superbowlText ? ` (${profile.globalRecord.superbowlText})` : ""}</strong></article>
     </div>
   );
 }

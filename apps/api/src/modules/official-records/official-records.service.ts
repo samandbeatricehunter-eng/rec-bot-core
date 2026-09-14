@@ -674,34 +674,50 @@ export async function rebuildOfficialGlobalRecords(userIds?: string[]) {
     });
     // Spans every league the user has ever played in, so playoff/superbowl detection
     // must use each row's own league game, not a single shared one.
-    const boxScoreTotals = emptyRecordTotals();
-    for (const row of userResults) applyGameResult(boxScoreTotals, userId, row, leagueGameById.get(row.league_id) ?? null);
+    // Split orphaned recovered games from live box scores: manual championship credits were
+    // written to replace SBs lost when a league was hard-deleted, and orphaned
+    // rec_team_game_stats can later recover those same championship games — summing both
+    // double-counts (e.g. 2-0 instead of 1-0). W/L/playoff still count every recovered game;
+    // for SB wins use max(orphaned, manual) on top of live/baseline.
+    const officialBox = emptyRecordTotals();
+    const orphanedBox = emptyRecordTotals();
+    for (const row of userResults) {
+      const leagueGame = leagueGameById.get(row.league_id) ?? null;
+      if (row.source === "orphaned_team_game_stats") applyGameResult(orphanedBox, userId, row, leagueGame);
+      else applyGameResult(officialBox, userId, row, leagueGame);
+    }
     const baseline = baselineFromLegacyJson(baselineByUser.get(userId) as Record<string, unknown>);
-    const allGames = mergeRecordTotals(baseline, boxScoreTotals);
+    const liveAndBaseline = mergeRecordTotals(baseline, officialBox);
+    const allGames = mergeRecordTotals(liveAndBaseline, orphanedBox);
     const userManualCredits = manualCreditsByUser.get(userId) ?? [];
     const manualChampionships = userManualCredits.reduce((sum, row) => sum + Number(row.championship_count ?? 0), 0);
-    const allGamesChampionships = allGames.superbowlWins + manualChampionships;
+    const allGamesChampionships =
+      liveAndBaseline.superbowlWins + Math.max(orphanedBox.superbowlWins, manualChampionships);
 
     globalRows.push(allGamesRecordRowFromTotals(allGames, allGamesChampionships, { user_id: userId }));
 
-    const byGame = new Map<string, RecordTotals>();
+    const officialByGame = new Map<string, RecordTotals>();
+    const orphanedByGame = new Map<string, RecordTotals>();
     for (const row of userResults) {
       const game = leagueGameById.get(row.league_id) ?? "madden_26";
-      const current = byGame.get(game) ?? emptyRecordTotals();
+      const bucket = row.source === "orphaned_team_game_stats" ? orphanedByGame : officialByGame;
+      const current = bucket.get(game) ?? emptyRecordTotals();
       applyGameResult(current, userId, row, game);
-      byGame.set(game, current);
+      bucket.set(game, current);
     }
 
     for (const game of ["madden_26", "madden_27"] as const) {
       // The legacy carry-over baseline IS the madden_26 record, so merge it in for
       // that game — the per-game record is baseline + box-score games, never reset
       // to box-score-only (which previously erased the seeded baseline).
-      const boxTotals = byGame.get(game) ?? emptyRecordTotals();
-      const totals = game === "madden_26" ? mergeRecordTotals(baseline, boxTotals) : boxTotals;
+      const officialTotals = officialByGame.get(game) ?? emptyRecordTotals();
+      const orphanedTotals = orphanedByGame.get(game) ?? emptyRecordTotals();
+      const liveMerged = game === "madden_26" ? mergeRecordTotals(baseline, officialTotals) : officialTotals;
+      const totals = mergeRecordTotals(liveMerged, orphanedTotals);
       const manualGameChampionships = userManualCredits
         .filter((row) => row.game === game)
         .reduce((sum, row) => sum + Number(row.championship_count ?? 0), 0);
-      totals.superbowlWins += manualGameChampionships;
+      totals.superbowlWins = liveMerged.superbowlWins + Math.max(orphanedTotals.superbowlWins, manualGameChampionships);
       if (!hasAnyRecordStat(totals)) {
         const ids = deleteUserIdsByGame.get(game) ?? [];
         ids.push(userId);
