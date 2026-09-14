@@ -8,12 +8,9 @@ import { env, shouldMigrateMirroredHighlightsOnBoot } from "./config/env.js";
 import { registerRoutes } from "./routes.js";
 import { migrateMirroredHighlightsToStream } from "./modules/media/media.service.js";
 import { hasValidInternalApiKey } from "./lib/auth.js";
-import { runSchedulingReminderSweep } from "./modules/scheduling/reminder-poller.service.js";
 import { runStreamingSweep } from "./modules/streaming/streaming.service.js";
 import { runTeamWaitlistSweep } from "./modules/team-requests/team-waitlists.service.js";
 import { runAutoImportSweep } from "./modules/madden-ea/ea-connections.service.js";
-import { runTournamentLotterySweep } from "./modules/tournaments/tournament-lottery.service.js";
-import { runTournamentRegistrationAnnounceSweep } from "./modules/tournaments/tournament-discord.service.js";
 import { syncAllRecruitingAds } from "./modules/admin/site-discord-config.service.js";
 import { sweepImmortalityTweetQueue } from "./modules/immortality/tweet-generation.service.js";
 import { supabase } from "./lib/supabase.js";
@@ -91,13 +88,6 @@ process.once("SIGINT", () => void shutdown("SIGINT"));
 try { await app.listen({ host: env.API_HOST, port: env.API_PORT }); }
 catch (error) { app.log.error(error); process.exit(1); }
 
-// REC Game Scheduling System: 12h-no-attempt / 30m-to-kickoff / kickoff-prompt reminder sweep --
-// 5 minutes is plenty of precision for these three thresholds (availability nagging moved to be
-// advance-triggered instead of polled -- see league-week.service.ts).
-setInterval(() => {
-  runSchedulingReminderSweep().catch((error) => app.log.error({ err: error }, "Scheduling reminder sweep failed"));
-}, 5 * 60_000).unref();
-
 setInterval(() => {
   runStreamingSweep().catch((error) => app.log.error({ err: error }, "Streaming account sweep failed"));
 }, 60_000).unref();
@@ -107,18 +97,6 @@ setInterval(() => {
 setTimeout(() => runTeamWaitlistSweep().catch((error) => app.log.error({ err: error }, "Team waitlist sweep failed")), 5_000).unref();
 setInterval(() => {
   runTeamWaitlistSweep().catch((error) => app.log.error({ err: error }, "Team waitlist sweep failed"));
-}, 60_000).unref();
-
-// Tournament lottery draft: T-30/10/1min reminders, auto-run at the scheduled time, per-pick
-// deadline auto-skip, and open-pool auto-assignment -- same restart-safe polled pattern.
-setInterval(() => {
-  runTournamentLotterySweep().catch((error) => app.log.error({ err: error }, "Tournament lottery sweep failed"));
-}, 60_000).unref();
-
-// Fires the @everyone "registration is open" ping once a tournament's scheduled
-// registrationOpensAt actually arrives, for tournaments created with a future open time.
-setInterval(() => {
-  runTournamentRegistrationAnnounceSweep().catch((error) => app.log.error({ err: error }, "Tournament registration announce sweep failed"));
 }, 60_000).unref();
 
 // Auto-import sweep for EA-connected leagues with auto_import enabled — pulls fresh data every

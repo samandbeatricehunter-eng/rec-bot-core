@@ -836,15 +836,6 @@ export const recTeamByes = pgTable("rec_team_byes", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
-export const recGameSchedulingEvents = pgTable("rec_game_scheduling_events", {
-  id: uuid("id").primaryKey(),
-  gameId: uuid("game_id").notNull().references(() => recGames.id),
-  userId: uuid("user_id").references(() => recUsers.id),
-  eventType: text("event_type").notNull(),
-  payload: jsonb("payload").$type<Record<string, unknown> | null>(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
 export const recDraftPicks = pgTable("rec_draft_picks", {
   id: uuid("id").primaryKey(),
   leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
@@ -968,7 +959,6 @@ export const userGamedayPreferences = pgTable("user_gameday_preferences", {
 
 export type RecGame = typeof recGames.$inferSelect;
 export type RecGameResult = typeof recGameResults.$inferSelect;
-export type RecGameSchedulingEvent = typeof recGameSchedulingEvents.$inferSelect;
 export type RecDraftPick = typeof recDraftPicks.$inferSelect;
 export type RecDraftPickAudit = typeof recDraftPickAudit.$inferSelect;
 export type RecMediaSubmission = typeof recMediaSubmissions.$inferSelect;
@@ -1268,100 +1258,6 @@ export const recGameChannelReminders = pgTable("rec_game_channel_reminders", {
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });
 
-// ============================================================================
-// REC Game Scheduling System — availability profiles + matchup scheduling
-// ============================================================================
-
-export const recUserAvailabilityProfiles = pgTable("rec_user_availability_profiles", {
-  userId: uuid("user_id").primaryKey().references(() => recUsers.id),
-  timezone: text("timezone"),
-  timezoneSource: text("timezone_source").notNull().default("unset"),
-  showDetailedAvailability: boolean("show_detailed_availability").notNull().default(true),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
-export const recUserAvailabilityWindows = pgTable("rec_user_availability_windows", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id").notNull().references(() => recUsers.id),
-  leagueId: uuid("league_id").references(() => recLeagues.id),
-  weekday: integer("weekday").notNull(),
-  startMinute: integer("start_minute").notNull(),
-  endMinute: integer("end_minute").notNull(),
-  active: boolean("active").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
-export const recAvailabilityOverrides = pgTable("rec_availability_overrides", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id").notNull().references(() => recUsers.id),
-  leagueId: uuid("league_id").references(() => recLeagues.id),
-  gameId: uuid("game_id").references(() => recGames.id),
-  scope: text("scope").notNull(),
-  startsAt: timestamp("starts_at", { withTimezone: true, mode: "string" }).notNull(),
-  endsAt: timestamp("ends_at", { withTimezone: true, mode: "string" }).notNull(),
-  unavailable: boolean("unavailable").notNull().default(false),
-  timezoneOverride: text("timezone_override"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true, mode: "string" })
-});
-
-export const recGameScheduling = pgTable("rec_game_scheduling", {
-  gameId: uuid("game_id").primaryKey().references(() => recGames.id),
-  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
-  status: text("status").notNull().default("not_scheduled"),
-  responseStartedAt: timestamp("response_started_at", { withTimezone: true, mode: "string" }),
-  homeRespondedAt: timestamp("home_responded_at", { withTimezone: true, mode: "string" }),
-  awayRespondedAt: timestamp("away_responded_at", { withTimezone: true, mode: "string" }),
-  scheduledFor: timestamp("scheduled_for", { withTimezone: true, mode: "string" }),
-  confirmedAt: timestamp("confirmed_at", { withTimezone: true, mode: "string" }),
-  proposedByUserId: uuid("proposed_by_user_id").references(() => recUsers.id),
-  acceptedByUserId: uuid("accepted_by_user_id").references(() => recUsers.id),
-  rescheduleRequestedAt: timestamp("reschedule_requested_at", { withTimezone: true, mode: "string" }),
-  gameStartedAt: timestamp("game_started_at", { withTimezone: true, mode: "string" }),
-  fwFlagged: boolean("fw_flagged").notNull().default(false),
-  fwFlaggedForUserId: uuid("fw_flagged_for_user_id").references(() => recUsers.id),
-  fwFlaggedAt: timestamp("fw_flagged_at", { withTimezone: true, mode: "string" }),
-  attentionRequired: boolean("attention_required").notNull().default(false),
-  announcementChannelId: text("announcement_channel_id"),
-  announcementMessageId: text("announcement_message_id"),
-  panelChannelId: text("panel_channel_id"),
-  panelMessageId: text("panel_message_id"),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
-export const recGameTimeProposals = pgTable("rec_game_time_proposals", {
-  id: uuid("id").primaryKey(),
-  gameId: uuid("game_id").notNull().references(() => recGames.id),
-  proposedByUserId: uuid("proposed_by_user_id").notNull().references(() => recUsers.id),
-  proposedFor: timestamp("proposed_for", { withTimezone: true, mode: "string" }).notNull(),
-  status: text("status").notNull().default("pending"),
-  counterToId: uuid("counter_to_id"),
-  createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
-  respondedAt: timestamp("responded_at", { withTimezone: true, mode: "string" })
-});
-
-// rec_game_scheduling_events itself already exists above (line ~748) from earlier
-// gameday-scheduling scaffolding (id, game_id, user_id, event_type, payload, created_at) --
-// reused as-is for this system's immutable event log rather than creating a parallel table.
-
-// Phase 8: one edited-in-place message per (league, season, week) listing every confirmed H2H
-// kickoff, instead of a separate announcement post per confirmed game. confirmedGames is the
-// source of truth the embed gets rebuilt from on every edit (rather than trying to read Discord's
-// own message content back), keyed by gameId so a re-confirm (reschedule) replaces its own entry.
-export const recWeeklyConfirmedAnnouncements = pgTable("rec_weekly_confirmed_announcements", {
-  id: uuid("id").primaryKey(),
-  leagueId: uuid("league_id").notNull().references(() => recLeagues.id),
-  seasonNumber: integer("season_number").notNull(),
-  weekNumber: integer("week_number").notNull(),
-  channelId: text("channel_id"),
-  messageId: text("message_id"),
-  confirmedGames: jsonb("confirmed_games").notNull().default([]),
-  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
 // Commish Tools' Suspend User action. "weeks" is calendar time (endsAt = startsAt + weeks*7d),
 // not league week numbers -- CFB/Madden don't share a uniform week model, so this stays simple
 // rather than trying to hook into per-game-week scheduling.
@@ -1377,20 +1273,6 @@ export const recUserSuspensions = pgTable("rec_user_suspensions", {
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull()
 });
-
-export const recSchedulingRemindersSent = pgTable("rec_scheduling_reminders_sent", {
-  id: uuid("id").primaryKey(),
-  gameId: uuid("game_id").references(() => recGames.id),
-  userId: uuid("user_id").references(() => recUsers.id),
-  reminderType: text("reminder_type").notNull(),
-  sentAt: timestamp("sent_at", { withTimezone: true, mode: "string" }).notNull()
-});
-
-export type RecUserAvailabilityProfile = typeof recUserAvailabilityProfiles.$inferSelect;
-export type RecUserAvailabilityWindow = typeof recUserAvailabilityWindows.$inferSelect;
-export type RecAvailabilityOverride = typeof recAvailabilityOverrides.$inferSelect;
-export type RecGameScheduling = typeof recGameScheduling.$inferSelect;
-export type RecGameTimeProposal = typeof recGameTimeProposals.$inferSelect;
 
 export const recWeeklyPlayerAwards = pgTable("rec_weekly_player_awards", {
   id: uuid("id").primaryKey(),
@@ -2610,8 +2492,7 @@ export const recGamesRelations = relations(recGames, ({ one, many }) => ({
   homeTeam: one(recTeams, { fields: [recGames.homeTeamId], references: [recTeams.id], relationName: "recGamesHomeTeam" }),
   awayTeam: one(recTeams, { fields: [recGames.awayTeamId], references: [recTeams.id], relationName: "recGamesAwayTeam" }),
   homeUser: one(recUsers, { fields: [recGames.homeUserId], references: [recUsers.id], relationName: "recGamesHomeUser" }),
-  awayUser: one(recUsers, { fields: [recGames.awayUserId], references: [recUsers.id], relationName: "recGamesAwayUser" }),
-  schedulingEvents: many(recGameSchedulingEvents)
+  awayUser: one(recUsers, { fields: [recGames.awayUserId], references: [recUsers.id], relationName: "recGamesAwayUser" })
 }));
 
 export const recGameResultsRelations = relations(recGameResults, ({ one }) => ({
@@ -2624,11 +2505,6 @@ export const recGameResultsRelations = relations(recGameResults, ({ one }) => ({
   losingUser: one(recUsers, { fields: [recGameResults.losingUserId], references: [recUsers.id], relationName: "recGameResultsLosingUser" }),
   winningTeam: one(recTeams, { fields: [recGameResults.winningTeamId], references: [recTeams.id], relationName: "recGameResultsWinningTeam" }),
   losingTeam: one(recTeams, { fields: [recGameResults.losingTeamId], references: [recTeams.id], relationName: "recGameResultsLosingTeam" })
-}));
-
-export const recGameSchedulingEventsRelations = relations(recGameSchedulingEvents, ({ one }) => ({
-  game: one(recGames, { fields: [recGameSchedulingEvents.gameId], references: [recGames.id] }),
-  user: one(recUsers, { fields: [recGameSchedulingEvents.userId], references: [recUsers.id] })
 }));
 
 export const recDraftPicksRelations = relations(recDraftPicks, ({ one }) => ({

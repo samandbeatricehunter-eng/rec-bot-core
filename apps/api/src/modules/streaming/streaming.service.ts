@@ -108,36 +108,14 @@ export async function listH2hMatchupsForUser(userId: string): Promise<StreamingM
     }
   }
 
-  // rec_game_scheduling's FK to rec_games runs the opposite direction from every other embed in
-  // this query (it's the child, keyed by game_id, not a parent rec_games references by a
-  // *_id column) -- the supabase shim's generic relation resolver only supports the latter
-  // (relationKey() always looks up "${alias}_id" on the base row), so it 500'd looking for a
-  // nonexistent rec_games.scheduling_id (confirmed live: "column scheduling_id does not
-  // exist"). Fetch it as its own batched lookup instead, same pattern as serverNameByLeague.
-  const gameIds = rows.map((row) => String(row.id)).filter(Boolean);
-  const schedulingByGameId = new Map<string, { status: string | null; scheduled_for: string | null }>();
-  if (gameIds.length) {
-    const scheduling = await supabase
-      .from("rec_game_scheduling")
-      .select("game_id, status, scheduled_for")
-      .in("game_id", gameIds);
-    for (const row of scheduling.data ?? []) {
-      schedulingByGameId.set(String((row as any).game_id), { status: (row as any).status ?? null, scheduled_for: (row as any).scheduled_for ?? null });
-    }
-  }
-
   const options: StreamingMatchupOption[] = [];
   for (const row of rows) {
     if (row.home_user_id !== userId && row.away_user_id !== userId) continue;
-    const scheduling = schedulingByGameId.get(String(row.id)) ?? null;
-    if (scheduling?.status === "completed") continue;
     const league = row.league;
     const currentWeek = league?.current_week == null ? null : Number(league.current_week);
     const weekNumber = row.week_number == null ? null : Number(row.week_number);
-    const scheduledFor = scheduling?.scheduled_for ? String(scheduling.scheduled_for) : null;
     const isCurrentWeek = currentWeek != null && weekNumber === currentWeek;
-    const isLiveOrConfirmed = scheduling?.status === "live" || scheduling?.status === "confirmed";
-    if (!isCurrentWeek && !isLiveOrConfirmed && !scheduledFor) continue;
+    if (!isCurrentWeek) continue;
 
     const awayTeamName = row.away_team?.name ?? "Away";
     const homeTeamName = row.home_team?.name ?? "Home";
@@ -151,18 +129,12 @@ export async function listH2hMatchupsForUser(userId: string): Promise<StreamingM
       homeTeamName,
       serverName,
       label,
-      scheduledFor,
+      scheduledFor: null,
     });
   }
 
   options.sort((a, b) => a.label.localeCompare(b.label));
   return options.slice(0, 25);
-}
-
-export async function matchupScheduledToday(userId: string, now = new Date()): Promise<boolean> {
-  const today = utcDateString(now);
-  const matchups = await listH2hMatchupsForUser(userId);
-  return matchups.some((matchup) => matchup.scheduledFor && matchup.scheduledFor.slice(0, 10) === today);
 }
 
 async function discordIdForUser(userId: string): Promise<string | null> {
@@ -788,74 +760,6 @@ export async function runStreamingAutopostSweep() {
   }
 }
 
-export async function runStreamingGameTimerEnd() {
-  const cutoff = new Date(Date.now() - 45 * 60_000).toISOString();
-  const liveGames = await supabase
-    .from("rec_game_scheduling")
-    .select("game_id")
-    .not("game_started_at", "is", null)
-    .lte("game_started_at", cutoff)
-    .neq("status", "completed");
-  const gameIds = (liveGames.data ?? []).map((row: any) => String(row.game_id));
-  if (!gameIds.length) return;
-  const now = new Date().toISOString();
-  await supabase.from("rec_stream_compliance_logs").update({ ended_at: now }).in("game_id", gameIds).is("ended_at", null);
-  await supabase.from("rec_streaming_sessions").update({
-    ended_at: now,
-    status: "ended",
-    updated_at: now,
-  }).in("confirmed_game_id", gameIds).is("ended_at", null);
-}
-
-export async function runDayOfStreamingPrompts() {
-  const today = utcDateString();
-  const start = `${today}T00:00:00.000Z`;
-  const end = `${today}T23:59:59.999Z`;
-  const scheduled = await supabase
-    .from("rec_game_scheduling")
-    .select("game_id, scheduled_for")
-    .not("scheduled_for", "is", null)
-    .gte("scheduled_for", start)
-    .lte("scheduled_for", end)
-    .not("status", "in", "(completed)");
-  const gameIds = [...new Set((scheduled.data ?? []).map((row: any) => String(row.game_id)))];
-  if (!gameIds.length) return;
-
-  const games = await supabase
-    .from("rec_games")
-    .select("id, home_user_id, away_user_id")
-    .in("id", gameIds)
-    .not("home_user_id", "is", null)
-    .not("away_user_id", "is", null);
-  const userIds = [...new Set((games.data ?? []).flatMap((row: any) => [row.home_user_id, row.away_user_id]).filter(Boolean).map(String))];
-  if (!userIds.length) return;
-
-  const linked = await supabase
-    .from("rec_streaming_accounts")
-    .select("user_id")
-    .in("user_id", userIds)
-    .eq("status", "active");
-  const linkedUsers = [...new Set(
-    ((linked.data ?? []) as Array<{ user_id: string }>).map((row) => row.user_id),
-  )];
-  const already = await supabase
-    .from("rec_streaming_prompts")
-    .select("user_id")
-    .eq("prompt_kind", "day_of")
-    .eq("prompt_date", today)
-    .in("user_id", linkedUsers);
-  const sent = new Set((already.data ?? []).map((row: { user_id?: unknown }) => String(row.user_id)));
-
-  for (const userId of linkedUsers) {
-    if (sent.has(userId)) continue;
-    const matchups = await listH2hMatchupsForUser(userId);
-    if (!matchups.length) continue;
-    const prompt = await createPrompt({ userId, kind: "day_of" });
-    if (!prompt || prompt.status !== "pending") continue;
-    await sendOrReusePromptDm({ userId, prompt, kind: "day_of", matchups });
-  }
-}
-
 export async function pollLinkedLiveStatus() {
   const accounts = await supabase.from("rec_streaming_accounts").select("*").eq("status", "active");
   const rows = (accounts.data ?? []) as StreamingAccountRow[];
@@ -925,10 +829,8 @@ export async function pollLinkedLiveStatus() {
 }
 
 export async function runStreamingSweep() {
-  await runDayOfStreamingPrompts().catch((error) => console.error("[ERROR] Day-of streaming prompts failed:", error));
   await pollLinkedLiveStatus().catch((error) => console.error("[ERROR] Streaming live poll failed:", error));
   await runStreamingAutopostSweep().catch((error) => console.error("[ERROR] Streaming autopost sweep failed:", error));
-  await runStreamingGameTimerEnd().catch((error) => console.error("[ERROR] Streaming game-timer end failed:", error));
 }
 
 export async function handleTwitchEventsubPayload(body: any) {

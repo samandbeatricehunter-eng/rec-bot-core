@@ -4,7 +4,6 @@ import { bestEffort } from "../../lib/best-effort.js";
 import { withComputeCache } from "../../lib/compute-cache.js";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
-import { markGameStarted } from "../scheduling/matchup-scheduling.service.js";
 import { assertGuildPermission } from "../../lib/user-auth.js";
 import { postDiscordChannelMessage, sendDiscordDirectMessage } from "../../lib/discord-guild.js";
 import { findCurrentLeagueContext, findServerRoutesForLeague, getCurrentLeagueContext, isSiteOnlyDiscordId, isSiteOnlyGuildId, recUserIdFromSiteOnlyDiscordId, siteOnlyDiscordId, siteOnlyGuildId } from "../league-context/league-context.service.js";
@@ -169,8 +168,7 @@ export const INTERVIEW_QUESTIONS = INTERVIEW_TOPICS.flatMap((topic) =>
 
 async function userIdForDiscord(discordId: string) {
   // Site-only leagues (and the matchup-render pipeline, which resolves a viewer-less render via
-  // a synthetic discordId) use the same site-only-id convention already established in
-  // scheduling/shared.ts's userIdFromDiscordId -- this local copy just never special-cased it.
+  // a synthetic discordId) use the site-only-id convention.
   if (isSiteOnlyDiscordId(discordId)) return recUserIdFromSiteOnlyDiscordId(discordId);
   return withComputeCache(`discord-user:${discordId}`, 60_000, async () => {
     const result = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", discordId).maybeSingle();
@@ -1985,19 +1983,10 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
     };
   };
   const gameIds = (games.data ?? []).map((game: any) => game.id).filter(Boolean);
-  const [gameReactionsForWeek, gameScheduling] = await Promise.all([
-    gameIds.length
-      ? supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key,comment").in("game_id", gameIds)
-      : Promise.resolve({ data: [], error: null }),
-    // Confirmed kickoff time + commissioner-granted Force Win, surfaced on the matchup card
-    // itself instead of requiring a trip into the game channel to see either.
-    gameIds.length
-      ? supabase.from("rec_game_scheduling").select("game_id,scheduled_for,fw_flagged,fw_flagged_for_user_id").in("game_id", gameIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  const gameReactionsForWeek = gameIds.length
+    ? await supabase.from("rec_game_reactions").select("game_id,user_id,reaction_key,comment").in("game_id", gameIds)
+    : { data: [], error: null };
   if (gameReactionsForWeek.error) throw new ApiError(500, "We couldn't load matchup reactions. Please try again.", gameReactionsForWeek.error);
-  if (gameScheduling.error) throw new ApiError(500, "We couldn't load matchup scheduling status. Please try again.", gameScheduling.error);
-  const schedulingByGameId = new Map<string, any>((gameScheduling.data ?? []).map((row: any) => [row.game_id, row]));
   const mappedGames = (games.data ?? []).filter((game: any) => game.home_user_id || game.away_user_id).map((game: any) => {
       const result = resultByTeams.get(`${game.home_team?.id}:${game.away_team?.id}`) ?? null;
       const homeScore = result?.home_score ?? game.home_score ?? null;
@@ -2077,12 +2066,8 @@ export async function getHubMatchupSchedule(input: { guildId: string; discordId:
         isFinal,
         hasPreliminaryScore,
         displayStatus,
-        scheduledFor: schedulingByGameId.get(game.id)?.scheduled_for ?? null,
-        forceWinSide: schedulingByGameId.get(game.id)?.fw_flagged
-          ? (schedulingByGameId.get(game.id)?.fw_flagged_for_user_id === game.home_user_id ? "home" as const
-            : schedulingByGameId.get(game.id)?.fw_flagged_for_user_id === game.away_user_id ? "away" as const
-            : null)
-          : null,
+        scheduledFor: null,
+        forceWinSide: null,
         wageringOpen: String(game.status ?? "scheduled").toLowerCase() === "scheduled" && !isFinal,
         winnerTeamId: result?.winning_team_id ?? null,
         reactionCounts: Object.fromEntries(["love", "like", "goty", "dislike", "poop"].map((key) => [key, gameReactionRows.filter((reaction: any) => reaction.reaction_key === key).length])),
@@ -2357,12 +2342,6 @@ export async function shareHubMatchupStream(input: {
     .select("id")
     .single();
   if (inserted.error) throw new ApiError(500, "We couldn't save that stream URL. Please try again.", inserted.error);
-
-  await markGameStarted({ gameId: input.gameId }).catch((error) => console.error("[ERROR] Failed to mark game started from stream share (non-fatal):", error));
-  // markGameStarted no-ops once the game is already live, so a second/third stream (the other
-  // coach's, or a re-share) would never otherwise get its link added to the announcement embed.
-  const { refreshMatchupsChannelForGame } = await import("../scheduling/matchups-channel.service.js");
-  await refreshMatchupsChannelForGame(input.gameId);
 
   await Promise.all([
     closeWageringForGame({ guildId: input.guildId, gameId: input.gameId }),

@@ -152,7 +152,7 @@ async function publishLeagueAdvanceAnnouncement(input: {
   });
 
   const body = lines.length
-    ? `Next advance: ${input.nextAdvanceLabel}\n\nH2H Matchups:\n${lines.map((line) => `• ${line}`).join("\n")}\n\nUse your matchup card on the main League page for scheduling, uploads, reactions, and help.`
+    ? `Next advance: ${input.nextAdvanceLabel}\n\nH2H Matchups:\n${lines.map((line) => `• ${line}`).join("\n")}\n\nUse your matchup card on the main League page for uploads, reactions, and help.`
     : `Next advance: ${input.nextAdvanceLabel}\n\n${label} is live. Check the main League page for this week's slate.`;
 
   await recordHubAnnouncement({
@@ -357,21 +357,11 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
     (results.data ?? []).map((row: any) => [`${row.home_team_id}:${row.away_team_id}`, { source: row.source ?? null, home_score: row.home_score ?? null, away_score: row.away_score ?? null }]),
   );
 
-  // Force Win is a manual-apply label only (see scheduling/matchup-scheduling.service.ts) --
-  // this just surfaces which matchups were flagged so the commissioner knows to apply one
-  // during advance. Fair Sim is the unflagged default and needs no equivalent badge.
   const gameIds = (games ?? []).map((g: any) => g.id);
-  const fwFlags = gameIds.length
-    ? await supabase.from("rec_game_scheduling").select("game_id,fw_flagged,fw_flagged_for_user_id").in("game_id", gameIds).eq("fw_flagged", true)
-    : { data: [] as any[], error: null };
-  const fwFlagByGameId = new Map((fwFlags.data ?? []).map((row: any) => [String(row.game_id), row.fw_flagged_for_user_id as string | null]));
 
-  // `advance_outcome_override` alone can't confirm a Force Win actually reached EA -- the
-  // Commish Tools grant path (matchup-scheduling.service.ts's closeAdministrativeResult) marks
-  // it locally and fires the real Blaze command in the same breath, but that call is
-  // best-effort ("auto"-sourced, errors only logged) so the local flag can be set even if EA
-  // rejected it. rec_ea_admin_actions is the actual audit trail of that Blaze call, so it's the
-  // only source that can say "this was logged and EA accepted it" rather than "REC asked EA to."
+  // `advance_outcome_override` alone can't confirm a Force Win actually reached EA --
+  // rec_ea_admin_actions is the actual audit trail of the Blaze call, so it's the only source
+  // that can say "this was logged and EA accepted it" rather than "REC asked EA to."
   const eaForceWinActions = gameIds.length
     ? await supabase.from("rec_ea_admin_actions")
         .select("target_description,command_name,status,created_at")
@@ -415,7 +405,7 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
       isNationalChampionship: Boolean(game.is_national_championship),
       homeScore: resultRow?.home_score ?? null,
       awayScore: resultRow?.away_score ?? null,
-      fwFlaggedForUserId: fwFlagByGameId.get(String(game.id)) ?? null,
+      fwFlaggedForUserId: null,
       approvedDesignation: game.advance_outcome_override === "fw" ? "force_win" : game.advance_outcome_override === "fs" ? "fair_sim" : null,
       eaForceWinAction: eaForceWinActionByGameId.get(String(game.id)) ?? null,
     };

@@ -12,7 +12,6 @@ const Inbox = lazy(() => import("./routes/Inbox.js").then((m) => ({ default: m.I
 const Landing = lazy(() => import("./routes/Landing.js").then((m) => ({ default: m.Landing })));
 const LogIn = lazy(() => import("./routes/LogIn.js").then((m) => ({ default: m.LogIn })));
 const TournamentsPage = lazy(() => import("./routes/Tournaments.js").then((m) => ({ default: m.TournamentsPage })));
-const TournamentDetailPage = lazy(() => import("./routes/TournamentDetail.js").then((m) => ({ default: m.TournamentDetailPage })));
 const HomePage = lazy(() => import("./routes/Home.js").then((m) => ({ default: m.HomePage })));
 const LeaguesPage = lazy(() => import("./routes/Leagues.js").then((m) => ({ default: m.LeaguesPage })));
 const LeagueHubPage = lazy(() => import("./routes/LeagueHub.js").then((m) => ({ default: m.LeagueHubPage })));
@@ -269,7 +268,6 @@ function Routed() {
         <Route path="/leagues" element={<LeaguesPage />} />
         <Route path="/discord-guild-picker" element={<DiscordGuildPicker />} />
         <Route path="/tournaments" element={<TournamentsPage />} />
-        <Route path="/tournaments/:tournamentId" element={<TournamentDetailPage />} />
         <Route path="/comp" element={<Navigate replace to="/tournaments" />} />
         <Route path="/account" element={<Account />} />
         <Route path="/admin" element={<AdminPage />} />

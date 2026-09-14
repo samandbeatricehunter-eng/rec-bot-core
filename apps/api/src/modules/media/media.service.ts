@@ -742,8 +742,7 @@ export async function handleStreamWebhook(input: { rawBody: string; signatureHea
     .maybeSingle();
   if (row.error) throw new ApiError(500, "We couldn't load that highlight. Please try again.", row.error);
   if (!row.data) {
-    const { applyTournamentStreamWebhook } = await import("../tournaments/tournaments-media.service.js");
-    return applyTournamentStreamWebhook(body);
+    return { ok: true, matched: false };
   }
 
   const state = String(body.status?.state ?? "").toLowerCase();

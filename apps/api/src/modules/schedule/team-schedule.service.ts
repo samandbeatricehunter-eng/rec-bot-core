@@ -181,19 +181,12 @@ export async function getTeamScheduleManualState(input: {
 
   const confirmedByWeek = buildConfirmedByWeekMap(season, input.teamId);
   const gameDescriptors = [...confirmedByWeek.values()].map((c) => ({ id: c.gameId, weekNumber: c.weekNumber, homeTeamId: c.homeTeamId, awayTeamId: c.awayTeamId }));
-  // resultsAndSubmissions/rivalries/gameScheduling are mutually independent -- each only needs
-  // gameDescriptors, just computed above -- previously three separate sequential round trips.
-  const [resultsAndSubmissions, rivalries, gameScheduling] = await Promise.all([
+  // resultsAndSubmissions/rivalries are mutually independent -- each only needs
+  // gameDescriptors, just computed above.
+  const [resultsAndSubmissions, rivalries] = await Promise.all([
     loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors),
     loadGameRivalries(gameDescriptors.map((game) => game.id)),
-    // Force Win + confirmed kickoff time for the mini matchup card each week renders -- same
-    // rec_game_scheduling source getHubMatchupSchedule reads for the Matchups page.
-    gameDescriptors.length
-      ? supabase.from("rec_game_scheduling").select("game_id,scheduled_for,fw_flagged,fw_flagged_for_user_id").in("game_id", gameDescriptors.map((g) => g.id))
-      : Promise.resolve({ data: [] as any[], error: null }),
   ]);
-  if (gameScheduling.error) throw new ApiError(500, "Failed to load matchup scheduling status.", gameScheduling.error);
-  const schedulingByGameId = new Map<string, any>((gameScheduling.data ?? []).map((row: any) => [row.game_id, row]));
   const teamById = new Map<string, any>(teamRows.map((row: any) => [row.id, row]));
   const catalogColorFor = (row: any) => {
     if (row?.primary_color && String(row.primary_color).toUpperCase() !== "#FFFFFF") return row.primary_color;
@@ -209,17 +202,12 @@ export async function getTeamScheduleManualState(input: {
   if (byeRows.error) throw new ApiError(500, "Failed to load bye weeks.", byeRows.error);
   const byeByWeek = new Map((byeRows.data ?? []).map((row: any) => [row.week_number, row.bye_type ?? "regular_season"]));
 
-  // CFB's schedule builder also covers Conference Championship (week 15) as a schedulable
-  // matchup row, so the season spans 16 weeks (0-15) instead of stopping at the regular
-  // season's last week (14) — regularSeasonWeeks() itself stays 14 for stage-transition math.
   const lastWeek = maxSeasonWeek(context.rec_leagues.game);
-  // CFB's regular season starts at Week 0; Madden's starts at Week 1.
-  const firstWeek = context.rec_leagues.game === "cfb_27" ? 0 : 1;
+  const firstWeek = 1;
   const weeks: TeamScheduleManualWeek[] = [];
   for (let weekNumber = firstWeek; weekNumber <= lastWeek; weekNumber++) {
     const confirmed = confirmedByWeek.get(weekNumber);
     const extra = confirmed ? resultsAndSubmissions.get(confirmed.gameId) : undefined;
-    const scheduling = confirmed ? schedulingByGameId.get(confirmed.gameId) : null;
     const homeRow = confirmed ? teamById.get(confirmed.homeTeamId) : null;
     const awayRow = confirmed ? teamById.get(confirmed.awayTeamId) : null;
     const isFinal = Boolean(extra?.result);
@@ -255,12 +243,8 @@ export async function getTeamScheduleManualState(input: {
       isFinal,
       hasPreliminaryScore: !isFinal && extra?.result != null,
       displayStatus: isFinal ? "final" as const : "scheduled" as const,
-      scheduledFor: scheduling?.scheduled_for ?? null,
-      forceWinSide: scheduling?.fw_flagged
-        ? (scheduling.fw_flagged_for_user_id === confirmed.homeUserId ? "home" as const
-          : scheduling.fw_flagged_for_user_id === confirmed.awayUserId ? "away" as const
-          : null)
-        : null,
+      scheduledFor: null,
+      forceWinSide: null,
       wageringOpen: false,
       winnerTeamId: null,
       reactionCounts: { love: 0, like: 0, goty: 0, dislike: 0, poop: 0 },
