@@ -4739,7 +4739,7 @@ button.hub-div-standing-team:focus-visible {
 }
 .hub-season-form-card strong > em {
   flex: 0 0 auto;
-  margin-right: 2px;
+  margin-left: 2px;
   color: #fff;
   font-size: .8rem;
   font-style: normal;
