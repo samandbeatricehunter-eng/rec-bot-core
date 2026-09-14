@@ -19,9 +19,8 @@ function legendAttributeCategory(key: string): string {
   }
   return "Other";
 }
-import { isCompatibleReplacementPosition, legendPositionGroupFor, legendTopAttributes, REC_LEGEND_SUBGROUP_LABELS, REC_LEGEND_TIER_LABELS, REC_SPECIAL_TEAMS_LEGEND_PRICE } from "@rec/shared";
+import { legendPositionGroupFor, legendTopAttributes, REC_LEGEND_SUBGROUP_LABELS, REC_LEGEND_TIER_LABELS, REC_SPECIAL_TEAMS_LEGEND_PRICE } from "@rec/shared";
 import { useReadyAuth } from "../../lib/auth-context.js";
-import { useLeagueTheme } from "../../lib/league-theme-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
 import type { LegendAvailabilityEntry, LegendCatalogEntry, LegendReplacementPlayer } from "../../types/api.js";
 import { Modal } from "../../components/ui/Modal.js";
@@ -57,8 +56,6 @@ export function LegendPurchasePanel({
   celebsCouldveBeensPrice: number;
 }) {
   const { guildId, discordId } = useReadyAuth();
-  const { game } = useLeagueTheme();
-  const isCfb = game === "cfb_27";
   const [legends, setLegends] = useState<LegendCatalogEntry[] | null>(null);
   const [sold, setSold] = useState<LegendAvailabilityEntry[] | null>(null);
   const [tier, setTier] = useState<LegendTier | null>(null);
@@ -260,7 +257,6 @@ export function LegendPurchasePanel({
           soldEntry={soldByLegendId.get(activeLegend.id) ?? null}
           isMine={soldByLegendId.get(activeLegend.id)?.purchaserDiscordId === discordId}
           busy={busy}
-          isCfb={isCfb}
           replacementPlayers={replacementConfig?.replacementPlayers ?? []}
           blockedNoEligibleReplacement={replacementConfig?.blockedNoEligibleReplacement ?? false}
           legendPrice={(activeLegend.legend_tier === "legend" || activeLegend.legend_tier === "immortal") && (activeLegend.position === "K" || activeLegend.position === "P")
@@ -286,7 +282,6 @@ function LegendDetailModal({
   soldEntry,
   isMine,
   busy,
-  isCfb,
   replacementPlayers,
   blockedNoEligibleReplacement,
   legendPrice,
@@ -298,7 +293,6 @@ function LegendDetailModal({
   soldEntry: LegendAvailabilityEntry | null;
   isMine: boolean;
   busy: boolean;
-  isCfb: boolean;
   replacementPlayers: LegendReplacementPlayer[];
   blockedNoEligibleReplacement: boolean;
   legendPrice: number;
@@ -310,7 +304,7 @@ function LegendDetailModal({
   const isTaken = Boolean(soldEntry) && !isMine;
   const canCancel = isMine && soldEntry?.status === "pending";
   const canSubmitReplacement = Boolean(replacementPlayerId);
-  const abilities = !isCfb ? (legend.abilities ?? []) : [];
+  const abilities = legend.abilities ?? [];
 
   return (
     <Modal title={legend.name} onClose={onClose}>
@@ -324,8 +318,7 @@ function LegendDetailModal({
           {REC_LEGEND_TIER_LABELS[(legend.legend_tier ?? "legend") as LegendTier]}{legend.store_subgroup ? ` · ${REC_LEGEND_SUBGROUP_LABELS[legend.store_subgroup]}` : ""} · {legend.position} · {legend.height ?? "?"} · {legend.weight ?? "?"} lbs · {legend.hand ?? "?"}-handed · #{legend.jersey_number ?? "?"}{legend.college ? ` · ${legend.college}` : ""}{legend.body_type ? ` · ${legend.body_type[0].toUpperCase() + legend.body_type.slice(1)} build` : ""}
         </p>
       </div>
-      <p>{!isCfb && <><strong>Dev Trait:</strong> {legend.dev_trait} · </>}<strong>Est. OVR:</strong> {legend.est_ovr ?? "?"}</p>
-      {isCfb && <p className="form-hint">This legend uses the selected replacement player's in-game development trait. REC does not change or track that trait for CFB legends.</p>}
+      <p><strong>Dev Trait:</strong> {legend.dev_trait} · <strong>Est. OVR:</strong> {legend.est_ovr ?? "?"}</p>
       {legend.build_note && <p className="hub-muted">{legend.build_note}</p>}
 
       {abilities.length > 0 && (
@@ -361,42 +354,18 @@ function LegendDetailModal({
         ))}
 
       <p className="form-hint" style={{ marginTop: "var(--space-4)" }}>
-        {isCfb
-          ? "Purchasing this player is applied to your roster once a commissioner approves it, and will replace an active roster player — a one-time permanent addition for this league."
-          : "Purchasing this player designates which of your roster players it replaces. Once a commissioner approves it, your commissioner recreates the player in Madden on that roster slot — it goes live on your next data import, a one-time permanent addition for this league."}
+        Purchasing this player designates which of your roster players it replaces. Once a commissioner approves it, your commissioner recreates the player in Madden on that roster slot — it goes live on your next data import, a one-time permanent addition for this league.
         {" "}They come on a 7-year contract at the lowest possible value, renewed perpetually so you never lose the purchase to negotiations.
       </p>
 
       {!isTaken && !isMine && blockedNoEligibleReplacement && (
-        <p className="form-hint">
-          {isCfb
-            ? "Your roster has no recruits or manually-added players to replace yet. Add one via the Recruiting Board or the \"Edit Roster\" quick action on My Team before purchasing."
-            : "Your roster has no active players yet — assign or seed your roster before purchasing."}
-        </p>
+        <p className="form-hint">Your roster has no active players yet — assign or seed your roster before purchasing.</p>
       )}
       {!isTaken && !isMine && !blockedNoEligibleReplacement && (
         <>
           {(() => {
-            const eligiblePlayers = [...(isCfb ? replacementPlayers.filter((player) => isCompatibleReplacementPosition(legend.position, player.position)) : replacementPlayers)]
+            const eligiblePlayers = [...replacementPlayers]
               .sort((a, b) => (a.overall_rating ?? Infinity) - (b.overall_rating ?? Infinity));
-            if (isCfb) {
-              if (eligiblePlayers.length === 0) {
-                return <p className="form-hint">You have no added/recruited {legend.position} on your roster to replace — add one via the Recruiting Board or "Edit Roster" before buying.</p>;
-              }
-              return (
-                <label className="form-field">
-                  <span className="form-label">Replace ({legend.position})</span>
-                  <select className="form-input" value={replacementPlayerId} onChange={(event) => setReplacementPlayerId(event.target.value)}>
-                    <option value="">Select player to replace</option>
-                    {eligiblePlayers.map((player) => (
-                      <option key={player.id} value={player.id}>
-                        {player.full_name ?? `${player.first_name} ${player.last_name}`} · {player.position} · {player.overall_rating ?? "—"} OVR
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              );
-            }
             return eligiblePlayers.length > 0 && (
             <>
                 <label className="form-field">

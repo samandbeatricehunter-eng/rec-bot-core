@@ -8,7 +8,7 @@ import { supabase } from "../../lib/supabase.js";
 import { postDiscordChannelMessage } from "../../lib/discord-guild.js";
 import { getCurrentLeagueContext, findServerRoutesForLeague } from "../league-context/league-context.service.js";
 import { createPurchaseRequest } from "../purchases/purchases.service.js";
-import { isCompatibleReplacementPosition, REC_LEGEND_TIER_LABELS, sortRecAttributeKeys, type RecLegendTier } from "@rec/shared";
+import { REC_LEGEND_TIER_LABELS, sortRecAttributeKeys, type RecLegendTier } from "@rec/shared";
 
 const ACTIVE_STATUSES = ["pending", "approved", "fulfilled"];
 
@@ -19,7 +19,7 @@ function defaultDevTraitForTier(tier: RecLegendTier): "star" | "superstar" | "xf
 }
 
 export async function listLegendCatalog(guildId: string) {
-  const context = await getCurrentLeagueContext(guildId);
+  await getCurrentLeagueContext(guildId);
   const { data, error } = await supabase
     .from("rec_legend_catalog")
     .select("id,name,position,position_group,est_ovr,height,weight,hand,jersey_number,dev_trait,archetype,build_note,college,body_type,attributes,abilities,legend_tier,store_subgroup,photo_url,catalog_group")
@@ -28,14 +28,12 @@ export async function listLegendCatalog(guildId: string) {
     .order("position", { ascending: true })
     .order("name", { ascending: true });
   if (error) throw new ApiError(500, "Failed to load legend catalog.", error);
-  const isCfb = context.rec_leagues?.game === "cfb_27";
   return {
     legends: (data ?? []).map((legend: any) => ({
       ...legend,
-      // CFB inherits the replacement player's trait. Madden uses the curated catalog trait;
-      // the tier-derived fallback only exists for legacy rows created before dev_trait was stored.
-      dev_trait: isCfb ? null : (legend.dev_trait ?? defaultDevTraitForTier((legend.legend_tier ?? "legend") as RecLegendTier)),
-      abilities: isCfb ? [] : (legend.abilities ?? []),
+      // The tier-derived fallback only exists for legacy rows created before dev_trait was stored.
+      dev_trait: legend.dev_trait ?? defaultDevTraitForTier((legend.legend_tier ?? "legend") as RecLegendTier),
+      abilities: legend.abilities ?? [],
     })),
   };
 }
@@ -152,31 +150,14 @@ async function purchasingTeam(leagueId: string, discordId: string): Promise<{ te
   return { teamId: assignment.data?.team_id ?? null, teamName: team?.name ?? team?.display_abbr ?? team?.abbreviation ?? null };
 }
 
-/** Replacement-eligibility for the legend purchase panel. CFB inherits the legend's identity
- * onto the replaced player's roster slot, so it stays locked to the same recruit-only /
- * position-matched rule as custom players. Madden has no such inheritance — the commissioner
- * can apply the purchase to any active roster player, seeded or not — so every active player
- * is a candidate, sorted ascending by OVR to surface the team's weakest players first as the
+/** Replacement-eligibility for the legend purchase panel. The commissioner can apply the
+ * purchase to any active roster player, seeded or not — so every active player is a
+ * candidate, sorted ascending by OVR to surface the team's weakest players first as the
  * natural replacement recommendation. */
 export async function getLegendReplacementConfig(guildId: string, discordId: string) {
   const context = await getCurrentLeagueContext(guildId);
-  const isCfb = context.rec_leagues.game === "cfb_27";
   const { teamId } = await purchasingTeam(context.leagueId, discordId);
-  if (!teamId) return { replacementPlayers: [], blockedNoEligibleReplacement: false, isCfb };
-
-  if (isCfb) {
-    const roster = await supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait")
-      .eq("league_id", context.leagueId).eq("team_id", teamId).eq("is_default_player", false).in("roster_status", ["active", "transferred_in"]).order("position");
-    if (roster.error) throw new ApiError(500, "We couldn't load your roster. Please try again.", roster.error);
-    const activeRosterCount = await supabase.from("rec_players").select("id", { count: "exact", head: true })
-      .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
-    if (activeRosterCount.error) throw new ApiError(500, "We couldn't load your roster. Please try again.", activeRosterCount.error);
-    return {
-      replacementPlayers: roster.data ?? [],
-      blockedNoEligibleReplacement: (activeRosterCount.count ?? 0) > 0 && (roster.data ?? []).length === 0,
-      isCfb,
-    };
-  }
+  if (!teamId) return { replacementPlayers: [], blockedNoEligibleReplacement: false };
 
   const roster = await supabase.from("rec_players").select("id,full_name,first_name,last_name,position,overall_rating,dev_trait")
     .eq("league_id", context.leagueId).eq("team_id", teamId).in("roster_status", ["active", "transferred_in"]);
@@ -184,7 +165,7 @@ export async function getLegendReplacementConfig(guildId: string, discordId: str
   // Worst-OVR-first so the weakest players surface as the natural replacement recommendation;
   // unrated players sort last since we can't actually vouch for them being the weakest.
   const sorted = [...(roster.data ?? [])].sort((a: any, b: any) => (a.overall_rating ?? Infinity) - (b.overall_rating ?? Infinity));
-  return { replacementPlayers: sorted, blockedNoEligibleReplacement: sorted.length === 0, isCfb };
+  return { replacementPlayers: sorted, blockedNoEligibleReplacement: sorted.length === 0 };
 }
 
 export async function createLegendPurchaseRequest(input: {
@@ -205,30 +186,21 @@ export async function createLegendPurchaseRequest(input: {
   }
 
   const { teamId, teamName } = await purchasingTeam(context.leagueId, input.discordId);
-  const isCfb = context.rec_leagues.game === "cfb_27";
 
-  // CFB inherits the legend's identity onto the replaced player's roster slot, so it stays
-  // gated to recruits/manually-added players at a compatible position — same rule as
-  // custom-player builds. Madden has no such inheritance: any active roster player (seeded,
-  // free agent, custom, or recruited) is a valid replacement target.
+  // Any active roster player (seeded, free agent, custom, or recruited) is a valid
+  // replacement target.
   let replaceTarget: { playerId: string; position: string; firstName: string; lastName: string } | null = null;
   if (input.replacementPlayerId) {
     if (!teamId) throw new ApiError(403, "A linked league team is required.");
-    let query = supabase.from("rec_players").select("id,first_name,last_name,position")
+    const found = await supabase.from("rec_players").select("id,first_name,last_name,position")
       .eq("id", input.replacementPlayerId).eq("league_id", context.leagueId).eq("team_id", teamId)
-      .in("roster_status", ["active", "transferred_in"]);
-    if (isCfb) query = query.eq("is_default_player", false);
-    const found = await query.maybeSingle();
-    if (found.error || !found.data) throw new ApiError(400, isCfb ? "Select an active recruit/added player from your roster to replace." : "Select an active player from your roster to replace.");
-    if (isCfb && !isCompatibleReplacementPosition(legend.data.position, found.data.position)) {
-      throw new ApiError(400, `${legend.data.name} must replace an added/recruited player at a compatible ${legend.data.position} position.`);
-    }
+      .in("roster_status", ["active", "transferred_in"])
+      .maybeSingle();
+    if (found.error || !found.data) throw new ApiError(400, "Select an active player from your roster to replace.");
     replaceTarget = { playerId: found.data.id, position: found.data.position, firstName: found.data.first_name, lastName: found.data.last_name };
   }
   if (!replaceTarget) {
-    throw new ApiError(400, isCfb
-      ? "CFB legends require a specific added/recruited roster player to replace so the legend inherits that roster position."
-      : "Madden legends require a roster player to replace so the purchase is linked to that player's EA identity.");
+    throw new ApiError(400, "Madden legends require a roster player to replace so the purchase is linked to that player's EA identity.");
   }
 
   const legendTier = (legend.data.legend_tier ?? "legend") as RecLegendTier;
@@ -236,7 +208,7 @@ export async function createLegendPurchaseRequest(input: {
   const details = {
     legendId: legend.data.id,
     name: legend.data.name,
-    position: isCfb ? replaceTarget!.position : legend.data.position,
+    position: legend.data.position,
     positionGroup: legend.data.position_group,
     estOvr: legend.data.est_ovr,
     height: legend.data.height,
@@ -245,18 +217,17 @@ export async function createLegendPurchaseRequest(input: {
     jerseyNumber: legend.data.jersey_number,
     legendTier,
     storeSubgroup: legend.data.store_subgroup ?? null,
-    devTrait: isCfb ? null : (legend.data.dev_trait ?? defaultDevTraitForTier(legendTier)),
+    devTrait: legend.data.dev_trait ?? defaultDevTraitForTier(legendTier),
     archetype: legend.data.archetype,
     buildNote: legend.data.build_note,
     college: legend.data.college,
     bodyType: legend.data.body_type,
     attributes: legend.data.attributes,
-    abilities: isCfb ? [] : (legend.data.abilities ?? []),
+    abilities: legend.data.abilities ?? [],
     purchasingTeamId: teamId,
     purchasingTeamName: teamName,
-    isCfb,
-    // Both games require the buyer-selected roster row. Madden uses it as the durable EA-ID
-    // slot that the companion import overwrites; commissioners must not choose it later.
+    // Madden uses the buyer-selected roster row as the durable EA-ID slot that the
+    // companion import overwrites; commissioners must not choose it later.
     replaceTarget,
   };
 
@@ -271,15 +242,13 @@ export async function createLegendPurchaseRequest(input: {
     .map((key) => `${key}: ${attributeMap[key]}`)
     .join("\n");
   const summaryLines = [
-    isCfb
-      ? "Approving creates this player on the roster immediately — make sure the replacement below is correct first."
-      : "Approving does NOT touch the roster yet. Recreate this player in Madden on the designated slot below, then re-import — REC detects the match and marks this fulfilled automatically.",
+    "Approving does NOT touch the roster yet. Recreate this player in Madden on the designated slot below, then re-import — REC detects the match and marks this fulfilled automatically.",
     `Team: ${teamName ?? "unassigned"}`,
     details.replaceTarget
       ? `Buyer requests replacing: ${details.replaceTarget.position} ${details.replaceTarget.firstName} ${details.replaceTarget.lastName}`
       : "Buyer left the replaced player up to you.",
     `Tier: ${legendTier}`,
-    ...(!isCfb ? [`Dev trait: ${details.devTrait}`] : []),
+    `Dev trait: ${details.devTrait}`,
     ...(details.bodyType ? [`Body type: ${details.bodyType}`] : []),
     ...(details.hand ? [`Hand: ${details.hand}-handed`] : []),
     ...(details.jerseyNumber != null ? [`Jersey: #${details.jerseyNumber}`] : []),
@@ -306,8 +275,7 @@ export async function createLegendPurchaseRequest(input: {
         legendPosition: legend.data.position,
         legendTier,
         estOvr: legend.data.est_ovr,
-        isCfb,
-        ...(!isCfb ? { devTrait: details.devTrait } : {}),
+        devTrait: details.devTrait,
         bodyType: details.bodyType ?? null,
         height: legend.data.height ?? null,
         weight: legend.data.weight ?? null,

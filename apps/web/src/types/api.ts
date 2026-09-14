@@ -1038,7 +1038,6 @@ export type LegendReplacementPlayer = {
 export type LegendReplacementConfig = {
   replacementPlayers: LegendReplacementPlayer[];
   blockedNoEligibleReplacement: boolean;
-  isCfb: boolean;
 };
 
 export type GotwGuessingRecord = {
