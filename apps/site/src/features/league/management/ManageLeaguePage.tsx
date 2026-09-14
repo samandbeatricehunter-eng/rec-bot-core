@@ -221,10 +221,15 @@ function ManageLeagueScheduleBody({
             const canForce = Object.prototype.hasOwnProperty.call(forceByGameId, game.gameId);
             const choice = choiceFromStatus(force?.lastForceStatus ?? null);
             const busy = busyGameId === game.gameId;
-            const locked = game.isFinal || !canForce || busy;
+            const hasImportedResult = game.isFinal || (game.awayScore != null && game.homeScore != null);
+            const locked = !canForce || busy;
 
             return (
-              <article key={game.gameId} className="mgmt-league-schedule-row" role="listitem">
+              <article
+                key={game.gameId}
+                className={["mgmt-league-schedule-row", hasImportedResult ? "is-final" : null].filter(Boolean).join(" ")}
+                role="listitem"
+              >
                 <div className="mgmt-league-schedule-matchup">
                   <strong>
                     {teamNick(game, "away")}
@@ -242,28 +247,24 @@ function ManageLeagueScheduleBody({
                 <div className="mgmt-league-schedule-status">
                   {gameStatusLabel(game, force)}
                 </div>
-                <label className="mgmt-league-schedule-control">
-                  <span className="sr-only">Set game result</span>
-                  <select
-                    className="form-input"
-                    value={choice}
-                    disabled={locked}
-                    title={
-                      game.isFinal
-                        ? "Game is final"
-                        : !canForce
-                          ? "Import this week from EA (Games) before forcing a result"
-                          : undefined
-                    }
-                    onChange={(event) => {
-                      void applyForce(game, event.target.value as ForceChoice);
-                    }}
-                  >
-                    <option value="clear">Default (no force) — fair sim</option>
-                    <option value="away">Force win for {teamNick(game, "away")}</option>
-                    <option value="home">Force win for {teamNick(game, "home")}</option>
-                  </select>
-                </label>
+                {hasImportedResult ? null : (
+                  <label className="mgmt-league-schedule-control">
+                    <span className="sr-only">Set game result</span>
+                    <select
+                      className="form-input"
+                      value={choice}
+                      disabled={locked}
+                      title={!canForce ? "Import this week from EA (Games) before forcing a result" : undefined}
+                      onChange={(event) => {
+                        void applyForce(game, event.target.value as ForceChoice);
+                      }}
+                    >
+                      <option value="clear">Default (no force) — fair sim</option>
+                      <option value="away">Force win for {teamNick(game, "away")}</option>
+                      <option value="home">Force win for {teamNick(game, "home")}</option>
+                    </select>
+                  </label>
+                )}
               </article>
             );
           })}

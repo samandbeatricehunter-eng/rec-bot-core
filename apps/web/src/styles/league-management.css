@@ -1142,6 +1142,9 @@
   border-radius: 10px;
   background: rgba(8, 10, 14, 0.72);
 }
+.mgmt-league-schedule-row.is-final {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+}
 .mgmt-league-schedule-matchup {
   display: flex;
   flex-direction: column;
