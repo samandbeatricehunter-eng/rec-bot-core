@@ -266,6 +266,17 @@ export async function issueAndGradeWeeklyTeamChallengesForGame(input: {
     await issueAndGradeWeeklyTeamChallenges({ leagueId: input.leagueId, teamId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber })
       .catch((error) => console.error(`[ERROR] issueAndGradeWeeklyTeamChallenges failed for team ${teamId} (non-fatal):`, error));
   }
+  // Forward-compatible V2 owner assignment (one TEAM or contextual PLAYER per owner).
+  for (const teamId of teamIds) {
+    const assignment = await supabase.from("rec_team_assignments").select("user_id")
+      .eq("league_id", input.leagueId).eq("team_id", teamId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+    const userId = assignment.data?.user_id ? String(assignment.data.user_id) : null;
+    if (!userId) continue;
+    const { issueAndGradeStandardOwnerAssignment } = await import("./unified-weekly-challenge.service.js");
+    await issueAndGradeStandardOwnerAssignment({
+      leagueId: input.leagueId, userId, teamId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber,
+    }).catch((error) => console.error(`[ERROR] issueAndGradeStandardOwnerAssignment failed for team ${teamId} (non-fatal):`, error));
+  }
 }
 
 export type CreditedWeeklyChallenge = {
@@ -317,6 +328,11 @@ export async function creditGradedWeeklyChallengesForLeagueAtAdvance(input: {
       });
     }
   }
+
+  const { creditUnifiedOwnerAssignmentsForLeagueAtAdvance } = await import("./unified-weekly-challenge.service.js");
+  await creditUnifiedOwnerAssignmentsForLeagueAtAdvance(input)
+    .catch((error) => console.error(`[ERROR] creditUnifiedOwnerAssignmentsForLeagueAtAdvance failed (non-fatal):`, error));
+
   return credited;
 }
 

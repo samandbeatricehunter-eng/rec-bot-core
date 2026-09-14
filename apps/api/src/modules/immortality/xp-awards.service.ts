@@ -180,40 +180,33 @@ export async function weeklyChallengesForUser(input: {
   // (offense/defense), so this is always a small, bounded fan-out, safe as a plain Promise.all
   // (unlike a full-roster loop, this can't burst into dozens of simultaneous connections).
   // .map preserves prospects.data's order in the output, matching the previous for-loop's push order.
+  const { resolveRtiProspectWeeklyAssignment } = await import("../weekly-challenges/unified-weekly-challenge.service.js");
   const views: WeeklyChallengeView[] = await Promise.all((prospects.data ?? []).map(async (prospect) => {
-    const stats = prospect.player_id
-      ? await weeklyStatsForPlayer({
-        leagueId: input.leagueId,
-        playerId: String(prospect.player_id),
-        seasonNumber: input.seasonNumber,
-        weekNumber: input.weekNumber,
-      })
-      : {};
-    const seed = `${immortality.id}:${input.seasonNumber}:${input.weekNumber}:${prospect.id}`;
-    // Resolves through the same frozen-issuance path gradeProspectForWeek grades against, so the
-    // display view here and the eventual grading pass always agree on which challenge was shown.
-    const { resolveIssuedWeeklyChallenges } = await import("./challenge-issuance.service.js");
-    const challenges = await resolveIssuedWeeklyChallenges({
-      prospectId: String(prospect.id), position: String(prospect.position), seed,
-      seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, stats,
+    const assignment = await resolveRtiProspectWeeklyAssignment({
+      leagueId: input.leagueId,
+      immortalityLeagueId: String(immortality.id),
+      prospect: {
+        id: String(prospect.id),
+        position: String(prospect.position),
+        player_id: prospect.player_id ? String(prospect.player_id) : null,
+        user_id: input.userId,
+        side: String(prospect.side),
+      },
+      seasonNumber: input.seasonNumber, weekNumber: input.weekNumber,
     });
     return {
       prospectId: String(prospect.id),
       side: String(prospect.side),
       name: `${prospect.first_name ?? ""} ${prospect.last_name ?? ""}`.trim() || "Player",
       position: String(prospect.position),
-      challenges,
+      challenges: assignment?.view ?? [],
     };
   }));
   return views;
 }
 
-// Rivalries: +25% flat on top of a rivalry game's weekly-challenge XP, plus up to another +50%
-// (+10%/season) the longer the SAME rival has been kept without being changed -- see
-// rec_immortality_rivals.unchanged_since_season, which setImmortalityRival resets on any actual
-// change. Challenge thresholds are "elevated" for a rivalry week by evaluating completion against
-// a scaled-down copy of the real stats (so the same authored label pool requires genuinely more
-// production to clear, without needing a whole second set of harder milestone content).
+// Rivalries keep their existing coin/promotion hooks, but V2 weekly assignments no longer multiply
+// ordinary challenge XP. Challenge relevance now comes from assignment targeting/reason scoring.
 const RIVALRY_BASE_BONUS_PCT = 0.25;
 const RIVALRY_STREAK_BONUS_PER_SEASON_PCT = 0.10;
 const RIVALRY_STREAK_BONUS_CAP_PCT = 0.50;
@@ -388,13 +381,48 @@ export async function gradeProspectForWeek(
     return { isRivalryGame: false, multiplier: 1, streakSeasons: 0, won: false } as RivalryContext;
   });
 
-  const seed = `${input.immortalityLeagueId}:${input.seasonNumber}:${input.weekNumber}:${prospect.id}`;
   const challengeStats = rivalry.isRivalryGame ? elevateStatsForRivalry(weekStats) : weekStats;
-  const { resolveIssuedWeeklyChallenges, resolveIssuedSeasonChallenges, resolveIssuedCareerChallenges } = await import("./challenge-issuance.service.js");
-  const weekly = await resolveIssuedWeeklyChallenges({
-    prospectId: String(prospect.id), position: String(prospect.position), seed,
-    seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, stats: challengeStats,
+  const { resolveIssuedSeasonChallenges, resolveIssuedCareerChallenges } = await import("./challenge-issuance.service.js");
+  const {
+    resolveRtiProspectWeeklyAssignment,
+    issuedChallengesForPlayerAssignment,
+    markUnifiedAssignmentCredited,
+    playerStatsBundleForPlayer,
+  } = await import("../weekly-challenges/unified-weekly-challenge.service.js");
+
+  // Weekly prospect challenges issue/grade through the unified V2 assignment table. Season and
+  // career milestones stay on the legacy immortality issued-challenge fork.
+  const unified = await resolveRtiProspectWeeklyAssignment({
+    leagueId: input.leagueId,
+    immortalityLeagueId: input.immortalityLeagueId,
+    prospect: {
+      id: String(prospect.id),
+      position: String(prospect.position),
+      player_id: String(prospect.player_id),
+      user_id: String(prospect.user_id),
+      side: String(prospect.side),
+      identity_status: prospect.identity_status ?? null,
+    },
+    seasonNumber: input.seasonNumber,
+    weekNumber: input.weekNumber,
+    grade: true,
   });
+
+  let weekly = unified?.view ?? [];
+  if (unified?.row && rivalry.isRivalryGame && unified.row.status !== "void") {
+    const recentBundle = await playerStatsBundleForPlayer({
+      leagueId: input.leagueId,
+      playerId: String(prospect.player_id),
+      seasonNumber: input.seasonNumber,
+      weekNumber: input.weekNumber,
+    });
+    weekly = issuedChallengesForPlayerAssignment(unified.row, {
+      stats: challengeStats,
+      recent: recentBundle.recent,
+      position: String(prospect.position),
+      archetype: (unified.row.context_snapshot as any)?.archetype ?? null,
+    });
+  }
   // Gold weekly challenges no longer grant an ability slot -- ability access is meant to come
   // from progression ownership, dev trait, and Madden eligibility, not challenge completion.
   let weeklyPointsAwarded = 0;
@@ -411,6 +439,10 @@ export async function gradeProspectForWeek(
       week: input.weekNumber,
       modifiers,
     });
+  }
+  if (unified?.row && completedWeekly.length) {
+    const highest = [...completedWeekly].reverse()[0]?.tier as "bronze" | "silver" | "gold" | undefined;
+    if (highest) await markUnifiedAssignmentCredited({ assignmentId: unified.row.id, creditedTier: highest });
   }
   if (rivalry.isRivalryGame && rivalry.won) {
     const { creditOrBacklog } = await import("../economy/economy-backlog.js");
@@ -464,7 +496,7 @@ export async function gradeProspectForWeek(
   if (!opportunity.error && opportunity.data) {
     const goldChallenge = weekly.find((row) => row.tier === "gold");
     const elevatedStats: Record<string, number> = {};
-    for (const [key, value] of Object.entries(challengeStats)) elevatedStats[key] = value / PROMOTION_OPPORTUNITY_ELEVATION;
+    for (const [key, value] of Object.entries(challengeStats)) elevatedStats[key] = Number(value) / PROMOTION_OPPORTUNITY_ELEVATION;
     const met = Boolean(goldChallenge?.label && evaluateChallengeCondition(goldChallenge.condition, elevatedStats));
     await supabase.from("rec_immortality_promotion_opportunities")
       .update({ status: met ? "met" : "missed", resolved_at: new Date().toISOString() })

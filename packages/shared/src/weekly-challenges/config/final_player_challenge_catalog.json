@@ -1,0 +1,5323 @@
+[
+  {
+    "id": "player_qb_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "Protect the Football",
+    "family": "qb_security",
+    "archetypes": [
+      "field_general",
+      "strong_arm",
+      "scrambler",
+      "improviser"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_qb_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "Efficient Commander",
+    "family": "qb_efficiency",
+    "archetypes": [
+      "field_general",
+      "strong_arm",
+      "improviser"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "completion_pct",
+        "op": "gte",
+        "value": 62
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 225
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 2
+      },
+      {
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_qb_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "Air Traffic Control",
+    "family": "qb_volume",
+    "archetypes": [
+      "field_general",
+      "strong_arm",
+      "improviser"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 225
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 275
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 325
+      },
+      {
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_qb_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "Touchdown Maker",
+    "family": "qb_scoring",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "turnovers",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_qb_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "Dual Threat",
+    "family": "qb_dual_threat",
+    "archetypes": [
+      "scrambler",
+      "improviser"
+    ],
+    "minimumUsage": {
+      "recentQbRushAttemptsPerGameMin": 3
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 25
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 200
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 3
+      },
+      {
+        "stat": "turnovers",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_qb_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "Surgical",
+    "family": "qb_efficiency",
+    "archetypes": [
+      "field_general",
+      "improviser"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "passer_rating",
+        "op": "gte",
+        "value": 90
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "completion_pct",
+        "op": "gte",
+        "value": 65
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 2
+      },
+      {
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_qb_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "Big Arm Day",
+    "family": "qb_vertical",
+    "archetypes": [
+      "strong_arm"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 250
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      },
+      {
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_qb_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "Escapability",
+    "family": "qb_rushing",
+    "archetypes": [
+      "scrambler"
+    ],
+    "minimumUsage": {
+      "recentQbRushAttemptsPerGameMin": 4
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 50
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 2
+      },
+      {
+        "stat": "turnovers",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_qb_009",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "Field General Day",
+    "family": "qb_control",
+    "archetypes": [
+      "field_general"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "completion_pct",
+        "op": "gte",
+        "value": 64
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 240
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 0
+      },
+      {
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_qb_010",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "Improviser Day",
+    "family": "qb_improviser",
+    "archetypes": [
+      "improviser"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 225
+      }
+    ],
+    "silverAdds": [
+      {
+        "any": [
+          {
+            "stat": "rush_yards",
+            "op": "gte",
+            "value": 25
+          },
+          {
+            "stat": "pass_tds",
+            "op": "gte",
+            "value": 3
+          }
+        ]
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 3
+      },
+      {
+        "stat": "turnovers",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_qb_011",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "Response Week",
+    "family": "qb_response",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [
+      "cold_streak",
+      "prior_turnover_game"
+    ],
+    "bronze": [
+      {
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 250
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_qb_012",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "QB"
+    ],
+    "name": "MVP Pace",
+    "family": "qb_elite",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "moderate",
+    "selectionWeight": 0.5,
+    "preferredContexts": [
+      "hot_streak",
+      "award_race",
+      "record_chase"
+    ],
+    "bronze": [
+      {
+        "stat": "pass_yards",
+        "op": "gte",
+        "value": 275
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "passer_rating",
+        "op": "gte",
+        "value": 110
+      },
+      {
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "Secure the Rock",
+    "family": "hb_security",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 70
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 100
+      },
+      {
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "Workhorse",
+    "family": "hb_volume",
+    "archetypes": [
+      "power_back",
+      "elusive_back",
+      "balanced_back"
+    ],
+    "minimumUsage": {
+      "recentRushAttemptsPerGameMin": 10
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "rush_attempts",
+        "op": "gte",
+        "value": 14
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 75
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 100
+      },
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "Century Club",
+    "family": "hb_rushing",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 75
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 100
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 125
+      },
+      {
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "All-Purpose Threat",
+    "family": "hb_scrimmage",
+    "archetypes": [
+      "receiving_back",
+      "elusive_back",
+      "balanced_back"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 75
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 100
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 125
+      },
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "Break One",
+    "family": "hb_explosive",
+    "archetypes": [
+      "elusive_back",
+      "balanced_back"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "rush_20_plus",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 75
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 100
+      },
+      {
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "Finish the Drive",
+    "family": "hb_scoring",
+    "archetypes": [
+      "power_back",
+      "balanced_back"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 70
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 2
+      },
+      {
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "Receiving Back",
+    "family": "hb_receiving",
+    "archetypes": [
+      "receiving_back"
+    ],
+    "minimumUsage": {
+      "recentReceptionsPerGameMin": 2
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 35
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 90
+      },
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "Efficient Runner",
+    "family": "hb_efficiency",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {
+      "gameRushAttemptsMin": 10
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "ypc",
+        "op": "gte",
+        "value": 4.0
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 70
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 100
+      },
+      {
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_009",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "Power Back Day",
+    "family": "hb_power",
+    "archetypes": [
+      "power_back"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 65
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 95
+      },
+      {
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_010",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "Elusive Back Day",
+    "family": "hb_elusive",
+    "archetypes": [
+      "elusive_back"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "rush_20_plus",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 80
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 110
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_011",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "Balanced Back Day",
+    "family": "hb_balanced",
+    "archetypes": [
+      "balanced_back"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 70
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 70
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 110
+      },
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_hb_012",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "HB"
+    ],
+    "name": "Hot Hand",
+    "family": "hb_hot_streak",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "moderate",
+    "selectionWeight": 0.5,
+    "preferredContexts": [
+      "hot_streak"
+    ],
+    "bronze": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 90
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 125
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fb_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FB"
+    ],
+    "name": "Short-Yardage Hammer",
+    "family": "fb_power",
+    "archetypes": [
+      "utility"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 20
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 40
+      },
+      {
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fb_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FB"
+    ],
+    "name": "Utility Back",
+    "family": "fb_utility",
+    "archetypes": [
+      "utility"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 25
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 50
+      },
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fb_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FB"
+    ],
+    "name": "Make the Touches Count",
+    "family": "fb_efficiency",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 25
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 50
+      },
+      {
+        "stat": "turnovers",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fb_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FB"
+    ],
+    "name": "Backfield Outlet",
+    "family": "fb_receiving",
+    "archetypes": [
+      "utility"
+    ],
+    "minimumUsage": {
+      "recentReceptionsPerGameMin": 1
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 20
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 45
+      },
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fb_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FB"
+    ],
+    "name": "Ball Security",
+    "family": "fb_security",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 25
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fb_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FB"
+    ],
+    "name": "Featured Fullback",
+    "family": "fb_featured",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {
+      "recentTouchesPerGameMin": 4
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 35
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 50
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      },
+      {
+        "stat": "turnovers",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fb_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FB"
+    ],
+    "name": "Blocking Build Utility",
+    "family": "fb_blocking_fallback",
+    "archetypes": [
+      "blocking"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 20
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": "Low-volume supported fallback because individual blocking grades are unavailable."
+  },
+  {
+    "id": "player_fb_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FB"
+    ],
+    "name": "Goal-Line Role",
+    "family": "fb_goal_line",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 0.5,
+    "preferredContexts": [
+      "goal_line_role"
+    ],
+    "bronze": [
+      {
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 40
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "Move the Chains",
+    "family": "wr_volume",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 60
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 85
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "Volume Target",
+    "family": "wr_volume",
+    "archetypes": [
+      "route_runner",
+      "slot",
+      "physical"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 75
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 100
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "Big Day",
+    "family": "wr_yardage",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 70
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 100
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 125
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "End Zone Target",
+    "family": "wr_scoring",
+    "archetypes": [
+      "physical",
+      "deep_threat"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 60
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 90
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "Explosive Production",
+    "family": "wr_explosive",
+    "archetypes": [
+      "deep_threat"
+    ],
+    "minimumUsage": {
+      "gameReceptionsMin": 3
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "ypr",
+        "op": "gte",
+        "value": 16
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 75
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 100
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "Complete Receiver",
+    "family": "wr_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 80
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "Route Technician",
+    "family": "wr_route",
+    "archetypes": [
+      "route_runner",
+      "slot"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 70
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 95
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "Vertical Stress",
+    "family": "wr_vertical",
+    "archetypes": [
+      "deep_threat"
+    ],
+    "minimumUsage": {
+      "gameReceptionsMin": 3
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 75
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "ypr",
+        "op": "gte",
+        "value": 17
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 110
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_009",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "Physical Presence",
+    "family": "wr_physical",
+    "archetypes": [
+      "physical"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 90
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_010",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "Slot Machine",
+    "family": "wr_slot",
+    "archetypes": [
+      "slot"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 85
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_011",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "Gadget Day",
+    "family": "wr_gadget",
+    "archetypes": [
+      "gadget"
+    ],
+    "minimumUsage": {
+      "recentTouchesPerGameMin": 3
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 50
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 75
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "total_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_wr_012",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WR"
+    ],
+    "name": "WR1 Spotlight",
+    "family": "wr_spotlight",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 0.6,
+    "preferredContexts": [
+      "rivalry",
+      "hot_streak",
+      "dev_opportunity",
+      "media_tension"
+    ],
+    "bronze": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 80
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 110
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_te_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "TE"
+    ],
+    "name": "Security Blanket",
+    "family": "te_possession",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 40
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 60
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_te_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "TE"
+    ],
+    "name": "Chain Mover",
+    "family": "te_possession",
+    "archetypes": [
+      "possession",
+      "physical_route_runner"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 50
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 70
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_te_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "TE"
+    ],
+    "name": "Red Zone Weapon",
+    "family": "te_scoring",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 40
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 60
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_te_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "TE"
+    ],
+    "name": "Featured Target",
+    "family": "te_vertical",
+    "archetypes": [
+      "vertical_threat",
+      "physical_route_runner"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 45
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 65
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 80
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_te_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "TE"
+    ],
+    "name": "Efficient Tight End",
+    "family": "te_efficiency",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {
+      "gameReceptionsMin": 3
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "ypr",
+        "op": "gte",
+        "value": 14
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 60
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_te_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "TE"
+    ],
+    "name": "Complete Night",
+    "family": "te_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 50
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_te_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "TE"
+    ],
+    "name": "Vertical Threat Day",
+    "family": "te_vertical",
+    "archetypes": [
+      "vertical_threat"
+    ],
+    "minimumUsage": {
+      "gameReceptionsMin": 3
+    },
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 50
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "ypr",
+        "op": "gte",
+        "value": 15
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 80
+      },
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_te_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "TE"
+    ],
+    "name": "Possession Day",
+    "family": "te_possession",
+    "archetypes": [
+      "possession"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 65
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_te_009",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "TE"
+    ],
+    "name": "Physical Route Day",
+    "family": "te_physical",
+    "archetypes": [
+      "physical_route_runner"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 55
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_te_010",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "TE"
+    ],
+    "name": "Blocking Build Utility",
+    "family": "te_blocking_fallback",
+    "archetypes": [
+      "blocking"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "receptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 25
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": "Low-volume supported fallback because individual blocking grades are unavailable."
+  },
+  {
+    "id": "player_edge_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "LEDGE",
+      "REDGE",
+      "LE",
+      "RE"
+    ],
+    "name": "Get Home",
+    "family": "edge_rush",
+    "archetypes": [
+      "speed_rusher",
+      "power_rusher",
+      "hybrid"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_edge_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "LEDGE",
+      "REDGE",
+      "LE",
+      "RE"
+    ],
+    "name": "Disruptor",
+    "family": "edge_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_edge_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "LEDGE",
+      "REDGE",
+      "LE",
+      "RE"
+    ],
+    "name": "Pocket Wrecker",
+    "family": "edge_rush",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_edge_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "LEDGE",
+      "REDGE",
+      "LE",
+      "RE"
+    ],
+    "name": "Turnover Creator",
+    "family": "edge_havoc",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "high_variance",
+    "selectionWeight": 0.4,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "fumble_recoveries",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_edge_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "LEDGE",
+      "REDGE",
+      "LE",
+      "RE"
+    ],
+    "name": "Complete Edge",
+    "family": "edge_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      },
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_edge_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "LEDGE",
+      "REDGE",
+      "LE",
+      "RE"
+    ],
+    "name": "Take Over",
+    "family": "edge_rush",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "high_variance",
+    "selectionWeight": 0.35,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_edge_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "LEDGE",
+      "REDGE",
+      "LE",
+      "RE"
+    ],
+    "name": "Power Rush Day",
+    "family": "edge_power",
+    "archetypes": [
+      "power_rusher"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_edge_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "LEDGE",
+      "REDGE",
+      "LE",
+      "RE"
+    ],
+    "name": "Speed Rush Day",
+    "family": "edge_speed",
+    "archetypes": [
+      "speed_rusher"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_edge_009",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "LEDGE",
+      "REDGE",
+      "LE",
+      "RE"
+    ],
+    "name": "Set the Edge",
+    "family": "edge_run",
+    "archetypes": [
+      "run_stopper"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_edge_010",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "LEDGE",
+      "REDGE",
+      "LE",
+      "RE"
+    ],
+    "name": "Hybrid Edge",
+    "family": "edge_hybrid",
+    "archetypes": [
+      "hybrid"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "any": [
+          {
+            "stat": "forced_fumbles",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 2
+          }
+        ]
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_dt_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "DT"
+    ],
+    "name": "Interior Pressure",
+    "family": "dt_pressure",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_dt_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "DT"
+    ],
+    "name": "Collapse the Pocket",
+    "family": "dt_pressure",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_dt_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "DT"
+    ],
+    "name": "Interior Anchor",
+    "family": "dt_run",
+    "archetypes": [
+      "run_stopper"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_dt_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "DT"
+    ],
+    "name": "Create Chaos",
+    "family": "dt_havoc",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "high_variance",
+    "selectionWeight": 0.35,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "fumble_recoveries",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_dt_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "DT"
+    ],
+    "name": "Complete Interior Game",
+    "family": "dt_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_dt_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "DT"
+    ],
+    "name": "Dominant Interior",
+    "family": "dt_pressure",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_dt_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "DT"
+    ],
+    "name": "Power Rusher Day",
+    "family": "dt_power",
+    "archetypes": [
+      "power_rusher"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_dt_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "DT"
+    ],
+    "name": "Speed Interior Day",
+    "family": "dt_speed",
+    "archetypes": [
+      "speed_rusher"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_dt_009",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "DT"
+    ],
+    "name": "Run Stopper Day",
+    "family": "dt_run",
+    "archetypes": [
+      "run_stopper"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_dt_010",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "DT"
+    ],
+    "name": "Hybrid Interior",
+    "family": "dt_hybrid",
+    "archetypes": [
+      "hybrid"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "any": [
+          {
+            "stat": "forced_fumbles",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 2
+          }
+        ]
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_olb_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WILL",
+      "SAM",
+      "LOLB",
+      "ROLB"
+    ],
+    "name": "Run and Hit",
+    "family": "olb_run",
+    "archetypes": [
+      "run_stopper",
+      "field_general"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_olb_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WILL",
+      "SAM",
+      "LOLB",
+      "ROLB"
+    ],
+    "name": "Pressure Backer",
+    "family": "olb_pressure",
+    "archetypes": [
+      "run_stopper",
+      "field_general"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_olb_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WILL",
+      "SAM",
+      "LOLB",
+      "ROLB"
+    ],
+    "name": "Coverage Backer",
+    "family": "olb_coverage",
+    "archetypes": [
+      "pass_coverage"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_olb_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WILL",
+      "SAM",
+      "LOLB",
+      "ROLB"
+    ],
+    "name": "Complete Outside Backer",
+    "family": "olb_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "any": [
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "pass_deflections",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_olb_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WILL",
+      "SAM",
+      "LOLB",
+      "ROLB"
+    ],
+    "name": "Splash Play",
+    "family": "olb_splash",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "any": [
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "goldAdds": [
+      {
+        "any": [
+          {
+            "stat": "forced_fumbles",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "pass_deflections",
+            "op": "gte",
+            "value": 2
+          }
+        ]
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_olb_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WILL",
+      "SAM",
+      "LOLB",
+      "ROLB"
+    ],
+    "name": "Everywhere",
+    "family": "olb_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "any": [
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_olb_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WILL",
+      "SAM",
+      "LOLB",
+      "ROLB"
+    ],
+    "name": "Field General OLB",
+    "family": "olb_field_general",
+    "archetypes": [
+      "field_general"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 8
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_olb_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WILL",
+      "SAM",
+      "LOLB",
+      "ROLB"
+    ],
+    "name": "Pass Coverage Day",
+    "family": "olb_coverage",
+    "archetypes": [
+      "pass_coverage"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_olb_009",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WILL",
+      "SAM",
+      "LOLB",
+      "ROLB"
+    ],
+    "name": "Run Stopper Day",
+    "family": "olb_run",
+    "archetypes": [
+      "run_stopper"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 8
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_olb_010",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "WILL",
+      "SAM",
+      "LOLB",
+      "ROLB"
+    ],
+    "name": "Rivalry Backer",
+    "family": "olb_context",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 0.5,
+    "preferredContexts": [
+      "rivalry",
+      "media_tension"
+    ],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "silverAdds": [
+      {
+        "any": [
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_mike_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "MIKE",
+      "MLB"
+    ],
+    "name": "Tackle Machine",
+    "family": "mike_tackles",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 8
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 10
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_mike_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "MIKE",
+      "MLB"
+    ],
+    "name": "Backfield Presence",
+    "family": "mike_pressure",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_mike_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "MIKE",
+      "MLB"
+    ],
+    "name": "Complete Linebacker",
+    "family": "mike_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_mike_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "MIKE",
+      "MLB"
+    ],
+    "name": "Create Chaos",
+    "family": "mike_havoc",
+    "archetypes": [
+      "run_stopper",
+      "field_general"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_mike_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "MIKE",
+      "MLB"
+    ],
+    "name": "Coverage MIKE",
+    "family": "mike_coverage",
+    "archetypes": [
+      "pass_coverage"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_mike_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "MIKE",
+      "MLB"
+    ],
+    "name": "Impact Defender",
+    "family": "mike_splash",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "any": [
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "goldAdds": [
+      {
+        "any": [
+          {
+            "stat": "forced_fumbles",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "fumble_recoveries",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_mike_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "MIKE",
+      "MLB"
+    ],
+    "name": "Quarterback of the Defense",
+    "family": "mike_field_general",
+    "archetypes": [
+      "field_general"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 9
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_mike_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "MIKE",
+      "MLB"
+    ],
+    "name": "Run Stopper Day",
+    "family": "mike_run",
+    "archetypes": [
+      "run_stopper"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 9
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_mike_009",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "MIKE",
+      "MLB"
+    ],
+    "name": "Pass Coverage Day",
+    "family": "mike_coverage",
+    "archetypes": [
+      "pass_coverage"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_mike_010",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "MIKE",
+      "MLB"
+    ],
+    "name": "Statement MIKE",
+    "family": "mike_context",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 0.55,
+    "preferredContexts": [
+      "rivalry",
+      "hot_streak",
+      "dev_opportunity"
+    ],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "silverAdds": [
+      {
+        "any": [
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_cb_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "CB"
+    ],
+    "name": "Make a Play",
+    "family": "cb_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_cb_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "CB"
+    ],
+    "name": "Ball Hawk",
+    "family": "cb_ballhawk",
+    "archetypes": [
+      "zone"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_cb_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "CB"
+    ],
+    "name": "Active Corner",
+    "family": "cb_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_cb_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "CB"
+    ],
+    "name": "Turnover Corner",
+    "family": "cb_turnover",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_cb_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "CB"
+    ],
+    "name": "Disrupt the Throw",
+    "family": "cb_coverage",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_cb_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "CB"
+    ],
+    "name": "Impact Play",
+    "family": "cb_high_variance",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "high_variance",
+    "selectionWeight": 0.2,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "defensive_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_cb_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "CB"
+    ],
+    "name": "Slot Enforcer",
+    "family": "cb_slot",
+    "archetypes": [
+      "slot"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_cb_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "CB"
+    ],
+    "name": "Man Corner Day",
+    "family": "cb_man",
+    "archetypes": [
+      "man_to_man",
+      "press"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_cb_009",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "CB"
+    ],
+    "name": "Zone Corner Day",
+    "family": "cb_zone",
+    "archetypes": [
+      "zone"
+    ],
+    "minimumUsage": {},
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_cb_010",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "CB"
+    ],
+    "name": "Rivalry Corner",
+    "family": "cb_context",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 0.55,
+    "preferredContexts": [
+      "rivalry",
+      "media_tension",
+      "dev_opportunity"
+    ],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fs_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FS"
+    ],
+    "name": "Center Field",
+    "family": "fs_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fs_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FS"
+    ],
+    "name": "Ball Tracker",
+    "family": "fs_coverage",
+    "archetypes": [
+      "zone"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fs_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FS"
+    ],
+    "name": "Last Line",
+    "family": "fs_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fs_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FS"
+    ],
+    "name": "Create Possessions",
+    "family": "fs_turnover",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fs_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FS"
+    ],
+    "name": "Everywhere",
+    "family": "fs_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fs_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FS"
+    ],
+    "name": "Game Changer",
+    "family": "fs_high_variance",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "high_variance",
+    "selectionWeight": 0.2,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "defensive_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fs_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FS"
+    ],
+    "name": "Zone Safety Day",
+    "family": "fs_zone",
+    "archetypes": [
+      "zone"
+    ],
+    "minimumUsage": {},
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fs_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FS"
+    ],
+    "name": "Hybrid Safety Day",
+    "family": "fs_hybrid",
+    "archetypes": [
+      "hybrid"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "any": [
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fs_009",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FS"
+    ],
+    "name": "Run Support Day",
+    "family": "fs_run",
+    "archetypes": [
+      "run_support"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_fs_010",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "FS"
+    ],
+    "name": "Spotlight Safety",
+    "family": "fs_context",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 0.55,
+    "preferredContexts": [
+      "rivalry",
+      "hot_streak",
+      "dev_opportunity"
+    ],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_ss_001",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "SS"
+    ],
+    "name": "Downhill",
+    "family": "ss_tackles",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_ss_002",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "SS"
+    ],
+    "name": "Hybrid Safety",
+    "family": "ss_hybrid",
+    "archetypes": [
+      "hybrid"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "any": [
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_ss_003",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "SS"
+    ],
+    "name": "Box Presence",
+    "family": "ss_box",
+    "archetypes": [
+      "run_support"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_ss_004",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "SS"
+    ],
+    "name": "Turnover Safety",
+    "family": "ss_turnover",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_ss_005",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "SS"
+    ],
+    "name": "Disrupt Everything",
+    "family": "ss_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "any": [
+          {
+            "stat": "forced_fumbles",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_ss_006",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "SS"
+    ],
+    "name": "Splash Game",
+    "family": "ss_high_variance",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "high_variance",
+    "selectionWeight": 0.2,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "defensive_tds",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_ss_007",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "SS"
+    ],
+    "name": "Zone Safety Day",
+    "family": "ss_zone",
+    "archetypes": [
+      "zone"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_ss_008",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "SS"
+    ],
+    "name": "Run Support Day",
+    "family": "ss_run",
+    "archetypes": [
+      "run_support"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 6
+      }
+    ],
+    "silverAdds": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 8
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_ss_009",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "SS"
+    ],
+    "name": "Complete Strong Safety",
+    "family": "ss_complete",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "preferredContexts": [],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "any": [
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "pass_deflections",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "player_ss_010",
+    "version": 1,
+    "assignmentClass": "PLAYER",
+    "positions": [
+      "SS"
+    ],
+    "name": "Spotlight Strong Safety",
+    "family": "ss_context",
+    "archetypes": [
+      "*"
+    ],
+    "minimumUsage": {},
+    "volatility": "stable",
+    "selectionWeight": 0.55,
+    "preferredContexts": [
+      "rivalry",
+      "hot_streak",
+      "dev_opportunity"
+    ],
+    "bronze": [
+      {
+        "stat": "tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "silverAdds": [
+      {
+        "any": [
+          {
+            "stat": "sacks",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "goldAdds": [
+      {
+        "stat": "takeaways",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  }
+]

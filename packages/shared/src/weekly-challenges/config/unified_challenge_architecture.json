@@ -1,0 +1,86 @@
+{
+  "catalogVersion": "rec-weekly-challenges-unified-v2",
+  "assignmentRules": {
+    "RTI": {
+      "assignmentsPerUserPerWeek": 3,
+      "required": [
+        {
+          "subject": "owner",
+          "assignmentClass": "TEAM",
+          "rewardLedger": "owner_xp"
+        },
+        {
+          "subject": "offensive_prospect",
+          "assignmentClass": "PLAYER",
+          "rewardLedger": "player_xp"
+        },
+        {
+          "subject": "defensive_prospect",
+          "assignmentClass": "PLAYER",
+          "rewardLedger": "player_xp"
+        }
+      ]
+    },
+    "STANDARD": {
+      "assignmentsPerUserPerWeek": 1,
+      "defaultTarget": "TEAM",
+      "playerTarget": "contextual only"
+    }
+  },
+  "tierRule": {
+    "bronze": "bronze",
+    "silver": "bronze + silverAdds",
+    "gold": "bronze + silverAdds + goldAdds",
+    "strategicCoherenceRequired": true
+  },
+  "rewards": {
+    "playerXp": {
+      "bronze": 600,
+      "silver": 1200,
+      "gold": 1800
+    },
+    "ownerXp": {
+      "bronze": 900,
+      "silver": 1800,
+      "gold": 3000
+    }
+  },
+  "xpToSp": {
+    "ownerXpPerSp": 6000,
+    "playerOvrBands": [
+      {
+        "min": 0,
+        "max": 74,
+        "xpPerSp": 6000
+      },
+      {
+        "min": 75,
+        "max": 80,
+        "xpPerSp": 6300
+      },
+      {
+        "min": 81,
+        "max": 85,
+        "xpPerSp": 6600
+      },
+      {
+        "min": 86,
+        "max": 90,
+        "xpPerSp": 7500
+      },
+      {
+        "min": 91,
+        "max": 95,
+        "xpPerSp": 9000
+      },
+      {
+        "min": 96,
+        "max": 99,
+        "xpPerSp": 12000
+      }
+    ],
+    "source": "authoritative imported Madden OVR",
+    "remainderCarries": true,
+    "earnedSpPermanent": true
+  }
+}

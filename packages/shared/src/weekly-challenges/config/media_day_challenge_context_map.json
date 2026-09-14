@@ -1,0 +1,80 @@
+{
+  "version": "v1",
+  "families": {
+    "ball_security": [
+      "turnovers",
+      "discipline",
+      "decision_making"
+    ],
+    "passing": [
+      "quarterback_confidence",
+      "aggression",
+      "passing_identity"
+    ],
+    "passing_efficiency": [
+      "execution",
+      "rhythm",
+      "decision_making"
+    ],
+    "rushing": [
+      "physicality",
+      "run_identity",
+      "patience"
+    ],
+    "balanced": [
+      "offensive_identity",
+      "balance",
+      "execution"
+    ],
+    "distribution": [
+      "supporting_cast",
+      "sharing_targets",
+      "matchup"
+    ],
+    "complete_defense": [
+      "defensive_identity",
+      "discipline",
+      "execution"
+    ],
+    "run_defense": [
+      "physicality",
+      "front_seven",
+      "run_fit"
+    ],
+    "pass_defense": [
+      "coverage",
+      "pressure",
+      "secondary"
+    ],
+    "coverage": [
+      "coverage_confidence",
+      "takeaways",
+      "secondary"
+    ],
+    "turnovers": [
+      "takeaways",
+      "aggression",
+      "discipline"
+    ],
+    "pass_rush": [
+      "pressure",
+      "front_four",
+      "finishing"
+    ],
+    "result_statement": [
+      "expectations",
+      "statement_game",
+      "urgency"
+    ],
+    "rivalry_result": [
+      "rivalry",
+      "emotion",
+      "discipline"
+    ],
+    "playoff_result": [
+      "pressure",
+      "urgency",
+      "expectations"
+    ]
+  }
+}

@@ -1,0 +1,4165 @@
+[
+  {
+    "id": "team_off_001",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Score With Purpose",
+    "family": "scoring",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 24
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_002",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Thirty Point Standard",
+    "family": "scoring",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 27
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 375
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_003",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Complete Offense",
+    "family": "balanced",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 325
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 28
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_004",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Four-Quarter Offense",
+    "family": "balanced",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 28
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 375
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 20
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_005",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Sustain and Finish",
+    "family": "possession",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 17
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 350
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_006",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Clean Sheet Offense",
+    "family": "ball_security",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 27
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_007",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Efficient Attack",
+    "family": "balanced",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 28
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 18
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_008",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Offensive Showcase",
+    "family": "balanced",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 35
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 425
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_009",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Elite Offensive Day",
+    "family": "balanced",
+    "pool": "standard",
+    "volatility": "high_variance",
+    "selectionWeight": 0.45,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 38
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 450
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_010",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Control the Football",
+    "family": "possession",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 18
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 375
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_011",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Establish the Run",
+    "family": "rushing",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 130
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_012",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Ground Control",
+    "family": "rushing",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 125
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 150
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_013",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Run First",
+    "family": "rushing",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 130
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_014",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Explosive Ground Game",
+    "family": "rushing_explosive",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 110
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_20_plus",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_20_plus",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_015",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Punish the Front",
+    "family": "rushing_physical",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 120
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "broken_tackles",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "broken_tackles",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_016",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Ground and Score",
+    "family": "rushing",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 125
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 175
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_017",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Backfield Committee",
+    "family": "rushing_distribution",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RUSHER",
+        "stat": "rush_yards",
+        "op": "gte",
+        "value": 40,
+        "mode": "count",
+        "minCount": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 130
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_018",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "No Negative Script",
+    "family": "rushing",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 325
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_019",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Wear Them Down",
+    "family": "rushing",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 125
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 19
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_020",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Run Game Statement",
+    "family": "rushing",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 150
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "rush_20_plus",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "rushing_fumbles",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_021",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Quarterback Rhythm",
+    "family": "passing",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 225
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_022",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Air It Out",
+    "family": "passing",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 250
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_023",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Controlled Aggression",
+    "family": "passing",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 275
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_024",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Surgical Passing",
+    "family": "passing_efficiency",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "completion_pct_team",
+        "op": "gte",
+        "value": 60
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 250
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_025",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Point Guard Offense",
+    "family": "passing_efficiency",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "completion_pct_team",
+        "op": "gte",
+        "value": 62
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 275
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_026",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "No Gifts",
+    "family": "passing_security",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 225
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_027",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Passing Masterclass",
+    "family": "passing",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 275
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "completion_pct_team",
+        "op": "gte",
+        "value": 65
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_028",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Explosive Passing",
+    "family": "passing",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 300
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 35
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_029",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Air Raid",
+    "family": "passing",
+    "pool": "standard",
+    "volatility": "high_variance",
+    "selectionWeight": 0.5,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 325
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_030",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Perfect Air Raid",
+    "family": "passing",
+    "pool": "standard",
+    "volatility": "high_variance",
+    "selectionWeight": 0.3,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 350
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions_thrown",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_031",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Spread the Wealth",
+    "family": "distribution",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "receptions",
+        "op": "gte",
+        "value": 3,
+        "mode": "count",
+        "minCount": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 225
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_032",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Pick Your Poison",
+    "family": "distribution",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "scrimmage_yards",
+        "op": "gte",
+        "value": 50,
+        "mode": "count",
+        "minCount": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 225
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "receiving_tds",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_033",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Three-Level Passing",
+    "family": "distribution",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 250
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "receiving_yards",
+        "op": "gte",
+        "value": 60,
+        "mode": "count",
+        "minCount": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_tds",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_034",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Chain Movers",
+    "family": "distribution",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "RECEIVER",
+        "stat": "receptions",
+        "op": "gte",
+        "value": 4,
+        "mode": "count",
+        "minCount": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "receptions",
+        "op": "gte",
+        "value": 12
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 20
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_035",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Balanced Attack",
+    "family": "balanced",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 90
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 225
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 350
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_036",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Two-Way Stress",
+    "family": "balanced",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_pass_yards",
+        "op": "gte",
+        "value": 250
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_037",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Stay on Schedule",
+    "family": "balanced",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_rush_yards",
+        "op": "gte",
+        "value": 90
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 325
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_038",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Move the Chains",
+    "family": "possession",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 16
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 20
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 28
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_off_039",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Finish Drives",
+    "family": "red_zone",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.5,
+    "contextTags": [
+      "min_red_zone_trips_2"
+    ],
+    "eligibility": {
+      "minRedZoneTrips": 2
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 24
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "red_zone_off_percentage",
+        "op": "gte",
+        "value": 60
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "red_zone_off_percentage",
+        "op": "gte",
+        "value": 75
+      }
+    ],
+    "notes": "Void if red-zone attempts are missing."
+  },
+  {
+    "id": "team_off_040",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "offense",
+    "name": "Red Zone Machine",
+    "family": "red_zone",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.35,
+    "contextTags": [
+      "min_red_zone_trips_2"
+    ],
+    "eligibility": {
+      "minRedZoneTrips": 2
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "red_zone_off_percentage",
+        "op": "gte",
+        "value": 60
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 28
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "red_zone_off_percentage",
+        "op": "gte",
+        "value": 80
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_001",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Bend, Don't Break",
+    "family": "complete_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 28
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 375
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_002",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Clamp Down",
+    "family": "complete_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 350
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_003",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Twenty-One Club",
+    "family": "scoring_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 325
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_004",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Suffocation",
+    "family": "scoring_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 325
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_005",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "No Easy Points",
+    "family": "scoring_defense",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 17
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 300
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_006",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Total Defense",
+    "family": "complete_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 375
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 325
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_007",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Stone Wall",
+    "family": "complete_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 325
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_008",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Elite Unit",
+    "family": "complete_defense",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 300
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 17
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_009",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Make Them Earn It",
+    "family": "possession_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "first_downs_allowed",
+        "op": "lte",
+        "value": 20
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 350
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_010",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Get Off the Field",
+    "family": "possession_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "first_downs_allowed",
+        "op": "lte",
+        "value": 18
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 325
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_011",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Control the Ground",
+    "family": "run_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 120
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_opponent",
+        "stat": "rush_tds",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_012",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Erase the Run",
+    "family": "run_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 110
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 90
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_opponent",
+        "stat": "rush_tds",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_013",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Nothing Inside",
+    "family": "run_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg_opponent",
+        "stat": "rush_tds",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "yards_allowed",
+        "op": "lte",
+        "value": 325
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_014",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "No Explosives",
+    "family": "run_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 120
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg_opponent",
+        "stat": "rush_20_plus",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_opponent",
+        "stat": "rush_20_plus",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_015",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "No Hundred-Yard Man",
+    "family": "run_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "RUSHER",
+        "stat": "rush_yards",
+        "op": "lt",
+        "value": 100,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 125
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_opponent",
+        "stat": "rush_tds",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_016",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Front Seven Day",
+    "family": "front_seven",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 110
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_017",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Win the Trenches",
+    "family": "front_seven",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 100
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_018",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Physical Defense",
+    "family": "front_seven",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 110
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_019",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Stuffed",
+    "family": "run_defense",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "rush_yards_allowed",
+        "op": "lt",
+        "value": 90
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_020",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "No Fly Zone",
+    "family": "pass_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 275
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 250
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_021",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Air Traffic Control",
+    "family": "pass_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 250
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_022",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Secondary Lockdown",
+    "family": "coverage",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 225
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_023",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Blanket Coverage",
+    "family": "coverage",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 250
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_024",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Pressure and Coverage",
+    "family": "pass_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 275
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_025",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "One Passing TD Maximum",
+    "family": "pass_defense",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg_opponent",
+        "stat": "pass_tds",
+        "op": "lte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg_opponent",
+        "stat": "pass_tds",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 250
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_026",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "No Century Club",
+    "family": "coverage",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "role",
+        "side": "opponent",
+        "position": "RECEIVER",
+        "stat": "receiving_yards",
+        "op": "lt",
+        "value": 100,
+        "mode": "max"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "pass_yards_allowed",
+        "op": "lt",
+        "value": 275
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_027",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Bad Decisions",
+    "family": "pressure_turnovers",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_028",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Coverage Wins",
+    "family": "coverage",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "pass_deflections",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_029",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Take It Away",
+    "family": "turnovers",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_030",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Turnover Machine",
+    "family": "turnovers",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_031",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Ball Hawks",
+    "family": "turnovers",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_032",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Strip and Pick",
+    "family": "turnovers",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "all",
+        "parts": [
+          {
+            "kind": "agg",
+            "stat": "interceptions",
+            "op": "gte",
+            "value": 1
+          },
+          {
+            "kind": "agg",
+            "stat": "forced_fumbles",
+            "op": "gte",
+            "value": 1
+          }
+        ]
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_033",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Possession War",
+    "family": "turnover_margin",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_034",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Heat Check",
+    "family": "pass_rush",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_035",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Pocket Collapse",
+    "family": "pass_rush",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "interceptions",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_036",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Relentless Rush",
+    "family": "pass_rush",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 4
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_037",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Sack Party",
+    "family": "pass_rush",
+    "pool": "standard",
+    "volatility": "moderate",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "role",
+        "side": "self",
+        "position": "DEFENDER",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 1,
+        "mode": "count",
+        "minCount": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 5
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_038",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Defensive Chaos",
+    "family": "havoc",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "sacks",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "forced_fumbles",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_039",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Red Zone Stand",
+    "family": "red_zone_defense",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.5,
+    "contextTags": [
+      "opponent_min_red_zone_trips_2"
+    ],
+    "eligibility": {
+      "minOpponentRedZoneTrips": 2
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "red_zone_def_percentage",
+        "op": "lte",
+        "value": 60
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "red_zone_def_percentage",
+        "op": "lte",
+        "value": 50
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 21
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_def_040",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "defense",
+    "name": "Door Slammed",
+    "family": "red_zone_defense",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.35,
+    "contextTags": [
+      "opponent_min_red_zone_trips_2"
+    ],
+    "eligibility": {
+      "minOpponentRedZoneTrips": 2
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "red_zone_def_percentage",
+        "op": "lte",
+        "value": 50
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "red_zone_def_percentage",
+        "op": "lte",
+        "value": 40
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_001",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Handle Business",
+    "family": "result_statement",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "favored_or_statement_game"
+    ],
+    "eligibility": {
+      "requires": [
+        "favored_or_statement_game"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 27
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 10
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_002",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Division Statement",
+    "family": "rivalry_result",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "division_game"
+    ],
+    "eligibility": {
+      "requires": [
+        "division_game"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 14
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_003",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Rivalry Statement",
+    "family": "rivalry_result",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "active_rivalry"
+    ],
+    "eligibility": {
+      "requires": [
+        "active_rivalry"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 10
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_004",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Win and In",
+    "family": "playoff_result",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "verified_win_and_in"
+    ],
+    "eligibility": {
+      "requires": [
+        "verified_win_and_in"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_005",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Playoff Push",
+    "family": "playoff_result",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "playoff_push"
+    ],
+    "eligibility": {
+      "requires": [
+        "playoff_push"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 27
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_006",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Protect Home Field",
+    "family": "home_result",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "home_game"
+    ],
+    "eligibility": {
+      "requires": [
+        "home_game"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_007",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Road Test",
+    "family": "road_result",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "away_game"
+    ],
+    "eligibility": {
+      "requires": [
+        "away_game"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 30
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_008",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Bounce Back",
+    "family": "response",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "previous_loss_or_bad_performance"
+    ],
+    "eligibility": {
+      "requires": [
+        "previous_loss_or_bad_performance"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_009",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Keep It Rolling",
+    "family": "streak",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "active_win_streak_2_plus"
+    ],
+    "eligibility": {
+      "requires": [
+        "active_win_streak_2_plus"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 27
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_010",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Upset Alert",
+    "family": "underdog",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "verified_underdog"
+    ],
+    "eligibility": {
+      "requires": [
+        "verified_underdog"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_011",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Close the Door",
+    "family": "late_season",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "late_season_high_leverage"
+    ],
+    "eligibility": {
+      "requires": [
+        "late_season_high_leverage"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_012",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Game of the Week",
+    "family": "spotlight",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "game_of_the_week"
+    ],
+    "eligibility": {
+      "requires": [
+        "game_of_the_week"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_yards_gained",
+        "op": "gte",
+        "value": 325
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 28
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_013",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Revenge Game",
+    "family": "rematch",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "rematch_loss_receipt"
+    ],
+    "eligibility": {
+      "requires": [
+        "rematch_loss_receipt"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_ctx_014",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Statement Win",
+    "family": "result_statement",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.45,
+    "contextTags": [
+      "statement_game"
+    ],
+    "eligibility": {
+      "requires": [
+        "statement_game"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 7
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "margin",
+        "op": "gte",
+        "value": 14
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_st_001",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "special_teams",
+    "name": "Automatic",
+    "family": "kicking",
+    "pool": "contextual",
+    "volatility": "moderate",
+    "selectionWeight": 0.15,
+    "contextTags": [
+      "special_teams_context"
+    ],
+    "eligibility": {
+      "requires": [
+        "special_teams_context"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "fg_made",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "fg_made",
+        "statB": "fg_attempts"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "fg_50_made",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_st_002",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "special_teams",
+    "name": "Big Leg",
+    "family": "kicking",
+    "pool": "contextual",
+    "volatility": "high_variance",
+    "selectionWeight": 0.1,
+    "contextTags": [
+      "long_fg_story"
+    ],
+    "eligibility": {
+      "requires": [
+        "special_teams_context",
+        "long_fg_story"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "fg_made",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "fg_50_made",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "fg_made",
+        "statB": "fg_attempts"
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_st_003",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "special_teams",
+    "name": "Clean Kicking Day",
+    "family": "kicking",
+    "pool": "contextual",
+    "volatility": "stable",
+    "selectionWeight": 0.12,
+    "contextTags": [
+      "special_teams_context"
+    ],
+    "eligibility": {
+      "requires": [
+        "special_teams_context"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "xp_made",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "xp_made",
+        "statB": "xp_attempts"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "fg_made",
+        "statB": "fg_attempts"
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_st_004",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "special_teams",
+    "name": "Field Position Weapon",
+    "family": "punting",
+    "pool": "contextual",
+    "volatility": "moderate",
+    "selectionWeight": 0.1,
+    "contextTags": [
+      "punting_context"
+    ],
+    "eligibility": {
+      "requires": [
+        "punting_context",
+        "verified_punt_touchbacks"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "punts_in_20",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "punt_long",
+        "op": "gte",
+        "value": 55
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "touchbacks",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_st_005",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "special_teams",
+    "name": "Boom and Pin",
+    "family": "punting",
+    "pool": "contextual",
+    "volatility": "moderate",
+    "selectionWeight": 0.1,
+    "contextTags": [
+      "punting_context"
+    ],
+    "eligibility": {
+      "requires": [
+        "punting_context"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "punt_long",
+        "op": "gte",
+        "value": 55
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "punts_in_20",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "punt_long",
+        "op": "gte",
+        "value": 65
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_st_006",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "special_teams",
+    "name": "Special Teams Clinic",
+    "family": "special_teams",
+    "pool": "contextual",
+    "volatility": "high_variance",
+    "selectionWeight": 0.08,
+    "contextTags": [
+      "special_teams_context"
+    ],
+    "eligibility": {
+      "requires": [
+        "special_teams_context"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "fg_made",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "punts_in_20",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "fg_made",
+        "statB": "fg_attempts"
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_st_007",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "special_teams",
+    "name": "Perfect Placement",
+    "family": "punting",
+    "pool": "contextual",
+    "volatility": "high_variance",
+    "selectionWeight": 0.08,
+    "contextTags": [
+      "punting_context"
+    ],
+    "eligibility": {
+      "requires": [
+        "punting_context",
+        "verified_punt_touchbacks"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "punts_in_20",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg",
+        "stat": "punts_in_20",
+        "op": "gte",
+        "value": 3
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg",
+        "stat": "touchbacks",
+        "op": "lte",
+        "value": 0
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_st_008",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "special_teams",
+    "name": "Pressure Kicks",
+    "family": "kicking",
+    "pool": "contextual",
+    "volatility": "moderate",
+    "selectionWeight": 0.1,
+    "contextTags": [
+      "kicking_context"
+    ],
+    "eligibility": {
+      "requires": [
+        "kicking_context"
+      ]
+    },
+    "bronze": [
+      {
+        "kind": "agg",
+        "stat": "fg_made",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "fg_made",
+        "statB": "fg_attempts"
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "agg_eq",
+        "statA": "xp_made",
+        "statB": "xp_attempts"
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_gen_001",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Winning Formula",
+    "family": "complete_team",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "result",
+        "op": "win"
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_gen_002",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Complementary Football",
+    "family": "complete_team",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "points_for",
+        "op": "gte",
+        "value": 27
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_gen_003",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Control the Game",
+    "family": "complete_team",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "off_first_down",
+        "op": "gte",
+        "value": 18
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "points_against",
+        "op": "lte",
+        "value": 24
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "notes": ""
+  },
+  {
+    "id": "team_gen_004",
+    "version": 1,
+    "assignmentClass": "TEAM",
+    "side": "team",
+    "name": "Clean Team Day",
+    "family": "complete_team",
+    "pool": "standard",
+    "volatility": "stable",
+    "selectionWeight": 1.0,
+    "contextTags": [],
+    "eligibility": {},
+    "bronze": [
+      {
+        "kind": "team",
+        "stat": "turnovers_committed",
+        "op": "lte",
+        "value": 1
+      }
+    ],
+    "silverAdds": [
+      {
+        "kind": "team",
+        "stat": "generated_turnovers",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "goldAdds": [
+      {
+        "kind": "team_margin_turnover",
+        "op": "gte",
+        "value": 2
+      }
+    ],
+    "notes": ""
+  }
+]

@@ -1,0 +1,98 @@
+{
+  "source": "REC_ARCHETYPE_CATALOG.MADDEN",
+  "archetypes": {
+    "QB": [
+      "field_general",
+      "strong_arm",
+      "scrambler",
+      "improviser"
+    ],
+    "HB": [
+      "elusive_back",
+      "power_back",
+      "receiving_back",
+      "balanced_back"
+    ],
+    "FB": [
+      "utility",
+      "blocking"
+    ],
+    "WR": [
+      "route_runner",
+      "deep_threat",
+      "slot",
+      "physical",
+      "gadget"
+    ],
+    "TE": [
+      "vertical_threat",
+      "possession",
+      "blocking",
+      "physical_route_runner"
+    ],
+    "EDGE": [
+      "speed_rusher",
+      "power_rusher",
+      "run_stopper",
+      "hybrid"
+    ],
+    "DT": [
+      "power_rusher",
+      "run_stopper",
+      "speed_rusher",
+      "hybrid"
+    ],
+    "OLB": [
+      "pass_coverage",
+      "run_stopper",
+      "field_general"
+    ],
+    "MIKE": [
+      "pass_coverage",
+      "run_stopper",
+      "field_general"
+    ],
+    "CB": [
+      "man_to_man",
+      "zone",
+      "slot",
+      "press"
+    ],
+    "FS": [
+      "zone",
+      "hybrid",
+      "run_support"
+    ],
+    "SS": [
+      "zone",
+      "hybrid",
+      "run_support"
+    ]
+  },
+  "positionNormalization": {
+    "LE": "EDGE",
+    "RE": "EDGE",
+    "LEDGE": "EDGE",
+    "REDGE": "EDGE",
+    "LOLB": "OLB",
+    "ROLB": "OLB",
+    "WILL": "OLB",
+    "SAM": "OLB",
+    "MLB": "MIKE",
+    "MIKE": "MIKE",
+    "QB": "QB",
+    "HB": "HB",
+    "FB": "FB",
+    "WR": "WR",
+    "TE": "TE",
+    "DT": "DT",
+    "CB": "CB",
+    "FS": "FS",
+    "SS": "SS"
+  },
+  "policy": {
+    "archetypeFilterRequired": true,
+    "usageCanNarrow": true,
+    "unknownArchetype": "universal position families only"
+  }
+}

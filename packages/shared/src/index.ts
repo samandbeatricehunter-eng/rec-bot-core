@@ -18,6 +18,7 @@ export * from "./media-social/social-claim-plan.js";
 export * from "./media-social/root-post-fragments.js";
 export * from "./weekly-challenges/conditions.js";
 export * from "./weekly-challenges/catalog.js";
+export * from "./weekly-challenges/unified.js";
 export * from "./real-analyst-blocklist.js";
 export * from "./stats/index.js";
 export * from "./player-of-week.js";
