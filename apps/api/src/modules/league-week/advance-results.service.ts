@@ -1,4 +1,4 @@
-import { firstOffseasonStage, isCfb, isOffseasonPipelineStage, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, postseasonResultMultiplier, stageForWeek, stageLabel, FRANCHISE_XP_GAME_RESULT_POINTS } from "@rec/shared";
+import { firstOffseasonStage, isOffseasonPipelineStage, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, postseasonResultMultiplier, stageForWeek, stageLabel, FRANCHISE_XP_GAME_RESULT_POINTS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -26,7 +26,6 @@ import { autoAssignGotwForWeek, createGotwPoll, settleGotwPollsForGame } from ".
 import { scoreWeekGotwCandidates } from "../gotw/gotw-nomination.service.js";
 import { syncDraftOrderFromLeagueStandings } from "../draft-picks/draft-picks.service.js";
 import { autoPrepareEosAwards, closeAndSettleEosAwardVoting } from "./eos-awards.service.js";
-import { retireStaleDefenseNicknames } from "./defense-nicknames.service.js";
 import { writeAuditLog } from "../audit/audit.service.js";
 import { cleanupSeasonHighlights, settleGameOfTheYear, settleSeasonHighlightAwards } from "../highlights/highlights.service.js";
 import { clearTradeBlockAtSeasonEnd } from "../trades/trades.service.js";
@@ -1222,15 +1221,6 @@ export async function completeAdvanceWeek(input: {
   // game-intelligence/persistence.ts), and game/season-scope badges naturally
   // start fresh once the next season's games begin — no season-end conversion or
   // wipe step needed.
-
-  // Retire any "This Defense Needs a Name" nickname that didn't requalify this season
-  // (CFB only — the category itself is CFB-only). Runs on the same terminal-stage ->
-  // offseason boundary as the EOS payout auto-fire above.
-  if (isCfb(context.rec_leagues.game) && isTerminalSeasonStage(currentStage, context.rec_leagues.game) && nextTarget.seasonStage === firstOffseasonStage(context.rec_leagues.game)) {
-    await retireStaleDefenseNicknames(context.leagueId, seasonNumber).catch((err) => {
-      console.error("[ERROR] retireStaleDefenseNicknames failed after advance (non-fatal):", err);
-    });
-  }
 
   // Play of the Year: auto-tallies every regular-season highlight's reactions (Discord +
   // web) and creates a pending award review per category winner (commissioner still

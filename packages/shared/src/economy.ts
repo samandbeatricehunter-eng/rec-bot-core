@@ -114,7 +114,7 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   // the whole ladder down ~10% while keeping the same relative spacing.
   { key: "team_ppg", label: "TEAM AVG Points Per Game Bonus", scope: "team", direction: "higher_is_better", statKey: "points_per_game", tiers: higher([["S", 40, EOS_TEAM.S], ["A", 36, EOS_TEAM.A], ["B", 32, EOS_TEAM.B], ["C", 28, EOS_TEAM.C], ["D", 25, EOS_TEAM.D]]) },
   { key: "opp_ppg_allowed", label: "Opponent AVG PPG Defensive Bonus", scope: "team", direction: "lower_is_better", statKey: "points_allowed_per_game", tiers: lower([["S", 16, EOS_TEAM.S], ["A", 19, EOS_TEAM.A], ["B", 22, EOS_TEAM.B], ["C", 25, EOS_TEAM.C], ["D", 28, EOS_TEAM.D]]) },
-  { key: "team_def_ints", label: "Team Defensive INTs (per game)", scope: "team", direction: "higher_is_better", statKey: "team_interceptions", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: higher([["S", 2.5, EOS_TEAM.S], ["A", 2.0, EOS_TEAM.A], ["B", 1.6, EOS_TEAM.B], ["C", 1.3, EOS_TEAM.C], ["D", 1.2, EOS_TEAM.D]]) },
+  { key: "team_def_ints", label: "Team Defensive INTs (per game)", scope: "team", direction: "higher_is_better", statKey: "team_interceptions", games: MADDEN_GAMES, dataModes: ["import"], tiers: higher([["S", 2.5, EOS_TEAM.S], ["A", 2.0, EOS_TEAM.A], ["B", 1.6, EOS_TEAM.B], ["C", 1.3, EOS_TEAM.C], ["D", 1.2, EOS_TEAM.D]]) },
   { key: "team_def_yards_allowed", label: "Defensive Yards Allowed (per game)", scope: "team", direction: "lower_is_better", statKey: "total_yards_allowed", tiers: lower([["S", 300, EOS_TEAM.S], ["A", 340, EOS_TEAM.A], ["B", 380, EOS_TEAM.B], ["C", 430, EOS_TEAM.C], ["D", 500, EOS_TEAM.D]]) },
   { key: "turnover_diff", label: "Turnover Differential (per game)", scope: "team", direction: "higher_is_better", statKey: "turnover_differential", tiers: higher([["S", 1.4, EOS_TEAM.S], ["A", 1.0, EOS_TEAM.A], ["B", 0.7, EOS_TEAM.B], ["C", 0.4, EOS_TEAM.C], ["D", 0.15, EOS_TEAM.D]]) },
   // Recalibrated 2026-08-05 alongside team_ppg — same inflation pattern, same ~-20yd shift.
@@ -122,42 +122,8 @@ export const REC_END_SEASON_PAYOUTS: RecEndSeasonPayoutDefinition[] = [
   { key: "off_red_zone_td_rate", label: "Offensive Red-Zone TD Efficiency", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_rate", tiers: higher([["S", 80, EOS_TEAM.S], ["A", 75, EOS_TEAM.A], ["B", 70, EOS_TEAM.B], ["C", 65, EOS_TEAM.C], ["D", 60, EOS_TEAM.D]]) },
   { key: "def_red_zone_td_rate", label: "Defensive Red-Zone TD Rate Allowed", scope: "team", direction: "lower_is_better", statKey: "red_zone_td_rate_allowed", tiers: lower([["S", 35, EOS_TEAM.S], ["A", 40, EOS_TEAM.A], ["B", 45, EOS_TEAM.B], ["C", 50, EOS_TEAM.C], ["D", 55, EOS_TEAM.D]]) },
 
-  // CFB-only additions (2026-07-16), leveraging stat fields CFB's box score
-  // captures but Madden's doesn't (rush attempts/TDs, penalties, red-zone
-  // TD-vs-FG split, time of possession).
-  { key: "time_of_possession", label: "Time of Possession Bonus", scope: "team", direction: "higher_is_better", statKey: "avg_time_of_possession_seconds", games: ["cfb_27"], tiers: higher([["S", 18.5 * 60, EOS_TEAM.S], ["A", 18 * 60, EOS_TEAM.A], ["B", 17.5 * 60, EOS_TEAM.B], ["C", 17 * 60, EOS_TEAM.C], ["D", 16.5 * 60, EOS_TEAM.D]]) },
-  { key: "well_disciplined", label: "Well-Disciplined (Penalties per Game)", scope: "team", direction: "lower_is_better", statKey: "total_penalties", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: lower([["S", 1.2, EOS_TEAM.S], ["A", 2, EOS_TEAM.A], ["B", 3, EOS_TEAM.B], ["C", 4, EOS_TEAM.C], ["D", 5, EOS_TEAM.D]]) },
-  { key: "red_zone_finish_rate", label: "Red Zone Finish Rate", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_finish_rate", games: ["cfb_27", ...MADDEN_GAMES], dataModes: ["import"], tiers: higher([["S", 90, EOS_TEAM.S], ["A", 72, EOS_TEAM.A], ["B", 65, EOS_TEAM.B], ["C", 58, EOS_TEAM.C], ["D", 50, EOS_TEAM.D]]) },
-  // Recalibrated 2026-08-05 from a single all-or-nothing S tier (threshold 85) to a full
-  // ladder with partial credit — 85 required near-max carries AND near-max yards/carry
-  // simultaneously, which real bell-cow backs (high volume, merely good efficiency — heavy
-  // usage against stacked boxes usually caps ypc) rarely hit together. Formula unchanged
-  // (evalTeamStat in eos-payouts.service.ts): (attempts/games)*2 + avgYardsPerRush*3 + (rushTDs/games)*8.
-  { key: "rb_workhorse", label: "RB Workhorse Bonus", scope: "team", direction: "higher_is_better", statKey: "rb_workhorse_score", games: ["cfb_27"], tiers: higher([["S", 75, EOS_TEAM.S], ["A", 65, EOS_TEAM.A], ["B", 55, EOS_TEAM.B], ["C", 45, EOS_TEAM.C], ["D", 35, EOS_TEAM.D]]) },
-  // Recalibrated 2026-08-05: was a single S-tier-only composite (red-zone D 25% + takeaways
-  // 25% + 3rd-down stops 25% + 4th-down stops 25%, threshold 80) with no yards/points-allowed
-  // signal at all despite those being core defensive-dominance stats, and no partial credit.
-  // Now a full ladder; formula reworked in evalTeamStat (eos-payouts.service.ts) to 5 terms of
-  // 20 pts each — red-zone D, takeaways (weight increased so 3+ takeaways/game alone can supply
-  // most of a tier), yards allowed, points allowed, 3rd-down stops. Dropped 4th-down stops (too
-  // low-sample per game to reliably carry 20-25% of the score). Only the S tier still unlocks
-  // naming the defense — A-D pay out without that privilege.
-  {
-    key: "defense_needs_a_name",
-    label: "This Defense Needs a Name",
-    scope: "team",
-    direction: "higher_is_better",
-    statKey: "defense_identity_score",
-    games: ["cfb_27"],
-    tiers: [
-      { tier: "S", threshold: 80, amount: EOS_TEAM.S, operator: "greater_or_equal" },
-      { tier: "A", threshold: 68, amount: EOS_TEAM.A, operator: "greater_or_equal" },
-      { tier: "B", threshold: 56, amount: EOS_TEAM.B, operator: "greater_or_equal" },
-      { tier: "C", threshold: 44, amount: EOS_TEAM.C, operator: "greater_or_equal" },
-      { tier: "D", threshold: 32, amount: EOS_TEAM.D, operator: "greater_or_equal" },
-    ],
-    triggerNote: "Clearing the S tier lets you name your defense — it keeps that name until it stops qualifying.",
-  },
+  { key: "well_disciplined", label: "Well-Disciplined (Penalties per Game)", scope: "team", direction: "lower_is_better", statKey: "total_penalties", games: MADDEN_GAMES, dataModes: ["import"], tiers: lower([["S", 1.2, EOS_TEAM.S], ["A", 2, EOS_TEAM.A], ["B", 3, EOS_TEAM.B], ["C", 4, EOS_TEAM.C], ["D", 5, EOS_TEAM.D]]) },
+  { key: "red_zone_finish_rate", label: "Red Zone Finish Rate", scope: "team", direction: "higher_is_better", statKey: "red_zone_td_finish_rate", games: MADDEN_GAMES, dataModes: ["import"], tiers: higher([["S", 90, EOS_TEAM.S], ["A", 72, EOS_TEAM.A], ["B", 65, EOS_TEAM.B], ["C", 58, EOS_TEAM.C], ["D", 50, EOS_TEAM.D]]) },
 
   // Madden import-only player bonuses. Box-score leagues never store broken tackles,
   // yards after contact, or 50+ FG splits, so these stay gated to EA/companion imports.

@@ -47,15 +47,13 @@ export const REC_LEGEND_SUBGROUP_LABELS: Record<RecLegendStoreSubgroup, string> 
   couldve_been: "Could've Beens",
 };
 
-// Madden's top tier is "X-Factor"; CFB's is "Elite" — otherwise same 4-rung ladder shape.
-// CFB's stored dev_trait values order normal < impact < star < elite (matches
-// REC_DEV_TRAITS.CFB in packages/shared/src/player-builder/catalog.ts, the custom-player
-// builder's source of truth for these same tier keys).
+// Madden's dev-trait ladder. "impact"/"elite" remain valid RecDevTier values because the
+// custom-player builder's CFB catalog (REC_DEV_TRAITS.CFB in
+// packages/shared/src/player-builder/catalog.ts, an independent data structure) still uses
+// those same tier keys for CFB player creation -- only in-league dev-upgrade purchases (this
+// file) are Madden-only now that CFB leagues no longer exist.
 export type RecDevTier = "normal" | "star" | "superstar" | "xfactor" | "impact" | "elite";
-export const REC_DEV_TIER_ORDER_BY_GAME: Record<"CFB" | "MADDEN", RecDevTier[]> = {
-  CFB: ["normal", "impact", "star", "elite"],
-  MADDEN: ["normal", "star", "superstar", "xfactor"],
-};
+export const REC_DEV_TIER_ORDER: RecDevTier[] = ["normal", "star", "superstar", "xfactor"];
 export const REC_DEV_TIER_LABELS: Record<RecDevTier, string> = {
   normal: "Normal",
   star: "Star",
@@ -64,11 +62,6 @@ export const REC_DEV_TIER_LABELS: Record<RecDevTier, string> = {
   impact: "Impact",
   elite: "Elite",
 };
-export function devTierOrderForGame(game: string): RecDevTier[] {
-  return REC_DEV_TIER_ORDER_BY_GAME[game === "cfb_27" ? "CFB" : "MADDEN"];
-}
-/** @deprecated Madden-only — use devTierOrderForGame(game) instead. */
-export const REC_DEV_TIER_ORDER: RecDevTier[] = REC_DEV_TIER_ORDER_BY_GAME.MADDEN;
 
 // A single-tier step costs 500 coins; the final step into the top tier (X-Factor/Elite)
 // costs 1500. Multi-tier purchases (e.g. Normal straight to Elite) compound: sum every step
@@ -79,7 +72,7 @@ const DEV_UPGRADE_TOP_TIER_STEP_PRICE = 1500;
 /** Coin cost to go from `fromTier` to `toTier` in one purchase, compounding every step
  * crossed. Returns 0 if the tiers are equal or `toTier` isn't higher than `fromTier`. */
 export function priceForDevUpgradeSteps(game: string, fromTier: RecDevTier, toTier: RecDevTier): number {
-  const order = devTierOrderForGame(game);
+  const order = REC_DEV_TIER_ORDER;
   const fromIndex = order.indexOf(fromTier);
   const toIndex = order.indexOf(toTier);
   if (fromIndex === -1 || toIndex === -1 || toIndex <= fromIndex) return 0;
@@ -214,7 +207,7 @@ export function priceForPurchaseWithConfig(purchaseType: RecPurchaseType, detail
     return tierMap[key] ?? 0;
   }
   if (purchaseType === "dev_upgrade") {
-    const order = devTierOrderForGame(game);
+    const order = REC_DEV_TIER_ORDER;
     const from = order.indexOf(details.fromTier as RecDevTier);
     const to = order.indexOf(details.toTier as RecDevTier);
     if (from < 0 || to <= from) return 0;

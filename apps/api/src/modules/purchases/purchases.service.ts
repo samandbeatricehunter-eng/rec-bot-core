@@ -1,4 +1,4 @@
-import { priceForPurchaseWithConfig, REC_PURCHASE_TYPE_LABELS, REC_DEV_TIER_LABELS, formatCoins, devTierOrderForGame, getRecAttributeDisplayName, isCfb, isCustomPlayerRenderAllowed, customPlayerRenderPublicUrl, type RecPurchaseType, type RecDevTier } from "@rec/shared";
+import { priceForPurchaseWithConfig, REC_PURCHASE_TYPE_LABELS, REC_DEV_TIER_LABELS, formatCoins, REC_DEV_TIER_ORDER, getRecAttributeDisplayName, isCustomPlayerRenderAllowed, customPlayerRenderPublicUrl, type RecPurchaseType, type RecDevTier } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -84,9 +84,6 @@ async function countLegendSlotsForTeam(leagueId: string, teamId: string, seasonN
     capsResetAt,
   });
 }
-
-// CFB 27's configured store does not open until Season 2. Madden has no such restriction.
-const CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES: RecPurchaseType[] = ["custom_player", "legend", "dev_upgrade", "attribute", "age_reset", "contract"];
 
 function purchaseLabel(type: RecPurchaseType) {
   return REC_PURCHASE_TYPE_LABELS[type] ?? "Purchase";
@@ -180,107 +177,6 @@ export function buildPurchaseInboxCopy(input: {
   }
 }
 
-// rec_legend_catalog.attributes is keyed by the same full display names shown in the
-// purchase-review notification (e.g. "Throwing Power"); rec_players.attributes (what the
-// roster viewer's spreadsheet columns read) is keyed by the snake_case codes every other
-// player source uses (e.g. throw_power). "Long Snap" has no equivalent in our 53-attribute
-// set and is dropped. Exhaustive — verified against every key actually stored on a legend row.
-const LEGEND_ATTRIBUTE_NAME_TO_KEY: Record<string, string> = {
-  "Press": "press", "Speed": "speed", "Injury": "injury", "Agility": "agility", "Jumping": "jumping",
-  "Pursuit": "pursuit", "Release": "release", "Stamina": "stamina", "Carrying": "carrying",
-  "Catching": "catching", "Strength": "strength", "Tackling": "tackle", "Trucking": "trucking",
-  "Awareness": "awareness", "BC Vision": "bc_vision", "Hit Power": "hit_power", "Juke Move": "juke_move",
-  "Spin Move": "spin_move", "Stiff Arm": "stiff_arm", "Toughness": "toughness", "Break Sack": "break_sack",
-  "Lead Block": "lead_block", "Play Action": "play_action", "Power Moves": "power_moves",
-  "Acceleration": "acceleration", "Break Tackle": "break_tackle", "Man Coverage": "man_coverage",
-  "Run Blocking": "run_block", "Deep Accuracy": "throw_accuracy_deep", "Finesse Moves": "finesse_moves",
-  "Kicking Power": "kick_power", "Pass Blocking": "pass_block", "Zone Coverage": "zone_coverage",
-  "Block Shedding": "block_shedding", "Short Accuracy": "throw_accuracy_short", "Throwing Power": "throw_power",
-  "Impact Blocking": "impact_blocking", "Medium Accuracy": "throw_accuracy_mid", "Run Block Power": "run_block_power",
-  "Catch in Traffic": "catch_in_traffic", "Kick/Punt Return": "kick_return", "Kicking Accuracy": "kick_accuracy",
-  "Pass Block Power": "pass_block_power", "Play Recognition": "play_recognition", "Throw on the Run": "throw_on_the_run",
-  "Run Block Finesse": "run_block_finesse", "Spectacular Catch": "spectacular_catch", "Deep Route Running": "route_running_deep",
-  "Pass Block Finesse": "pass_block_finesse", "Change of Direction": "change_of_direction",
-  "Short Route Running": "route_running_short", "Medium Route Running": "route_running_medium",
-  "Throw Under Pressure": "throw_under_pressure",
-};
-
-// rec_legend_catalog.height is a formatted string like 6'9" — parse to total inches for
-// rec_players.height_inches (which every other player source stores as a plain integer).
-function parseLegendHeightInches(height: string | null | undefined): number | null {
-  const match = /^(\d+)'(\d+)"?$/.exec(String(height ?? "").trim());
-  if (!match) return null;
-  return Number(match[1]) * 12 + Number(match[2]);
-}
-
-function mapLegendAttributes(raw: Record<string, number> | null | undefined): Record<string, number> {
-  const mapped: Record<string, number> = {};
-  for (const [name, value] of Object.entries(raw ?? {})) {
-    const key = LEGEND_ATTRIBUTE_NAME_TO_KEY[name];
-    if (key) mapped[key] = value;
-  }
-  return mapped;
-}
-
-/** Fires once a CFB legend purchase is approved — creates the actual rec_players row with
- * the legend's full mapped attributes and photo, and updates the designated replacement
- * player's row in place. CFB-only: CFB has no live franchise-import cycle to defer to, so
- * approval is the only moment the swap can happen. Madden legends are deferred instead — see
- * reconcileApprovedMaddenPurchases — because the commissioner recreates the legend inside the
- * actual Madden save, and the next EA import naturally pulls that identity in under the
- * replaced player's real EA id; applying it here too would just get overwritten (or fight)
- * with that import. */
-async function applyApprovedLegendPurchase(purchase: Record<string, unknown>) {
-  const details = (purchase.details ?? {}) as Record<string, any>;
-  const leagueId = purchase.league_id as string;
-  const teamId = details.purchasingTeamId as string | null;
-  if (!teamId) return; // buyer had no team at purchase time — nothing to attach the player to
-
-  const legend = await supabase.from("rec_legend_catalog").select("photo_url").eq("id", details.legendId).maybeSingle();
-  const photoUrl = legend.data?.photo_url ?? null;
-
-  const replacementPlayerId: string | null =
-    details.finalReplaceTarget?.playerId ?? details.replaceTarget?.playerId ?? null;
-  if (!replacementPlayerId) throw new ApiError(400, "A CFB legend must have a selected added/recruited player to replace.");
-
-  const found = await supabase.from("rec_players").select("id,position")
-    .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId)
-    .in("roster_status", ["active", "transferred_in"]).eq("is_default_player", false).maybeSingle();
-  if (!found.data) throw new ApiError(409, "The selected CFB replacement player is no longer available. Reject and refund this purchase.");
-
-  const nameParts = String(details.name ?? "").trim().split(/\s+/);
-  const firstName = nameParts[0] ?? details.name;
-  const lastName = nameParts.slice(1).join(" ") || details.name;
-
-  const playerRow = {
-    first_name: firstName,
-    last_name: lastName,
-    full_name: details.name,
-    position: found.data.position,
-    height_inches: parseLegendHeightInches(details.height),
-    weight_lbs: details.weight ?? null,
-    handedness: details.hand ?? null,
-    jersey_number: details.jerseyNumber ?? null,
-    college: details.college ?? null,
-    dev_trait: null,
-    // rec_legend_catalog.est_ovr is numeric with a decimal (e.g. 88.3); rec_players.overall_rating
-    // is an integer column — round it, or the write fails outright with a Postgres type error.
-    overall_rating: details.estOvr != null ? Math.round(Number(details.estOvr)) : null,
-    archetype: details.archetype ?? null,
-    attributes: mapLegendAttributes(details.attributes),
-    abilities: [],
-    photo_url: photoUrl,
-    is_free_agent: false,
-    is_default_player: false,
-    roster_status: "active",
-    player_source: "legend",
-    raw_payload: { legend: true, legendId: details.legendId, purchaseId: purchase.id },
-  };
-
-  const updated = await supabase.from("rec_players").update(playerRow)
-    .eq("id", replacementPlayerId).eq("league_id", leagueId).eq("team_id", teamId).select("id").maybeSingle();
-  if (updated.error || !updated.data) throw new ApiError(500, "The legend purchase was approved, but we couldn't add the player to the roster. Please try again.", updated.error);
-}
 
 /** Madden-only. Approved legend purchases and approved (not-yet-applied) custom-player builds
  * sit waiting for the commissioner to actually recreate the player inside the Madden save on
@@ -385,12 +281,7 @@ function normalizeAttributeAllocations(details: Record<string, unknown>, cfgRow:
 
 // Shared for every player-targeting purchase type (dev upgrades, attribute points, age
 // resets, contract adjustments): resolves the target to a real, active player on the
-// buyer's own team, and enforces the CFB store's core rule that DEFAULT SEEDED players
-// can't be purchased on at all — only players the coach added (recruits, transfers,
-// manual adds, legends, custom recruits) are eligible. Madden has no such restriction;
-// its baseline roster is the exact pool teams are supposed to build from. The
-// madden_player_id prefix check is belt-and-suspenders on top of is_default_player so
-// leagues seeded before the flag was backfilled still get the guard.
+// buyer's own team.
 async function loadAndValidatePurchaseTarget(opts: { leagueId: string; userId: string; game: string; playerId: string; label: string; includeAttributes?: boolean }) {
   const playerId = opts.playerId ?? "";
   if (!playerId) throw new ApiError(400, "Select a player.");
@@ -407,9 +298,6 @@ async function loadAndValidatePurchaseTarget(opts: { leagueId: string; userId: s
   const assignment = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", opts.leagueId).eq("user_id", opts.userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
   if (!assignment.data?.team_id || assignment.data.team_id !== player.data.team_id) throw new ApiError(403, "You can only make purchases for your own team's players.");
 
-  if (isCfb(opts.game) && (player.data.is_default_player || String(player.data.madden_player_id ?? "").startsWith("cfb27:"))) {
-    throw new ApiError(400, `${player.data.full_name} is part of the default seeded roster — ${opts.label} can only be purchased for players you've added (recruits, transfers, or manually added players).`);
-  }
   return {
     id: player.data.id,
     fullName: player.data.full_name,
@@ -429,11 +317,8 @@ async function normalizeDevUpgradeDetails(details: Record<string, unknown>, leag
   if (!player.data || player.data.roster_status !== "active") throw new ApiError(404, "Player not found on an active roster.");
   const assignment = await supabase.from("rec_team_assignments").select("team_id").eq("league_id", leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
   if (!assignment.data?.team_id || assignment.data.team_id !== player.data.team_id) throw new ApiError(403, "You can only upgrade your own team's players.");
-  if (isCfb(game) && (player.data.is_default_player || String(player.data.madden_player_id ?? "").startsWith("cfb27:"))) {
-    throw new ApiError(400, `${player.data.full_name} is part of the default seeded roster — dev upgrades can only be purchased for players you've added (recruits, transfers, or manually added players).`);
-  }
 
-  const order = devTierOrderForGame(game);
+  const order = REC_DEV_TIER_ORDER;
   const fromTier = (order.includes(player.data.dev_trait as RecDevTier) ? player.data.dev_trait : "normal") as RecDevTier;
   const toTier = String((details as any).toTier ?? "") as RecDevTier;
   if (order.indexOf(toTier) <= order.indexOf(fromTier)) {
@@ -446,7 +331,7 @@ async function normalizeDevUpgradeDetails(details: Record<string, unknown>, leag
  *  single Star->X-Factor purchase counts as 2 (Star->Superstar, Superstar->X-Factor), same as
  *  two separate one-tier purchases would. */
 async function usedDevUpgradeTierSteps(args: { leagueId: string; teamId: string; seasonNumber: number; game: string; capsResetAt?: string | null }): Promise<number> {
-  const order = devTierOrderForGame(args.game);
+  const order = REC_DEV_TIER_ORDER;
   const query = withCapsResetFilter(
     supabase.from("rec_purchases").select("details")
       .eq("league_id", args.leagueId).eq("team_id", args.teamId).eq("purchase_type", "dev_upgrade").eq("season_number", args.seasonNumber)
@@ -476,7 +361,7 @@ async function enforceDevUpgradeTierStepCap(args: {
   playerName: string; fromTier: RecDevTier; toTier: RecDevTier; cap: number; capsResetAt?: string | null;
 }) {
   if (args.cap <= 0) return;
-  const order = devTierOrderForGame(args.game);
+  const order = REC_DEV_TIER_ORDER;
   const fromIndex = order.indexOf(args.fromTier);
   const toIndex = order.indexOf(args.toTier);
   const requestedSteps = toIndex - fromIndex;
@@ -524,11 +409,6 @@ export async function createPurchaseRequest(input: {
     throw new ApiError(400, "Rise to Immortality does not use the store. Attribute upgrades spend Player XP, not coins. Age resets, contracts, dev upgrades, legends, and custom players are not available in this mode.");
   }
   if (!cfgRow.coin_economy_enabled) throw new ApiError(400, "The coin economy is not enabled for this league.");
-  // CFB dev trait progression is earned in-game, not purchased — dev upgrades are a
-  // Madden-only purchase type regardless of the league's own dev_upgrades_enabled setting.
-  if (input.purchaseType === "dev_upgrade" && context.rec_leagues?.game === "cfb_27") {
-    throw new ApiError(400, "Dev trait upgrades aren't available in CFB leagues.");
-  }
   const { assertEconomyPayoutsActive } = await import("../economy/economy-gate.js");
   await assertEconomyPayoutsActive(leagueId);
   if (!cfgRow[cfg.enabled]) throw new ApiError(400, `${label} purchases are not enabled for this league.`);
@@ -541,9 +421,6 @@ export async function createPurchaseRequest(input: {
   });
 
   const seasonNumber = resolveSeasonNumber(context);
-  if (context.rec_leagues?.game === "cfb_27" && seasonNumber < 2 && CFB_SEASON_ONE_LOCKED_PURCHASE_TYPES.includes(input.purchaseType)) {
-    throw new ApiError(400, `${label} purchases open in Season 2 — Season 1 rosters are locked while dynasties get established.`);
-  }
 
   const baseline = await getUserBaselineByDiscordId(input.discordId);
   const userId = baseline.user.id;
@@ -563,7 +440,7 @@ export async function createPurchaseRequest(input: {
   // get normalized server-side (authoritative) so pricing and cap enforcement can't be
   // spoofed by client-supplied core/tier flags. Player-targeting types (attribute, age
   // reset, contract, dev upgrade) also resolve their target player server-side so team
-  // ownership and the CFB default-seeded-player rule are enforced against the real row.
+  // ownership is enforced against the real row.
   let details: Record<string, unknown> = input.details ?? {};
   const game = String(context.rec_leagues?.game ?? "madden_27");
   if (input.purchaseType === "attribute") {
@@ -856,15 +733,8 @@ export async function reviewPurchase(input: {
   const existingDetails = (existing.data.details ?? {}) as Record<string, any>;
   let nextDetails: Record<string, unknown> | undefined;
 
-  let isMaddenLegend = false;
-  if (existing.data.purchase_type === "legend") {
-    const league = await supabase.from("rec_leagues").select("game").eq("id", existing.data.league_id).maybeSingle();
-    isMaddenLegend = String(league.data?.game ?? "").startsWith("madden");
-  }
-
   if (existing.data.purchase_type === "legend" && input.finalReplaceTarget?.playerId) {
     const teamId = existingDetails.purchasingTeamId as string | null;
-    if (!teamId && !isMaddenLegend) throw new ApiError(400, "This legend purchase has no purchasing team to swap a player on.");
     const found = teamId
       ? await supabase.from("rec_players").select("id,first_name,last_name,position,overall_rating,madden_player_id")
           .eq("id", input.finalReplaceTarget.playerId)
@@ -874,11 +744,9 @@ export async function reviewPurchase(input: {
           .maybeSingle()
       : { data: null, error: null };
     if (!found.data) {
-      // CFB applies the swap immediately at approval, so it needs a roster row that
-      // actually resolves right now. Madden only records this as informational — the
-      // real swap happens by name match at the next EA import — so a stale/deleted
-      // roster reference (e.g. after a baseline roster cleanup) shouldn't block approval.
-      if (!isMaddenLegend) throw new ApiError(400, "Select an active player from the buyer's roster to permanently replace.");
+      // The real swap happens by name match at the next EA import — this is only
+      // informational, so a stale/deleted roster reference (e.g. after a baseline
+      // roster cleanup) shouldn't block approval.
       nextDetails = { ...existingDetails, finalReplaceTarget: input.finalReplaceTarget };
     } else {
       const replaceTarget = {
@@ -917,42 +785,17 @@ export async function reviewPurchase(input: {
     .eq("source_table", "rec_purchases")
     .eq("source_id", input.purchaseId);
 
-  // CFB has no live franchise-import cycle to defer to, so approval is the only moment the
-  // swap can happen — apply immediately, same as before. If that write fails, revert the
-  // approval instead of leaving an unrecoverable state (purchase marked approved, inbox item
-  // resolved, but no roster player ever created and no way to retry) — put the purchase and
-  // inbox item back to pending so the commissioner can simply approve again once fixed.
   // Madden legends are NOT applied here — the commissioner recreates the legend inside the
   // Madden save on the designated slot, and reconcileApprovedMaddenPurchases (run after every
   // EA import) marks the purchase fulfilled once that identity shows up in imported data.
-  let isCfbLegend = false;
-  if (existing.data.purchase_type === "legend") {
-    const league = await supabase.from("rec_leagues").select("game").eq("id", existing.data.league_id).maybeSingle();
-    isCfbLegend = String(league.data?.game ?? "") === "cfb_27";
-    if (isCfbLegend) {
-      try {
-        await applyApprovedLegendPurchase(approved.data as Record<string, unknown>);
-      } catch (err) {
-        await supabase.from("rec_purchases").update({
-          status: "pending", reviewed_by_discord_id: null, approved_at: null, updated_at: new Date().toISOString(),
-        }).eq("id", input.purchaseId);
-        await supabase.from("rec_commissioners_inbox").update({
-          status: "pending", reviewed_by_discord_id: null, reviewed_at: null,
-        }).eq("source_table", "rec_purchases").eq("source_id", input.purchaseId);
-        throw err;
-      }
-    }
-  }
 
   // Nothing told the buyer their purchase actually went through — approving silently updated
   // the DB and the buyer had no way to know short of refreshing their roster on a hunch.
   const purchaseDetails = existing.data.details as Record<string, unknown>;
   const legendName = existing.data.purchase_type === "legend" ? String(purchaseDetails?.name ?? "Legend") : null;
-  const approveTitle = legendName ? (isCfbLegend ? `${legendName} approved & applied` : `${legendName} approved`) : `${label} approved`;
+  const approveTitle = legendName ? `${legendName} approved` : `${label} approved`;
   const approveBody = legendName
-    ? (isCfbLegend
-      ? `${legendName} has been added to your roster.`
-      : `${legendName} is approved. Recreate them in Madden on the designated roster slot, then re-import — they'll go live on your roster automatically.`)
+    ? `${legendName} is approved. Recreate them in Madden on the designated roster slot, then re-import — they'll go live on your roster automatically.`
     : `Your ${label.toLowerCase()} purchase was approved.`;
   await createSiteNotification({
     userId: existing.data.user_id,

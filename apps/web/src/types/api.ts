@@ -362,7 +362,6 @@ export type EosPayoutProgressCard = {
   tiers: Array<{ tier: RecPayoutTier; amount: number; threshold: number; operator: string }>;
   direction: "higher_is_better" | "lower_is_better";
   triggerNote?: string;
-  currentAwardedName?: string | null;
 };
 export type CommissionerPollAnswerCount = { id: number; count: number; me_voted: boolean };
 export type CommissionerPollResults = { question: string; answers: Array<{ id: number; text: string }>; isFinalized: boolean; answerCounts: CommissionerPollAnswerCount[] } | null;

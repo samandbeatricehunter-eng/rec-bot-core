@@ -1,14 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isPayoutEligibleForGame, isPayoutEligibleForLeague, REC_END_SEASON_PAYOUTS } from "./economy.js";
-
-test("CFB team INT and workhorse stay available in box-score mode", () => {
-  const ints = REC_END_SEASON_PAYOUTS.find((item) => item.key === "team_def_ints")!;
-  const workhorse = REC_END_SEASON_PAYOUTS.find((item) => item.key === "rb_workhorse")!;
-  assert.equal(isPayoutEligibleForLeague(ints, "cfb_27", "box_scores"), true);
-  assert.equal(isPayoutEligibleForLeague(workhorse, "cfb_27", "box_scores"), true);
-  assert.equal(isPayoutEligibleForGame(workhorse, "madden_27"), false);
-});
+import { isPayoutEligibleForLeague, REC_END_SEASON_PAYOUTS } from "./economy.js";
 
 test("Madden import unlocks player bonuses and team INTs; box scores do not", () => {
   const rb = REC_END_SEASON_PAYOUTS.find((item) => item.key === "madden_rb_workhorse")!;

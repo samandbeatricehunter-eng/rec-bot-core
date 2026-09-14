@@ -736,10 +736,6 @@ export const recApi = {
   getTeamLinkMatrix: (guildId: string) => recApiFetch<TeamLinkMatrix>(`/v1/team-ownership/${guildId}/matrix`),
   listOpenTeams: (guildId: string) => recApiFetch<OpenTeamsResponse>(REC_API_ROUTES.openTeams(guildId)),
   listLeagueIdentities: (guildId: string) => recApiFetch<LeagueIdentitiesResponse>(`/v1/guilds/${guildId}/identities`),
-  getDefenseNicknameStatus: (input: { guildId: string; discordId: string }) =>
-    recApiFetch<{ teamId: string; nickname: string | null; needsName: boolean } | null>("/v1/league-week/defense-nickname/status", { method: "POST", body: JSON.stringify(input) }),
-  setDefenseNickname: (input: { guildId: string; discordId: string; teamId: string; nickname: string }) =>
-    recApiFetch<{ nickname: string }>("/v1/league-week/defense-nickname", { method: "POST", body: JSON.stringify(input) }),
   getMyEosPayoutProgress: (input: { guildId: string; discordId: string }) =>
     recApiFetch<MyEosPayoutProgress>("/v1/league-week/eos-payouts/my-progress", { method: "POST", body: JSON.stringify(input) }),
   getEosAwardVotingBlock: (input: { guildId: string; discordId: string }) =>

@@ -1,6 +1,6 @@
 ﻿import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, devTierOrderForGame, parlayOdds, potentialPayout, priceForPurchaseWithConfig, regularSeasonWeeks, stageForWeek, stageHasScheduledGames, stageLabel, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
+import { americanFromDecimal, CFB_POSITIONS, CONFERENCE_ORDER, DEFAULT_REC_GLOBAL_ECONOMY_CONFIG, REC_DEV_TIER_LABELS, coinsNumber, parlayOdds, potentialPayout, priceForPurchaseWithConfig, regularSeasonWeeks, stageForWeek, stageHasScheduledGames, stageLabel, type LeagueGame, type RecDevTier, type RecGlobalEconomyConfig, type RecPurchaseType } from "@rec/shared";
 import { RosterPlayerSelect } from "../../components/hub/RosterPlayerSelect.js";
 import { HeadshotUploadOverlay } from "../../components/hub/HeadshotUploadOverlay.js";
 import { ArrowDown, ArrowLeftRight, ArrowUp, Award, ChevronLeft, ChevronRight, Coins, Eye, FileText, Heart, Landmark, Megaphone, Pencil, Play, RefreshCw, ScrollText, Send, Shield, ShoppingBag, SlidersHorizontal, Star, ThumbsDown, ThumbsUp, Trash2, TrendingUp, Trophy, UserPlus, UserRound, UsersRound, WalletCards, X } from "lucide-react";
@@ -20,7 +20,6 @@ import { MatchupTeamLeaders } from "../../components/hub/MatchupTeamLeaders.js";
 import { HeroSchedulingStatus } from "../../components/hub/HeroSchedulingStatus.js";
 import { ShareStreamModal } from "../../components/hub/ShareStreamModal.js";
 import { RequestHelpSheet } from "../../components/matchups/RequestHelpSheet.js";
-import { randomDefenseName } from "../../lib/defense-names.js";
 import { LiveGamesCard } from "../../components/hub/LiveGamesCard.js";
 import { useAuth, useReadyAuth } from "../../lib/auth-context.js";
 import { recApi } from "../../lib/rec-api-client.js";
@@ -285,43 +284,6 @@ function MyTeamRecordRow({ my, profile }: { my: any; profile: any }) {
   );
 }
 
-function DefenseNicknamePrompt() {
-  const { guildId, discordId } = useReadyAuth();
-  const [status, setStatus] = useState<{ teamId: string; nickname: string | null; needsName: boolean } | null>(null);
-  const [value, setValue] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    recApi.getDefenseNicknameStatus({ guildId, discordId }).then(setStatus).catch(() => setStatus(null));
-  }, [guildId, discordId]);
-
-  if (!status?.needsName) return null;
-
-  async function save() {
-    if (!status || !value.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await recApi.setDefenseNickname({ guildId, discordId, teamId: status.teamId, nickname: value.trim() });
-      setStatus({ ...status, nickname: result.nickname, needsName: false });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save nickname.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return <div className="hub-defense-nickname-prompt">
-    <p><strong>Your defense earned "This Defense Needs a Name"!</strong> Give it a nickname — it'll show up in headlines about your defense until it stops qualifying.</p>
-    <div className="hub-defense-nickname-form">
-      <input className="form-input" value={value} onChange={(event) => setValue(event.target.value)} placeholder="e.g. The Iron Curtain" maxLength={60} />
-      <Button variant="secondary" disabled={busy} onClick={() => setValue(randomDefenseName(value))} title="Can't think of one? Roll the dice.">🎲 Randomize</Button>
-      <Button variant="primary" disabled={busy || !value.trim()} onClick={() => void save()}>{busy ? "Saving…" : "Name It"}</Button>
-    </div>
-    {error && <p className="hub-schedule-missing">{error}</p>}
-  </div>;
-}
 
 const EOS_PAYOUT_DESCRIPTIONS: Record<string, string> = {
   power_ranking_position: "Your global power ranking position. Pays a set amount per exact rank, independent of the tier ladder shown here.",
