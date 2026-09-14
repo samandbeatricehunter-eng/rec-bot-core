@@ -232,15 +232,6 @@ import { handleTradeReleaseCoinsButton, handleTradeVoteReactionAdd, handleTradeV
 import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import { handleLiveStreamInteraction, isLiveStreamCustomId } from "./handlers/live-stream-prompt.js";
 import { syncManagedRoleFromDiscord } from "./handlers/managed-role-sync.js";
-import {
-  MANUAL_SCORES_CUSTOM_IDS,
-  handleManualScoresOpen,
-  handleManualScoresWeekSelect,
-  handleManualScoresGameSelect,
-  handleManualScoresOutcome,
-  handleManualScoresScoreModal,
-  handleManualScoresAnother,
-} from "./flows/manual-scores.js";
 
 const client = new Client({
   intents: [
@@ -807,8 +798,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === TEAM_REQUEST_CUSTOM_IDS.conferenceSelect) return handleTeamRequestConference(interaction);
       if (interaction.customId === MANAGE_WALLET_CUSTOM_IDS.transferDirection) return handleWalletTransferDirection(interaction);
       if (interaction.customId === STREAM_CUSTOM_IDS.serviceSelect) return handleStreamServiceSelect(interaction);
-      if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.weekSelect) return handleManualScoresWeekSelect(interaction);
-      if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.gameSelect) return handleManualScoresGameSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.dateSelect) return handleAdvanceTimeDateSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.tzSelect) return handleAdvanceTimeTzSelect(interaction);
       if (interaction.customId === ADVANCE_TIME_CUSTOM_IDS.timeSelect) return handleAdvanceTimeTimeSelect(interaction);
@@ -889,7 +878,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleView) return startScheduleViewer(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtScheduleBack) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtAdvance) return handleLeagueMgmtAdvance(interaction);
-      if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtUploadScores) return handleLeagueMgmtUploadScores(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtActiveCheck) return handleActiveCheck(interaction, buildAdvanceMgmtRows);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetWeek) return handleSetWeek(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmtSetSeason) return handleSetSeason(interaction);
@@ -948,12 +936,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId === MENU_CUSTOM_IDS.viewUserProfiles) return renderUserSnapshotPicker(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.stream) return handleStreamMenu(interaction);
       if (interaction.customId === MENU_CUSTOM_IDS.streamBack) return renderMainMenuFromComponent(interaction);
-      if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.open) return handleManualScoresOpen(interaction);
-      if (interaction.customId === MANUAL_SCORES_CUSTOM_IDS.cancel) return handleLeagueMgmtUploadScores(interaction);
-      if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.homeWinPrefix)) return handleManualScoresOutcome(interaction, "home", interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.homeWinPrefix.length));
-      if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.awayWinPrefix)) return handleManualScoresOutcome(interaction, "away", interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.awayWinPrefix.length));
-      if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.tiePrefix)) return handleManualScoresOutcome(interaction, "tie", interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.tiePrefix.length));
-      if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix)) return handleManualScoresAnother(interaction, Number(interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.anotherPrefix.length)));
       if (interaction.customId === MENU_CUSTOM_IDS.helpRules) return interaction.update(buildRulesPanel());
       if (interaction.customId === MENU_CUSTOM_IDS.leagueMgmt) return renderAdminPanelFromComponent(interaction);
       if (interaction.customId.startsWith(`${MENU_CUSTOM_IDS.teamsPage}:`)) return handleTeamsPage(interaction);
@@ -991,10 +973,6 @@ client.on("interactionCreate", async (interaction: Interaction) => {
       if (interaction.customId.startsWith(`${MANAGE_WALLET_CUSTOM_IDS.transferCustomModal}:`)) return handleWalletCustomTransferModal(interaction, interaction.customId.endsWith(":from_savings") ? "from_savings" : "to_savings");
       if (interaction.customId.startsWith(`${STREAM_CUSTOM_IDS.linkModal}:`)) return handleStreamLinkModal(interaction);
       if (interaction.customId.startsWith(`${TEAM_LINK_CUSTOM_IDS.customTeamModal}:`) || interaction.customId === TEAM_LINK_CUSTOM_IDS.editTeamModal) return handleCustomTeamModal(interaction);
-      if (interaction.customId.startsWith(MANUAL_SCORES_CUSTOM_IDS.scoreModalPrefix)) {
-        const [outcome, gameId] = interaction.customId.slice(MANUAL_SCORES_CUSTOM_IDS.scoreModalPrefix.length).split(":");
-        return handleManualScoresScoreModal(interaction, outcome as "home" | "away" | "tie", gameId);
-      }
       if (interaction.customId === ADVANCE_CUSTOM_IDS.seasonManualModal) return handleSetSeasonManual(interaction, buildAdvanceMgmtRows);
     }
   } catch (error) {
@@ -1279,7 +1257,6 @@ async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {
         "",
         "**Advancing the league, assigning GOTW, and creating game channels now happen on the web dashboard** — open League Mgmt > Advance there.",
         "",
-        "**Upload Scores** opens commissioner score catch-up tools.",
         "**Set Week / Set Season** manually correct the league clock.",
         "**EOS Actions** opens postseason tools; actions stay gated until the right week.",
         "**Troubleshoot** checks schedule, payout, transaction, and blocker workflows."
@@ -1290,9 +1267,6 @@ async function handleLeagueMgmtAdvance(interaction: ButtonInteraction) {
 
 function buildAdvanceMgmtRows() {
   return [
-    new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtUploadScores).setLabel("Upload Scores").setStyle(ButtonStyle.Primary)
-    ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSetWeek).setLabel("Set Week").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtSetSeason).setLabel("Set Season").setStyle(ButtonStyle.Secondary)
@@ -1306,25 +1280,6 @@ function buildAdvanceMgmtRows() {
       new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtBack).setLabel("Main Menu").setStyle(ButtonStyle.Danger)
     ),
   ];
-}
-
-async function handleLeagueMgmtUploadScores(interaction: ButtonInteraction) {
-  if (!isFullLeagueAdminInteraction(interaction)) return replyFullAdminOnly(interaction, "upload score data");
-  return interaction.update({
-    embeds: [new EmbedBuilder()
-      .setTitle("Upload Scores")
-      .setDescription([
-        "Scores and stats come from the EA data import. Use this only as a manual fallback.",
-        "",
-        "**Manual Scores** - type in a game's result by hand when the import hasn't caught up yet (full score, or just W/L/T)."
-      ].join("\n"))],
-    components: [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(MANUAL_SCORES_CUSTOM_IDS.open).setLabel("Manual Scores").setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId(MENU_CUSTOM_IDS.leagueMgmtAdvance).setLabel("Back").setStyle(ButtonStyle.Danger),
-      ),
-    ],
-  });
 }
 
 async function handleTroubleshootMenu(interaction: ButtonInteraction) {

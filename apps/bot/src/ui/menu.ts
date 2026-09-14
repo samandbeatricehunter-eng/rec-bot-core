@@ -49,7 +49,6 @@ export const MENU_CUSTOM_IDS = {
   leagueMgmtScheduleView: "rec:league_mgmt:schedule:view",
   leagueMgmtScheduleBack: "rec:league_mgmt:schedule:back",
   leagueMgmtAdvance: "rec:league_mgmt:advance",
-  leagueMgmtUploadScores: "rec:league_mgmt:advance:upload_scores",
   leagueMgmtAdvanceWeek: "rec:league_mgmt:advance:week",
   leagueMgmtActiveCheck: "rec:league_mgmt:advance:active_check",
   leagueMgmtGotwPolls: "rec:league_mgmt:advance:gotw_polls",
@@ -252,11 +251,11 @@ export function buildAdminPanelEmbed(input: { coCommissionerLimited?: boolean } 
       "**Box Scores** - Commissioner-assisted upload flow for prior or missed box scores.",
     ]
     : [
-      "**New here?** Run your game in-game first (advance Madden/CFB), then come back to upload scores and advance REC — that order keeps the new week, scores, playoff bracket, and schedule screenshots ready to import.",
+      "**New here?** Run your game in-game first (advance Madden/CFB), then come back and advance REC — that order keeps the new week, scores, and playoff bracket ready for the EA import.",
       "",
       "**Teams / Roles** — Link coaches to teams, edit relocated/custom teams, reset defaults, and manage REC Discord roles.",
-      "**Schedule** — Upload a schedule screenshot, enter it manually, or review the current schedule. Playoff schedules usually need an in-game advance first.",
-      "**Advance** — Upload score catch-up tools and active checks live here; advancing the league week, GOTW, game channels, and EOS payouts moved to the web dashboard.",
+      "**Schedule** — Enter the schedule manually or review the current one. Playoff schedules usually need an in-game advance first.",
+      "**Advance** — Set Week/Season and active checks live here; advancing the league week, GOTW, game channels, and EOS payouts moved to the web dashboard.",
       "**Settings** — Update league & server configuration (channels, economy, rules, activity requirements).",
       "**Delete League** — Permanently archive historical results and remove this server's active league. New leagues are created on the REC website.",
     ];

@@ -30,7 +30,6 @@ import type {
   LeagueWeekView,
   TeamDraftPick,
   LinkedTeamsResponse,
-  ManualScoreRecordResult,
   MentionableList,
   WeeklyH2hGamesResponse,
   HubReactionKey,
@@ -786,9 +785,6 @@ export const recApi = {
     recApiFetch<any>("/v1/legends/purchase", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
   cancelHubLegend: (input: { guildId: string; legendId: string }) =>
     recApiFetch<{ ok: true; refunded: number }>("/v1/legends/cancel", { method: "POST", body: JSON.stringify({ ...input, discordId: "web-dashboard" }) }),
-  // Manual final-score entry (Advance)
-  recordManualScore: (input: { guildId: string; gameId: string; outcome: "home" | "away" | "tie"; homeScore?: number | null; awayScore?: number | null }) =>
-    recApiFetch<ManualScoreRecordResult>("/v1/league-week/manual-scores/record", { method: "POST", body: JSON.stringify(input) }),
 
   // Commissioner notification center
   listCommissionerNotifications: (guildId: string) =>
