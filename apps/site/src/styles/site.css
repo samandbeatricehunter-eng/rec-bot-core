@@ -1481,10 +1481,12 @@ h1, h2, h3, .site-wordmark {
   z-index: 70;
   display: grid;
   place-items: center;
-  background: #000;
   color: #fff;
   text-align: center;
   padding: 20px;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 42%, rgba(8, 10, 14, 0.35), rgba(4, 5, 7, 0.86) 68%, #030405 100%),
+    #030405 url("/assets/media-day-backdrop.png") center 30% / cover no-repeat;
 }
 .media-day-gate-advanced {
   display: flex;
