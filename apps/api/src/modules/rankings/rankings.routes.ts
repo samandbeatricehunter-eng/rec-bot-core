@@ -20,7 +20,7 @@ export async function rankingsRoutes(app: FastifyInstance) {
       await requireSiteUserSession(request);
       const body = z
         .object({
-          game: z.enum(["madden_26", "madden_27", "cfb_27"]),
+          game: z.enum(["madden_26", "madden_27"]),
           scope: z.enum(["dynasty"]),
         })
         .parse(request.body ?? {});

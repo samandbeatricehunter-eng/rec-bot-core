@@ -607,11 +607,7 @@ function cityFromTeamName(team: { name?: string | null; display_nick?: string | 
   return parts.length > 1 ? parts.slice(0, -1).join(" ") : null;
 }
 
-/**
- * Secondary hero line under the team nick:
- * - CFB: school/city only (Hard Knox) — never prefixed with "School:"
- * - Madden: "New Orleans, LA" (no school concept)
- */
+/** Secondary hero line under the team nick: "New Orleans, LA". */
 export function resolveTeamSubtitle(
   team: {
     name?: string | null;
@@ -619,13 +615,8 @@ export function resolveTeamSubtitle(
     display_nick?: string | null;
     is_relocated?: boolean | null;
   } | null | undefined,
-  game: string | null | undefined,
 ): string | null {
   if (!team) return null;
-  const isCfb = String(game ?? "").startsWith("cfb");
-  if (isCfb) {
-    return resolveTeamSchool(team) ?? (team.display_city?.trim() || null);
-  }
   const city = team.display_city?.trim() || cityFromTeamName(team);
   if (!city) return null;
   const state = NFL_CITY_STATE[city];

@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 
-export type SiteTheme = "app" | "cfb_27" | "madden_26" | "madden_27" | string;
+export type SiteTheme = "app" | "madden_26" | "madden_27" | string;
 
 type SiteThemeContextValue = {
   theme: SiteTheme;

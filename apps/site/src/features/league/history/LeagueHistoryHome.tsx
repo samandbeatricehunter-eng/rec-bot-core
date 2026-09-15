@@ -9,10 +9,6 @@ import { Button } from "../../../../../web/src/components/ui/Button.js";
 import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
 import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
 
-function isCfbGame(game: string | null) {
-  return (game ?? "").startsWith("cfb");
-}
-
 function shiftLabel(delta: number | null): string {
   if (delta == null) return "new";
   if (delta === 0) return "—";
@@ -68,10 +64,7 @@ function WeeklyResults({ weeklyResults }: { weeklyResults: LeagueHistorySeason["
   );
 }
 
-export function SeasonHistoryDetail({ season, game }: { season: LeagueHistorySeason; game: string | null }) {
-  const cfb = isCfbGame(game);
-  const championshipLabel = cfb ? "National Championship" : "Super Bowl";
-
+export function SeasonHistoryDetail({ season }: { season: LeagueHistorySeason }) {
   return (
     <div className="hub-history-season">
       <Card className="hub-history-category">
@@ -101,22 +94,8 @@ export function SeasonHistoryDetail({ season, game }: { season: LeagueHistorySea
 
       {season.championship && (
         <Card className="hub-history-category">
-          <h3>{championshipLabel}</h3>
+          <h3>Super Bowl</h3>
           <p><strong>{season.championship.winner ?? "—"}</strong> defeated <strong>{season.championship.runnerUp ?? "—"}</strong>{season.championship.score ? ` (${season.championship.score})` : ""}</p>
-        </Card>
-      )}
-
-      {cfb && season.bowlWinners.length > 0 && (
-        <Card className="hub-history-category">
-          <h3>Bowl Winners</h3>
-          <div className="hub-history-table">
-            {season.bowlWinners.map((bowl, i) => (
-              <div key={`${bowl.bowlName}-${i}`} className="hub-history-table-row hub-history-bowl-row">
-                <span>{bowl.bowlName ?? "Bowl Game"}</span>
-                <span>{bowl.winner ?? "—"} def. {bowl.loser ?? "—"}{bowl.score ? ` (${bowl.score})` : ""}</span>
-              </div>
-            ))}
-          </div>
         </Card>
       )}
 
@@ -126,22 +105,8 @@ export function SeasonHistoryDetail({ season, game }: { season: LeagueHistorySea
           <div className="hub-history-table">
             {season.postseasonGames.map((g, i) => (
               <div key={i} className="hub-history-table-row hub-history-bowl-row">
-                <span>{g.weekNumber != null ? `Week ${g.weekNumber}` : "—"}{g.bowlName ? ` · ${g.bowlName}` : g.postseasonRound ? ` · ${g.postseasonRound}` : ""}</span>
+                <span>{g.weekNumber != null ? `Week ${g.weekNumber}` : "—"}</span>
                 <span>{g.awayTeam} {g.awayScore ?? "—"} @ {g.homeTeam} {g.homeScore ?? "—"}{g.winner ? ` — ${g.winner} won` : ""}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {cfb && season.finalTop25.length > 0 && (
-        <Card className="hub-history-category">
-          <h3>Final Top 25</h3>
-          <div className="hub-history-table">
-            {season.finalTop25.map((row) => (
-              <div key={row.rank} className="hub-history-table-row hub-history-top25-row">
-                <span>#{row.rank}</span>
-                <span>{row.teamName}{row.conferenceChampion ? " · Conf. Champion" : ""}</span>
               </div>
             ))}
           </div>
@@ -220,7 +185,7 @@ export function LeagueHistoryHome({ embedded = false }: { embedded?: boolean } =
               </button>
             ))}
           </div>
-          {season && <SeasonHistoryDetail season={season} game={history.league.game} />}
+          {season && <SeasonHistoryDetail season={season} />}
         </>
       )}
     </div>

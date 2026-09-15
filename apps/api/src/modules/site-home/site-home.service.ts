@@ -8,7 +8,7 @@ import { supabase } from "../../lib/supabase.js";
 import { letterGradeForRating } from "../league-week/ratings.service.js";
 import { computeUserRatings } from "../league-week/ratings.service.js";
 import { requireLinkedRecUser } from "../site-leagues/site-leagues.service.js";
-import { aggregateBoxScoreStats, formatTeamDisplayName, loadCareerBoxScoreStats, resolveTeamSchool } from "../users/user-profile-stats.service.js";
+import { aggregateBoxScoreStats, formatTeamDisplayName, loadCareerBoxScoreStats } from "../users/user-profile-stats.service.js";
 import { getUserPowerRank } from "../rankings/rankings.service.js";
 import { creditOrBacklog } from "../economy/economy-backlog.js";
 
@@ -486,11 +486,8 @@ export async function getSpotlightReel(input: { authUserId: string | null }) {
   const spotlightGameUserNameById = new Map<string, string>((spotlightGameUsers.data ?? []).map((u: any) => [u.id, String(u.username ?? u.display_name ?? "REC Member")]));
 
   const postById = new Map<string, any>((posts.data ?? []).map((row: any) => [String(row.id), row]));
-  const gameByLeagueId = new Map<string, string>((posts.data ?? []).map((post: any) => [String(post.league_id), String(post.league?.game ?? "")]));
-  const reelTeamName = (leagueId: string, team: any, fallback: string) =>
-    gameByLeagueId.get(leagueId) === "cfb_27"
-      ? resolveTeamSchool(team) ?? team?.name ?? team?.abbreviation ?? fallback
-      : formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
+  const reelTeamName = (_leagueId: string, team: any, fallback: string) =>
+    formatTeamDisplayName(team) ?? team?.name ?? team?.abbreviation ?? fallback;
   const matchupByTeamWeek = new Map<string, { label: string; participants: { away: string; home: string } | null }>();
   for (const game of games.data ?? []) {
     const awayName = reelTeamName(String(game.league_id), (game as any).away_team, "Away");
@@ -730,7 +727,6 @@ export async function addHighlightComment(input: {
 const GAME_LABELS_FOR_STATS: Record<string, string> = {
   madden_26: "Madden 26",
   madden_27: "Madden 27",
-  cfb_27: "CFB 27",
 };
 
 // rec_user_box_score_profile_stats (a materialized per-game-type snapshot) has no writer

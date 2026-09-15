@@ -4,10 +4,6 @@ import { useAuth } from "../lib/auth-context.js";
 import { siteApi, type PublicLeagueHistory, type PublicLeagueHistorySeason, type PublicLeagueSnapshot, type PublicLeagueWeekMatchups } from "../lib/site-api.js";
 import { SiteFooter } from "../components/SiteFooter.js";
 
-function isCfbGame(game: string | null) {
-  return (game ?? "").startsWith("cfb");
-}
-
 // Public "Submit Highlight(s)" — non-site users can reach the league page via /viewleague and
 // submit clips here without the Discord Activity hub. Same direct-to-Cloudflare-Stream flow the
 // hub's HighlightUploadModal uses; uploaded clips enter commissioner review.
@@ -170,9 +166,7 @@ function PublicWeeklyResults({ weeklyResults }: { weeklyResults: PublicLeagueHis
   );
 }
 
-function PublicSeasonHistory({ season, game }: { season: PublicLeagueHistorySeason; game: string | null }) {
-  const cfb = isCfbGame(game);
-  const championshipLabel = cfb ? "National Championship" : "Super Bowl";
+function PublicSeasonHistory({ season }: { season: PublicLeagueHistorySeason }) {
   return (
     <>
       <section className="site-public-league-section">
@@ -200,19 +194,8 @@ function PublicSeasonHistory({ season, game }: { season: PublicLeagueHistorySeas
 
       {season.championship && (
         <section className="site-public-league-section">
-          <h3>{championshipLabel}</h3>
+          <h3>Super Bowl</h3>
           <p className="site-muted"><strong>{season.championship.winner ?? "—"}</strong> defeated <strong>{season.championship.runnerUp ?? "—"}</strong>{season.championship.score ? ` (${season.championship.score})` : ""}</p>
-        </section>
-      )}
-
-      {cfb && season.bowlWinners.length > 0 && (
-        <section className="site-public-league-section">
-          <h3>Bowl Winners</h3>
-          <ul className="site-public-league-list">
-            {season.bowlWinners.map((bowl, i) => (
-              <li key={`${bowl.bowlName}-${i}`}><span>{bowl.bowlName ?? "Bowl Game"}</span><strong>{bowl.winner ?? "—"} def. {bowl.loser ?? "—"}{bowl.score ? ` (${bowl.score})` : ""}</strong></li>
-            ))}
-          </ul>
         </section>
       )}
 
@@ -222,20 +205,9 @@ function PublicSeasonHistory({ season, game }: { season: PublicLeagueHistorySeas
           <ul className="site-public-league-list">
             {season.postseasonGames.map((g, i) => (
               <li key={i}>
-                <span>{g.weekNumber != null ? `Week ${g.weekNumber}` : "—"}{g.bowlName ? ` · ${g.bowlName}` : g.postseasonRound ? ` · ${g.postseasonRound}` : ""}</span>
+                <span>{g.weekNumber != null ? `Week ${g.weekNumber}` : "—"}</span>
                 <strong>{g.awayTeam} {g.awayScore ?? "—"} @ {g.homeTeam} {g.homeScore ?? "—"}</strong>
               </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {cfb && season.finalTop25.length > 0 && (
-        <section className="site-public-league-section">
-          <h3>Final Top 25</h3>
-          <ul className="site-public-league-list">
-            {season.finalTop25.map((row) => (
-              <li key={row.rank}><span>#{row.rank} {row.teamName}</span>{row.conferenceChampion && <strong>Conf. Champion</strong>}</li>
             ))}
           </ul>
         </section>
@@ -470,7 +442,7 @@ export function PublicLeague() {
                 </div>
                 {(() => {
                   const season = history.seasons.find((s) => s.seasonNumber === activeSeason);
-                  return season ? <PublicSeasonHistory season={season} game={history.league.game} /> : null;
+                  return season ? <PublicSeasonHistory season={season} /> : null;
                 })()}
               </section>
             )}

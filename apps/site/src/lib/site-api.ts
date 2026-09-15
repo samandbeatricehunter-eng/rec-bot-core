@@ -669,13 +669,6 @@ export type SiteOpenTeam = {
   mascot: string | null;
 };
 
-export type SiteLeagueConferenceReassignment = {
-  abbreviation: string;
-  name: string;
-  fromConference: string;
-  toConference: string;
-};
-
 export type SiteLeagueSearchHit = {
   id: string;
   name: string;
@@ -751,24 +744,6 @@ export type SiteLeagueSearchHit = {
   positionChangePolicy: string | null;
   positionChangePolicyDescription: string | null;
 
-  coachModeEnabled: boolean;
-  activeRostersEnabled: boolean | null;
-  dynastyType: string | null;
-  conferenceRealignment: string | null;
-  conferenceReassignments: SiteLeagueConferenceReassignment[];
-  recruitingDifficulty: string | null;
-  coachXpSetting: string | null;
-  transferPortalEnabled: boolean | null;
-  homeFieldAdvantageEnabled: boolean | null;
-  coachCarouselEnabled: boolean | null;
-  stadiumPulseEnabled: boolean | null;
-  coachModeRecruitFlippingEnabled: boolean | null;
-  coachModeAutoRecruitingEnabled: boolean | null;
-  coachModeAutoProgressPlayersEnabled: boolean | null;
-  coachModeUserAutoProgressionEnabled: boolean | null;
-  coachModeCpuManageBudgetEnabled: boolean | null;
-  coachModeCpuManageStaffEnabled: boolean | null;
-  coachModeCpuManageFacilitiesEnabled: boolean | null;
   crossPlayEnabled: boolean;
   requiredConsole: string | null;
 };
@@ -1365,7 +1340,7 @@ export const siteApi = {
   getLeagueCreatorStatus() {
     return request<{ allowed: boolean }>("/v1/site-leagues/create/whoami", {});
   },
-  createLeague(input: { name: string; game: "madden_26" | "madden_27" | "cfb_27"; leagueType?: string; activeRostersEnabled?: boolean; trackRostersEnabled?: boolean; [key: string]: unknown }) {
+  createLeague(input: { name: string; game: "madden_26" | "madden_27"; leagueType?: string; activeRostersEnabled?: boolean; trackRostersEnabled?: boolean; [key: string]: unknown }) {
     return request<{ league: { id: string; name: string; game: string } }>("/v1/site-leagues/create", input);
   },
   immortalityHub(guildId: string) {
@@ -1884,15 +1859,13 @@ export type PublicLeagueWeekMatchups = {
 export type PublicLeagueHistorySeason = {
   seasonNumber: number;
   teamRecords: Array<{ userId: string; coachName: string; teamId: string | null; teamName: string; abbr: string | null; wins: number; losses: number; ties: number; pointsFor: number; pointsAgainst: number }>;
-  postseasonGames: Array<{ weekNumber: number | null; homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; winner: string | null; isBowl: boolean; bowlName: string | null; isNationalChampionship: boolean; isSuperBowl: boolean; postseasonRound: string | null }>;
-  bowlWinners: Array<{ bowlName: string | null; winner: string | null; loser: string | null; score: string | null }>;
+  postseasonGames: Array<{ weekNumber: number | null; homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; winner: string | null; isSuperBowl: boolean }>;
   championship: { winner: string | null; runnerUp: string | null; score: string | null } | null;
   powerRankings: {
     start: Array<{ rank: number; teamName: string; score: number }>; startWeek: number | null;
     mid: Array<{ rank: number; teamName: string; score: number }>; midWeek: number | null;
     end: Array<{ rank: number; teamName: string; score: number }>; endWeek: number | null;
   };
-  finalTop25: Array<{ rank: number; teamName: string; conferenceChampion: boolean }>;
   weeklyResults: Array<{
     weekNumber: number;
     matchups: Array<{ homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; winner: string | null; isTie: boolean; isPlayoff: boolean }>;

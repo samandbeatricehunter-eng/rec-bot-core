@@ -216,7 +216,7 @@ export async function getLeagueHeaderSummary(guildId: string, discordId: string)
     league: {
       id: leagueId,
       name: context.rec_leagues.name ?? "",
-      game: String(context.rec_leagues.game ?? "cfb_27"),
+      game: String(context.rec_leagues.game ?? "madden_27"),
       leaguePassword: context.rec_leagues.league_password ?? null,
       seasonNumber: Number(context.rec_leagues.season_number ?? 1),
       currentWeek,

@@ -85,10 +85,6 @@ function boolTri(value: "" | "true" | "false"): boolean | undefined {
   return undefined;
 }
 
-function isCfbGame(game: string) {
-  return game === "cfb_27";
-}
-
 function consoleLabel(console: string) {
   return console === "ps5" ? "PS5" : console === "xbox" ? "Xbox" : console === "pc" ? "PC" : console;
 }
@@ -119,17 +115,8 @@ function streamingLabel(value: string | null | undefined) {
   return value.replaceAll("_", " ");
 }
 
-function difficultyLabel(value: string | null | undefined, game: string) {
+function difficultyLabel(value: string | null | undefined) {
   if (!value) return "-";
-  if (isCfbGame(game)) {
-    const map: Record<string, string> = {
-      rookie: "Freshman",
-      pro: "Varsity",
-      all_pro: "All-American",
-      all_madden: "Heisman",
-    };
-    return map[value] ?? value.replaceAll("_", " ");
-  }
   const map: Record<string, string> = {
     rookie: "Rookie",
     pro: "Pro",
@@ -231,7 +218,6 @@ function LeagueSearchCard({
   onOpen: () => void;
   onRequestTeam: () => void;
 }) {
-  const cfb = isCfbGame(league.game);
   const streamNeeded =
     league.regularSeasonStreamingRequirement === "required" ||
     league.regularSeasonStreamingRequirement === "recommended" ||
@@ -290,7 +276,7 @@ function LeagueSearchCard({
           </div>
 
           <ul className="site-league-search-meta">
-            <Pill label="Difficulty" value={difficultyLabel(league.difficulty, league.game)} />
+            <Pill label="Difficulty" value={difficultyLabel(league.difficulty)} />
             <Pill label="Coin economy" value={onOff(league.coinEconomyEnabled)} />
             <Pill label="League type" value={titleCase(league.rosterType)} />
             <li className="site-league-pill-info-wrap">
@@ -373,49 +359,19 @@ function LeagueSearchCard({
                       }
                     />
 
-                    {!cfb ? (
-                      <>
-                        <Pill
-                          label="Coach abilities restricted"
-                          value={onOff(league.coachAbilitiesRestricted)}
-                          title={league.coachAbilitiesRestrictionNotes || undefined}
-                        />
-                        <Pill label="Trade approval" value={titleCase(league.tradeApprovalPolicy)} />
-                        <Pill
-                          label="CPU trading"
-                          value={titleCase(league.cpuTradingPolicy)}
-                          title={league.cpuTradingRestriction || undefined}
-                        />
-                        <Pill label="Salary cap" value={onOff(league.salaryCapEnabled)} />
-                        <Pill label="Abilities" value={onOff(league.abilitiesEnabled)} />
-                      </>
-                    ) : (
-                      <>
-                        <Pill label="Coach mode" value={onOff(league.coachModeEnabled)} />
-                        <Pill label="Active rosters" value={onOff(Boolean(league.activeRostersEnabled))} />
-                        <Pill
-                          label="Teams replaced with customs"
-                          value={yesNo(league.dynastyType === "mixed")}
-                        />
-                        <Pill
-                          label="Conference realignment"
-                          value={
-                            league.conferenceRealignment === "allowed"
-                              ? league.conferenceReassignments.length > 0
-                                ? `Allowed · ${league.conferenceReassignments.length} reassigned`
-                                : "Allowed"
-                              : "Locked"
-                          }
-                        />
-                        <Pill label="Recruiting difficulty" value={titleCase(league.recruitingDifficulty)} />
-                        <Pill label="Coach XP" value={titleCase(league.coachXpSetting ?? "casual")} />
-                        <Pill label="Transfer portal" value={onOff(Boolean(league.transferPortalEnabled))} />
-                        <Pill
-                          label="Home field advantage"
-                          value={onOff(Boolean(league.homeFieldAdvantageEnabled))}
-                        />
-                      </>
-                    )}
+                    <Pill
+                      label="Coach abilities restricted"
+                      value={onOff(league.coachAbilitiesRestricted)}
+                      title={league.coachAbilitiesRestrictionNotes || undefined}
+                    />
+                    <Pill label="Trade approval" value={titleCase(league.tradeApprovalPolicy)} />
+                    <Pill
+                      label="CPU trading"
+                      value={titleCase(league.cpuTradingPolicy)}
+                      title={league.cpuTradingRestriction || undefined}
+                    />
+                    <Pill label="Salary cap" value={onOff(league.salaryCapEnabled)} />
+                    <Pill label="Abilities" value={onOff(league.abilitiesEnabled)} />
                   </ul>
                 </div>
               ) : null}
@@ -475,91 +431,32 @@ function LeagueSearchCard({
           {league.coinEconomyEnabled ? (
             <div className="site-league-detail-grid">
               <DetailRow label="Custom players" value={onOff(league.customPlayersEnabled)} />
-              <DetailRow
-                label={cfb ? "Campus Legends" : "Legends"}
-                value={onOff(league.legendsEnabled)}
-              />
+              <DetailRow label="Legends" value={onOff(league.legendsEnabled)} />
               <DetailRow label="Dev upgrades" value={onOff(league.devUpgradesEnabled)} />
               <DetailRow label="Attribute purchases" value={onOff(league.attributePurchasesEnabled)} />
-              {!cfb ? (
-                <DetailRow
-                  label="Contract purchases"
-                  value={onOff(league.contractAdjustmentPurchasesEnabled)}
-                />
-              ) : null}
-            </div>
-          ) : null}
-
-          {!cfb ? (
-            <div className="site-league-detail-grid">
-              <DetailRow label="Trade deadline" value={onOff(league.tradeDeadlineEnabled)} />
-              <DetailRow label="Age resets" value={onOff(league.ageResetsEnabled)} />
               <DetailRow
                 label="Contract purchases"
                 value={onOff(league.contractAdjustmentPurchasesEnabled)}
               />
-              <DetailRow
-                label="Position change policy"
-                value={
-                  <span title={league.positionChangePolicyDescription || undefined}>
-                    {titleCase(league.positionChangePolicy)}
-                  </span>
-                }
-              />
-            </div>
-          ) : (
-            <div className="site-league-detail-grid">
-              <DetailRow label="Coach carousel" value={onOff(Boolean(league.coachCarouselEnabled))} />
-              <DetailRow label="Stadium pulse" value={onOff(Boolean(league.stadiumPulseEnabled))} />
-              {league.coachModeEnabled ? (
-                <>
-                  <DetailRow
-                    label="Recruit flipping"
-                    value={onOff(Boolean(league.coachModeRecruitFlippingEnabled))}
-                  />
-                  <DetailRow
-                    label="Auto recruiting"
-                    value={onOff(Boolean(league.coachModeAutoRecruitingEnabled))}
-                  />
-                  <DetailRow
-                    label="Auto progress players"
-                    value={onOff(Boolean(league.coachModeAutoProgressPlayersEnabled))}
-                  />
-                  <DetailRow
-                    label="User auto progression"
-                    value={onOff(Boolean(league.coachModeUserAutoProgressionEnabled))}
-                  />
-                  <DetailRow
-                    label="CPU manage budget"
-                    value={onOff(Boolean(league.coachModeCpuManageBudgetEnabled))}
-                  />
-                  <DetailRow
-                    label="CPU manage staff"
-                    value={onOff(Boolean(league.coachModeCpuManageStaffEnabled))}
-                  />
-                  <DetailRow
-                    label="CPU manage facilities"
-                    value={onOff(Boolean(league.coachModeCpuManageFacilitiesEnabled))}
-                  />
-                </>
-              ) : null}
-            </div>
-          )}
-
-          {cfb &&
-          league.conferenceRealignment === "allowed" &&
-          league.conferenceReassignments.length > 0 ? (
-            <div className="site-league-activity">
-              <h3>Conference reassignments</h3>
-              <ul>
-                {league.conferenceReassignments.map((row) => (
-                  <li key={`${row.abbreviation}-${row.toConference}`}>
-                    {row.name} ({row.abbreviation}): {row.fromConference} → {row.toConference}
-                  </li>
-                ))}
-              </ul>
             </div>
           ) : null}
+
+          <div className="site-league-detail-grid">
+            <DetailRow label="Trade deadline" value={onOff(league.tradeDeadlineEnabled)} />
+            <DetailRow label="Age resets" value={onOff(league.ageResetsEnabled)} />
+            <DetailRow
+              label="Contract purchases"
+              value={onOff(league.contractAdjustmentPurchasesEnabled)}
+            />
+            <DetailRow
+              label="Position change policy"
+              value={
+                <span title={league.positionChangePolicyDescription || undefined}>
+                  {titleCase(league.positionChangePolicy)}
+                </span>
+              }
+            />
+          </div>
 
           <div className="site-league-search-actions">
             <button

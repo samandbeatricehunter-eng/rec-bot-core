@@ -62,15 +62,13 @@ function primaryTeamForUsers(results: GameResultRow[]): Map<string, string> {
 export type LeagueHistorySeason = {
   seasonNumber: number;
   teamRecords: Array<{ userId: string; coachName: string; teamId: string | null; teamName: string; abbr: string | null; wins: number; losses: number; ties: number; pointsFor: number; pointsAgainst: number }>;
-  postseasonGames: Array<{ weekNumber: number | null; homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; winner: string | null; isBowl: boolean; bowlName: string | null; isNationalChampionship: boolean; isSuperBowl: boolean; postseasonRound: string | null }>;
-  bowlWinners: Array<{ bowlName: string | null; winner: string | null; loser: string | null; score: string | null }>;
+  postseasonGames: Array<{ weekNumber: number | null; homeTeam: string; awayTeam: string; homeScore: number | null; awayScore: number | null; winner: string | null; isSuperBowl: boolean }>;
   championship: { winner: string | null; runnerUp: string | null; score: string | null } | null;
   powerRankings: {
     start: Array<{ rank: number; teamName: string; score: number }>; startWeek: number | null;
     mid: Array<{ rank: number; teamName: string; score: number }>; midWeek: number | null;
     end: Array<{ rank: number; teamName: string; score: number }>; endWeek: number | null;
   };
-  finalTop25: Array<{ rank: number; teamName: string; conferenceChampion: boolean }>;
   weeklyResults: Array<{
     weekNumber: number;
     matchups: Array<{
@@ -128,29 +126,19 @@ async function buildSeasonHistory(leagueId: string, seasonNumber: number, game: 
 
   // Playoff/Super Bowl flags live directly on rec_game_results.
   const postseasonResults = results.filter((g) => g.is_playoff || g.is_super_bowl);
-  const gameMetaById = new Map<string, { is_bowl_game: boolean | null; is_national_championship: boolean | null; bowl_name: string | null; postseason_round: string | null }>();
 
   const postseasonGames = postseasonResults
     .map((g) => {
-      const meta = g.game_id ? gameMetaById.get(g.game_id) : undefined;
       const homeName = teamName(teamById.get(g.home_team_id ?? "") ?? null);
       const awayName = teamName(teamById.get(g.away_team_id ?? "") ?? null);
       const winnerName = g.winning_team_id ? teamName(teamById.get(g.winning_team_id) ?? null) : null;
       return {
         weekNumber: g.week_number, homeTeam: homeName, awayTeam: awayName,
         homeScore: g.home_score, awayScore: g.away_score, winner: winnerName,
-        isBowl: Boolean(meta?.is_bowl_game), bowlName: meta?.bowl_name ?? null,
-        isNationalChampionship: Boolean(meta?.is_national_championship), isSuperBowl: Boolean(g.is_super_bowl),
-        postseasonRound: meta?.postseason_round ?? null,
+        isSuperBowl: Boolean(g.is_super_bowl),
       };
     })
     .sort((a, b) => (a.weekNumber ?? 0) - (b.weekNumber ?? 0));
-
-  const bowlWinners = postseasonGames.filter((g) => g.isBowl).map((g) => {
-    const loser = g.winner === g.homeTeam ? g.awayTeam : g.homeTeam;
-    const score = g.homeScore != null && g.awayScore != null ? `${Math.max(g.homeScore, g.awayScore)}-${Math.min(g.homeScore, g.awayScore)}` : null;
-    return { bowlName: g.bowlName, winner: g.winner, loser, score };
-  });
 
   const championshipGame = postseasonGames.find((g) => g.isSuperBowl);
   const championship = championshipGame
@@ -185,8 +173,6 @@ async function buildSeasonHistory(leagueId: string, seasonNumber: number, game: 
     mid: snapshotFor(midWeek), midWeek,
     end: snapshotFor(endWeek), endWeek,
   };
-
-  const finalTop25: LeagueHistorySeason["finalTop25"] = [];
 
   // Week-by-week: every logged game grouped by week, plus that week's power-ranking movement
   // (this week's snapshot rank vs. the prior available snapshot's rank for the same team —
@@ -240,7 +226,7 @@ async function buildSeasonHistory(leagueId: string, seasonNumber: number, game: 
     return { weekNumber, matchups, powerRankingShifts };
   });
 
-  return { seasonNumber, teamRecords, postseasonGames, bowlWinners, championship, powerRankings, finalTop25, weeklyResults };
+  return { seasonNumber, teamRecords, postseasonGames, championship, powerRankings, weeklyResults };
 }
 
 export async function getLeagueHistory(guildId: string) {

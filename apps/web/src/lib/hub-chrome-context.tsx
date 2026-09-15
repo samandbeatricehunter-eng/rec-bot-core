@@ -26,7 +26,6 @@ export type HubLeagueMeta = {
 };
 
 const GAME_LABELS: Record<string, string> = {
-  cfb_27: "CFB 27",
   madden_26: "Madden 26",
   madden_27: "Madden 27",
 };

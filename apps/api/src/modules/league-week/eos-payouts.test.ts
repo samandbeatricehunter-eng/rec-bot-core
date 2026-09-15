@@ -12,11 +12,6 @@ test("Madden import team INTs read defIntsRec stored as team_interceptions", () 
   assert.equal(evalTeamStat("total_offense_yards", rows, "madden_27"), 330);
 });
 
-test("CFB box-score team INTs still use opponent interceptions_thrown", () => {
-  const rows = [{ defensive_stats: { interceptions_thrown: 3 } }];
-  assert.equal(evalTeamStat("team_interceptions", rows, "cfb_27"), 3);
-});
-
 test("Madden RB workhorse requires every EA rushing threshold", () => {
   const definition = REC_END_SEASON_PAYOUTS.find((item) => item.key === "madden_rb_workhorse")!;
   const short = evaluateImportPlayerBonus(definition, {

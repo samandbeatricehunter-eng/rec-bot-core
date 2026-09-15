@@ -7,7 +7,7 @@ import { computePowerRankings } from "../schedule/power-rankings.service.js";
 import { ANALYST_META, type AnalystVoice } from "./roundtable-take-bank.js";
 import { loadHostOverridesForLeague } from "./roundtable-hosts.service.js";
 
-const GAME_LABELS: Record<string, string> = { cfb_27: "CFB 27", madden_26: "Madden 26", madden_27: "Madden 27" };
+const GAME_LABELS: Record<string, string> = { madden_26: "Madden 26", madden_27: "Madden 27" };
 function gameLabelFor(game: string): string {
   return GAME_LABELS[game] ?? game.replace(/_/g, " ").toUpperCase();
 }
