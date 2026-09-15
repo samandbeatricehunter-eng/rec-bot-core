@@ -47,9 +47,6 @@ export type TeamScheduleManualWeek = {
   isBye: boolean;
   byeType: "regular_season" | "cfp_first_round";
   postseasonRound: string | null;
-  bowlName: string | null;
-  isBowlGame: boolean;
-  isNationalChampionship: boolean;
   rivalry: {
     enabled: boolean;
     optedOut: boolean;
@@ -75,10 +72,6 @@ export type CommitDecision = {
   weekNumber: number;
   opponentTeamId: string;
   homeAway: "home" | "away";
-  postseasonRound?: string | null;
-  bowlName?: string | null;
-  isBowlGame?: boolean;
-  isNationalChampionship?: boolean;
 };
 export type CommitByeWeeks = number[];
 export type CommitResult = { saved: Array<{ weekNumber: number; skipped: boolean; reason?: string }> };
@@ -318,8 +311,6 @@ export type AdvanceGame = {
   needsInput: boolean;
   isCpuGame: boolean;
   isH2h: boolean;
-  isBowlGame: boolean;
-  isNationalChampionship: boolean;
   homeScore: number | null;
   awayScore: number | null;
   fwFlaggedForUserId: string | null;

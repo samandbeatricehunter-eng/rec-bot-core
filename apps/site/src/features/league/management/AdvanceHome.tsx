@@ -296,8 +296,6 @@ function AdvanceScoreReview() {
                   </span>
                 )}
                 {pollByGameId.has(g.gameId) && <Badge status="info">GOTW</Badge>}
-                {g.isBowlGame && <Badge status="info">Bowl Game</Badge>}
-                {g.isNationalChampionship && <Badge status="info">National Championship</Badge>}
               </div>
               {g.needsInput && (
                 <div className="advance-score-entry">

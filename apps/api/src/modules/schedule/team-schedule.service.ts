@@ -1,13 +1,11 @@
-import { randomUUID } from "node:crypto";
 import { maxSeasonWeek, NFL_TEAM_PRIMARY_COLORS } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
-import { resolveSeasonId, resolveSeasonNumber } from "../league-context/season.service.js";
-import { leagueWeekGamesQuery } from "../league-context/league-games.query.js";
-import { listScheduleSeason, loadSchedulePlaceholderTeamIds, saveManualScheduleGame } from "./schedule.service.js";
-import { formatTeamDisplayName, resolveTeamNick, resolveTeamSchool } from "../users/user-profile-stats.service.js";
-import { assignKnownRivalryToGame, loadGameRivalries } from "../rivalries/rivalries.service.js";
+import { resolveSeasonNumber } from "../league-context/season.service.js";
+import { listScheduleSeason } from "./schedule.service.js";
+import { formatTeamDisplayName, resolveTeamNick } from "../users/user-profile-stats.service.js";
+import { loadGameRivalries } from "../rivalries/rivalries.service.js";
 
 type ConfirmedWeek = {
   gameId: string;
@@ -21,9 +19,6 @@ type ConfirmedWeek = {
   homeAway: "home" | "away";
   matchupType: "h2h" | "cpu";
   postseasonRound: string | null;
-  bowlName: string | null;
-  isBowlGame: boolean;
-  isNationalChampionship: boolean;
 };
 
 // Used by the web dashboard's manual schedule preview (getTeamScheduleManualState) — a
@@ -50,9 +45,6 @@ function buildConfirmedByWeekMap(season: { weeks: Array<{ weekNumber: number; ga
         homeAway: isAway ? "away" : "home",
         matchupType: opponentUserId ? "h2h" : "cpu",
         postseasonRound: game.postseason_round ?? null,
-        bowlName: game.bowl_name ?? null,
-        isBowlGame: Boolean(game.is_bowl_game),
-        isNationalChampionship: Boolean(game.is_national_championship),
       });
     }
   }
@@ -104,32 +96,6 @@ export async function loadResultsAndPendingSubmissions(
   return byGameId;
 }
 
-// Matches below AUTO_MATCH_THRESHOLD are surfaced but not auto-selected — the review
-// embed shows the raw OCR text and lets the commissioner pick from a dropdown either way.
-
-export type TeamScheduleWeekPreview = {
-  weekNumber: number | null;
-  weekLabel: string;
-  isBye: boolean;
-  byeType: "regular_season" | "cfp_first_round";
-  postseasonRound: string | null;
-  bowlName: string | null;
-  isBowlGame: boolean;
-  isNationalChampionship: boolean;
-  rivalry: { enabled: boolean; optedOut: boolean; details: any | null };
-  opponentRaw: string | null;
-  opponentRank: number | null;
-  homeAway: "home" | "away" | null;
-  matchedOpponentTeamId: string | null;
-  matchedOpponentName: string | null;
-  matchConfidence: number | null;
-  /** True when this team+week already has a confirmed matchup (from this or an earlier team's upload) — shown locked/read-only in the review UI. */
-  alreadyConfirmed: boolean;
-  confirmedOpponentTeamId: string | null;
-  confirmedOpponentName: string | null;
-  confirmedHomeAway: "home" | "away" | null;
-};
-
 // The web dashboard's schedule builder — the commissioner fills in every week directly in the
 // UI, plus each week's existing result/pending-submission so the builder can show (and act on)
 // final scores inline instead of starting from blank.
@@ -145,9 +111,6 @@ export type TeamScheduleManualWeek = {
   result: { homeScore: number; awayScore: number; isTie: boolean; source: string } | null;
   byeType: "regular_season" | "cfp_first_round";
   postseasonRound: string | null;
-  bowlName: string | null;
-  isBowlGame: boolean;
-  isNationalChampionship: boolean;
   rivalry: { enabled: boolean; optedOut: boolean; details: any | null };
   /** Persisted from rec_team_byes — stays checked across reloads until the commissioner unchecks and re-saves. */
   isBye: boolean;
@@ -263,12 +226,7 @@ export async function getTeamScheduleManualState(input: {
       result: extra?.result ?? null,
       isBye: !confirmed && byeByWeek.has(weekNumber),
       byeType: (byeByWeek.get(weekNumber) ?? (weekNumber === 16 ? "cfp_first_round" : "regular_season")) as "regular_season" | "cfp_first_round",
-      postseasonRound: confirmed?.postseasonRound ?? (weekNumber >= 15 ? ["conference_championship", "cfp_first_round", "cfp_quarterfinals", "cfp_semifinals", "national_championship"][weekNumber - 15] : null),
-      bowlName: confirmed?.bowlName ?? null,
-      // Postseason weeks are NOT bowl games by default — the flag is only set for a real
-      // bowl matchup (GOTW is automatic for every postseason game regardless).
-      isBowlGame: confirmed?.isBowlGame ?? false,
-      isNationalChampionship: confirmed?.isNationalChampionship ?? weekNumber === 19,
+      postseasonRound: confirmed?.postseasonRound ?? null,
       rivalry: confirmed ? (rivalries.get(confirmed.gameId) ?? { enabled: false, optedOut: false, details: null }) : { enabled: false, optedOut: false, details: null },
     });
   }
@@ -281,131 +239,3 @@ export async function getTeamScheduleManualState(input: {
   };
 }
 
-export async function commitTeamScheduleDecisions(input: {
-  guildId: string;
-  teamId: string;
-  seasonNumber?: number | null;
-  decisions: Array<{
-    weekNumber: number;
-    opponentTeamId: string;
-    homeAway: "home" | "away";
-    postseasonRound?: string | null;
-    bowlName?: string | null;
-    isBowlGame?: boolean;
-    isNationalChampionship?: boolean;
-  }>;
-  byeWeeks?: number[];
-  firstRoundByeWeeks?: number[];
-  requestedByDiscordId?: string | null;
-}) {
-  const context = await getCurrentLeagueContext(input.guildId);
-  const leagueId = context.leagueId;
-  const seasonNumber = resolveSeasonNumber(context, input.seasonNumber);
-  const seasonId = await resolveSeasonId(leagueId, seasonNumber);
-
-  // Full-replace diff against the checkbox state submitted by the whole-season form — a week
-  // that's unchecked and re-saved needs its bye row removed, not just left un-added.
-  const desiredByeWeeks = new Set<number>([...(input.byeWeeks ?? []), ...(input.firstRoundByeWeeks ?? [])]);
-  const existingByes = await supabase.from("rec_team_byes").select("week_number").eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId);
-  if (existingByes.error) throw new ApiError(500, "Failed to load existing bye weeks.", existingByes.error);
-  const existingByeWeeks = new Set<number>((existingByes.data ?? []).map((row: any) => Number(row.week_number)));
-  const byeWeeksToDelete = [...existingByeWeeks].filter((week) => !desiredByeWeeks.has(week));
-  const byeWeeksToInsert = [...desiredByeWeeks].filter((week) => !existingByeWeeks.has(week));
-  if (byeWeeksToDelete.length) {
-    const removed = await supabase.from("rec_team_byes").delete().eq("league_id", leagueId).eq("season_number", seasonNumber).eq("team_id", input.teamId).in("week_number", byeWeeksToDelete);
-    if (removed.error) throw new ApiError(500, "Failed to clear unchecked bye weeks.", removed.error);
-  }
-  if (byeWeeksToInsert.length) {
-    const inserted = await supabase.from("rec_team_byes").insert(byeWeeksToInsert.map((weekNumber) => ({
-      id: randomUUID(), league_id: leagueId, season_number: seasonNumber, team_id: input.teamId, week_number: weekNumber,
-      bye_type: (input.firstRoundByeWeeks ?? []).includes(weekNumber) ? "cfp_first_round" : "regular_season",
-      created_at: new Date().toISOString(),
-    })));
-    if (inserted.error) throw new ApiError(500, "Failed to save bye weeks.", inserted.error);
-  }
-  for (const weekNumber of desiredByeWeeks) {
-    const byeType = (input.firstRoundByeWeeks ?? []).includes(weekNumber) ? "cfp_first_round" : "regular_season";
-    const updated = await supabase.from("rec_team_byes").update({ bye_type: byeType })
-      .eq("league_id", leagueId).eq("season_number", seasonNumber)
-      .eq("team_id", input.teamId).eq("week_number", weekNumber);
-    if (updated.error) throw new ApiError(500, "Failed to update bye type.", updated.error);
-  }
-
-  const saved: Array<{ weekNumber: number; skipped: boolean; reason?: string }> = [];
-  for (const decision of input.decisions) {
-    const awayTeamId = decision.homeAway === "away" ? input.teamId : decision.opponentTeamId;
-    const homeTeamId = decision.homeAway === "away" ? decision.opponentTeamId : input.teamId;
-
-    const placeholderTeamIds = await loadSchedulePlaceholderTeamIds(leagueId, [awayTeamId, homeTeamId]);
-    if (placeholderTeamIds.has(awayTeamId) && placeholderTeamIds.has(homeTeamId)) {
-      saved.push({ weekNumber: decision.weekNumber, skipped: true, reason: "placeholder_needs_real_opponent" });
-      continue;
-    }
-    const protectedTeamIds = [awayTeamId, homeTeamId].filter((teamId) => !placeholderTeamIds.has(teamId));
-    const existing = protectedTeamIds.length
-      ? await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber: decision.weekNumber },
-          "id,week_number,home_team_id,away_team_id")
-          .or(`home_team_id.in.(${protectedTeamIds.join(",")}),away_team_id.in.(${protectedTeamIds.join(",")})`)
-      : { data: [], error: null };
-    if (existing.error) throw new ApiError(500, "Failed to check existing schedule matchups.", existing.error);
-    const conflicts = existing.data ?? [];
-    const exactMatch = conflicts.find((game: any) => game.home_team_id === homeTeamId && game.away_team_id === awayTeamId);
-    if (exactMatch) {
-      const metadata = await supabase.from("rec_games").update({
-        postseason_round: decision.postseasonRound ?? null,
-        bowl_name: decision.bowlName?.trim() || null,
-        is_bowl_game: Boolean(decision.isBowlGame),
-        is_national_championship: Boolean(decision.isNationalChampionship),
-        updated_at: new Date().toISOString(),
-      }).eq("id", exactMatch.id);
-      if (metadata.error) throw new ApiError(500, "Failed to update postseason details.", metadata.error);
-      await assignKnownRivalryToGame(exactMatch.id);
-      saved.push({ weekNumber: decision.weekNumber, skipped: false });
-      continue;
-    }
-    if (conflicts.length) {
-      const gameDescriptors = conflicts.map((game: any) => ({ id: game.id, weekNumber: game.week_number, homeTeamId: game.home_team_id, awayTeamId: game.away_team_id }));
-      const locked = await loadResultsAndPendingSubmissions(leagueId, seasonNumber, gameDescriptors);
-      const lockedConflict = gameDescriptors.find((game: any) => locked.get(game.id)?.result);
-      if (lockedConflict) {
-        saved.push({ weekNumber: decision.weekNumber, skipped: true, reason: "locked_result" });
-        continue;
-      }
-      const removal = await supabase.from("rec_games").delete().in("id", conflicts.map((game: any) => game.id));
-      if (removal.error) throw new ApiError(500, "Failed to clear conflicting unlocked schedule games.", removal.error);
-    }
-    if (false && (existing.data ?? []).length) {
-      // Already confirmed (from this or an earlier team's upload) — leave it alone rather
-      // than risk a slot-conflict error or overwriting an already-approved matchup.
-      saved.push({ weekNumber: decision.weekNumber, skipped: true, reason: "already_confirmed" });
-      continue;
-    }
-
-    try {
-      const weekGames = await leagueWeekGamesQuery(supabase, { leagueId, seasonId, weekNumber: decision.weekNumber }, "id");
-      if (weekGames.error) throw new ApiError(500, "Failed to load week slot count.", weekGames.error);
-
-      const savedGame = await saveManualScheduleGame({
-        guildId: input.guildId,
-        seasonNumber,
-        weekNumber: decision.weekNumber,
-        slotNumber: (weekGames.data ?? []).length + 1,
-        awayTeamId,
-        homeTeamId,
-        requestedByDiscordId: input.requestedByDiscordId,
-        postseasonRound: decision.postseasonRound ?? null,
-        bowlName: decision.bowlName ?? null,
-        isBowlGame: decision.isBowlGame,
-        isNationalChampionship: decision.isNationalChampionship,
-      });
-      await assignKnownRivalryToGame(savedGame.game.id);
-      saved.push({ weekNumber: decision.weekNumber, skipped: false });
-    } catch (err) {
-      // One bad week (e.g. a race with another commissioner's concurrent save) shouldn't
-      // abort every other week in this batch — report it and keep going.
-      saved.push({ weekNumber: decision.weekNumber, skipped: true, reason: err instanceof ApiError ? err.message : "save_failed" });
-    }
-  }
-
-  return { saved };
-}

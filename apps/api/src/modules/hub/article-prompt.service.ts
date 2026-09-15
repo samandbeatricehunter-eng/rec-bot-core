@@ -37,7 +37,7 @@ export async function buildArticlePromptDigest(input: { guildId: string; weekFro
   const seasonId = await resolveSeasonId(leagueId, seasonNumber);
 
   const gamesRes = await leagueSeasonGamesQuery(supabase, { leagueId, seasonId },
-    "id,week_number,is_bowl_game,is_national_championship,postseason_round,bowl_name,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_abbr,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_abbr,abbreviation)",
+    "id,week_number,postseason_round,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_abbr,abbreviation),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_abbr,abbreviation)",
   )
     .gte("week_number", input.weekFrom)
     .lte("week_number", input.weekTo)
@@ -80,10 +80,9 @@ export async function buildArticlePromptDigest(input: { guildId: string; weekFro
     const awayScore = Number(game.result.away_score);
     const winner = game.result.is_tie || homeScore === awayScore ? null : homeScore > awayScore ? home : away;
     const round = game.postseason_round ? ` [${String(game.postseason_round).replace(/_/g, " ")}]` : "";
-    const bowl = game.bowl_name ? ` (${game.bowl_name})` : "";
     const line = winner
-      ? `Week ${game.week_number}: ${winner} def. ${winner === home ? away : home}, ${Math.max(homeScore, awayScore)}-${Math.min(homeScore, awayScore)}${round}${bowl}`
-      : `Week ${game.week_number}: ${away} ${awayScore} - ${home} ${homeScore} (Tie)${round}${bowl}`;
+      ? `Week ${game.week_number}: ${winner} def. ${winner === home ? away : home}, ${Math.max(homeScore, awayScore)}-${Math.min(homeScore, awayScore)}${round}`
+      : `Week ${game.week_number}: ${away} ${awayScore} - ${home} ${homeScore} (Tie)${round}`;
 
     const statRows = statsByGameId.get(game.id) ?? [];
     const homeStats = statRows.find((r) => r.is_home);

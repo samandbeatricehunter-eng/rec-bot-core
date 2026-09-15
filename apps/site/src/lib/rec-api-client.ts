@@ -956,8 +956,6 @@ export const recApi = {
     recApiFetch<{ progress: { runId: string | null; stage: string; completed: string[]; status: "running" | "complete" | "error"; error?: string } | null }>("/v1/league-week/advance-progress", { method: "POST", body: JSON.stringify(input) }),
   setNextAdvanceTime: (input: { guildId: string; year: number; month: number; day: number; hour: number; minute: number; tzLabel: string }) =>
     recApiFetch<unknown>("/v1/league-week/set-next-advance", { method: "POST", body: JSON.stringify(input) }),
-  setGamePostseasonFlags: (input: { guildId: string; gameId: string; isBowlGame: boolean; isNationalChampionship: boolean }) =>
-    recApiFetch<unknown>("/v1/league-week/games/postseason-flags", { method: "POST", body: JSON.stringify(input) }),
 
   // Game channels — creates (and replaces last week's) Discord game channels for the
   // current week's H2H matchups.

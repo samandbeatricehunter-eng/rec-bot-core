@@ -18,10 +18,6 @@ type WeekPick = {
   conference: string | null;
   opponentTeamId: string | null;
   homeAway: "home" | "away" | null;
-  postseasonRound: string | null;
-  bowlName: string;
-  isBowlGame: boolean;
-  isNationalChampionship: boolean;
 };
 type SavedResult = { weekNumber: number; skipped: boolean; reason?: string };
 
@@ -33,16 +29,10 @@ function pickForWeek(week: TeamScheduleManualWeek, teams: ScheduleTeam[], fallba
       conference: opponent ? canonicalConferenceName(opponent.conference) : fallback?.conference ?? null,
       opponentTeamId: week.confirmedOpponentTeamId,
       homeAway: week.confirmedHomeAway,
-      postseasonRound: week.postseasonRound,
-      bowlName: week.bowlName ?? "",
-      isBowlGame: week.isBowlGame,
-      isNationalChampionship: week.isNationalChampionship,
     };
   }
   return fallback ?? {
     isBye: week.isBye, conference: null, opponentTeamId: null, homeAway: null,
-    postseasonRound: week.postseasonRound, bowlName: week.bowlName ?? "",
-    isBowlGame: week.isBowlGame, isNationalChampionship: week.isNationalChampionship,
   };
 }
 
@@ -130,7 +120,7 @@ function RivalryEditor({ week, guildId, teamId, teamName, onSaved }: { week: Tea
 // The whole-season, single-page form this Activity exists to demonstrate — every week is
 // a row here instead of Discord's forced one-week-at-a-time wizard, and there's no 25-option
 // select cap to work around. Results come from EA import or Advance's manual score entry —
-// this screen only manages the matchup itself (opponent/home-away/bye/bowl), not scores.
+// this screen only manages the matchup itself (opponent/home-away/bye), not scores.
 export function TeamScheduleForm() {
   const { teamId } = useParams<{ teamId: string }>();
   const { guildId } = useReadyAuth();
@@ -141,7 +131,6 @@ export function TeamScheduleForm() {
   const [saving, setSaving] = useState(false);
   const [results, setResults] = useState<SavedResult[] | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [customBowl, setCustomBowl] = useState<{ weekNumber: number; name: string } | null>(null);
   const [editingWeeks, setEditingWeeks] = useState<Set<number>>(new Set());
 
   const load = useCallback(() => {
@@ -177,8 +166,6 @@ export function TeamScheduleForm() {
       .filter(([, pick]) => !pick.isBye && pick.opponentTeamId && pick.homeAway)
       .map(([weekNumber, pick]) => ({
         weekNumber: Number(weekNumber), opponentTeamId: pick.opponentTeamId!, homeAway: pick.homeAway!,
-        postseasonRound: pick.postseasonRound, bowlName: pick.bowlName || null,
-        isBowlGame: pick.isBowlGame, isNationalChampionship: pick.isNationalChampionship,
       }));
     const byeWeeks = Object.entries(picks).filter(([weekNumber, pick]) => pick.isBye && Number(weekNumber) !== 16).map(([weekNumber]) => Number(weekNumber));
     const firstRoundByeWeeks = Object.entries(picks).filter(([weekNumber, pick]) => pick.isBye && Number(weekNumber) === 16).map(([weekNumber]) => Number(weekNumber));
@@ -258,12 +245,11 @@ export function TeamScheduleForm() {
               if (showConfirmedView) {
                 return (
                   <tr key={week.weekNumber}>
-                    <Td data-label="Week">{week.bowlName || label}</Td>
+                    <Td data-label="Week">{label}</Td>
                     <Td data-label="Matchup" colSpan={4}>
                       <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
                         <span>{week.confirmedHomeAway === "home" ? "vs" : "at"} {week.confirmedOpponentName}</span>
                         {week.postseasonRound && <Badge status="info">{stageLabel(week.postseasonRound, week.weekNumber, game)}</Badge>}
-                        {week.isBowlGame && <Badge status="approved">{week.bowlName || "Bowl Game"}</Badge>}
                         {resultLabel && (
                           <Badge status="approved">
                             {resultLabel}
@@ -301,7 +287,7 @@ export function TeamScheduleForm() {
               return (
                 <tr key={week.weekNumber}>
                   <Td data-label="Week">{label}</Td>
-                  <Td data-label={week.weekNumber === 16 ? "CFP Bye" : "Bye"}>
+                  <Td data-label={week.weekNumber === 16 ? "First-Round Bye" : "Bye"}>
                     <label className="team-schedule-check">
                       <input
                         type="checkbox"
@@ -385,8 +371,6 @@ export function TeamScheduleForm() {
           {saving ? "Saving..." : hasConfirmedWeeks ? "Save Schedule Changes" : "Save Season"}
         </Button>
       </div>
-
-      {customBowl ? <div className="modal-backdrop"><Card className="stat-edit-modal"><h2>Name custom bowl</h2><label className="form-field"><span className="form-label">Bowl name</span><input className="form-input" maxLength={100} autoFocus value={customBowl.name} onChange={(event) => setCustomBowl({ ...customBowl, name: event.target.value })} /></label><div className="form-actions"><Button variant="primary" disabled={!customBowl.name.trim()} onClick={() => { updatePick(customBowl.weekNumber, { bowlName: customBowl.name.trim(), isBowlGame: true }); setCustomBowl(null); }}>Use Custom Bowl</Button><Button variant="ghost" onClick={() => setCustomBowl(null)}>Cancel</Button></div></Card></div> : null}
     </div>
   );
 }

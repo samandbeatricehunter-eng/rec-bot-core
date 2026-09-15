@@ -328,7 +328,7 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
   // real regular-season games for that same week number.
   const phase = isRegularSeasonWeek(weekNumber, context.rec_leagues.game) ? "regular_season" : "playoffs";
   const { data: games, error } = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber },
-    "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,advance_outcome_override,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
+    "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,advance_outcome_override,home_team:rec_teams!rec_games_home_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(id,name,abbreviation,display_city,display_nick,is_relocated)")
     .eq("phase", phase);
   if (error) throw new ApiError(500, "We couldn't load the week schedule. Please try again.", error);
 
@@ -401,8 +401,6 @@ async function loadWeekGamesForStage(context: any, seasonNumber: number, weekNum
       needsInput,
       isCpuGame: !isH2h,
       isH2h,
-      isBowlGame: Boolean(game.is_bowl_game),
-      isNationalChampionship: Boolean(game.is_national_championship),
       homeScore: resultRow?.home_score ?? null,
       awayScore: resultRow?.away_score ?? null,
       fwFlaggedForUserId: null,
@@ -528,37 +526,6 @@ export async function notifyMissingBoxScore(input: { guildId: string; gameId: st
   return { ok: true as const, notifiedUserIds: userIds };
 }
 
-// Commissioner marks a CFB postseason game as a bowl game / the national championship
-// (auto-suggested by week where derivable, but always editable) — both are automatic GOTW
-// games, so flagging one immediately assigns its poll if it's an H2H matchup without one yet.
-export async function setGamePostseasonFlags(input: { guildId: string; gameId: string; isBowlGame: boolean; isNationalChampionship: boolean }) {
-  const context = await getCurrentLeagueContext(input.guildId);
-  const game = await supabase
-    .from("rec_games")
-    .select("id,week_number,home_user_id,away_user_id")
-    .eq("id", input.gameId)
-    .eq("league_id", context.leagueId)
-    .maybeSingle();
-  if (game.error) throw new ApiError(500, "We couldn't load that game. Please try again.", game.error);
-  if (!game.data) throw new ApiError(404, "Game was not found in this league.");
-
-  const updated = await supabase
-    .from("rec_games")
-    .update({ is_bowl_game: input.isBowlGame, is_national_championship: input.isNationalChampionship, updated_at: new Date().toISOString() })
-    .eq("id", input.gameId)
-    .select("*")
-    .single();
-  if (updated.error) throw new ApiError(500, "We couldn't save postseason flags. Please try again.", updated.error);
-
-  if ((input.isBowlGame || input.isNationalChampionship) && game.data.home_user_id && game.data.away_user_id) {
-    await autoAssignGotwForWeek({ guildId: input.guildId, weekNumber: game.data.week_number }).catch((err) => {
-      console.error("[ERROR] autoAssignGotwForWeek failed after flagging a postseason game (non-fatal):", err);
-    });
-  }
-
-  return { game: updated.data };
-}
-
 export type WeeklyH2hGame = {
   gameId: string;
   homeUserId: string | null;
@@ -651,7 +618,7 @@ export async function completeAdvanceWeek(input: {
     const game = await supabase
       .from("rec_games")
       .select(
-        "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,bowl_name,advance_outcome_override,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
+        "id,external_game_id,week_number,phase,home_team_id,away_team_id,home_user_id,away_user_id,advance_outcome_override,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_nick,display_city,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_nick,display_city,is_relocated)",
       )
       .eq("id", result.gameId)
       .eq("league_id", context.leagueId)

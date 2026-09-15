@@ -4,7 +4,7 @@ import { requireInternalApiKey } from "../../lib/auth.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { sendError } from "../../lib/errors.js";
 import { setLeagueWeek, viewLeagueWeek } from "./league-week.service.js";
-import { completeAdvanceWeek, getAdvanceWeekGames, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, notifyMissingBoxScore, setGamePostseasonFlags, setNextAdvanceTime } from "./advance-results.service.js";
+import { completeAdvanceWeek, getAdvanceWeekGames, getWeeklyH2hGames, listAdvanceGameStories, markAdvanceGameStoryPosted, notifyMissingBoxScore, setNextAdvanceTime } from "./advance-results.service.js";
 import { adjustEosPayoutItem, auditEosPayoutReadiness, getMyEosPayoutProgress, issueEosPayoutBatch, listEosPayoutBatch, listPendingEosLedgers, prepareEosPayouts, projectEosPayouts, reviewEosPayoutItem, reviewEosPayoutsForUser, wipeAndRerunEosLedger } from "./eos-payouts.service.js";
 import { advanceEosBallotSession, cancelOpenEosAwardPolls, castEosAwardVote, closeAndSettleEosAwardPollById, getEosAwardPoll, getEosAwardVotingBlock, getOrStartEosBallotSession, listOpenEosAwardPolls, listSettledEosAwards, prepareEosAwardNominees, recordEosAwardPoll, recordEosAwardPollVotesFromDiscord, settleEosAwardPoll, submitEosBallot } from "./eos-awards.service.js";
 import { listManualScoreGames, recordManualGameResult } from "./manual-scores.service.js";
@@ -120,23 +120,6 @@ export async function leagueWeekRoutes(app: FastifyInstance) {
       const body = z.object({ guildId: z.string().min(1), weekNumber: z.number().int() }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
       return reply.send({ winners: await computeWeeklyPlayerOfWeek(body.guildId, body.weekNumber) });
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
-
-  // Mark a CFB postseason game as a bowl game / the national championship — both are
-  // automatic GOTW games.
-  app.post("/v1/league-week/games/postseason-flags", async (request, reply) => {
-    try {
-      const body = z.object({
-        guildId: z.string().min(1),
-        gameId: z.string().uuid(),
-        isBowlGame: z.boolean(),
-        isNationalChampionship: z.boolean(),
-      }).parse(request.body);
-      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "co_commissioner" });
-      return reply.send(await setGamePostseasonFlags(body));
     } catch (error) {
       return sendError(reply, error);
     }

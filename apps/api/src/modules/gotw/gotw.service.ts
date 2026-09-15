@@ -701,7 +701,7 @@ export async function autoAssignGotwForWeek(input: { guildId: string; weekNumber
   const seasonId = await resolveSeasonId(context.leagueId, seasonNumber);
 
   const games = await leagueWeekGamesQuery(supabase, { leagueId: context.leagueId, seasonId, weekNumber: input.weekNumber },
-    "id,home_team_id,away_team_id,home_user_id,away_user_id,is_bowl_game,is_national_championship,postseason_round,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)");
+    "id,home_team_id,away_team_id,home_user_id,away_user_id,postseason_round,home_team:rec_teams!rec_games_home_team_id_fkey(name,display_city,display_nick,is_relocated),away_team:rec_teams!rec_games_away_team_id_fkey(name,display_city,display_nick,is_relocated)");
   if (games.error) throw new ApiError(500, "We couldn't load flagged postseason games. Please try again.", games.error);
 
   // Live assignments — schedule seed often writes null home_user_id/away_user_id before
@@ -719,7 +719,7 @@ export async function autoAssignGotwForWeek(input: { guildId: string; weekNumber
     const homeUserId = userByTeam.get(g.home_team_id) ?? g.home_user_id;
     const awayUserId = userByTeam.get(g.away_team_id) ?? g.away_user_id;
     return g.home_team_id && g.away_team_id && homeUserId && awayUserId
-      && (input.allH2h || g.is_bowl_game || g.is_national_championship || Boolean(g.postseason_round));
+      && (input.allH2h || Boolean(g.postseason_round));
   }).map((g: any) => ({
     ...g,
     home_user_id: userByTeam.get(g.home_team_id) ?? g.home_user_id ?? null,

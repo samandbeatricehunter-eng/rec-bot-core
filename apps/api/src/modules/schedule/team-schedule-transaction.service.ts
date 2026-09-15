@@ -16,10 +16,6 @@ type Decision = {
   weekNumber: number;
   opponentTeamId: string;
   homeAway: "home" | "away";
-  postseasonRound?: string | null;
-  bowlName?: string | null;
-  isBowlGame?: boolean;
-  isNationalChampionship?: boolean;
 };
 
 /** Atomic replacement of one team's editable schedule and byes. */
@@ -125,30 +121,20 @@ export async function commitTeamScheduleDecisionsTransactional(input: {
     if (inserts.length) {
       const values: unknown[] = [];
       const sqlRows = inserts.map(({ decision, homeTeamId, awayTeamId }, index) => {
-        const base = index * 17;
+        const base = index * 13;
         values.push(
           randomUUID(), leagueId, seasonId, decision.weekNumber, homeTeamId, awayTeamId,
           userByTeam.get(homeTeamId) ?? null, userByTeam.get(awayTeamId) ?? null,
           `manual:${leagueId}:${seasonNumber}:${decision.weekNumber}:${input.teamId}`,
-          decision.postseasonRound ?? null, decision.bowlName?.trim() || null,
-          Boolean(decision.isBowlGame), Boolean(decision.isNationalChampionship),
           "scheduled", decision.weekNumber >= 15 ? "playoffs" : "regular_season",
           new Date().toISOString(), new Date().toISOString(),
         );
-        return `(${Array.from({ length: 17 }, (_, offset) => `$${base + offset + 1}`).join(",")})`;
+        return `(${Array.from({ length: 13 }, (_, offset) => `$${base + offset + 1}`).join(",")})`;
       });
       await client.query(
-        `insert into rec_games(id,league_id,season_id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,external_game_id,postseason_round,bowl_name,is_bowl_game,is_national_championship,status,phase,created_at,updated_at)
+        `insert into rec_games(id,league_id,season_id,week_number,home_team_id,away_team_id,home_user_id,away_user_id,external_game_id,status,phase,created_at,updated_at)
          values ${sqlRows.join(",")}`,
         values,
-      );
-    }
-    for (const gameId of preserveIds) {
-      const game = relevantExisting.find((row) => String(row.id) === gameId)!;
-      const desired = desiredByWeek.get(Number(game.week_number))!;
-      await client.query(
-        `update rec_games set postseason_round=$2,bowl_name=$3,is_bowl_game=$4,is_national_championship=$5,updated_at=now() where id=$1`,
-        [gameId, desired.decision.postseasonRound ?? null, desired.decision.bowlName?.trim() || null, Boolean(desired.decision.isBowlGame), Boolean(desired.decision.isNationalChampionship)],
       );
     }
     await client.query("commit");
