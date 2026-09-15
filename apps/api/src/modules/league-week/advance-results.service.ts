@@ -1,4 +1,4 @@
-import { firstOffseasonStage, isChampionshipWeek, isOffseasonPipelineStage, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, postseasonResultMultiplier, stageForWeek, stageLabel, FRANCHISE_XP_GAME_RESULT_POINTS } from "@rec/shared";
+import { firstOffseasonStage, isChampionshipWeek, isOffseasonPipelineStage, isRegularSeasonWeek, isTerminalSeasonStage, NFL_PLAYOFF_PICTURE_START_WEEK, nextLeagueStage, postseasonResultMultiplier, stageForWeek, stageLabel, FRANCHISE_XP_GAME_RESULT_POINTS, type LeagueGame } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { findServerRoutesForLeague, getCurrentLeagueContext } from "../league-context/league-context.service.js";
@@ -983,6 +983,17 @@ export async function completeAdvanceWeek(input: {
     weekNumber: nextTarget.weekNumber,
     gotwGameId: nextTarget.seasonStage === "regular_season" ? input.nextGotwGameId ?? null : null,
   }).catch((err) => console.error("[ERROR] queuePregameHypeTweets failed after advance (non-fatal):", err));
+
+  // Autonomous beef instigation: for the week that just COMPLETED (currentWeek, not the upcoming
+  // one -- clutch detection needs a final score), an instigate-leaning player on a qualifying
+  // game's roster calls out an inverse-position opponent. Runs for every league, RTI or not.
+  const { queueAutonomousBeefTweets } = await import("../immortality/beef.service.js");
+  await queueAutonomousBeefTweets({
+    leagueId: context.leagueId,
+    seasonNumber,
+    weekNumber: currentWeek,
+    game: context.rec_leagues.game as LeagueGame,
+  }).catch((err) => console.error("[ERROR] queueAutonomousBeefTweets failed after advance (non-fatal):", err));
 
   // Postseason-end boundary — advancing out of the terminal stage (super_bowl/
   // national_championship) into the first offseason stage (coach_hiring for Madden,

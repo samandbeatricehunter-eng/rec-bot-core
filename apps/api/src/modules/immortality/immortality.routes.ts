@@ -52,7 +52,7 @@ import {
   grantImmortalityCommissionerBonus,
 } from "./immortality.service.js";
 import { signImmortalityContract } from "./contracts.service.js";
-import { postManualImmortalityTweet, listPlayerTwitterPersonas, postPlayerTwitterTweet, publishUserSubmittedTweet } from "./tweet-generation.service.js";
+import { postManualImmortalityTweet, listPlayerTwitterPersonas, listBeefTargetTeams, postPlayerTwitterTweet, publishUserSubmittedTweet, resolveTeamOwnedTwitterPersonas } from "./tweet-generation.service.js";
 import {
   getProgressionState,
   purchaseProgressionPerk,
@@ -560,9 +560,34 @@ export async function immortalityRoutes(app: FastifyInstance) {
         discordId: z.string().min(1),
         body: z.string().trim().min(1).max(1000),
         identity: z.enum(["team", "owner", "offense", "defense"]),
+        target: z.object({
+          kind: z.enum(["team", "owner", "player"]),
+          teamId: z.string().uuid().optional().nullable(),
+          userId: z.string().uuid().optional().nullable(),
+          playerId: z.string().uuid().optional().nullable(),
+          label: z.string().min(1).max(120),
+        }).optional().nullable(),
       }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       return reply.send(await publishUserSubmittedTweet(body));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  // Twitter beef bridge targeting picker (tweets-capture.ts, after the existing Yes/No confirm):
+  // list every other team, then that team's owner/offense/defense personas for RTI leagues.
+  app.post("/v1/immortality/tweets/target-teams", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ discordId: z.string().min(1) }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send({ teams: await listBeefTargetTeams(body.guildId, body.discordId) });
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/immortality/tweets/target-personas", async (request, reply) => {
+    try {
+      const body = GuildBody.extend({ teamId: z.string().uuid() }).parse(request.body);
+      await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      return reply.send({ personas: await resolveTeamOwnedTwitterPersonas(body.guildId, body.teamId) });
     } catch (error) { return sendError(reply, error); }
   });
 

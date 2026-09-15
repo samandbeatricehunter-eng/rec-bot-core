@@ -61,6 +61,11 @@ export type ClaimGroundedInput = {
   /** When set, this event also touches/opens a story arc titled with this text. */
   storylineTitle?: string;
   importanceScore?: number;
+  /** Overrides the normal fatigue-based move selection (pickUnfatiguedMove) -- used when the
+   *  caller already knows which move fits (e.g. a beef reply reacting to a classified tone via
+   *  moveForReplyTone). Still falls through to no-post if the playbook doesn't allow this move or
+   *  no fragment is available for it, same as the normal path. */
+  preferredMove?: SocialClaimMove;
 };
 
 /** Builds and books a claim-grounded root post body, or returns null if this event/persona
@@ -73,7 +78,9 @@ export async function buildClaimGroundedPostBody(input: ClaimGroundedInput): Pro
   if (!playbook || !policy) return null;
 
   const memory = await loadAccountMemory(input.leagueId, input.persona);
-  const move: SocialClaimMove = pickUnfatiguedMove(memory, input.eventType, input.subjectKey, playbook.allowedMoves);
+  const move: SocialClaimMove = input.preferredMove && playbook.allowedMoves.includes(input.preferredMove)
+    ? input.preferredMove
+    : pickUnfatiguedMove(memory, input.eventType, input.subjectKey, playbook.allowedMoves);
   const fragment = pickRootPostFragment(input.persona, move, recentFragmentIds(memory));
   if (!fragment) return null;
 

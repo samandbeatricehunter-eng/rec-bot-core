@@ -772,6 +772,18 @@ export async function postManualImmortalityTweet(input: {
 
 export type UserTweetIdentity = "team" | "owner" | "offense" | "defense";
 
+/** Who a posted tweet is aimed at -- the Twitter beef bridge's targeting (see
+ *  apps/bot/src/flows/tweets-capture.ts's post-confirm target picker). `label` is a denormalized
+ *  display name captured at post time so a later rename/relocation never changes what an old
+ *  tweet reads as having targeted. */
+export type TweetTarget = {
+  kind: "team" | "owner" | "player";
+  teamId?: string | null;
+  userId?: string | null;
+  playerId?: string | null;
+  label: string;
+};
+
 /**
  * Publishes a human-authored message captured from the configured Tweets channel (see
  * apps/bot/src/flows/tweets-capture.ts) after the 90-second public Yes/No confirmation. Ordinary
@@ -783,12 +795,16 @@ export type UserTweetIdentity = "team" | "owner" | "offense" | "defense";
  * supabase/migrations/20260911140000_media_social_event_graph.sql) as well as the legacy
  * rec_immortality_tweet_queue for RTI leagues, so existing ambient-chatter/feed code that still
  * reads the old table keeps seeing it during the transition.
+ *
+ * When `target` is set, this also feeds the Twitter beef bridge (beef.service.ts) -- best-effort,
+ * never blocks the post itself from succeeding.
  */
 export async function publishUserSubmittedTweet(input: {
   guildId: string;
   discordId: string;
   body: string;
   identity: UserTweetIdentity;
+  target?: TweetTarget | null;
 }): Promise<{ postedAs: string }> {
   const context = await getCurrentLeagueContext(input.guildId);
   const routes = await findServerRoutesForLeague(context.leagueId);
@@ -799,14 +815,18 @@ export async function publishUserSubmittedTweet(input: {
   let displayName: string;
   let avatarUrl: string | undefined;
   let authorKey: string;
+  let authorTeamId: string | null = null;
+  let authorUserId: string | null = null;
 
   if (input.identity === "team") {
     const userId = await recUserIdFromDiscordId(input.discordId);
     if (!userId) throw new ApiError(400, "Link your REC account before posting to the tweets feed.");
+    authorUserId = userId;
     const assignment = await supabase.from("rec_team_assignments").select("team_id")
       .eq("league_id", context.leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
     if (assignment.error) throw new ApiError(500, "We couldn't load your team. Please try again.", assignment.error);
     if (!assignment.data?.team_id) throw new ApiError(400, "You need an active team to post to the tweets feed.");
+    authorTeamId = String(assignment.data.team_id);
     const team = await supabase.from("rec_teams").select("id,name,display_city,display_nick,is_relocated,abbreviation")
       .eq("id", assignment.data.team_id).maybeSingle();
     if (team.error || !team.data) throw new ApiError(500, "We couldn't load your team. Please try again.", team.error);
@@ -822,6 +842,7 @@ export async function publishUserSubmittedTweet(input: {
     }
     handle = chosen.handle; displayName = chosen.name; avatarUrl = chosen.avatarUrl;
     authorKey = `rti:${chosen.key}:${input.discordId}`;
+    authorUserId = await recUserIdFromDiscordId(input.discordId).catch(() => null);
   }
 
   const posted = await postDiscordChannelMessage(channelId, {
@@ -833,22 +854,42 @@ export async function publishUserSubmittedTweet(input: {
   });
   if (!posted) throw new ApiError(502, "Discord rejected the tweet -- check the tweets channel still exists and the bot can post there.");
 
+  const league = await supabase.from("rec_leagues").select("season_number,current_week").eq("id", context.leagueId).maybeSingle();
+  const seasonNumber = Number(league.data?.season_number ?? 1);
+  const weekNumber = Number(league.data?.current_week ?? 1);
+
   const nowIso = new Date().toISOString();
-  await supabase.from("rec_tweets").insert({
+  const tweetRow = await supabase.from("rec_tweets").insert({
     league_id: context.leagueId,
     author_key: authorKey,
     body: input.body,
     status: "posted",
     platform_channel_id: channelId,
     posted_at: nowIso,
-  });
+    target_kind: input.target?.kind ?? null,
+    target_team_id: input.target?.teamId ?? null,
+    target_user_id: input.target?.userId ?? null,
+    target_player_id: input.target?.playerId ?? null,
+    target_label: input.target?.label ?? null,
+  }).select("id").single();
+
+  if (input.target) {
+    const { reactToTargetedTweet } = await import("./beef.service.js");
+    void reactToTargetedTweet({
+      leagueId: context.leagueId, seasonNumber, weekNumber,
+      tweetId: tweetRow.data?.id ? String(tweetRow.data.id) : null,
+      authorTeamId, authorUserId,
+      authorLabel: `${displayName} (${handle})`,
+      body: input.body,
+      target: input.target,
+    }).catch((error) => console.error("[ERROR] reactToTargetedTweet failed (non-fatal):", error));
+  }
 
   if (input.identity !== "team") {
-    const league = await supabase.from("rec_leagues").select("season_number,current_week").eq("id", context.leagueId).maybeSingle();
     await supabase.from("rec_immortality_tweet_queue").insert({
       league_id: context.leagueId,
-      season_number: Number(league.data?.season_number ?? 1),
-      week_number: Number(league.data?.current_week ?? 1),
+      season_number: seasonNumber,
+      week_number: weekNumber,
       author_kind: "player",
       author_handle: handle,
       author_display_name: displayName,
@@ -862,6 +903,26 @@ export async function publishUserSubmittedTweet(input: {
   return { postedAs: `${displayName} (${handle})` };
 }
 
+export type BeefTargetTeamOption = { teamId: string; label: string };
+
+/** Every OTHER team in the league (the caller's own is excluded so nobody can target themselves)
+ *  -- backs the Twitter beef bridge's team-picker step in tweets-capture.ts. */
+export async function listBeefTargetTeams(guildId: string, discordId: string): Promise<BeefTargetTeamOption[]> {
+  const context = await getCurrentLeagueContext(guildId);
+  const userId = await recUserIdFromDiscordId(discordId).catch(() => null);
+  const myAssignment = userId
+    ? await supabase.from("rec_team_assignments").select("team_id")
+        .eq("league_id", context.leagueId).eq("user_id", userId).eq("assignment_status", "active").is("ended_at", null).maybeSingle()
+    : { data: null as { team_id: string } | null };
+  const myTeamId = myAssignment.data?.team_id ? String(myAssignment.data.team_id) : null;
+
+  const teams = await supabase.from("rec_teams").select("id,name,display_city,display_nick,is_relocated,abbreviation")
+    .eq("league_id", context.leagueId);
+  return ((teams.data ?? []) as any[])
+    .filter((row) => String(row.id) !== myTeamId)
+    .map((row) => ({ teamId: String(row.id), label: formatTeamDisplayName(row) ?? String(row.name ?? row.abbreviation ?? "Team") }));
+}
+
 export type PlayerTwitterPersonaKey = "owner" | "offense" | "defense";
 
 export type PlayerTwitterPersona = {
@@ -871,7 +932,14 @@ export type PlayerTwitterPersona = {
   roleLabel: string;
 };
 
-type ResolvedPlayerTwitterPersona = PlayerTwitterPersona & { avatarUrl: string | undefined };
+type ResolvedPlayerTwitterPersona = PlayerTwitterPersona & {
+  avatarUrl: string | undefined;
+  /** Owner's own user id (key "owner") or the prospect's underlying rec_players.id (key
+   *  "offense"/"defense") -- populated so the Twitter beef bridge's targeting picker can build a
+   *  real TweetTarget from a chosen persona without a second lookup. */
+  userId?: string;
+  playerId?: string;
+};
 
 async function resolveOwnedTwitterPersonas(guildId: string, discordId: string): Promise<ResolvedPlayerTwitterPersona[]> {
   const { personas } = await resolveOwnedTwitterPersonasWithLeagueType(guildId, discordId);
@@ -886,27 +954,47 @@ async function resolveOwnedTwitterPersonasWithLeagueType(
   const league = await loadImmortalityLeague(context.leagueId);
   if (!league) return { personas: [], isRtiLeague: false };
   const userId = await recUserIdFromDiscordId(discordId);
+  return { personas: await personasForImmortalityUser(league.id, userId), isRtiLeague: true };
+}
+
+/** Same persona resolution as resolveOwnedTwitterPersonasWithLeagueType, but for an arbitrary
+ *  target TEAM instead of the caller's own Discord identity -- backs the Twitter beef bridge's
+ *  "target an opponent's owner/offense/defense persona" picker (tweets-capture.ts). Resolves the
+ *  team's active assignment to a user, then reuses the exact same owner/prospect lookup. Returns
+ *  an empty list for a non-RTI league or a team with no active assignment. */
+export async function resolveTeamOwnedTwitterPersonas(guildId: string, teamId: string): Promise<ResolvedPlayerTwitterPersona[]> {
+  const context = await getCurrentLeagueContext(guildId);
+  const league = await loadImmortalityLeague(context.leagueId);
+  if (!league) return [];
+  const assignment = await supabase.from("rec_team_assignments").select("user_id")
+    .eq("league_id", context.leagueId).eq("team_id", teamId).eq("assignment_status", "active").is("ended_at", null).maybeSingle();
+  const userId = assignment.data?.user_id ? String(assignment.data.user_id) : null;
+  if (!userId) return [];
+  return personasForImmortalityUser(league.id, userId);
+}
+
+async function personasForImmortalityUser(immortalityLeagueId: string, userId: string): Promise<ResolvedPlayerTwitterPersona[]> {
   const [owner, prospects] = await Promise.all([
     supabase.from("rec_immortality_owners")
       .select("first_name,last_name,headshot_url")
-      .eq("immortality_league_id", league.id).eq("user_id", userId).maybeSingle(),
+      .eq("immortality_league_id", immortalityLeagueId).eq("user_id", userId).maybeSingle(),
     supabase.from("rec_immortality_prospects")
-      .select("side,first_name,last_name,headshot_url,position")
-      .eq("immortality_league_id", league.id).eq("user_id", userId),
+      .select("side,first_name,last_name,headshot_url,position,player_id")
+      .eq("immortality_league_id", immortalityLeagueId).eq("user_id", userId),
   ]);
   const personas: ResolvedPlayerTwitterPersona[] = [];
   if (owner.data) {
     const { handle, displayName } = twitterHandleForProspect(owner.data);
     if (displayName !== "Prospect") {
       personas.push({
-        key: "owner", name: displayName, handle, roleLabel: "Owner",
+        key: "owner", name: displayName, handle, roleLabel: "Owner", userId,
         avatarUrl: owner.data.headshot_url ? String(owner.data.headshot_url) : undefined,
       });
     }
   }
   for (const side of ["offense", "defense"] as const) {
     const prospect = ((prospects.data ?? []) as Array<{
-      side: string; first_name: string | null; last_name: string | null; headshot_url: string | null; position: string | null;
+      side: string; first_name: string | null; last_name: string | null; headshot_url: string | null; position: string | null; player_id: string | null;
     }>).find((row) => row.side === side);
     if (!prospect) continue;
     const { handle, displayName } = twitterHandleForProspect(prospect);
@@ -916,9 +1004,10 @@ async function resolveOwnedTwitterPersonasWithLeagueType(
       key: side, name: displayName, handle,
       roleLabel: `${side === "offense" ? "Offense" : "Defense"}${position}`,
       avatarUrl: prospect.headshot_url ? String(prospect.headshot_url) : undefined,
+      playerId: prospect.player_id ? String(prospect.player_id) : undefined,
     });
   }
-  return { personas, isRtiLeague: true };
+  return personas;
 }
 
 /** Autocomplete source for the player /twitter slash command -- at most the caller's owner plus

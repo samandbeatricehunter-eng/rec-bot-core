@@ -1,6 +1,14 @@
 import { personaDnaCatalog } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { isImmortalityCreatedPlayer, loadRtiProspectPlayerIds } from "./player-identity.service.js";
+
+let personaDnaNameByKeyCache: Map<string, string> | null = null;
+function personaDnaNameByKey(): Map<string, string> {
+  if (!personaDnaNameByKeyCache) {
+    personaDnaNameByKeyCache = new Map(personaDnaCatalog().map((trait) => [trait.key, trait.name]));
+  }
+  return personaDnaNameByKeyCache;
+}
 const PLAYERS_PER_TEAM = 5;
 
 // Trait names (from packages/shared/src/immortality/config/persona_dna.json's 60-trait catalog)
@@ -39,6 +47,16 @@ function handleForPlayerName(fullName: string | null | undefined): { handle: str
   return { handle: `@${slug}`, displayName };
 }
 
+/** Shared instigate/praise scoring: lower than 0.5 leans instigate, higher leans praise. Used
+ *  both for the random-pick non-RTI personas below and for real RTI prospect persona-DNA (see
+ *  rtiProspectToneWeight) so "who's confrontational enough to start a beef" means the same thing
+ *  on both sides of the roster. */
+export function toneWeightFromTraitNames(traitNames: string[]): number {
+  const instigateMatches = traitNames.filter((name) => INSTIGATE_LEANING_TRAITS.has(name)).length;
+  const praiseMatches = traitNames.filter((name) => PRAISE_LEANING_TRAITS.has(name)).length;
+  return Math.max(0.15, Math.min(0.85, 0.5 - (instigateMatches - praiseMatches) * 0.15));
+}
+
 function generatePersonaTraits(seed: string): { traits: string[]; tonePraiseWeight: number } {
   const catalog = personaDnaCatalog();
   if (!catalog.length) return { traits: [], tonePraiseWeight: 0.5 };
@@ -49,10 +67,20 @@ function generatePersonaTraits(seed: string): { traits: string[]; tonePraiseWeig
     const index = Math.floor(rng() * pool.length);
     picked.push(pool.splice(index, 1)[0]!.name);
   }
-  const instigateMatches = picked.filter((name) => INSTIGATE_LEANING_TRAITS.has(name)).length;
-  const praiseMatches = picked.filter((name) => PRAISE_LEANING_TRAITS.has(name)).length;
-  const tonePraiseWeight = Math.max(0.15, Math.min(0.85, 0.5 - (instigateMatches - praiseMatches) * 0.15));
-  return { traits: picked, tonePraiseWeight };
+  return { traits: picked, tonePraiseWeight: toneWeightFromTraitNames(picked) };
+}
+
+/** Real RTI prospect persona-DNA equivalent of tonePraiseWeight above -- reads the prospect's
+ *  actual interview-answered traits (rec_immortality_prospect_persona_dna) instead of a random
+ *  pick. Returns 0.5 (neutral) for a prospect who hasn't done their persona-DNA interview yet. */
+export async function rtiProspectToneWeight(prospectId: string): Promise<number> {
+  const rows = await supabase.from("rec_immortality_prospect_persona_dna").select("trait_key").eq("prospect_id", prospectId);
+  if (!rows.data?.length) return 0.5;
+  const nameByKey = personaDnaNameByKey();
+  const names = (rows.data as Array<{ trait_key: string }>)
+    .map((row) => nameByKey.get(String(row.trait_key)))
+    .filter((name): name is string => Boolean(name));
+  return toneWeightFromTraitNames(names);
 }
 
 /** Generates (idempotently) a fictional Twitter personality for the top 5 real (non-RTI) roster

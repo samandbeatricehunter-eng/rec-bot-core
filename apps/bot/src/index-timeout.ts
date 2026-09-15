@@ -176,7 +176,14 @@ import {
   handleWagerAccept,
 } from "./flows/wagers.js";
 import { handleHighlightChannelMessage, handleHighlightReactionRestrict, handleHighlightReviewButton, HIGHLIGHT_REVIEW_PREFIX, settleHighlightAwardsForGuild, syncRecentHighlightMessages } from "./handlers/highlights.js";
-import { handleTweetsChannelMessage, handleTweetsCaptureConfirmButton, handleTweetsCaptureIdentitySelect, isTweetsCaptureConfirmButton, isTweetsCaptureIdentitySelect } from "./flows/tweets-capture.js";
+import {
+  handleTweetsChannelMessage, handleTweetsCaptureConfirmButton, handleTweetsCaptureIdentitySelect,
+  handleTweetsCaptureTargetPromptButton, handleTweetsCaptureTargetTeamSelect, handleTweetsCaptureTargetPersonaSelect,
+  handleTweetsCaptureTargetKindSelect, handleTweetsCaptureTargetPlayerSelect,
+  isTweetsCaptureConfirmButton, isTweetsCaptureIdentitySelect,
+  isTweetsCaptureTargetPromptButton, isTweetsCaptureTargetTeamSelect, isTweetsCaptureTargetPersonaSelect,
+  isTweetsCaptureTargetKindSelect, isTweetsCaptureTargetPlayerSelect,
+} from "./flows/tweets-capture.js";
 import { handleTradeReleaseCoinsButton, handleTradeVoteReactionAdd, handleTradeVoteReactionRemove, TRADE_RELEASE_COINS_PREFIX } from "./flows/trade-vote-reactions.js";
 import { handleStreamChannelMessage, handleStreamLinkModal, handleStreamMenu, handleStreamServiceSelect } from "./handlers/stream.js";
 import { handleLiveStreamInteraction, isLiveStreamCustomId } from "./handlers/live-stream-prompt.js";
@@ -614,6 +621,11 @@ client.on("interactionCreate", async (interaction: Interaction) => {
 
     if (interaction.isButton() && isTweetsCaptureConfirmButton(interaction.customId)) return handleTweetsCaptureConfirmButton(interaction);
     if (interaction.isStringSelectMenu() && isTweetsCaptureIdentitySelect(interaction.customId)) return handleTweetsCaptureIdentitySelect(interaction);
+    if (interaction.isButton() && isTweetsCaptureTargetPromptButton(interaction.customId)) return handleTweetsCaptureTargetPromptButton(interaction);
+    if (interaction.isStringSelectMenu() && isTweetsCaptureTargetTeamSelect(interaction.customId)) return handleTweetsCaptureTargetTeamSelect(interaction);
+    if (interaction.isStringSelectMenu() && isTweetsCaptureTargetPersonaSelect(interaction.customId)) return handleTweetsCaptureTargetPersonaSelect(interaction);
+    if (interaction.isStringSelectMenu() && isTweetsCaptureTargetKindSelect(interaction.customId)) return handleTweetsCaptureTargetKindSelect(interaction);
+    if (interaction.isStringSelectMenu() && isTweetsCaptureTargetPlayerSelect(interaction.customId)) return handleTweetsCaptureTargetPlayerSelect(interaction);
 
     if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && !menuSessions.touch(interaction.user.id)) {
       leagueSetupSessions.delete(interaction.user.id);

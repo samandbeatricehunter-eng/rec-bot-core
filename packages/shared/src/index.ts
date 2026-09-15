@@ -16,6 +16,7 @@ export * from "./xp-economy.js";
 export * from "./media-social/tweet-personalities.js";
 export * from "./media-social/social-claim-plan.js";
 export * from "./media-social/root-post-fragments.js";
+export * from "./media-social/reply-tone.js";
 export * from "./weekly-challenges/conditions.js";
 export * from "./weekly-challenges/catalog.js";
 export * from "./weekly-challenges/unified.js";

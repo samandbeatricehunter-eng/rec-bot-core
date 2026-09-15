@@ -44,6 +44,22 @@ async function findOpenStoryline(input: {
   return row.data ?? null;
 }
 
+/** Read-only lookup for a subject's open storyline of the given event type's storyline type, if
+ *  any -- e.g. so a beef reply can tell whether the tweet it's replying to is actually part of an
+ *  open rti_beef arc before reacting to it, without touching/bumping anything itself. */
+export async function findOpenStorylineForSubject(input: {
+  leagueId: string; eventType: SocialEventType; teamId?: string | null; userId?: string | null; playerId?: string | null;
+}): Promise<MediaStoryline | null> {
+  const storylineType = storylineTypeForEvent(input.eventType);
+  if (!storylineType) return null;
+  const existing = await findOpenStoryline({
+    leagueId: input.leagueId, storylineType, teamId: input.teamId, userId: input.userId, playerId: input.playerId,
+  });
+  if (!existing) return null;
+  const premise = (existing.premise_json ?? {}) as Partial<StorylinePremise>;
+  return { id: existing.id, storylineType, title: existing.title, priority: existing.priority, evidence: premise.evidence ?? [] };
+}
+
 /**
  * Opens a new storyline for this subject if none is open, or touches (bumps heat/evidence on)
  * the existing one. Returns the storyline so callers can attach it to a media event/tweet and

@@ -63,8 +63,18 @@ export const recApi = {
     ),
   postPlayerTwitterTweet: (input: { guildId: string; discordId: string; persona: "owner" | "offense" | "defense"; tweetText: string; imageUrl?: string; mentionContent?: string }) =>
     recFetch<{ postedAs: string }>("/v1/immortality/tweets/player", { method: "POST", body: JSON.stringify(input) }),
-  publishUserSubmittedTweet: (input: { guildId: string; discordId: string; body: string; identity: "team" | "owner" | "offense" | "defense" }) =>
+  publishUserSubmittedTweet: (input: {
+    guildId: string; discordId: string; body: string; identity: "team" | "owner" | "offense" | "defense";
+    target?: { kind: "team" | "owner" | "player"; teamId?: string | null; userId?: string | null; playerId?: string | null; label: string } | null;
+  }) =>
     recFetch<{ postedAs: string }>("/v1/immortality/tweets/user-submit", { method: "POST", body: JSON.stringify(input) }),
+  listBeefTargetTeams: (input: { guildId: string; discordId: string }) =>
+    recFetch<{ teams: Array<{ teamId: string; label: string }> }>("/v1/immortality/tweets/target-teams", { method: "POST", body: JSON.stringify(input) }),
+  listBeefTargetPersonas: (input: { guildId: string; teamId: string }) =>
+    recFetch<{ personas: Array<{ key: "owner" | "offense" | "defense"; name: string; handle: string; roleLabel: string; userId?: string; playerId?: string }> }>(
+      "/v1/immortality/tweets/target-personas",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
   grantImmortalityCommissionerBonus: (input: { guildId: string; targetDiscordId: string }) =>
     recFetch<{ granted: true; teamName: string }>("/v1/immortality/commissioner-bonus/grant", { method: "POST", body: JSON.stringify(input) }),
   health: () => recFetch<{ ok: boolean; service: string }>(REC_API_ROUTES.health),
