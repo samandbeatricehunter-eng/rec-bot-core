@@ -3,6 +3,7 @@ import { z } from "zod";
 import { ApiError, sendError } from "../../lib/errors.js";
 import { assertGuildPermission, requireBotOrUserSession, resolveBotOrUserAuth } from "../../lib/user-auth.js";
 import { castTradeVote, createTradeBlockListing, forceCloseTradeVote, getTradeDetail, getTradeFairnessPreview, getTradeIdForVoteMessage, getTradeVoteStatus, listMyTrades, listPendingReviewTrades, listSeasonTradeCounts, listTradeableTeams, listTradeBlockListings, listTradeBlockPlayers, logCommissionerTrade, proposeTrade, releaseTradeCoins, respondToTrade, retractTradeVote, reviewTrade, setPlayerTradeBlock, withdrawTrade, withdrawTradeBlockListing } from "./trades.service.js";
+import { getMaddenCpuTradePrediction } from "./madden-trade-predictor.service.js";
 import { searchTradeTargets, suggestTradeOffers } from "./trade-targets.service.js";
 
 const LegSchema = z.union([
@@ -160,7 +161,11 @@ export async function tradesRoutes(app: FastifyInstance) {
         offeredCoins: z.number().int().min(0).default(0), requestedCoins: z.number().int().min(0).default(0),
       }).parse(request.body);
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      return reply.send(await getTradeFairnessPreview(body.guildId, body));
+      const [fairness, cpuPrediction] = await Promise.all([
+        getTradeFairnessPreview(body.guildId, body),
+        getMaddenCpuTradePrediction(body.guildId, body),
+      ]);
+      return reply.send({ ...fairness, cpuPrediction });
     } catch (error) { return sendError(reply, error); }
   });
 
