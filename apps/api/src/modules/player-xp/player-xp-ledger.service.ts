@@ -76,8 +76,14 @@ export async function creditPlayerXp(input: {
   await supabase.from("rec_player_xp_state").upsert({
     league_id: input.leagueId,
     player_id: input.playerId,
-    balance_xp: (state.data?.balance_xp ?? 0) + awardedXp,
-    lifetime_earned_xp: (state.data?.lifetime_earned_xp ?? 0) + awardedXp,
+    // rec_player_xp_state.balance_xp/lifetime_earned_xp are `numeric` columns -- Postgres'
+    // client returns numeric as a STRING to avoid silent float precision loss, so `+ awardedXp`
+    // without an explicit Number() coercion string-concatenates instead of adding on every
+    // credit after the first (confirmed live: one player's balance_xp had compounded to
+    // 250002500025000 this way). balance_fpp on the franchise side is a plain `integer` and
+    // comes back as a real number, so that table isn't affected.
+    balance_xp: Number(state.data?.balance_xp ?? 0) + awardedXp,
+    lifetime_earned_xp: Number(state.data?.lifetime_earned_xp ?? 0) + awardedXp,
     balance_sp: (state.data?.balance_sp ?? 0) + conversion.spEarned,
     lifetime_earned_sp: (state.data?.lifetime_earned_sp ?? 0) + conversion.spEarned,
     xp_toward_next_sp: conversion.remainderXp,
