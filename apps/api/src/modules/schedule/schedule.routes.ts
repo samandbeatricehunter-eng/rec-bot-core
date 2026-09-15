@@ -146,7 +146,6 @@ export async function scheduleRoutes(app: FastifyInstance) {
   });
 
   // Atomically commits commissioner-approved per-week decisions from the manual editor.
-  // Game-generic (cfb_27 | madden_26 | madden_27).
   app.post("/v1/schedule/team-schedule-commit", async (request, reply) => {
     try {
       const auth = await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });
@@ -176,7 +175,6 @@ export async function scheduleRoutes(app: FastifyInstance) {
   });
 
   // Clears a mistakenly-entered confirmed matchup — only when unlocked (no result/box score).
-  // Game-generic (cfb_27 | madden_26 | madden_27).
   app.post("/v1/schedule/team-schedule-remove-game", async (request, reply) => {
     try {
       await requireBotOrUserSession(request, { resolveGuildId: (r: any) => r.body?.guildId, permission: "co_commissioner" });

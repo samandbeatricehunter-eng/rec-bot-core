@@ -128,12 +128,9 @@ function RivalryEditor({ week, guildId, teamId, teamName, onSaved }: { week: Tea
 }
 
 // The whole-season, single-page form this Activity exists to demonstrate — every week is
-// a row here instead of Discord's forced one-week-at-a-time wizard (apps/bot/src/flows/
-// cfb-team-schedule-manual.ts), and there's no 25-option select cap to work around. Results
-// come from EA import or Advance's manual score entry — this screen only manages the
-// matchup itself (opponent/home-away/bye/bowl), not scores.
-// Game-generic (cfb_27 | madden_26 | madden_27) — stage labels come from the loaded team's
-// actual league.game, not a hardcoded guess.
+// a row here instead of Discord's forced one-week-at-a-time wizard, and there's no 25-option
+// select cap to work around. Results come from EA import or Advance's manual score entry —
+// this screen only manages the matchup itself (opponent/home-away/bye/bowl), not scores.
 export function TeamScheduleForm() {
   const { teamId } = useParams<{ teamId: string }>();
   const { guildId } = useReadyAuth();
