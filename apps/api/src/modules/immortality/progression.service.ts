@@ -9,6 +9,7 @@ import {
   highestMedalForWeek,
   ledgerXpBalance,
   positionGroupFor,
+  promotionCheckCadence,
   promotionPath,
   purchaseCharacteristic,
   purchaseDevTraitPromotion,
@@ -154,7 +155,6 @@ export async function getProgressionState(input: { guildId: string; discordId: s
   const trend = evaluateSeasonTrend({
     currentDevTrait,
     medals,
-    promotionCheckBonus: modifiers.promotionCheckBonus,
     recordBreakBonusScore,
   });
   const nodes = catalog.filter((item) => item.tier >= 2).map((item) => {
@@ -655,13 +655,20 @@ export async function evaluateSeasonTrendPromotionsAfterAdvance(input: {
   for (const prospect of prospects.data ?? []) {
     if (!prospect.player_id) continue;
     const { modifiers } = await modifiersAndCatalog({ id: String(prospect.id), position: String(prospect.position) });
+    // Faster Developer's advantage: an actual promotion CHECK happens more often, not a shorter
+    // trend window (see promotionCheckCadence's doc comment in season-trend.ts). Base cadence of
+    // 3 eligible gameplay weeks becomes 2 for the standard +0.5 promotionCheckBonus, i.e. ~1.5x
+    // as many chances at a qualifying window over a season -- the deep-dive's target exposure
+    // ratio. Skipping a week here only withholds a new OPPORTUNITY check; it never affects the
+    // read-only trend progress shown in getProgressionState, which always evaluates live.
+    const cadence = promotionCheckCadence(3, modifiers.promotionCheckBonus);
+    if (input.weekNumber % cadence !== 0) continue;
     const currentDevTrait = await recDevTraitForProspect(String(prospect.id), startingDevTrait(modifiers));
     const medals = await medalsThisSeason(String(prospect.id), input.seasonNumber, input.weekNumber);
     const recordBreakBonusScore = await recentRecordBreakBonusScore(prospect.player_id);
     const trend = evaluateSeasonTrend({
       currentDevTrait,
       medals,
-      promotionCheckBonus: modifiers.promotionCheckBonus,
       recordBreakBonusScore,
     });
     if (!trend.promote) continue;

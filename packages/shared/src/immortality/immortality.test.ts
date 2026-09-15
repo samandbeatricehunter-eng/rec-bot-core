@@ -13,6 +13,7 @@ import {
   riseHubUnlocked,
   hubUnlockStateFrom,
   evaluateChallengeCondition,
+  elevatePromotionCondition,
   derivedChallengeStats,
   SUPPORTED_CHALLENGE_STATS,
   issuedWeeklyChallenges,
@@ -59,7 +60,8 @@ import {
   isCareerRecordBroken,
   NFL_CAREER_RECORDS,
   evaluateSeasonTrend,
-  effectiveTrendWindow,
+  promotionCheckCadence,
+  SEASON_TREND_RULES,
   highestMedalForWeek,
   effectiveDevTrait,
   purchaseDevTraitPromotion,
@@ -74,6 +76,8 @@ import {
   xpDiscountForAttribute,
   ALL_ATTRIBUTES_DISCOUNT_CODE,
   type CharacteristicDefinition,
+  type ChallengeCondition,
+  type TrendMedal,
 } from "./index.js";
 
 test("Rise to Immortality is a Madden 27 template that disables store purchases", () => {
@@ -854,8 +858,98 @@ test("season-trend promotions need a real hot streak, not a single gold week", (
   });
   assert.equal(cold.promote, false);
   assert.equal(highestMedalForWeek(["bronze", "gold"]), "gold");
-  assert.equal(effectiveTrendWindow(6, 0.5), 4);
   assert.equal(effectiveDevTrait("normal", 2), "superstar");
   assert.equal(effectiveDevTrait("star", 0), "star");
+});
+
+test("X-Factor never generates another promotion opportunity", () => {
+  const result = evaluateSeasonTrend({ currentDevTrait: "xfactor", medals: ["gold", "gold", "gold", "gold", "gold", "gold", "gold", "gold"] });
+  assert.equal(result.promote, false);
+  assert.equal(result.nextDevTrait, null);
+});
+
+test("promotionCheckCadence: Faster Developer checks more often, never less, and never below 1", () => {
+  assert.equal(promotionCheckCadence(3, 0), 3);
+  assert.equal(promotionCheckCadence(3, 0.5), 2);
+  assert.ok(promotionCheckCadence(3, 0.5) <= promotionCheckCadence(3, 0));
+  assert.ok(promotionCheckCadence(1, 5) >= 1);
+});
+
+test("Faster Developer is never mathematically harder than standard for the same medal history (DEV-001)", () => {
+  // evaluateSeasonTrend no longer takes a promotionCheckBonus at all -- window/score/gold/streak
+  // requirements are identical for every prospect at a given tier now, so a Faster Developer
+  // and a standard prospect with the same medal history always get the same trend result. The
+  // old implementation shrank the window instead (see season-trend.ts's history), which made a
+  // Faster Developer's 4-week Star window unable to ever reach the unshrunk 14-point bar.
+  const starMedals: TrendMedal[] = ["gold", "silver", "gold", "bronze", "silver", "gold"];
+  const standard = evaluateSeasonTrend({ currentDevTrait: "star", medals: starMedals });
+  const fasterDeveloperEquivalent = evaluateSeasonTrend({ currentDevTrait: "star", medals: starMedals });
+  assert.deepEqual(standard, fasterDeveloperEquivalent);
+});
+
+test("Star and Superstar each have a real non-record qualification path (DEV-006 recalibration)", () => {
+  assert.equal(SEASON_TREND_RULES.star.window, 6);
+  const starPath: TrendMedal[] = ["gold", "silver", "bronze", "bronze", "silver", "gold"];
+  const star = evaluateSeasonTrend({ currentDevTrait: "star", medals: starPath });
+  assert.equal(star.promote, true);
+  if (star.promote) assert.equal(star.nextDevTrait, "superstar");
+
+  assert.equal(SEASON_TREND_RULES.superstar.window, 8);
+  const superstarPath: TrendMedal[] = ["gold", "silver", "bronze", "bronze", "silver", "silver", "gold", "gold"];
+  const superstar = evaluateSeasonTrend({ currentDevTrait: "superstar", medals: superstarPath });
+  assert.equal(superstar.promote, true);
+  if (superstar.promote) assert.equal(superstar.nextDevTrait, "xfactor");
+});
+
+test("elevatePromotionCondition: volume gte conditions scale up, never loosen", () => {
+  const elevated = elevatePromotionCondition({ stat: "rush_yards", op: "gte", value: 100 });
+  assert.ok(elevated && "stat" in elevated);
+  if (elevated && "stat" in elevated) {
+    assert.equal(elevated.op, "gte");
+    assert.ok(elevated.value > 100);
+  }
+});
+
+test("elevatePromotionCondition: penalty lte conditions tighten by one discrete step, floor at 0", () => {
+  const tightened = elevatePromotionCondition({ stat: "turnovers", op: "lte", value: 1 });
+  assert.deepEqual(tightened, { stat: "turnovers", op: "lte", value: 0 });
+  const floored = elevatePromotionCondition({ stat: "turnovers", op: "lte", value: 0 });
+  assert.deepEqual(floored, { stat: "turnovers", op: "lte", value: 0 });
+});
+
+test("elevatePromotionCondition: bounded percentages move toward the ceiling, never past it", () => {
+  const elevated = elevatePromotionCondition({ stat: "completion_pct", op: "gte", value: 60 });
+  assert.ok(elevated && "stat" in elevated);
+  if (elevated && "stat" in elevated) {
+    assert.ok(elevated.value > 60);
+    assert.ok(elevated.value <= 100);
+  }
+});
+
+test("elevatePromotionCondition: ratios elevate by a smaller margin than raw volume", () => {
+  const ratio = elevatePromotionCondition({ stat: "ypc", op: "gte", value: 5 });
+  const volume = elevatePromotionCondition({ stat: "rush_yards", op: "gte", value: 100 });
+  assert.ok(ratio && "stat" in ratio && ratio.value === 5.5);
+  assert.ok(volume && "stat" in volume && volume.value === 120);
+});
+
+test("elevatePromotionCondition: all/any composites elevate every branch and preserve structure", () => {
+  const composite: ChallengeCondition = {
+    all: [
+      { stat: "rush_yards", op: "gte", value: 100 },
+      { any: [{ stat: "rush_tds", op: "gte", value: 1 }, { stat: "receiving_tds", op: "gte", value: 1 }] },
+    ],
+  };
+  const elevated = elevatePromotionCondition(composite);
+  assert.ok(elevated && "all" in elevated);
+  if (elevated && "all" in elevated) {
+    assert.equal(elevated.all.length, 2);
+    assert.ok("any" in elevated.all[1]!);
+  }
+});
+
+test("elevatePromotionCondition: fails closed on an unsupported stat instead of guessing", () => {
+  const unsupported = elevatePromotionCondition({ stat: "tackles_for_loss", op: "gte", value: 1 });
+  assert.equal(unsupported, null);
 });
 

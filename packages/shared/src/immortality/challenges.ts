@@ -114,6 +114,101 @@ export function evaluateChallengeCondition(condition: ChallengeCondition, stats:
   return condition.op === "gte" ? actual >= condition.value : actual <= condition.value;
 }
 
+/** Condition-family classes for elevatePromotionCondition below -- how a stat's promotion-
+ * opportunity bar should move relative to its ordinary Gold threshold. Per the Dev Promotion
+ * Overhaul deep-dive (section 12): raw volume counts get a flat percentage bump, ratios get a
+ * smaller one, capped/percentage-style stats move a fraction of the remaining distance toward
+ * their natural ceiling instead of multiplying (multiplying a rating that's already near its max
+ * would blow past 100%), and turnover-style "fewer is better" stats tighten by one discrete step
+ * rather than scaling. */
+type PromotionElevationClass = "volume" | "ratio" | "boundedPercent" | "penalty";
+
+const PROMOTION_ELEVATION_CLASS: Record<StatKey, PromotionElevationClass> = {
+  pass_yards: "volume", pass_tds: "volume", pass_attempts: "volume", pass_completions: "volume",
+  completion_pct: "boundedPercent", passer_rating: "boundedPercent",
+  rush_yards: "volume", rush_tds: "volume", rush_attempts: "volume", rush_20_plus: "volume",
+  receiving_yards: "volume", receiving_tds: "volume", receptions: "volume",
+  tackles: "volume", sacks: "volume", forced_fumbles: "volume", fumble_recoveries: "volume",
+  interceptions: "volume", interceptions_thrown: "penalty",
+  pass_deflections: "volume", defensive_tds: "volume", rushing_fumbles: "penalty",
+  total_tds: "volume", takeaways: "volume", turnovers: "penalty", scrimmage_yards: "volume",
+  ypc: "ratio", ypr: "ratio",
+  sacks_plus_interceptions: "volume", forced_fumbles_plus_sacks: "volume",
+};
+
+// Madden doesn't report a passer rating scale beyond roughly this; used only as the ceiling a
+// boundedPercent elevation moves a fraction toward, never displayed.
+const BOUNDED_PERCENT_MAX: Partial<Record<StatKey, number>> = { completion_pct: 100, passer_rating: 158.3 };
+const VOLUME_ELEVATION_RATE = 0.2; // +20%, middle of the deep-dive's recommended 15-25% band
+const RATIO_ELEVATION_RATE = 0.1; // smaller than volume, per the deep-dive
+const BOUNDED_PERCENT_ELEVATION_FRACTION = 0.35; // move 35% of the remaining distance to the ceiling
+const PENALTY_TIGHTEN_STEP = 1; // one discrete step tighter, not a percentage
+
+function roundToTenth(value: number): number {
+  return Math.round(value * 10) / 10;
+}
+
+/** Elevates one Gold StatCondition into its promotion-opportunity equivalent -- same stat, a
+ * harder threshold, chosen by the stat's PromotionElevationClass rather than a flat multiplier
+ * over the whole stat line. Replaces the old "divide every stat in the player's box score by
+ * 1.5, then re-check the unmodified Gold condition" approach, which (a) hit every condition
+ * family the same way regardless of what it actually measured, and (b) silently compounded with
+ * rivalry-week stat elevation (see xp-awards.service.ts's RIVALRY_CHALLENGE_ELEVATION) into an
+ * effective ~1.725x bar whenever a promotion opportunity fell on a rivalry week. Evaluate the
+ * *elevated condition* against the player's *real, unelevated* stats instead -- rivalry and
+ * promotion elevation no longer touch the same stat line at all.
+ * Returns null (fail closed) for any condition this function doesn't recognize -- per the deep-
+ * dive: "unsupported/ambiguous condition: fail closed and do not create the opportunity until
+ * supported," rather than guessing at a multiplier for a stat family nobody has classified yet. */
+export function elevatePromotionCondition(condition: ChallengeCondition): ChallengeCondition | null {
+  if ("all" in condition) {
+    const parts = condition.all.map(elevatePromotionCondition);
+    if (parts.some((part) => part == null)) return null;
+    return { all: parts as ChallengeCondition[] };
+  }
+  if ("any" in condition) {
+    const parts = condition.any.map(elevatePromotionCondition);
+    if (parts.some((part) => part == null)) return null;
+    return { any: parts as ChallengeCondition[] };
+  }
+  if (!SUPPORTED_CHALLENGE_STATS.has(condition.stat)) return null;
+  const elevationClass = PROMOTION_ELEVATION_CLASS[condition.stat];
+  if (condition.op === "gte") {
+    switch (elevationClass) {
+      case "volume":
+        return { ...condition, value: Math.round(condition.value * (1 + VOLUME_ELEVATION_RATE)) };
+      case "ratio":
+        return { ...condition, value: roundToTenth(condition.value * (1 + RATIO_ELEVATION_RATE)) };
+      case "boundedPercent": {
+        const max = BOUNDED_PERCENT_MAX[condition.stat] ?? condition.value;
+        const elevated = condition.value + (max - condition.value) * BOUNDED_PERCENT_ELEVATION_FRACTION;
+        return { ...condition, value: Math.min(max, roundToTenth(elevated)) };
+      }
+      // A `gte` penalty condition ("interceptions_thrown >= X") doesn't occur in this catalog
+      // today (penalties are always caps), but tightening one still means raising the floor.
+      case "penalty":
+        return { ...condition, value: condition.value + PENALTY_TIGHTEN_STEP };
+      default:
+        return null;
+    }
+  }
+  // op === "lte"
+  switch (elevationClass) {
+    case "penalty":
+      return { ...condition, value: Math.max(0, condition.value - PENALTY_TIGHTEN_STEP) };
+    case "boundedPercent":
+      return { ...condition, value: Math.max(0, roundToTenth(condition.value * (1 - BOUNDED_PERCENT_ELEVATION_FRACTION))) };
+    case "ratio":
+      return { ...condition, value: Math.max(0, roundToTenth(condition.value * (1 - RATIO_ELEVATION_RATE))) };
+    // An `lte` volume condition isn't expected in this catalog either -- tighten conservatively
+    // rather than leaving it unelevated.
+    case "volume":
+      return { ...condition, value: Math.max(0, Math.round(condition.value * (1 - VOLUME_ELEVATION_RATE))) };
+    default:
+      return null;
+  }
+}
+
 // Never satisfiable -- only used as a defensive fallback if a catalog pool is ever empty
 // (shouldn't happen; every position's pools are always populated), so grading fails closed
 // instead of crashing on an undefined entry.

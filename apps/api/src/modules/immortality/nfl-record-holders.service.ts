@@ -163,10 +163,20 @@ const RECORD_BREAK_BONUS_CAP = 6;
 export async function recentRecordBreakBonusScore(playerId: string | null | undefined): Promise<number> {
   if (!playerId) return 0;
   const cutoff = new Date(Date.now() - RECORD_BREAK_BONUS_WINDOW_MS).toISOString();
-  const rows = await supabase.from("rec_media_events").select("id")
+  const rows = await supabase.from("rec_media_events").select("facts")
     .eq("event_type", "record_watch").eq("player_id", playerId).gte("created_at", cutoff);
-  const count = rows.data?.length ?? 0;
-  return Math.min(RECORD_BREAK_BONUS_CAP, count * RECORD_BREAK_BONUS_PER_RECORD);
+  // Count distinct underlying record events (scope+category), not raw rows -- queueRecordBreak-
+  // MediaReactions above logs exactly one record_watch row per (scope, category) break today,
+  // but this must not assume that holds forever. Other league media flows have already shown
+  // several rows can surround one underlying fact (the same event-multiplication bug flagged for
+  // standard challenge targeting), so de-duplicate here rather than trust row count directly.
+  const distinctRecords = new Set(
+    (rows.data ?? []).map((row) => {
+      const facts = row.facts as { scope?: string; category?: string } | null;
+      return `${facts?.scope ?? ""}:${facts?.category ?? ""}`;
+    }),
+  );
+  return Math.min(RECORD_BREAK_BONUS_CAP, distinctRecords.size * RECORD_BREAK_BONUS_PER_RECORD);
 }
 
 /** Breaking a real NFL top-5 record is one of the biggest verified events the social engine can

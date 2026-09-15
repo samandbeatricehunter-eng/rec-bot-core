@@ -1,6 +1,8 @@
 import {
   characteristicCatalog,
   combinedModifiers,
+  derivedChallengeStats,
+  elevatePromotionCondition,
   evaluateChallengeCondition,
   FORMULA_VERSIONS,
   gameplaySeasonStages,
@@ -212,12 +214,9 @@ const RIVALRY_STREAK_BONUS_PER_SEASON_PCT = 0.10;
 const RIVALRY_STREAK_BONUS_CAP_PCT = 0.50;
 const RIVALRY_CHALLENGE_ELEVATION = 1.15;
 const RIVALRY_WIN_BONUS_COINS = 500;
-// Season Trend promotion opportunities (see createSeasonTrendPromotion in progression.service.ts):
-// a much steeper version of the same stat-elevation trick above, applied to that week's
-// already-issued Gold weekly challenge rather than authoring bespoke "elevated" content. First-
-// pass number, same as every other unreleased threshold in this system -- Pass 11's simulation
-// work is where this actually gets calibrated against real data.
-const PROMOTION_OPPORTUNITY_ELEVATION = 1.5;
+// Season Trend promotion opportunities (see createSeasonTrendPromotion in progression.service.ts)
+// elevate that week's already-issued Gold weekly challenge condition-by-condition instead of a
+// flat multiplier over the whole stat line -- see elevatePromotionCondition in challenges.ts.
 
 function rivalryMultiplier(streakSeasons: number): number {
   const streakBonus = Math.min(RIVALRY_STREAK_BONUS_PER_SEASON_PCT * Math.max(0, streakSeasons - 1), RIVALRY_STREAK_BONUS_CAP_PCT);
@@ -484,8 +483,13 @@ export async function gradeProspectForWeek(
   // Season Trend promotion-opportunity resolution: if a prior advance granted this prospect an
   // opportunity targeting exactly this (season, week) -- see createSeasonTrendPromotion's doc
   // comment in progression.service.ts -- check it now against this week's already-issued Gold
-  // weekly challenge, evaluated against elevated stats. No new content authored; this reuses the
-  // same challenge every other player at this position saw this week, just at a steeper bar.
+  // weekly challenge, evaluated with a condition-aware elevated bar (elevatePromotionCondition
+  // in challenges.ts) against the player's real, unelevated stats. No new content authored;
+  // this reuses the same challenge every other player at this position saw this week, just at a
+  // steeper bar. Deliberately evaluated against weekStats (never challengeStats) even on a
+  // rivalry week -- rivalry elevation and promotion elevation must never stack (a rivalry week's
+  // 1.15x plus the old flat 1.5x promotion divide compounded to ~1.725x, far past the intended
+  // bar; see the Dev Promotion Overhaul deep-dive section 5).
   const opportunity = await supabase.from("rec_immortality_promotion_opportunities")
     .select("id,from_trait,to_trait")
     .eq("prospect_id", prospect.id)
@@ -495,9 +499,11 @@ export async function gradeProspectForWeek(
     .maybeSingle();
   if (!opportunity.error && opportunity.data) {
     const goldChallenge = weekly.find((row) => row.tier === "gold");
-    const elevatedStats: Record<string, number> = {};
-    for (const [key, value] of Object.entries(challengeStats)) elevatedStats[key] = Number(value) / PROMOTION_OPPORTUNITY_ELEVATION;
-    const met = Boolean(goldChallenge?.label && evaluateChallengeCondition(goldChallenge.condition, elevatedStats));
+    const elevatedCondition = goldChallenge?.label ? elevatePromotionCondition(goldChallenge.condition) : null;
+    if (goldChallenge?.label && !elevatedCondition) {
+      console.error(`[ERROR] Promotion opportunity for prospect ${prospect.id} has an unsupported Gold condition -- failing closed (missed) rather than guessing an elevation.`);
+    }
+    const met = Boolean(elevatedCondition && evaluateChallengeCondition(elevatedCondition, derivedChallengeStats(weekStats)));
     await supabase.from("rec_immortality_promotion_opportunities")
       .update({ status: met ? "met" : "missed", resolved_at: new Date().toISOString() })
       .eq("id", opportunity.data.id);

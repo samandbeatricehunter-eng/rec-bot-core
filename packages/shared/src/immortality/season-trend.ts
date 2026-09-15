@@ -23,12 +23,19 @@ export type SeasonTrendRule = {
  * gameplay weeks of this season. Gold is the hard weekly tier, so these are "hot streak"
  * bars, not participation trophies.
  *  - Normal→Star: 4-week window scoring 8+ (avg silver) with at least one gold.
- *  - Star→SS: 6-week window scoring 14+ with two golds and a 2-gold streak to finish.
- *  - SS→XF: 8-week window scoring 20+ with four golds and a 3-gold finishing streak. */
+ *  - Star→SS: 6-week window scoring 12+ with two golds and a 1-gold streak to finish.
+ *  - SS→XF: 8-week window scoring 16+ with three golds and a 2-gold finishing streak.
+ * Star/Superstar were recalibrated from the Dev Promotion Overhaul deep-dive (2026-09-14):
+ * the original 14/20-score, 2-gold-streak/3-gold-streak bars modeled out to a ~0.6%/~0.003%
+ * chance of ever seeing a single opportunity across an 18-week season -- these are the deep-
+ * dive's candidate replacement bands, picked at the low end of each proposed range to move
+ * incidence toward the target 25-40% (Star) / 10-20% (Superstar) per-season bands. Provisional
+ * until a real backtest (04_VALIDATION_AND_BACKTEST_PLAN.md) has enough seasons of data to
+ * confirm or retune them. */
 export const SEASON_TREND_RULES: Record<Exclude<ImmortalityDevTrait, "xfactor">, SeasonTrendRule> = {
   normal: { window: 4, minScore: 8, minGolds: 1, minConsecutiveGolds: 0 },
-  star: { window: 6, minScore: 14, minGolds: 2, minConsecutiveGolds: 2 },
-  superstar: { window: 8, minScore: 20, minGolds: 4, minConsecutiveGolds: 3 },
+  star: { window: 6, minScore: 12, minGolds: 2, minConsecutiveGolds: 1 },
+  superstar: { window: 8, minScore: 16, minGolds: 3, minConsecutiveGolds: 2 },
 };
 
 export function highestMedalForWeek(completedTiers: Array<"bronze" | "silver" | "gold">): TrendMedal {
@@ -51,9 +58,17 @@ export function windowScore(medals: TrendMedal[]): number {
   return medals.reduce((sum, medal) => sum + TREND_MEDAL_SCORE[medal], 0);
 }
 
-/** Faster Developer's promotionCheckBonus shortens the lookback (50% more often ≈ 2/3 window). */
-export function effectiveTrendWindow(baseWindow: number, promotionCheckBonus: number): number {
-  return Math.max(3, Math.ceil(baseWindow / (1 + Math.max(0, promotionCheckBonus))));
+/** Faster Developer's advantage is check-cadence, not a shorter trend window (see the Dev
+ * Promotion Overhaul deep-dive, section 13 "Option A"). Shrinking the window instead of the
+ * cadence made Star/Superstar Faster Developer prospects mathematically unable to ever clear
+ * the score/gold bar without an external record-break bonus, since the shrunk window couldn't
+ * hold enough golds to reach the unshrunk score requirement -- the opposite of a perk. Every
+ * prospect's trend window/score/gold/streak requirements are identical regardless of this
+ * bonus now; Faster Developer instead gets evaluated for a promotion opportunity more often
+ * (see promotionCheckCadence and evaluateSeasonTrendPromotionsAfterAdvance in
+ * progression.service.ts), which can only ever help, never hurt, a prospect's odds. */
+export function promotionCheckCadence(baseCadence: number, promotionCheckBonus: number): number {
+  return Math.max(1, Math.round(baseCadence / (1 + Math.max(0, promotionCheckBonus))));
 }
 
 export type SeasonTrendResult =
@@ -63,7 +78,6 @@ export type SeasonTrendResult =
 export function evaluateSeasonTrend(input: {
   currentDevTrait: ImmortalityDevTrait;
   medals: TrendMedal[];
-  promotionCheckBonus?: number;
   /** Extra trend-score points from real, verified events outside the weekly-challenge medal
    *  system -- currently just "broke an NFL top-5 record recently" (see
    *  progression.service.ts's evaluateSeasonTrendPromotionsAfterAdvance). Only nudges the score
@@ -77,7 +91,7 @@ export function evaluateSeasonTrend(input: {
     return { promote: false, reason: "Already at X-Factor.", window: 0, score: 0, golds: 0, nextDevTrait: null };
   }
   const rule = SEASON_TREND_RULES[input.currentDevTrait as Exclude<ImmortalityDevTrait, "xfactor">];
-  const window = effectiveTrendWindow(rule.window, input.promotionCheckBonus ?? 0);
+  const window = rule.window;
   if (input.medals.length < window) {
     return {
       promote: false,
