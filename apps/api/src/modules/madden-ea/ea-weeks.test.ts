@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   eaScheduleExternalId,
-  resolveScheduleImportRefs,
+  fullSeasonScheduleRefs,
   resolveWeeklyImportRefs,
   validateWeekRef,
   weeksThroughCurrent,
@@ -51,11 +51,30 @@ test("week_scope full_season is regular-season weeks 1–18", () => {
   assert.ok(refs.every((ref) => ref.stageIndex === 1));
 });
 
-test("schedule import refs always cover the full regular-season slate", () => {
-  const refs = resolveScheduleImportRefs([{ stageIndex: 1, weekIndex: 0 }]);
+test("full-season schedule refs cover the regular season when playoffs don't exist yet", () => {
+  const refs = fullSeasonScheduleRefs({ stageIndex: 1, weekIndex: 5 });
   assert.equal(refs.length, 18);
   assert.ok(refs.some((ref) => ref.weekIndex === 0));
   assert.ok(refs.some((ref) => ref.weekIndex === 17));
+  assert.ok(!refs.some((ref) => ref.weekIndex >= 18));
+});
+
+test("full-season schedule refs add playoff weeks once the franchise has reached them", () => {
+  // weekIndex 20 = Conference Championship (display week 21); Wild Card (18) and Divisional
+  // (19) should also be included, Pro Bowl (21) and Super Bowl (22, not reached yet) excluded.
+  const refs = fullSeasonScheduleRefs({ stageIndex: 1, weekIndex: 20 });
+  assert.equal(refs.length, 21);
+  assert.ok(refs.some((ref) => ref.weekIndex === 18));
+  assert.ok(refs.some((ref) => ref.weekIndex === 19));
+  assert.ok(refs.some((ref) => ref.weekIndex === 20));
+  assert.ok(!refs.some((ref) => ref.weekIndex === 21));
+  assert.ok(!refs.some((ref) => ref.weekIndex === 22));
+});
+
+test("full-season schedule refs include the Super Bowl once the franchise has reached it", () => {
+  const refs = fullSeasonScheduleRefs({ stageIndex: 1, weekIndex: 22 });
+  assert.ok(refs.some((ref) => ref.weekIndex === 22));
+  assert.ok(!refs.some((ref) => ref.weekIndex === 21));
 });
 
 test("explicit week_refs win over week_scope", () => {

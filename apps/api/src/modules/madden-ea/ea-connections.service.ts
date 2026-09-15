@@ -52,8 +52,9 @@ import {
   type EaDataset,
 } from "./ea-datasets.js";
 import { chunkItems, EA_ROSTER_TEAM_BATCH, EA_WEEKLY_WEEK_BATCH, weeklyWriteOrder } from "./ea-import-batches.js";
-import { directWriteSchedule, directWriteRoster } from "./ea-direct-writer.js";
+import { directWriteSchedule, directWriteRoster, hasImportedSchedule, completeScheduleWeeks } from "./ea-direct-writer.js";
 import { shouldRetainPlayerAfterEaReconcile } from "./ea-roster-reconcile.js";
+import { resolveSeasonId } from "../league-context/season.service.js";
 import {
   isTokenExpired,
   openToken,
@@ -61,7 +62,7 @@ import {
   type EaSessionCache,
   type EaTokenRecord,
 } from "./ea-token-vault.js";
-import { currentWeekFromSeasonInfo, describeEaWeek, describeWeekRefsLabel, resolveScheduleImportRefs, resolveWeeklyImportRefs, type EaStage, type EaWeekRef, type EaWeekScope } from "./ea-weeks.js";
+import { currentWeekFromSeasonInfo, describeEaWeek, describeWeekRefsLabel, fullSeasonScheduleRefs, resolveWeeklyImportRefs, weeksThroughCurrent, type EaStage, type EaWeekRef, type EaWeekScope } from "./ea-weeks.js";
 
 export type { EaDataset };
 
@@ -855,8 +856,6 @@ export async function importEaDatasetsWithProgress(
 
   // Weekly datasets follow the picker: current week, an explicit list, or all weeks through
   // current. Omitted weekRefs used to expand 0..current, so "Current week" imported history.
-  // Schedule always also covers the full regular-season slate (see resolveScheduleImportRefs)
-  // so a current-week import still stores weeks 2–18 for My Schedule / League Schedule.
   const defaultWeekRef: EaWeekRef = options.stage !== undefined && options.weekIndex !== undefined
     ? { stageIndex: options.stage, weekIndex: options.weekIndex }
     : seasonInfo
@@ -870,7 +869,33 @@ export async function importEaDatasetsWithProgress(
     current: defaultWeekRef,
   });
   const scheduleSelected = datasets.includes("schedule");
-  const scheduleWeekRefs = scheduleSelected ? resolveScheduleImportRefs(baseWeeklyRefs) : [];
+  // Schedule fetch is now a targeted diff, not an unconditional full-slate pull every import:
+  // EA does not reschedule regular-season games mid-season, so a week our own DB already has
+  // fully completed has nothing left to re-fetch. An explicit week request (a specific week or
+  // range from the picker) is always honored as asked. Otherwise: the first import for a season
+  // (or an explicit "full season" request) grabs the whole slate -- regular season plus whatever
+  // playoff weeks already exist -- and every later import only re-checks 1..current for weeks
+  // that aren't fully completed yet (a newly-finished game, or a week never pulled before).
+  let scheduleWeekRefs: EaWeekRef[] = [];
+  if (scheduleSelected) {
+    const explicitWeeksGiven = (options.weekRefs && options.weekRefs.length > 0)
+      || (options.stage !== undefined && options.weekIndex !== undefined);
+    if (explicitWeeksGiven) {
+      scheduleWeekRefs = baseWeeklyRefs;
+    } else {
+      const seasonId = await resolveSeasonId(leagueId, recSeasonNumber);
+      const bootstrap = !(await hasImportedSchedule(leagueId, seasonId));
+      if (bootstrap || options.weekScope === "full_season") {
+        scheduleWeekRefs = fullSeasonScheduleRefs(defaultWeekRef);
+      } else {
+        const completeWeeks = await completeScheduleWeeks(leagueId, seasonId);
+        scheduleWeekRefs = weeksThroughCurrent(defaultWeekRef).filter((ref) => {
+          const desc = describeEaWeek(ref.stageIndex, ref.weekIndex);
+          return !completeWeeks.has(`${desc.phase}:${desc.recWeek}`);
+        });
+      }
+    }
+  }
   const statsWeeklyDatasets = datasets.filter((d) => WEEKLY_DATASETS.has(d) && d !== "schedule") as EaDataset[];
   // Union of weeks we will actually hit EA for (schedule slate ∪ stats weeks).
   const weeklyRefs = (() => {

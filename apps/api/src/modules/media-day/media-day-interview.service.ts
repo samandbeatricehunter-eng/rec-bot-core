@@ -16,6 +16,7 @@ import {
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { resolveIssuedEntry } from "../weekly-challenges/weekly-challenge-issuance.service.js";
+import { MEDIA_DAY_GATE_ENABLED } from "../media-day-gate/media-day-gate.service.js";
 
 const SIDES: WeeklyChallengeSide[] = ["offense", "defense"];
 
@@ -93,6 +94,12 @@ async function resolveTeamAndOpponentNames(leagueId: string, teamId: string, sea
  * challenge if it hasn't been yet, and returns the two Media Day questions plus any answers this
  * user has already submitted this period. */
 export async function getMyMediaDayInterview(input: { guildId: string; discordId: string }): Promise<MediaDayInterviewResult> {
+  // getMediaDayGateStatus already reports required:false while the flag is off, so the frontend
+  // gate never renders a way to reach this -- but that's a UI-only omission, not a server-side
+  // guard. Without this check, the interview/answer/commitment endpoints stay fully callable
+  // (and mutate real data) via a direct request even though the feature is meant to be inert
+  // until MEDIA_DAY_GATE_ENABLED flips. RTI leagues are unaffected -- they never call this file.
+  if (!MEDIA_DAY_GATE_ENABLED) return { periodId: null, teamName: "Your team", questions: [], complete: true };
   const context = await getCurrentLeagueContext(input.guildId);
   const league = context.rec_leagues;
   const seasonNumber = Number(league.season_number ?? league.display_season_number ?? 1);
@@ -145,6 +152,7 @@ export async function getMyMediaDayInterview(input: { guildId: string; discordId
 export async function submitMyMediaDayAnswer(input: {
   guildId: string; discordId: string; side: WeeklyChallengeSide; questionId: string; answerKey: string;
 }): Promise<{ complete: boolean }> {
+  if (!MEDIA_DAY_GATE_ENABLED) throw new Error("Media Day is not open right now.");
   const context = await getCurrentLeagueContext(input.guildId);
   const league = context.rec_leagues;
   const seasonNumber = Number(league.season_number ?? league.display_season_number ?? 1);
@@ -227,6 +235,7 @@ export type MediaDayChallengeReveal = {
  * cumulative stat-line requirements per tier -- never raw Bronze/Silver/Gold point values, just
  * what the team is actually being held to. */
 export async function getMyMediaDayChallengeReveal(input: { guildId: string; discordId: string }): Promise<MediaDayChallengeReveal[]> {
+  if (!MEDIA_DAY_GATE_ENABLED) return [];
   const context = await getCurrentLeagueContext(input.guildId);
   const league = context.rec_leagues;
   const seasonNumber = Number(league.season_number ?? league.display_season_number ?? 1);
@@ -265,6 +274,9 @@ export type RtiProspectChallengeReveal = {
  * from the RTI challenge catalog (packages/shared/src/immortality/challenges.ts) -- no separate
  * condition-to-text renderer needed the way the non-RTI team-challenge reveal required one. */
 export async function getMyRtiProspectChallengeReveal(input: { guildId: string; discordId: string }): Promise<RtiProspectChallengeReveal[]> {
+  // Only ever called from the new gate's own RtiChallengeRevealScreen (MediaDayGate.tsx), not
+  // from any pre-existing always-on RTI surface -- safe to gate the same as the rest of this file.
+  if (!MEDIA_DAY_GATE_ENABLED) return [];
   const context = await getCurrentLeagueContext(input.guildId);
   const league = context.rec_leagues;
   const seasonNumber = Number(league.season_number ?? league.display_season_number ?? 1);

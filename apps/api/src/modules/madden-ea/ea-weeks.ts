@@ -247,13 +247,20 @@ export function resolveWeeklyImportRefs(input: {
 }
 
 /**
- * Weeks to fetch for the schedule dataset. Stats stay on the caller's week selection;
- * schedule always also covers the full regular-season slate so future My Schedule /
- * League Schedule weeks exist after a "current week" import (which would otherwise only
- * store the 16 games for the franchise's current week).
+ * Full regular season (1-18) plus any playoff weeks that already exist given where the
+ * franchise currently sits. Madden does not generate the playoff bracket until the regular
+ * season ends, so those weeks only become fetchable once `current` has reached them.
  */
-export function resolveScheduleImportRefs(baseWeeklyRefs: EaWeekRef[]): EaWeekRef[] {
-  return dedupeWeekRefs([...baseWeeklyRefs, ...fullRegularSeasonWeekRefs()]);
+export function fullSeasonScheduleRefs(current: EaWeekRef): EaWeekRef[] {
+  const regular = fullRegularSeasonWeekRefs();
+  if (current.stageIndex !== 1 || current.weekIndex < 18) return regular;
+  const playoffs: EaWeekRef[] = [];
+  const maxWeekIndex = Math.min(current.weekIndex, 22);
+  for (let weekIndex = 18; weekIndex <= maxWeekIndex; weekIndex += 1) {
+    if (weekIndex === PRO_BOWL_WEEK_INDEX) continue;
+    playoffs.push({ stageIndex: 1, weekIndex });
+  }
+  return dedupeWeekRefs([...regular, ...playoffs]);
 }
 
 /**

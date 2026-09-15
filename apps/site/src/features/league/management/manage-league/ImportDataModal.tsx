@@ -492,7 +492,7 @@ export function ImportDataModal({
                 <>
                   <Card>
                     <h3 style={{ marginTop: 0 }}>Datasets</h3>
-                    <p className="form-hint">Choose what to pull. Per-week stats follow the week selection below. Schedule always also stores the full regular-season slate (weeks 1–18) so My Schedule is not stuck with only the current week&apos;s 16 games. Rosters, free agents, teams, and standings are league-wide snapshots.</p>
+                    <p className="form-hint">Choose what to pull. Per-week stats follow the week selection below. Schedule normally only re-checks the current and previous weeks for anything new (EA doesn&apos;t reschedule games mid-season, so a completed week has nothing left to fetch) — the first import of a season, or &quot;Full season schedule&quot; below, pulls the whole slate at once so My Schedule isn&apos;t stuck with only the current week&apos;s games. Rosters, free agents, teams, and standings are league-wide snapshots.</p>
                     <div style={{ display: "flex", gap: "var(--space-3)", flexWrap: "wrap", marginBottom: "var(--space-3)" }}>
                       <div className="form-field" style={{ margin: 0, minWidth: 170 }}>
                         <label className="form-label" htmlFor="ea-week-mode">Import for</label>
@@ -501,7 +501,7 @@ export function ImportDataModal({
                           <option value="week">A specific week</option>
                           <option value="span">A range of weeks</option>
                           <option value="through_current">All weeks through current</option>
-                          <option value="full_season">Full regular season (1–18)</option>
+                          <option value="full_season">Full regular season (1–18; schedule also gets playoffs so far)</option>
                         </select>
                       </div>
                       {(weekMode === "week" || weekMode === "span") && (

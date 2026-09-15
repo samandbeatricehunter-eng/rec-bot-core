@@ -98,6 +98,31 @@ export const EA_RATING_TO_SNAKE: Record<string, string> = {
 
 // ── Schedule ──
 
+/** Whether any schedule data has ever been imported for this league+season. Drives the
+ *  "bootstrap" full-season fetch -- see fullSeasonScheduleRefs in ea-weeks.ts. */
+export async function hasImportedSchedule(leagueId: string, seasonId: string): Promise<boolean> {
+  const result = await getPgPool().query(
+    `select 1 from rec_games where league_id=$1 and season_id=$2 and week_number is not null limit 1`,
+    [leagueId, seasonId],
+  );
+  return result.rows.length > 0;
+}
+
+/** Weeks (keyed "phase:recWeek", so preseason/regular-season/playoff weeks sharing a number
+ *  never collide) whose games are all already marked completed in our own DB -- EA does not
+ *  reschedule games mid-season, so a fully-completed week has nothing left to re-fetch. */
+export async function completeScheduleWeeks(leagueId: string, seasonId: string): Promise<Set<string>> {
+  const result = await getPgPool().query<{ phase: string; week_number: number }>(
+    `select phase, week_number
+       from rec_games
+      where league_id=$1 and season_id=$2 and week_number is not null
+      group by phase, week_number
+     having bool_and(status = 'completed')`,
+    [leagueId, seasonId],
+  );
+  return new Set(result.rows.map((row) => `${row.phase}:${row.week_number}`));
+}
+
 export async function directWriteSchedule(
   leagueId: string,
   rawEaData: unknown,
@@ -224,10 +249,10 @@ export async function directWriteSchedule(
     }
     if (gameId) {
       // Hash-based write optimization (same principle as directWriteRoster's rosterUnchangedWrite
-      // -- see this file's header comment): a routine re-import re-sends every week's full
-      // schedule slate every time (see resolveScheduleImportRefs's doc comment for why that fetch
-      // itself stays full-slate), so on a typical incremental import nearly every one of these
-      // rows is byte-identical to what's already stored. Skip the write (and don't count it as
+      // -- see this file's header comment): even though the fetch itself is now targeted (see
+      // fullSeasonScheduleRefs/completeScheduleWeeks in ea-weeks.ts / ea-direct-writer.ts), a
+      // week we do re-fetch (e.g. the current week, still in progress) usually comes back
+      // byte-identical to what's stored between polls. Skip the write (and don't count it as
       // "written") when nothing this function actually owns has changed, instead of unconditionally
       // re-writing and reporting every row as freshly touched on every single import.
       const currentStatus = completed ? "completed" : "scheduled";
