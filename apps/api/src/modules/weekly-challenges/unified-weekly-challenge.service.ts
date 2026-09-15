@@ -20,6 +20,7 @@ type AssignmentRow = {
   assignment_class: "TEAM" | "PLAYER";
   subject_key: string;
   subject_label: string | null;
+  user_id: string | null;
   team_id: string | null;
   target_player_id: string | null;
   target_prospect_id: string | null;
@@ -188,6 +189,7 @@ async function fatigueFor(input: {
   targetPlayerId?: string | null;
   seasonNumber: number;
   weekNumber: number;
+  storyCritical?: boolean;
 }) {
   const fromWeek = Math.max(1, input.weekNumber - 6);
   let query = supabase.from("rec_weekly_challenge_assignments")
@@ -199,9 +201,12 @@ async function fatigueFor(input: {
     .lt("week_number", input.weekNumber);
   if (input.targetPlayerId) query = query.eq("target_player_id", input.targetPlayerId);
   const rows = (await query).data ?? [];
-  const exactBlocked = rows
-    .filter((row: any) => Number(row.week_number) >= input.weekNumber - 3)
-    .map((row: any) => String(row.challenge_id));
+  // Exact challenge blocked for 3 eligible weeks unless this pick is story-critical.
+  const exactBlocked = input.storyCritical
+    ? []
+    : rows
+      .filter((row: any) => Number(row.week_number) >= input.weekNumber - 3)
+      .map((row: any) => String(row.challenge_id));
   const familyPenalty = rows
     .filter((row: any) => Number(row.week_number) >= input.weekNumber - 2)
     .map((row: any) => String(row.challenge_family));
@@ -380,6 +385,7 @@ export async function resolveRtiProspectWeeklyAssignment(input: {
       contexts,
       excludeIds: fatigue.exactBlocked,
       sameFamilyPenalty: fatigue.familyPenalty,
+      blockHighVariance: fatigue.previousHighVariance,
     }) ?? pickUnifiedPlayerChallenge({
       seed: `${input.immortalityLeagueId}:${input.seasonNumber}:${input.weekNumber}:${input.prospect.id}:fallback`,
       position: input.prospect.position || meta.position,
@@ -387,6 +393,7 @@ export async function resolveRtiProspectWeeklyAssignment(input: {
       contexts,
       excludeIds: fatigue.exactBlocked,
       sameFamilyPenalty: fatigue.familyPenalty,
+      blockHighVariance: fatigue.previousHighVariance,
     });
     if (!picked) return null;
     entry = picked;
@@ -481,14 +488,6 @@ export async function issueStandardOwnerAssignment(input: {
   const leagueMode: "STANDARD" | "RTI" = immortality ? "RTI" : "STANDARD";
 
   const game = await gameForTeam({ leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, teamId: input.teamId });
-  const fatigue = await fatigueFor({
-    leagueId: input.leagueId,
-    userId: input.userId,
-    seasonNumber: input.seasonNumber,
-    weekNumber: input.weekNumber,
-  });
-  // RTI owner assignments are always TEAM. Standard leagues may take a contextual PLAYER
-  // assignment when a real storyline/event trigger scores high enough.
   const playerTarget = leagueMode === "STANDARD"
     ? await pickStandardPlayerTarget({
       leagueId: input.leagueId,
@@ -498,6 +497,19 @@ export async function issueStandardOwnerAssignment(input: {
       weekNumber: input.weekNumber,
     })
     : null;
+  const storyCritical = Boolean(playerTarget?.reasonCodes.some((code) => (
+    code.includes("rivalry") || code.includes("record") || code.includes("commitment") || code === "story_critical"
+  )));
+  const fatigue = await fatigueFor({
+    leagueId: input.leagueId,
+    userId: input.userId,
+    seasonNumber: input.seasonNumber,
+    weekNumber: input.weekNumber,
+    targetPlayerId: playerTarget?.playerId ?? null,
+    storyCritical,
+  });
+  // RTI owner assignments are always TEAM. Standard leagues may take a contextual PLAYER
+  // assignment when a real storyline/event trigger scores high enough.
   if (playerTarget) {
     const meta = await playerMeta(playerTarget.playerId);
     const picked = pickUnifiedPlayerChallenge({
@@ -507,6 +519,7 @@ export async function issueStandardOwnerAssignment(input: {
       contexts: playerTarget.reasonCodes,
       excludeIds: fatigue.exactBlocked,
       sameFamilyPenalty: fatigue.familyPenalty,
+      blockHighVariance: fatigue.previousHighVariance,
     });
     if (picked) {
       return insertAssignment({
@@ -525,15 +538,34 @@ export async function issueStandardOwnerAssignment(input: {
         targetProspectId: null,
         challenge: picked,
         reasonCodes: playerTarget.reasonCodes,
-        contextSnapshot: { score: playerTarget.score, archetype: meta.archetype, position: meta.position },
+        contextSnapshot: { score: playerTarget.score, archetype: meta.archetype, position: meta.position, fatigue },
       });
     }
   }
 
-  const pickedTeam = pickUnifiedTeamChallenge({
+  const selectionContext = await ownerTeamSelectionContext({
+    leagueId: input.leagueId,
+    teamId: input.teamId,
+    seasonNumber: input.seasonNumber,
+    weekNumber: input.weekNumber,
+  });
+  const contextualTeam = selectionContext.tags.length
+    ? pickUnifiedTeamChallenge({
+      seed: `${input.leagueId}:${input.userId}:${input.seasonNumber}:${input.weekNumber}:team:contextual`,
+      pool: "contextual",
+      excludeIds: fatigue.exactBlocked,
+      sameFamilyPenalty: fatigue.familyPenalty,
+      blockHighVariance: fatigue.previousHighVariance,
+      context: selectionContext,
+    })
+    : undefined;
+  const pickedTeam = contextualTeam ?? pickUnifiedTeamChallenge({
     seed: `${input.leagueId}:${input.userId}:${input.seasonNumber}:${input.weekNumber}:team`,
-    pool: leagueMode === "RTI" ? "standard" : "standard",
+    pool: "standard",
     excludeIds: fatigue.exactBlocked,
+    sameFamilyPenalty: fatigue.familyPenalty,
+    blockHighVariance: fatigue.previousHighVariance,
+    context: selectionContext,
   });
   if (!pickedTeam) return null;
   return insertAssignment({
@@ -551,9 +583,51 @@ export async function issueStandardOwnerAssignment(input: {
     targetPlayerId: null,
     targetProspectId: null,
     challenge: pickedTeam,
-    reasonCodes: leagueMode === "RTI" ? ["rti_required_owner_team"] : ["standard_team_default"],
-    contextSnapshot: {},
+    reasonCodes: contextualTeam
+      ? ["standard_team_contextual", ...selectionContext.tags]
+      : (leagueMode === "RTI" ? ["rti_required_owner_team"] : ["standard_team_default"]),
+    contextSnapshot: { selectionContext, fatigue },
   });
+}
+
+async function ownerTeamSelectionContext(input: {
+  leagueId: string;
+  teamId: string;
+  seasonNumber: number;
+  weekNumber: number;
+}): Promise<{ tags: string[]; redZoneTrips?: number; opponentRedZoneTrips?: number }> {
+  const tags = new Set<string>();
+  const [events, storylines, ctx] = await Promise.all([
+    supabase.from("rec_media_events").select("event_type,importance_score")
+      .eq("league_id", input.leagueId).eq("team_id", input.teamId)
+      .gte("created_at", new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString()),
+    supabase.from("rec_media_storylines").select("storyline_type,priority")
+      .eq("league_id", input.leagueId).eq("team_id", input.teamId).eq("status", "open"),
+    buildWeeklyChallengeContext({
+      leagueId: input.leagueId,
+      teamId: input.teamId,
+      seasonNumber: input.seasonNumber,
+      weekNumber: input.weekNumber,
+    }).catch(() => null),
+  ]);
+  for (const row of events.data ?? []) {
+    const eventType = String((row as any).event_type ?? "");
+    if (eventType) tags.add(eventType);
+    if (eventType.includes("rival")) tags.add("rivalry");
+    if (eventType.includes("rematch")) tags.add("rematch");
+    if (eventType.includes("hot")) tags.add("hot_streak");
+    if (eventType.includes("cold")) tags.add("cold_streak");
+  }
+  for (const row of storylines.data ?? []) {
+    const type = String((row as any).storyline_type ?? "");
+    if (type) tags.add(type);
+  }
+  if (ctx?.team?.result === "win" && ctx.team.isAway) tags.add("road_revenge");
+  return {
+    tags: [...tags],
+    redZoneTrips: ctx?.team?.red_zone_off_percentage,
+    opponentRedZoneTrips: ctx?.team?.red_zone_def_percentage,
+  };
 }
 
 async function pickStandardPlayerTarget(input: {
@@ -572,31 +646,75 @@ async function pickStandardPlayerTarget(input: {
     .limit(20);
   const playerIds = (roster.data ?? []).map((row: any) => String(row.id));
   if (!playerIds.length) return null;
-  const [storylines, events] = await Promise.all([
+  const [storylines, events, opportunities] = await Promise.all([
     supabase.from("rec_media_storylines").select("player_id,storyline_type,priority")
       .eq("league_id", input.leagueId).eq("status", "open").in("player_id", playerIds),
     supabase.from("rec_media_events").select("player_id,event_type,importance_score")
       .eq("league_id", input.leagueId).in("player_id", playerIds)
       .gte("created_at", new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString()),
+    supabase.from("rec_immortality_promotion_opportunities").select("prospect_id,status,target_season_number,target_week_number")
+      .eq("status", "pending")
+      .eq("target_season_number", input.seasonNumber)
+      .eq("target_week_number", input.weekNumber),
   ]);
+
+  // Map pending RTI promotion opportunities onto roster player ids when present.
+  const opportunityProspectIds = (opportunities.data ?? []).map((row: any) => String(row.prospect_id));
+  const opportunityPlayers = opportunityProspectIds.length
+    ? await supabase.from("rec_immortality_prospects").select("id,player_id")
+      .in("id", opportunityProspectIds)
+    : { data: [] as Array<{ id: string; player_id: string | null }> };
+  const opportunityByPlayer = new Set(
+    (opportunityPlayers.data ?? [])
+      .map((row: any) => row.player_id ? String(row.player_id) : null)
+      .filter((id): id is string => Boolean(id)),
+  );
+
   let best: { playerId: string; score: number; reasonCodes: string[] } | null = null;
   for (const player of roster.data ?? []) {
     const id = String((player as any).id);
     const reasonCodes: string[] = [];
     let score = 0;
+    // High OVR alone is never enough — only real contextual triggers score.
     for (const row of storylines.data ?? []) {
       if (String((row as any).player_id) !== id) continue;
+      const type = String((row as any).storyline_type ?? "");
       score += 35 + Math.min(20, Number((row as any).priority ?? 0) * 5);
-      reasonCodes.push(String((row as any).storyline_type));
+      reasonCodes.push(type || "storyline");
+      if (type.includes("rival") || type.includes("beef")) {
+        score += 25;
+        reasonCodes.push("verified_social_beef");
+      }
     }
     for (const row of events.data ?? []) {
       if (String((row as any).player_id) !== id) continue;
       const eventType = String((row as any).event_type);
-      if (eventType === "record_watch") score += 70;
-      else if (eventType.includes("hot")) score += 45;
-      else if (eventType.includes("cold")) score += 45;
-      else if (eventType.includes("media")) score += 35;
-      reasonCodes.push(eventType);
+      if (eventType === "record_watch" || eventType.includes("record")) {
+        score += 70;
+        reasonCodes.push("record_chase");
+      } else if (eventType.includes("hot") || eventType.includes("breakout")) {
+        score += 45;
+        reasonCodes.push("hot_streak");
+      } else if (eventType.includes("cold")) {
+        score += 45;
+        reasonCodes.push("cold_streak");
+      } else if (eventType.includes("rival") || eventType.includes("rematch")) {
+        score += 55;
+        reasonCodes.push("rivalry_rematch");
+      } else if (eventType.includes("acquisition") || eventType.includes("trade") || eventType.includes("signed")) {
+        score += 40;
+        reasonCodes.push("acquisition");
+      } else if (eventType.includes("milestone")) {
+        score += 50;
+        reasonCodes.push("milestone");
+      } else if (eventType.includes("media") || eventType.includes("commitment")) {
+        score += 40;
+        reasonCodes.push("media_commitment");
+      }
+    }
+    if (opportunityByPlayer.has(id)) {
+      score += 65;
+      reasonCodes.push("dev_opportunity");
     }
     if (score >= 60 && (!best || score > best.score)) best = { playerId: id, score, reasonCodes: [...new Set(reasonCodes)] };
   }
@@ -663,23 +781,87 @@ export async function creditUnifiedOwnerAssignmentsForLeagueAtAdvance(input: {
   const { pointsForWeeklyTeamTier } = await import("@rec/shared");
 
   const rows = await supabase.from("rec_weekly_challenge_assignments")
-    .select("id,team_id,user_id,target_player_id,challenge_id,challenge_name,assignment_class,graded_tier,credited_tier,status")
+    .select("*")
     .eq("league_id", input.leagueId)
     .eq("season_number", input.seasonNumber)
     .eq("week_number", input.weekNumber)
     .eq("subject_key", "owner")
-    .in("status", ["graded", "credited"])
-    .not("graded_tier", "is", null);
+    .in("status", ["issued", "graded", "credited", "void"]);
 
   const credited: Array<{ teamId: string | null; challengeName: string; tier: "bronze" | "silver" | "gold"; franchiseAwardedFpp: number; playerAwardedXp: number }> = [];
   const tierRank = { bronze: 1, silver: 2, gold: 3 } as const;
 
-  for (const row of rows.data ?? []) {
+  for (const raw of rows.data ?? []) {
+    let row = raw as AssignmentRow & { void_reason?: string | null };
+    if (!row.user_id) continue;
+
+    // Regrade from current box score so mid-week corrections / VOID reversals settle before pay.
+    if (row.assignment_class === "TEAM" && row.team_id) {
+      const context = await buildWeeklyChallengeContext({
+        leagueId: input.leagueId,
+        teamId: String(row.team_id),
+        seasonNumber: input.seasonNumber,
+        weekNumber: input.weekNumber,
+      });
+      if (!context) {
+        await supabase.from("rec_weekly_challenge_assignments").update({
+          status: "void",
+          graded_tier: null,
+          void_reason: "no_team_game_stats",
+          graded_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", row.id);
+        continue;
+      }
+      const tiers = evaluateUnifiedTeamChallenge(rowToTeamChallenge(row), context);
+      const gradedTier = highestCompleteTier(tiers);
+      await supabase.from("rec_weekly_challenge_assignments").update({
+        status: "graded",
+        graded_tier: gradedTier,
+        void_reason: null,
+        graded_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", row.id);
+      row = { ...row, status: "graded", graded_tier: gradedTier, void_reason: null };
+    } else if (row.assignment_class === "PLAYER" && row.target_player_id) {
+      const meta = await playerMeta(String(row.target_player_id));
+      const stats = await playerStatsBundle({
+        leagueId: input.leagueId,
+        playerId: String(row.target_player_id),
+        seasonNumber: input.seasonNumber,
+        weekNumber: input.weekNumber,
+      });
+      if (!stats.hasStats) {
+        await supabase.from("rec_weekly_challenge_assignments").update({
+          status: "void",
+          graded_tier: null,
+          void_reason: "no_player_weekly_stats",
+          graded_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", row.id);
+        continue;
+      }
+      const tiers = evaluateUnifiedPlayerChallenge(rowToPlayerChallenge(row), {
+        stats: stats.stats,
+        recent: stats.recent,
+        position: meta.position,
+        archetype: meta.archetype,
+      });
+      const gradedTier = highestCompleteTier(tiers);
+      await supabase.from("rec_weekly_challenge_assignments").update({
+        status: "graded",
+        graded_tier: gradedTier,
+        void_reason: null,
+        graded_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", row.id);
+      row = { ...row, status: "graded", graded_tier: gradedTier, void_reason: null };
+    }
+
     const graded = row.graded_tier as "bronze" | "silver" | "gold" | null;
     const already = row.credited_tier as "bronze" | "silver" | "gold" | null;
     if (!graded) continue;
     if (already && tierRank[graded] <= tierRank[already]) continue;
-    if (!row.user_id) continue;
 
     const previousFpp = already ? pointsForWeeklyFranchiseTier(already) : 0;
     const nextFpp = pointsForWeeklyFranchiseTier(graded);

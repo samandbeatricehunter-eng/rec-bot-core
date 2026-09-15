@@ -87,8 +87,20 @@ export type UnifiedTeamSelectionContext = {
 
 export const UNIFIED_CHALLENGE_CATALOG_VERSION = "rec-weekly-challenges-unified-v2";
 
-const TEAM_CATALOG = teamCatalogJson as unknown as UnifiedTeamChallenge[];
-const PLAYER_CATALOG = playerCatalogJson as unknown as UnifiedPlayerChallenge[];
+// The uploaded package's raw catalog JSON spells this volatility value "high_variance"; every
+// consumer here (blockHighVariance filters below, the UnifiedChallengeVolatility type itself)
+// checks for "high". Left unreconciled, blockHighVariance silently matched zero entries in
+// either catalog -- the no-consecutive-high-volatility fatigue rule was a complete no-op.
+// Normalized once here, at the JSON-to-typed boundary, rather than editing the distilled source
+// data or widening the type to carry two spellings for the same concept.
+function normalizeVolatility(raw: unknown): UnifiedChallengeVolatility {
+  return raw === "high_variance" ? "high" : (raw as UnifiedChallengeVolatility);
+}
+
+const TEAM_CATALOG = (teamCatalogJson as unknown as UnifiedTeamChallenge[])
+  .map((entry) => ({ ...entry, volatility: normalizeVolatility(entry.volatility) }));
+const PLAYER_CATALOG = (playerCatalogJson as unknown as UnifiedPlayerChallenge[])
+  .map((entry) => ({ ...entry, volatility: normalizeVolatility(entry.volatility) }));
 
 export function unifiedChallengeArchitecture() {
   return architectureJson;
@@ -102,12 +114,25 @@ export function unifiedTeamChallengeCatalog(input: { pool?: UnifiedChallengePool
   return TEAM_CATALOG.filter((entry) => (!input.pool || entry.pool === input.pool) && (!input.side || entry.side === input.side));
 }
 
+// packages/shared/src/weekly-challenges/config/archetype_challenge_compatibility.json keys its
+// archetype menus by generic position GROUP ("EDGE", "OLB"), not the Madden-specific split the
+// challenge catalog itself and RTI prospects actually use ("LEDGE"/"REDGE", "WILL"/"SAM") --
+// same M27 edge/backer normalization gap as the rest of this position-alias story (see
+// normalizeChallengePosition above). Expand a group key to its real members here so a caller
+// resolving "what archetypes/challenges exist for EDGE" gets the union of LEDGE+REDGE entries
+// instead of zero, since no catalog entry is ever literally positioned "EDGE".
+const POSITION_GROUP_MEMBERS: Partial<Record<string, string[]>> = {
+  EDGE: ["LEDGE", "REDGE"],
+  OLB: ["WILL", "SAM"],
+};
+
 export function unifiedPlayerChallengeCatalog(input: { position?: string; archetype?: string | null; contexts?: string[] } = {}): UnifiedPlayerChallenge[] {
   const position = input.position ? normalizeChallengePosition(input.position) : null;
+  const positionMatches = position ? (POSITION_GROUP_MEMBERS[position] ?? [position]) : null;
   const archetype = normalizeArchetype(input.archetype);
   const contexts = new Set(input.contexts ?? []);
   return PLAYER_CATALOG.filter((entry) => {
-    if (position && !entry.positions.map(normalizeChallengePosition).includes(position)) return false;
+    if (positionMatches && !entry.positions.map(normalizeChallengePosition).some((p) => positionMatches.includes(p))) return false;
     if (archetype && !entry.archetypes.includes("*") && !entry.archetypes.map(normalizeArchetype).includes(archetype)) return false;
     if (entry.preferredContexts.length && contexts.size && !entry.preferredContexts.some((tag) => contexts.has(tag))) return false;
     return true;
@@ -144,13 +169,17 @@ export function pickUnifiedTeamChallenge(input: {
   side?: UnifiedChallengeSide;
   pool?: UnifiedChallengePool;
   excludeIds?: string[];
+  sameFamilyPenalty?: string[];
+  blockHighVariance?: boolean;
   context?: UnifiedTeamSelectionContext;
 }): UnifiedTeamChallenge | undefined {
   const excluded = new Set(input.excludeIds ?? []);
+  const penalized = new Set(input.sameFamilyPenalty ?? []);
   const pool = unifiedTeamChallengeCatalog({ pool: input.pool, side: input.side })
     .filter((entry) => !excluded.has(entry.id))
+    .filter((entry) => !(input.blockHighVariance && entry.volatility === "high"))
     .filter((entry) => unifiedTeamChallengeEligible(entry, input.context ?? {}));
-  return weightedPick(pool, input.seed, 1);
+  return weightedPick(pool, input.seed, 1, (entry) => penalized.has(entry.family) ? 0.35 : 1);
 }
 
 export function pickUnifiedPlayerChallenge(input: {
@@ -160,11 +189,13 @@ export function pickUnifiedPlayerChallenge(input: {
   contexts?: string[];
   excludeIds?: string[];
   sameFamilyPenalty?: string[];
+  blockHighVariance?: boolean;
 }): UnifiedPlayerChallenge | undefined {
   const excluded = new Set(input.excludeIds ?? []);
   const penalized = new Set(input.sameFamilyPenalty ?? []);
   const pool = unifiedPlayerChallengeCatalog({ position: input.position, archetype: input.archetype, contexts: input.contexts })
-    .filter((entry) => !excluded.has(entry.id));
+    .filter((entry) => !excluded.has(entry.id))
+    .filter((entry) => !(input.blockHighVariance && entry.volatility === "high"));
   if (!pool.length) return undefined;
   return weightedPick(pool, input.seed, 2, (entry) => penalized.has(entry.family) ? 0.35 : 1);
 }

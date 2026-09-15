@@ -4,6 +4,7 @@ import {
   evaluateUnifiedPlayerChallenge,
   evaluateUnifiedTeamChallenge,
   pickUnifiedPlayerChallenge,
+  unifiedArchetypeCompatibility,
   unifiedPlayerChallengeCatalog,
   unifiedTeamChallengeCatalog,
   type UnifiedPlayerChallenge,
@@ -127,4 +128,35 @@ test("RTI supported prospect positions can resolve a player challenge", () => {
     const challenge = pickUnifiedPlayerChallenge({ seed: `rti:${position}`, position, archetype: null });
     assert.ok(challenge, `missing challenge for ${position}`);
   }
+});
+
+test("every supported RTI position/archetype pair has eligible PLAYER entries", () => {
+  const compatibility = unifiedArchetypeCompatibility() as { archetypes: Record<string, string[]> };
+  for (const [position, archetypes] of Object.entries(compatibility.archetypes ?? {})) {
+    if (["OL", "K", "P", "FB"].includes(position)) continue;
+    for (const archetype of archetypes) {
+      const challenge = pickUnifiedPlayerChallenge({
+        seed: `rti:${position}:${archetype}`,
+        position,
+        archetype,
+      });
+      assert.ok(challenge, `missing challenge for ${position}/${archetype}`);
+    }
+  }
+});
+
+test("high-variance challenges can be blocked after a high-variance week", () => {
+  // QB has no high-variance entries in the real catalog (only EDGE/DT/CB/FS/SS do) -- search
+  // every position rather than assuming QB specifically has one, so this doesn't silently start
+  // finding nothing again if catalog content shifts.
+  const high = unifiedPlayerChallengeCatalog().find((entry) => entry.volatility === "high");
+  assert.ok(high);
+  const position = high.positions[0]!;
+  const blocked = pickUnifiedPlayerChallenge({
+    seed: `block:${high.id}`,
+    position,
+    excludeIds: [],
+    blockHighVariance: true,
+  });
+  assert.ok(!blocked || blocked.volatility !== "high");
 });

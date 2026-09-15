@@ -103,10 +103,11 @@ export async function directWriteSchedule(
   rawEaData: unknown,
   displayWeek: number,
   phase: "preseason" | "regular_season" | "playoffs",
-): Promise<number> {
+): Promise<RosterWriteResult> {
   const rawRows = extractRows(rawEaData, "gameScheduleInfoList");
   const pool = getPgPool();
   let written = 0;
+  let skipped = 0;
   const teams = await pool.query<{ id: string; madden_team_id: string | null }>(
     `select id, madden_team_id from rec_teams where league_id=$1`,
     [leagueId],
@@ -222,14 +223,38 @@ export async function directWriteSchedule(
       if (legacy.rows[0]) gameId = legacy.rows[0].id;
     }
     if (gameId) {
-      await pool.query(
-        `update rec_games set home_score=$2, away_score=$3, status=$4, phase=$5, source='madden_companion_export',
-           import_verified=true, external_game_id=$6, ea_season_game_key=coalesce($7, ea_season_game_key),
-           home_user_id=coalesce($8, home_user_id), away_user_id=coalesce($9, away_user_id),
-           season_id=coalesce(season_id, $10), updated_at=now()
-         where id=$1`,
-        [gameId, finalHomeScore, finalAwayScore, completed ? "completed" : "scheduled", phase, externalId, seasonGameKey, homeUserId, awayUserId, seasonId],
+      // Hash-based write optimization (same principle as directWriteRoster's rosterUnchangedWrite
+      // -- see this file's header comment): a routine re-import re-sends every week's full
+      // schedule slate every time (see resolveScheduleImportRefs's doc comment for why that fetch
+      // itself stays full-slate), so on a typical incremental import nearly every one of these
+      // rows is byte-identical to what's already stored. Skip the write (and don't count it as
+      // "written") when nothing this function actually owns has changed, instead of unconditionally
+      // re-writing and reporting every row as freshly touched on every single import.
+      const currentStatus = completed ? "completed" : "scheduled";
+      const current = await pool.query<{ home_score: number | null; away_score: number | null; status: string; phase: string; external_game_id: string | null }>(
+        `select home_score, away_score, status, phase, external_game_id from rec_games where id=$1`,
+        [gameId],
       );
+      const row = current.rows[0];
+      const unchanged = row != null
+        && row.home_score === finalHomeScore
+        && row.away_score === finalAwayScore
+        && row.status === currentStatus
+        && row.phase === phase
+        && row.external_game_id === externalId;
+      if (unchanged) {
+        skipped += 1;
+      } else {
+        await pool.query(
+          `update rec_games set home_score=$2, away_score=$3, status=$4, phase=$5, source='madden_companion_export',
+             import_verified=true, external_game_id=$6, ea_season_game_key=coalesce($7, ea_season_game_key),
+             home_user_id=coalesce($8, home_user_id), away_user_id=coalesce($9, away_user_id),
+             season_id=coalesce(season_id, $10), updated_at=now()
+           where id=$1`,
+          [gameId, finalHomeScore, finalAwayScore, currentStatus, phase, externalId, seasonGameKey, homeUserId, awayUserId, seasonId],
+        );
+        written += 1;
+      }
     } else {
       const gameRow = await pool.query<{ id: string }>(
         `insert into rec_games
@@ -257,6 +282,7 @@ export async function directWriteSchedule(
          completed ? "completed" : "scheduled", externalId, seasonGameKey, homeUserId, awayUserId, seasonId],
       );
       gameId = gameRow.rows[0]?.id ?? null;
+      written += 1;
     }
 
     // For completed games with valid team IDs, also write directly to rec_game_results
@@ -332,7 +358,7 @@ export async function directWriteSchedule(
     }
   }
 
-  return written;
+  return rosterWriteResult(written, skipped);
 }
 
 function rosterTeamMap(rows: Array<{ id: string; madden_team_id: string | null }>): Map<string, string> {

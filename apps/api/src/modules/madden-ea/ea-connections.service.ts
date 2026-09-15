@@ -979,11 +979,11 @@ export async function importEaDatasetsWithProgress(
         [leagueId, recSeasonNumber, isWeekly ? weekDesc.recWeek : null, dataset],
       ).catch((err) => console.error("[EA] Failed to record import log (non-fatal):", err));
     };
-    let records = 0;
-
     if (dataset === "schedule") {
-      records = await directWriteSchedule(leagueId, raw, weekDesc.recWeek, weekDesc.phase);
+      const schedule = await directWriteSchedule(leagueId, raw, weekDesc.recWeek, weekDesc.phase);
       scheduleImported = true;
+      logImport();
+      return { dataset, label, records: schedule.records, duplicate: schedule.duplicate };
     } else if (dataset === "rosters") {
       const roster = await directWriteRoster(leagueId, raw, false);
       collectImportedPlayerIds(raw, importedPlayerIds);
@@ -997,13 +997,19 @@ export async function importEaDatasetsWithProgress(
     } else {
       const envelope = toIngestEnvelope({ dataset, raw, eaLeagueId, seasonYear, stage: week.stageIndex, weekIndex: week.weekIndex });
       const ingested = await ingestCompanionPayload(direct, envelope.endpointKey, envelope.payload, { "x-rec-ea-direct": "1" }, "madden_direct_sync");
-      records = ingested.records_stored;
       if (envelope.endpointKey === "player_stats" || envelope.endpointKey === "team_stats") {
         statsImported = true;
       }
+      logImport();
+      // ingestCompanionPayload already does two levels of diffing (see its own comment): a whole-
+      // payload checksum short-circuit (ingested.duplicate) and a per-record content checksum that
+      // only counts a record in records_applied when it actually changed -- this dispatch used to
+      // throw both signals away and hardcode duplicate: false for every non-schedule/roster
+      // dataset, so a routine "nothing changed this week" teams/standings/stats import always
+      // reported as if every row had been freshly written.
+      const duplicate = ingested.duplicate || (ingested.records_stored > 0 && ingested.records_applied === 0);
+      return { dataset, label, records: ingested.records_stored, duplicate };
     }
-    logImport();
-    return { dataset, label, records, duplicate: false };
   };
 
   const importDatasetAtWeek = async (dataset: EaDataset, week: EaWeekRef) => {
@@ -1281,10 +1287,45 @@ export async function recordEaImportError(connectionId: string, error: unknown):
   ).catch(() => undefined);
 }
 
+// index.ts's setInterval calls runAutoImportSweep every 4 hours, but ALSO once immediately on
+// every boot (see its own comment on why) -- with no gate below, that meant every redeploy
+// (routine on this platform, and frequent) re-ran a full import for every auto_import league
+// regardless of how recently one had actually completed, instead of the intended "every 4
+// hours." Gating on last_import_at (already tracked, just never read here before) makes the
+// boot-time immediate sweep safe: it only actually does anything for a league whose window has
+// genuinely elapsed.
+const AUTO_IMPORT_MIN_INTERVAL_SQL = "interval '4 hours'";
+
+export type LeagueImportLock = { readonly leagueId: string; readonly client: import("pg").PoolClient };
+
+/** Session-scoped Postgres advisory lock, held on a dedicated checked-out connection for one
+ * league's whole import (imports run many separate pool.query calls over several minutes, not
+ * one transaction, so pg_advisory_xact_lock's auto-release-at-commit doesn't fit here). Guards
+ * the real cross-process failure mode: a redeploy landing while another process's import for
+ * this league is still mid-write, whose new process has no way to see that in-flight work (the
+ * in-memory getImportProgress check only protects against overlap within one process). Non-
+ * blocking: returns null immediately if another process already holds it, rather than queuing
+ * up behind it -- callers should skip/reject rather than wait. Always pair with
+ * releaseLeagueImportLock in a finally block. */
+export async function acquireLeagueImportLock(leagueId: string): Promise<LeagueImportLock | null> {
+  const client = await getPgPool().connect();
+  const acquired = await client.query<{ locked: boolean }>(`select pg_try_advisory_lock(hashtext($1)) as locked`, [`ea_import:${leagueId}`]);
+  if (acquired.rows[0]?.locked) return { leagueId, client };
+  client.release();
+  return null;
+}
+
+export async function releaseLeagueImportLock(lock: LeagueImportLock): Promise<void> {
+  await lock.client.query(`select pg_advisory_unlock(hashtext($1))`, [`ea_import:${lock.leagueId}`]).catch(() => undefined);
+  lock.client.release();
+}
+
 export async function runAutoImportSweep(): Promise<{ attempted: number; succeeded: number; failed: number }> {
   if (!isEaImportConfigured()) return { attempted: 0, succeeded: 0, failed: 0 };
   const rows = await getPgPool().query<EaConnectionRow>(
-    `select * from rec_ea_connections where auto_import=true and status='active' and ea_league_id is not null`,
+    `select * from rec_ea_connections
+      where auto_import=true and status='active' and ea_league_id is not null
+        and (last_import_at is null or last_import_at <= now() - ${AUTO_IMPORT_MIN_INTERVAL_SQL})`,
   );
   let succeeded = 0;
   let failed = 0;
@@ -1292,6 +1333,11 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
     const inFlight = getImportProgress(row.league_id);
     if (inFlight.running) {
       console.log(`[EA] Auto-import sweep: skipping league ${row.league_id} — an import is already running${inFlight.weekLabel ? ` for ${inFlight.weekLabel}` : ""}.`);
+      continue;
+    }
+    const lock = await acquireLeagueImportLock(row.league_id);
+    if (!lock) {
+      console.log(`[EA] Auto-import sweep: skipping league ${row.league_id} — another process already holds its import lock.`);
       continue;
     }
     beginImportProgress(row.league_id, "auto");
@@ -1324,6 +1370,8 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
       console.error(`[EA] Auto-import sweep failed for league ${row.league_id}:`, message);
       pushProgress(row.league_id, { type: "error", error: message });
       await recordEaImportError(row.id, error);
+    } finally {
+      await releaseLeagueImportLock(lock);
     }
   }
   return { attempted: rows.rows.length, succeeded, failed };

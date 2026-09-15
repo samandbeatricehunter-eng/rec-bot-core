@@ -4,6 +4,7 @@ import { ApiError, sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import {
+  acquireLeagueImportLock,
   beginEaLogin,
   bindEaLeague,
   disconnectEaConnection,
@@ -17,6 +18,7 @@ import {
   listEaImportJobs,
   listEaLeagues,
   recordEaImportError,
+  releaseLeagueImportLock,
   selectEaPersona,
   submitEaCode,
   updateEaConnectionSettings,
@@ -199,6 +201,14 @@ export async function maddenEaRoutes(app: FastifyInstance) {
         const runningWeek = inFlight.weekLabel ? ` for ${inFlight.weekLabel}` : "";
         throw new ApiError(409, `An import is already running${runningWeek} for this league. Wait for it to finish, or reopen Import Data to watch its progress.`);
       }
+      // Cross-process guard alongside the in-memory check above -- the auto-import sweep
+      // (ea-connections.service.ts's runAutoImportSweep) takes this same advisory lock, so a
+      // manual click can't race a concurrent auto-import for this league running in another
+      // process (e.g. an old process's sweep still finishing mid-redeploy).
+      const lock = await acquireLeagueImportLock(body.league_id);
+      if (!lock) {
+        throw new ApiError(409, "An automatic import is already running for this league. Wait for it to finish, or reopen Import Data to watch its progress.");
+      }
       beginImportProgress(body.league_id, "manual");
 
       // Fire and forget — the import runs in the background
@@ -222,6 +232,8 @@ export async function maddenEaRoutes(app: FastifyInstance) {
         console.error("[EA] Background import failed:", error);
         pushProgress(body.league_id, { type: "error", error: error instanceof Error ? error.message : String(error) });
         void recordEaImportError(body.connection_id, error);
+      }).finally(() => {
+        void releaseLeagueImportLock(lock);
       });
 
       return reply.send({ ok: true, message: "Import started. Poll /v1/import/madden/ea/import-progress for status." });
