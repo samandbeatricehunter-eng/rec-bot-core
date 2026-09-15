@@ -80,26 +80,38 @@ export async function reactToTargetedTweet(input: {
   tweetId: string | null;
   authorTeamId: string | null;
   authorUserId: string | null;
+  /** The RTI persona's own underlying rec_players.id (offense/defense personas only) -- checked
+   *  first, more specific than team/user, since a "player"-kind beef storyline is stored with
+   *  teamId/userId both null and only playerId set. Without this, a called-out RTI prospect's
+   *  reply (posted as their own offense/defense persona) was never recognized as a reply -- only
+   *  team- or owner-targeted beefs ever triggered the tone-aware reaction. */
+  authorPlayerId?: string | null;
   authorLabel: string;
   body: string;
   target: TweetTarget;
 }): Promise<void> {
-  const authorStoryline = input.authorTeamId
-    ? await findOpenStorylineForSubject({ leagueId: input.leagueId, eventType: BEEF_LOOKUP_EVENT, teamId: input.authorTeamId }).catch(() => null)
-    : input.authorUserId
-      ? await findOpenStorylineForSubject({ leagueId: input.leagueId, eventType: BEEF_LOOKUP_EVENT, userId: input.authorUserId }).catch(() => null)
-      : null;
+  const authorStoryline = input.authorPlayerId
+    ? await findOpenStorylineForSubject({ leagueId: input.leagueId, eventType: BEEF_LOOKUP_EVENT, playerId: input.authorPlayerId }).catch(() => null)
+    : input.authorTeamId
+      ? await findOpenStorylineForSubject({ leagueId: input.leagueId, eventType: BEEF_LOOKUP_EVENT, teamId: input.authorTeamId }).catch(() => null)
+      : input.authorUserId
+        ? await findOpenStorylineForSubject({ leagueId: input.leagueId, eventType: BEEF_LOOKUP_EVENT, userId: input.authorUserId }).catch(() => null)
+        : null;
 
   if (authorStoryline) {
     const tone = classifyReplyTone(input.body);
     const move = moveForReplyTone(tone);
     const persona = pickReactivePersona({});
     const factLine = `${input.authorLabel} responded: "${input.body.slice(0, 240)}"`;
-    const subjectKey = input.authorTeamId ? `team:${input.authorTeamId}` : `owner:${input.authorUserId}`;
+    const subjectKey = input.authorPlayerId
+      ? `player:${input.authorPlayerId}`
+      : input.authorTeamId ? `team:${input.authorTeamId}` : `owner:${input.authorUserId}`;
     const body = await buildClaimGroundedPostBody({
       leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber,
-      eventType: eventTypeForSubject(false), persona, subjectKey, factLine, preferredMove: move,
-      teamId: input.authorTeamId, userId: input.authorUserId,
+      eventType: eventTypeForSubject(Boolean(input.authorPlayerId)), persona, subjectKey, factLine, preferredMove: move,
+      teamId: input.authorPlayerId ? null : input.authorTeamId,
+      userId: input.authorPlayerId ? null : input.authorUserId,
+      playerId: input.authorPlayerId ?? null,
       storylineTitle: authorStoryline.title,
     }).catch((error) => {
       console.error("[ERROR] buildClaimGroundedPostBody failed for beef reply reaction (non-fatal):", error);
@@ -111,9 +123,11 @@ export async function reactToTargetedTweet(input: {
     await queueBeefTweet({
       leagueId: input.leagueId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber,
       author, body, parentTweetId: input.tweetId,
-      target: input.authorTeamId
-        ? { kind: "team", teamId: input.authorTeamId, label: input.authorLabel }
-        : { kind: "owner", userId: input.authorUserId, label: input.authorLabel },
+      target: input.authorPlayerId
+        ? { kind: "player", playerId: input.authorPlayerId, teamId: input.authorTeamId, label: input.authorLabel }
+        : input.authorTeamId
+          ? { kind: "team", teamId: input.authorTeamId, label: input.authorLabel }
+          : { kind: "owner", userId: input.authorUserId, label: input.authorLabel },
     });
     return;
   }

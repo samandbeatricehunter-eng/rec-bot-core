@@ -817,6 +817,7 @@ export async function publishUserSubmittedTweet(input: {
   let authorKey: string;
   let authorTeamId: string | null = null;
   let authorUserId: string | null = null;
+  let authorPlayerId: string | null = null;
 
   if (input.identity === "team") {
     const userId = await recUserIdFromDiscordId(input.discordId);
@@ -843,6 +844,7 @@ export async function publishUserSubmittedTweet(input: {
     handle = chosen.handle; displayName = chosen.name; avatarUrl = chosen.avatarUrl;
     authorKey = `rti:${chosen.key}:${input.discordId}`;
     authorUserId = await recUserIdFromDiscordId(input.discordId).catch(() => null);
+    authorPlayerId = chosen.playerId ?? null;
   }
 
   const posted = await postDiscordChannelMessage(channelId, {
@@ -878,7 +880,7 @@ export async function publishUserSubmittedTweet(input: {
     void reactToTargetedTweet({
       leagueId: context.leagueId, seasonNumber, weekNumber,
       tweetId: tweetRow.data?.id ? String(tweetRow.data.id) : null,
-      authorTeamId, authorUserId,
+      authorTeamId, authorUserId, authorPlayerId,
       authorLabel: `${displayName} (${handle})`,
       body: input.body,
       target: input.target,

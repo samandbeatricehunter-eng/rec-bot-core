@@ -42,6 +42,9 @@ type Candidate = {
   target?: TweetTarget | null;
   targetTeamId?: string;
   targetTeamLabel?: string;
+  /** Team options fetched once in the target-prompt step, reused for the label lookup in the
+   *  team-select step instead of a redundant re-fetch. */
+  teamOptions?: Array<{ teamId: string; label: string }>;
   timeout: ReturnType<typeof setTimeout>;
 };
 
@@ -200,7 +203,7 @@ export async function handleTweetsCaptureTargetPromptButton(interaction: ButtonI
     return publishAndClose(interaction, candidateId!, candidate);
   }
 
-  const teamCandidateId = restash(candidate);
+  const teamCandidateId = restash(candidate, { teamOptions: teams.teams });
   const select = new StringSelectMenuBuilder()
     .setCustomId(`${TARGET_TEAM_PREFIX}${teamCandidateId}`)
     .setPlaceholder("Call out which team?")
@@ -221,9 +224,14 @@ export async function handleTweetsCaptureTargetTeamSelect(interaction: StringSel
   clearTimeout(candidate.timeout);
   pendingCandidates.delete(candidateId);
 
+  // Defer immediately -- everything below is at least one, sometimes two, sequential awaited
+  // API calls, which risks tripping Discord's ~3s interaction-acknowledgment window under slow
+  // network/backend conditions. deferUpdate() acknowledges right away; editReply() below then
+  // finishes the response whenever the real work completes, however long that takes.
+  await interaction.deferUpdate();
+
   const teamId = interaction.values[0]!;
-  const teams = await recApi.listBeefTargetTeams({ guildId: candidate.guildId, discordId: candidate.discordId }).catch(() => ({ teams: [] }));
-  const teamLabel = teams.teams.find((team) => team.teamId === teamId)?.label ?? "that team";
+  const teamLabel = candidate.teamOptions?.find((team) => team.teamId === teamId)?.label ?? "that team";
   const withTeam: Candidate = { ...candidate, targetTeamId: teamId, targetTeamLabel: teamLabel };
 
   const opponentPersonas = await recApi.listBeefTargetPersonas({ guildId: candidate.guildId, teamId }).catch(() => ({ personas: [] }));
@@ -233,7 +241,7 @@ export async function handleTweetsCaptureTargetTeamSelect(interaction: StringSel
       .setCustomId(`${TARGET_PERSONA_PREFIX}${personaCandidateId}`)
       .setPlaceholder("Call out who specifically?")
       .addOptions(opponentPersonas.personas.map((persona) => ({ label: `${persona.roleLabel}: ${persona.name}`, description: persona.handle, value: persona.key })));
-    await interaction.update({
+    await interaction.editReply({
       embeds: [new EmbedBuilder().setColor(0x1d9bf0).setDescription(candidate.body).setFooter({ text: `Who on ${teamLabel} are you calling out?` })],
       components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
     });
@@ -251,7 +259,7 @@ export async function handleTweetsCaptureTargetTeamSelect(interaction: StringSel
       { label: "Owner (the coach)", value: "owner" },
       ...positions.slice(0, SELECT_OPTION_LIMIT - 2).map((position) => ({ label: `A player: ${position}`, value: `position:${position}` })),
     ]);
-  await interaction.update({
+  await interaction.editReply({
     embeds: [new EmbedBuilder().setColor(0x1d9bf0).setDescription(candidate.body).setFooter({ text: `Calling out ${teamLabel} -- how specific?` })],
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(kindSelect)],
   });
