@@ -892,6 +892,13 @@ export async function completeAdvanceWeek(input: {
     leagueId: context.leagueId, seasonNumber, weekNumber: currentWeek,
   }).catch((err) => { console.error("[ERROR] Weekly team challenge crediting failed after advance (non-fatal):", err); return []; });
 
+  // Media Day commitments target the same week they were answered for (that week's already-
+  // frozen Gold challenge) -- resolve them now that this week's tier is finally credited above.
+  const { resolveMediaDayCommitmentsAfterAdvance } = await import("../media-day/media-day-commitment.service.js");
+  await resolveMediaDayCommitmentsAfterAdvance({
+    leagueId: context.leagueId, seasonNumber, weekNumber: currentWeek,
+  }).catch((err) => console.error("[ERROR] Media Day commitment resolution failed after advance (non-fatal):", err));
+
   const { offerDuePerformanceContracts } = await import("../immortality/contracts.service.js");
   await offerDuePerformanceContracts({
     leagueId: context.leagueId,

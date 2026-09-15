@@ -195,6 +195,17 @@ export async function submitMyMediaDayAnswer(input: {
     facts: { factLine: `${teamName} on ${input.side}: "${questionText}" -> "${option.text}"`, side: input.side, challengeId: issued.entry.id, questionId: variant.id, answerKey: option.key, intent: option.intent },
   }).catch((error) => console.error("[ERROR] logMediaEvent for Media Day answer failed (non-fatal):", error));
 
+  // Every answer is a durable, gradeable commitment against that side's already-frozen Gold
+  // challenge -- see media-day-commitment.service.ts's header comment for why the interview
+  // itself is the commitment (the content bank has no separate "bold claim" signal to key off
+  // yet). Best-effort: never blocks the answer itself from saving.
+  const { recordMediaDayCommitment } = await import("./media-day-commitment.service.js");
+  await recordMediaDayCommitment({
+    leagueId: context.leagueId, periodId, userId, teamId, side: input.side,
+    challengeId: issued.entry.id, questionId: variant.id, questionText,
+    answerKey: option.key, answerText: option.text, seasonNumber, weekNumber,
+  }).catch((error) => console.error("[ERROR] recordMediaDayCommitment failed (non-fatal):", error));
+
   const answers = await supabase.from("rec_media_day_challenge_answers").select("side").eq("period_id", periodId).eq("user_id", userId);
   const answeredSides = new Set((answers.data ?? []).map((row) => String(row.side)));
   const complete = SIDES.every((side) => answeredSides.has(side));
