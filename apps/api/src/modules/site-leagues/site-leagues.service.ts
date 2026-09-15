@@ -954,6 +954,15 @@ export async function getSiteRtiProspectChallengeReveal(input: { recUserId: stri
   return getMyRtiProspectChallengeReveal({ guildId: context.guildId, discordId: context.discordId });
 }
 
+/** The single authoritative "what's left" snapshot for the Media Day gate -- see
+ * media-day-session.service.ts. MediaDayGate.tsx re-fetches this after every answer instead of
+ * inferring completion itself. */
+export async function getSiteMediaDaySessionStatus(input: { recUserId: string; leagueId: string }) {
+  const context = await openSiteLeagueHubContext(input);
+  const { getMediaDaySessionStatus } = await import("../media-day-gate/media-day-session.service.js");
+  return getMediaDaySessionStatus({ guildId: context.guildId, discordId: context.discordId });
+}
+
 export type SiteLeagueSearchFilters = {
   q?: string;
   game?: string;

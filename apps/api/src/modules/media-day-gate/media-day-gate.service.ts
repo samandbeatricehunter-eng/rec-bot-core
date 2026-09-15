@@ -57,36 +57,6 @@ export type MediaDayGateStatus = {
   missingSubjectKeys: string[];
 };
 
-/** RTI's own interview systems (immortality.service.ts's getWeeklyMatchupInterview /
- * getOwnerWeeklyInterview) already track their own frozen answers and a `complete` flag per
- * (subject, period) -- rather than duplicating that state into rec_media_day_completions, this
- * reads it straight from the source so there's exactly one place completion can ever be wrong.
- * Subject keys are "owner" and "prospect:offense" / "prospect:defense" (RTI addresses a user's
- * prospects by side, since a user has at most one prospect per side -- not by prospect id). A
- * subject whose interview window has already closed is dropped from the requirement entirely:
- * forcing an answer into a closed window makes no sense, and RTI's own systems already decide
- * that independently of this gate. */
-async function rtiMissingSubjectKeys(input: { guildId: string; discordId: string; immortalityLeagueId: string; userId: string }): Promise<string[]> {
-  const { getWeeklyMatchupInterview, getOwnerWeeklyInterview } = await import("../immortality/immortality.service.js");
-  const missing: string[] = [];
-
-  const ownerAssignment = await supabase.from("rec_immortality_user_team_assignments")
-    .select("user_id").eq("immortality_league_id", input.immortalityLeagueId).eq("user_id", input.userId).limit(1);
-  if (ownerAssignment.data?.length) {
-    const owner = await getOwnerWeeklyInterview({ guildId: input.guildId, discordId: input.discordId }).catch(() => null);
-    if (owner && !owner.complete) missing.push("owner");
-  }
-
-  const prospects = await supabase.from("rec_immortality_prospects")
-    .select("side").eq("immortality_league_id", input.immortalityLeagueId).eq("user_id", input.userId);
-  for (const side of new Set((prospects.data ?? []).map((row) => String(row.side))) as Set<"offense" | "defense">) {
-    const interview = await getWeeklyMatchupInterview({ guildId: input.guildId, discordId: input.discordId, side }).catch(() => null);
-    if (interview && !interview.complete && !interview.windowClosed) missing.push(`prospect:${side}`);
-  }
-
-  return missing;
-}
-
 export async function getMediaDayGateStatus(input: { guildId: string; discordId: string }): Promise<MediaDayGateStatus> {
   const context = await getCurrentLeagueContext(input.guildId);
   const league = context.rec_leagues;
@@ -101,24 +71,17 @@ export async function getMediaDayGateStatus(input: { guildId: string; discordId:
   const advanceFlag = await supabase.from("rec_leagues").select("advance_in_progress_since").eq("id", context.leagueId).maybeSingle();
   if (isAdvanceInProgress(advanceFlag.data?.advance_in_progress_since as string | null | undefined)) return none;
 
-  const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
-  const userId = account.data?.user_id ? String(account.data.user_id) : null;
-  if (!userId) return none;
+  // Single source of truth for "is anything still required" -- see media-day-session.service.ts.
+  // Dynamic import to avoid a static circular dependency (that module imports
+  // MEDIA_DAY_GATE_ENABLED from this one).
+  const { getMediaDaySessionStatus } = await import("./media-day-session.service.js");
+  const session = await getMediaDaySessionStatus(input);
+  const missingSubjectKeys = [
+    session.team && !session.team.satisfied ? "team" : null,
+    session.offense && !session.offense.satisfied ? "prospect:offense" : null,
+    session.defense && !session.defense.satisfied ? "prospect:defense" : null,
+    session.owner && !session.owner.satisfied ? "owner" : null,
+  ].filter((key): key is string => key != null);
 
-  if (immortality) {
-    const missingSubjectKeys = await rtiMissingSubjectKeys({ guildId: input.guildId, discordId: input.discordId, immortalityLeagueId: immortality.id, userId });
-    return { ...none, required: missingSubjectKeys.length > 0, missingSubjectKeys };
-  }
-
-  const period = await supabase.from("rec_media_day_periods").select("id")
-    .eq("league_id", context.leagueId).eq("season_number", seasonNumber).eq("week_number", weekNumber).eq("season_stage", seasonStage)
-    .maybeSingle();
-  if (!period.data) return none;
-
-  const completions = await supabase.from("rec_media_day_completions").select("subject_key")
-    .eq("period_id", period.data.id).eq("user_id", userId);
-  const completedKeys = new Set((completions.data ?? []).map((row) => String(row.subject_key)));
-  const missingSubjectKeys = ["team"].filter((key) => !completedKeys.has(key));
-
-  return { ...none, required: missingSubjectKeys.length > 0, missingSubjectKeys };
+  return { ...none, required: !session.mediaDayComplete, missingSubjectKeys };
 }

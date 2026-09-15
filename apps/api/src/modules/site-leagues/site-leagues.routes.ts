@@ -7,6 +7,7 @@ import {
   getSiteMediaDayChallengeReveal,
   getSiteMediaDayGateStatus,
   getSiteMediaDayInterview,
+  getSiteMediaDaySessionStatus,
   getSiteRewardsRecap,
   getSiteRtiProspectChallengeReveal,
   listOpenTeamsForSiteLeague,
@@ -174,6 +175,19 @@ export async function siteLeaguesRoutes(app: FastifyInstance) {
       const body = z.object({ leagueId: z.string().uuid() }).parse(request.body ?? {});
       return reply.send(
         await getSiteRtiProspectChallengeReveal({ recUserId: user.recUserId, leagueId: body.leagueId }),
+      );
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  app.post("/v1/site-leagues/media-day-session-status", async (request, reply) => {
+    try {
+      const session = await requireSiteUserSession(request);
+      const user = await requireLinkedRecUser(session.authUserId);
+      const body = z.object({ leagueId: z.string().uuid() }).parse(request.body ?? {});
+      return reply.send(
+        await getSiteMediaDaySessionStatus({ recUserId: user.recUserId, leagueId: body.leagueId }),
       );
     } catch (error) {
       return sendError(reply, error);

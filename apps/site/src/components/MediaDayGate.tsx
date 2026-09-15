@@ -236,7 +236,22 @@ function MediaDayInterviewScreen({ leagueId, onComplete }: { leagueId: string; o
   );
 }
 
-function RtiOwnerInterviewScreen({ guildId, onDone }: { guildId: string; onDone: () => void }) {
+function RtiSubjectAwaitingChallenge({ label, title, detail, onRetry }: { label: string; title: string; detail: string; onRetry: () => void }) {
+  return (
+    <div className="media-day-gate-advanced">
+      <p className="media-day-gate-eyebrow">{label}</p>
+      <h1>{title}</h1>
+      <p>{detail}</p>
+      <button type="button" className="site-btn site-btn-primary" onClick={onRetry}>Check again</button>
+    </div>
+  );
+}
+
+// status comes from the parent's server-authoritative session snapshot (media-day-session.service.ts),
+// not from this screen's own interview.complete -- a subject only ever counts as done once the
+// session status says so (interview answered AND that side's weekly challenge actually issued), so
+// this never independently decides to advance the flow. onAnswered asks the parent to re-check.
+function RtiOwnerInterviewScreen({ guildId, status, onAnswered }: { guildId: string; status: { required: boolean }; onAnswered: () => void }) {
   const [interview, setInterview] = useState<Awaited<ReturnType<typeof siteApi.getRtiOwnerInterview>> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -246,12 +261,21 @@ function RtiOwnerInterviewScreen({ guildId, onDone }: { guildId: string; onDone:
   }
   useEffect(load, [guildId]);
   useEffect(() => {
-    if (interview?.complete) onDone();
+    if (interview?.complete) onAnswered();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interview?.complete]);
 
   if (error) return <p className="media-day-gate-eyebrow">{error}</p>;
-  if (!interview || interview.complete) return <p>Loading Media Day...</p>;
+  if (!interview) return <p>Loading Media Day...</p>;
+  if (interview.complete || !status.required) {
+    return (
+      <RtiSubjectAwaitingChallenge
+        label="Owner interview" title="Answers recorded"
+        detail="This week's owner challenge hasn't been assigned yet. Check again in a moment."
+        onRetry={onAnswered}
+      />
+    );
+  }
   const answeredCount = interview.answers.length;
   const current = interview.questions[answeredCount];
   if (!current) return <p>Loading...</p>;
@@ -298,7 +322,7 @@ function RtiOwnerInterviewScreen({ guildId, onDone }: { guildId: string; onDone:
   );
 }
 
-function RtiProspectInterviewScreen({ guildId, side, onDone }: { guildId: string; side: "offense" | "defense"; onDone: () => void }) {
+function RtiProspectInterviewScreen({ guildId, side, status, onAnswered }: { guildId: string; side: "offense" | "defense"; status: { required: boolean }; onAnswered: () => void }) {
   const [interview, setInterview] = useState<Awaited<ReturnType<typeof siteApi.getRtiWeeklyMatchupInterview>> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -309,12 +333,25 @@ function RtiProspectInterviewScreen({ guildId, side, onDone }: { guildId: string
   useEffect(load, [guildId, side]);
   const done = interview?.complete || interview?.windowClosed;
   useEffect(() => {
-    if (done) onDone();
+    if (done) onAnswered();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [done]);
 
   if (error) return <p className="media-day-gate-eyebrow">{error}</p>;
-  if (!interview || done) return <p>Loading Media Day...</p>;
+  if (!interview) return <p>Loading Media Day...</p>;
+  if (done || !status.required) {
+    const windowClosedEarly = interview.windowClosed && !interview.complete;
+    return (
+      <RtiSubjectAwaitingChallenge
+        label={`${interview.prospectName} (${side})`}
+        title={windowClosedEarly ? "This week's interview window closed" : "Answers recorded"}
+        detail={windowClosedEarly
+          ? `The window to answer this week closed before every question was answered. Checking whether ${interview.prospectName}'s challenge is ready.`
+          : `This week's challenge for ${interview.prospectName} hasn't been assigned yet. Check again in a moment.`}
+        onRetry={onAnswered}
+      />
+    );
+  }
   const answeredCount = interview.answers.length;
   const current = interview.questions[answeredCount];
   if (!current) return <p>Loading...</p>;
@@ -398,11 +435,26 @@ function RtiChallengeRevealScreen({ leagueId, onContinue }: { leagueId: string; 
   );
 }
 
-function RtiInterviewFlow({ guildId, leagueId, subjectKeys, onComplete }: { guildId: string; leagueId: string; subjectKeys: string[]; onComplete: () => void }) {
-  const [subjectIndex, setSubjectIndex] = useState(0);
+// Drives the whole RTI flow off one server-authoritative snapshot (media-day-session.service.ts)
+// instead of a fixed subjectKeys array the old version stepped through locally -- every subject
+// screen calls onAnswered (never a local "I'm done" signal) to ask the parent to re-check, and
+// only session.mediaDayComplete (set entirely server-side) is allowed to end the flow. This is the
+// fix for the exact failure mode from the 2026-09-15 acceptance-test recording: a subject can no
+// longer silently drop out of the sequence because one screen misread its own local state.
+function RtiInterviewFlow({ guildId, leagueId, onComplete }: { guildId: string; leagueId: string; onComplete: () => void }) {
+  const [session, setSession] = useState<Awaited<ReturnType<typeof siteApi.getMediaDaySessionStatus>> | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [showReveal, setShowReveal] = useState(false);
 
-  if (subjectIndex >= subjectKeys.length) {
+  function refreshSession() {
+    void siteApi.getMediaDaySessionStatus(leagueId).then(setSession).catch((err) => setError(err instanceof Error ? err.message : "Couldn't load Media Day."));
+  }
+  useEffect(refreshSession, [guildId, leagueId]);
+
+  if (error) return <p className="media-day-gate-eyebrow">{error}</p>;
+  if (!session) return <p>Loading Media Day...</p>;
+
+  if (session.mediaDayComplete) {
     if (!showReveal) {
       return (
         <div className="media-day-gate-advanced">
@@ -414,11 +466,24 @@ function RtiInterviewFlow({ guildId, leagueId, subjectKeys, onComplete }: { guil
     return <RtiChallengeRevealScreen leagueId={leagueId} onContinue={onComplete} />;
   }
 
-  const subjectKey = subjectKeys[subjectIndex]!;
-  const onSubjectDone = () => setSubjectIndex((i) => i + 1);
-  if (subjectKey === "owner") return <RtiOwnerInterviewScreen key={subjectKey} guildId={guildId} onDone={onSubjectDone} />;
-  const side = subjectKey.split(":")[1] as "offense" | "defense";
-  return <RtiProspectInterviewScreen key={subjectKey} guildId={guildId} side={side} onDone={onSubjectDone} />;
+  const needsAttention = (subject: typeof session.offense) => Boolean(subject?.required && !subject.satisfied);
+  if (needsAttention(session.offense)) {
+    return <RtiProspectInterviewScreen key="offense" guildId={guildId} side="offense" status={session.offense!} onAnswered={refreshSession} />;
+  }
+  if (needsAttention(session.defense)) {
+    return <RtiProspectInterviewScreen key="defense" guildId={guildId} side="defense" status={session.defense!} onAnswered={refreshSession} />;
+  }
+  if (needsAttention(session.owner)) {
+    return <RtiOwnerInterviewScreen key="owner" guildId={guildId} status={session.owner!} onAnswered={refreshSession} />;
+  }
+  // Every subject satisfied but the server hasn't caught up to mediaDayComplete yet (a rare race
+  // right after the last answer) -- re-check rather than render a dead end.
+  return (
+    <div className="media-day-gate-advanced">
+      <h1>Checking Media Day status...</h1>
+      <button type="button" className="site-btn site-btn-primary" onClick={refreshSession}>Refresh</button>
+    </div>
+  );
 }
 
 /** Post-advance gate: blocks the league page until the user has answered Media Day for the
@@ -498,7 +563,7 @@ export function MediaDayGate() {
       )}
       {stage === "media_day" && status.leagueId && status.isRti && guildId && (
         <RtiInterviewFlow
-          guildId={guildId} leagueId={status.leagueId} subjectKeys={status.missingSubjectKeys}
+          guildId={guildId} leagueId={status.leagueId}
           onComplete={() => { setStage("hidden"); void refresh(status.leagueId); }}
         />
       )}

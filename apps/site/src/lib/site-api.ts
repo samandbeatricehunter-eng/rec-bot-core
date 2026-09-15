@@ -785,6 +785,14 @@ export type SiteActivityCounts = {
 
 type RtiInterviewQuestion = { id: number; question: string; options: Array<{ text: string }> };
 
+type MediaDaySubjectStatus = {
+  required: boolean;
+  interviewComplete: boolean;
+  windowClosed: boolean;
+  challengeIssued: boolean;
+  satisfied: boolean;
+};
+
 export const siteApi = {
   getLinkProfile() {
     return request<LinkProfileResponse>("/v1/site-auth/me", {});
@@ -1109,6 +1117,22 @@ export const siteApi = {
       isRti: boolean;
       missingSubjectKeys: string[];
     }>("/v1/site-leagues/media-day-gate-status", { leagueId });
+  },
+  // Single authoritative "what's left" snapshot -- MediaDayGate.tsx re-fetches this after every
+  // answer instead of inferring completion itself. See media-day-session.service.ts.
+  getMediaDaySessionStatus(leagueId: string) {
+    return request<{
+      leagueId: string;
+      seasonNumber: number;
+      weekNumber: number;
+      seasonStage: string;
+      isRti: boolean;
+      offense: MediaDaySubjectStatus | null;
+      defense: MediaDaySubjectStatus | null;
+      owner: MediaDaySubjectStatus | null;
+      team: MediaDaySubjectStatus | null;
+      mediaDayComplete: boolean;
+    }>("/v1/site-leagues/media-day-session-status", { leagueId });
   },
   getRewardsRecap(leagueId: string) {
     return request<{
