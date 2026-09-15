@@ -163,18 +163,21 @@ const RECORD_BREAK_BONUS_CAP = 6;
 export async function recentRecordBreakBonusScore(playerId: string | null | undefined): Promise<number> {
   if (!playerId) return 0;
   const cutoff = new Date(Date.now() - RECORD_BREAK_BONUS_WINDOW_MS).toISOString();
-  const rows = await supabase.from("rec_media_events").select("facts")
+  const rows = await supabase.from("rec_media_events").select("facts_json")
     .eq("event_type", "record_watch").eq("player_id", playerId).gte("created_at", cutoff);
-  // Count distinct underlying record events (scope+category), not raw rows -- queueRecordBreak-
-  // MediaReactions above logs exactly one record_watch row per (scope, category) break today,
-  // but this must not assume that holds forever. Other league media flows have already shown
-  // several rows can surround one underlying fact (the same event-multiplication bug flagged for
-  // standard challenge targeting), so de-duplicate here rather than trust row count directly.
+  // "record_watch" is also reused by tweet-generation.service.ts for in-season statistical
+  // milestone crossings ("crossed 1000 rushing yards") -- a much more common, unrelated event
+  // that never carries scope/category (only this file's own genuine NFL-top-5-record-break
+  // writes, in queueRecordBreakMediaReactions, do). Require both fields so a milestone tweet
+  // can never masquerade as a record break here. Then de-duplicate by the underlying record's
+  // own identity (scope+category), not raw row count -- other league media flows have already
+  // shown several rows can surround one underlying fact (the same event-multiplication bug
+  // flagged for standard challenge targeting).
   const distinctRecords = new Set(
-    (rows.data ?? []).map((row) => {
-      const facts = row.facts as { scope?: string; category?: string } | null;
-      return `${facts?.scope ?? ""}:${facts?.category ?? ""}`;
-    }),
+    (rows.data ?? [])
+      .map((row) => row.facts_json as { scope?: string; category?: string } | null)
+      .filter((facts): facts is { scope: string; category: string } => Boolean(facts?.scope && facts?.category))
+      .map((facts) => `${facts.scope}:${facts.category}`),
   );
   return Math.min(RECORD_BREAK_BONUS_CAP, distinctRecords.size * RECORD_BREAK_BONUS_PER_RECORD);
 }
