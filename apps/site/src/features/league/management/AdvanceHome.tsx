@@ -13,7 +13,7 @@ import { useReadyAuth, useLeagueTheme, useAdvanceStatus } from "@rec/hub-ui";
 const TZ_LABELS = ["EST", "CST", "MST", "PST", "AKST"];
 const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
 
-type GameEntry = { awayScore: string; homeScore: string; designation: "played" | "fair_sim" | "force_win"; forceWinSide?: "home" | "away" };
+type GameEntry = { awayScore: string; homeScore: string };
 type AdvanceTimeDraft = { date: string; hour: string; minute: string; meridiem: "AM" | "PM"; tzLabel: string };
 type AdvanceProgress = { stage: string; completed: string[]; status: "running" | "complete" | "error"; error?: string };
 
@@ -25,6 +25,16 @@ function deriveOutcome(awayScore: string, homeScore: string): "home" | "away" | 
 }
 function involvesHuman(g: AdvanceGame): boolean {
   return Boolean(g.homeUserId || g.awayUserId);
+}
+// Manage League's "Force Win / Clear Result" panel is the single source of truth for whether a
+// game was forced -- rec_ea_admin_actions (surfaced here as eaForceWinAction) is the actual EA
+// Blaze audit trail, so a live, EA-accepted home/away force is the only signal that overrides
+// "played". No separate manual designation is needed: if a commissioner hasn't forced this game
+// there, it's played; if they have, it's a Force Win for that side.
+function derivedDesignation(g: AdvanceGame): { designation: "played" | "force_win"; forceWinSide?: "home" | "away" } {
+  const fw = g.eaForceWinAction;
+  if (fw?.status === "success" && (fw.side === "home" || fw.side === "away")) return { designation: "force_win", forceWinSide: fw.side };
+  return { designation: "played" };
 }
 function entryHasScores(entry?: GameEntry): boolean {
   return Boolean(entry && deriveOutcome(entry.awayScore, entry.homeScore) !== null);
@@ -57,7 +67,14 @@ const TZ_LABEL_TO_IANA: Record<string, string> = {
 function advanceDateFromLastAdvance(lastAdvanceAt: string, tzLabel: string | null): AdvanceTimeDraft {
   const resolvedLabel = tzLabel && TZ_LABEL_TO_IANA[tzLabel] ? tzLabel : localTzLabel();
   const timeZone = TZ_LABEL_TO_IANA[resolvedLabel] ?? "America/Chicago";
-  const nextInstant = new Date(new Date(lastAdvanceAt).getTime() + 24 * 60 * 60 * 1000);
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  let nextInstant = new Date(new Date(lastAdvanceAt).getTime() + DAY_MS);
+  // An advance can only ever be scheduled forward from right now -- a commissioner who's fallen
+  // behind their usual cadence (skipped a day, took the week off) would otherwise see this
+  // default to a moment that's already passed. Keep the same time-of-day and just roll it
+  // forward, a day at a time, to the next occurrence that's actually still ahead of us.
+  const now = Date.now();
+  while (nextInstant.getTime() <= now) nextInstant = new Date(nextInstant.getTime() + DAY_MS);
   const fmt = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
   const parts: Record<string, string> = {};
   for (const p of fmt.formatToParts(nextInstant)) if (p.type !== "literal") parts[p.type] = p.value;
@@ -115,7 +132,7 @@ function AdvanceScoreReview() {
   }
   useEffect(load, [guildId]);
 
-  const emptyEntry: GameEntry = { awayScore: "", homeScore: "", designation: "played" };
+  const emptyEntry: GameEntry = { awayScore: "", homeScore: "" };
   function setEntry(gameId: string, patch: Partial<GameEntry>) {
     setEntries((prev) => ({ ...prev, [gameId]: { ...(prev[gameId] ?? emptyEntry), ...patch } }));
   }
@@ -149,8 +166,7 @@ function AdvanceScoreReview() {
       return;
     }
     const missing = data.gamesNeedingInput.filter((g) => {
-      const entry = entries[g.gameId];
-      if (entry?.designation === "force_win" && entry.forceWinSide) return false;
+      if (derivedDesignation(g).designation === "force_win") return false;
       if (isMadden) return !entryHasScores(entries[g.gameId]);
       return involvesHuman(g) && !entryHasScores(entries[g.gameId]);
     });
@@ -169,9 +185,10 @@ function AdvanceScoreReview() {
       const entry = entries[g.gameId];
       const awayScore = entry?.awayScore ?? (g.awayScore == null ? "" : String(g.awayScore));
       const homeScore = entry?.homeScore ?? (g.homeScore == null ? "" : String(g.homeScore));
-      const outcome = entry?.designation === "force_win" && entry.forceWinSide ? entry.forceWinSide : deriveOutcome(awayScore, homeScore);
+      const { designation, forceWinSide } = derivedDesignation(g);
+      const outcome = designation === "force_win" && forceWinSide ? forceWinSide : deriveOutcome(awayScore, homeScore);
       if (!outcome) return [];
-      return [{ gameId: g.gameId, outcome, homeScore: homeScore === "" ? null : Number(homeScore), awayScore: awayScore === "" ? null : Number(awayScore), designation: entry?.designation ?? g.approvedDesignation ?? "played", forceWinSide: entry?.forceWinSide }];
+      return [{ gameId: g.gameId, outcome, homeScore: homeScore === "" ? null : Number(homeScore), awayScore: awayScore === "" ? null : Number(awayScore), designation, forceWinSide }];
     });
     let progressTimer: number | null = null;
     try {
@@ -252,6 +269,7 @@ function AdvanceScoreReview() {
   // In Madden leagues, ALL games (including CPU vs CPU) must have scores before advancing.
   // In CFB leagues, only human-involving games require scores.
   const missingScoreGames = data.gamesNeedingInput.filter((g) => {
+    if (derivedDesignation(g).designation === "force_win") return false;
     if (isMadden) return !entryHasScores(entries[g.gameId]);
     return involvesHuman(g) && !entryHasScores(entries[g.gameId]);
   });
@@ -313,8 +331,6 @@ function AdvanceScoreReview() {
                 </div>
               )}
               <div className="advance-game-actions">
-                <label className="advance-score-field"><span>Result type</span><select className="form-input" value={entry?.designation ?? g.approvedDesignation ?? "played"} onChange={(e) => setEntry(g.gameId, { designation: e.target.value as GameEntry["designation"] })}><option value="played">Played — payouts enabled</option><option value="fair_sim">Fair Sim — no payout + clear EA force</option><option value="force_win">Force Win — no payout + set winner in EA</option></select></label>
-                {(entry?.designation ?? g.approvedDesignation) === "force_win" && <label className="advance-score-field"><span>Force win for</span><select className="form-input" value={entry?.forceWinSide ?? ""} onChange={(e) => setEntry(g.gameId, { forceWinSide: e.target.value as "home" | "away" })}><option value="">Choose winner</option><option value="away">{g.awayTeamName} (Away)</option><option value="home">{g.homeTeamName} (Home)</option></select></label>}
                 {g.needsInput && g.isH2h && data.dataMode !== "import" && (
                   <>
                     <Button variant="secondary" size="compact" disabled={notifyBusyGameId === g.gameId} onClick={() => setNotifyPrompt({ gameId: g.gameId, target: "home" })}>Notify Home</Button>
