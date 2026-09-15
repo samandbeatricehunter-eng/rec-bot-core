@@ -1,22 +1,13 @@
-import { Fragment, Suspense, lazy, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { stageHasScheduledGames, type LeagueGame } from "@rec/shared";
 import { useReadyAuth, useAuth } from "@rec/hub-ui";
-import { HeadshotUploadOverlay } from "../../../components/hub/HeadshotUploadOverlay.js";
 import { ManageFundsModal, SnapshotFundsModal } from "../../../components/hub/WalletSavingsCard.js";
 import { recApi } from "../../../lib/rec-api-client.js";
 import type { HubMatchupSchedule, HubResponse } from "../../../types/api.js";
 import { LeagueTopRail } from "../chassis/index.js";
 import { RetireFromLeagueModal } from "../team/RetireFromLeagueModal.js";
 import { LeagueHomeSnapshot } from "./LeagueHomeSnapshot.js";
-
-const RiseOverviewMediaDayCard = lazy(() =>
-  import("./RiseOverviewMediaDay.js").then((m) => ({ default: m.RiseOverviewMediaDayCard })),
-);
-
-function HubSurfaceFallback() {
-  return <div className="hub-empty" role="status">Loading…</div>;
-}
 
 /**
  * League Home — site-owned. Replaces the retired buzz/news destinations.
@@ -113,9 +104,6 @@ export function LeagueHomePage() {
     opponentLogoUrl: string | null;
   }>;
 
-  const hasRiseBody = Boolean(isRise && rtiGates?.playerSnapshots?.length);
-  const showRiseMediaDay = isRise && auth.status === "ready";
-
   return (
     <>
       <LeagueTopRail>
@@ -137,140 +125,14 @@ export function LeagueHomePage() {
           teamXpProgress={teamXpProgress}
           recentForm={recentForm}
           userStreakText={(my.userStreakText === "â€”" ? "—" : my.userStreakText) ?? "—"}
+          rtiProspects={rtiGates?.playerSnapshots ?? []}
+          rtiOwner={rtiGates?.owner ?? null}
           onOpenWallet={() => setSnapshotFundsKind("wallet")}
           onOpenSavings={() => setSnapshotFundsKind("savings")}
         />
       </LeagueTopRail>
 
       <div className="hub-page">
-        {(hasRiseBody || showRiseMediaDay) ? (
-          <div className="hub-body">
-            <main className="hub-content">
-              <div className="hub-league-tab">
-                <div className="hub-buzz-top">
-                  <section className="hub-hero hub-hero-rebuilt">
-                    {hasRiseBody && rtiGates?.playerSnapshots?.length ? (() => {
-                      const bannerTeam = rtiGates.playerSnapshots.find((player) => player.teamLogoUrl) ?? rtiGates.playerSnapshots[0];
-                      return bannerTeam.teamName ? (
-                        <div className="hub-rti-team-banner">
-                          {bannerTeam.teamLogoUrl ? <img src={bannerTeam.teamLogoUrl} alt="" /> : null}
-                          <strong>{bannerTeam.teamName}</strong>
-                        </div>
-                      ) : null;
-                    })() : null}
-
-                    {hasRiseBody && rtiGates?.playerSnapshots?.length ? (
-                      <div className={`hub-rti-player-snapshot-grid${rtiGates.owner ? " has-owner" : ""}`}>
-                        {rtiGates.playerSnapshots.map((player, index) => (
-                          <Fragment key={player.playerId}>
-                            <article className="hub-rti-player-snapshot-card">
-                              <HeadshotUploadOverlay
-                                disabled={!guildId}
-                                onUpload={async (resized) => {
-                                  await recApi.uploadImmortalityProspectHeadshot({
-                                    guildId,
-                                    side: player.side === "defense" ? "defense" : "offense",
-                                    ...resized,
-                                  });
-                                  await load();
-                                }}
-                              >
-                                <div className="hub-rti-player-portrait">
-                                  {player.headshotUrl ? <img src={player.headshotUrl} alt={`${player.playerName} headshot`} /> : <span>{player.playerName.slice(0, 1)}</span>}
-                                  {player.teamLogoUrl ? <img className="hub-rti-player-team-logo" src={player.teamLogoUrl} alt="" /> : null}
-                                </div>
-                              </HeadshotUploadOverlay>
-                              <div className="hub-rti-player-copy">
-                                <p>{player.teamAbbr ?? player.teamName} · {player.position ?? "Player"}</p>
-                                <h3>{player.playerName}</h3>
-                                <div className="hub-rti-player-rank">
-                                  <strong>{player.positionRank ? `#${player.positionRank}` : "—"}</strong>
-                                  <span>{player.position ?? "POS"} league rank{player.positionCount ? ` · ${player.positionCount} ranked` : ""}</span>
-                                </div>
-                                <ul>{player.seasonLines.map((line, lineIndex) => <li key={`${player.playerId}-${lineIndex}`}>{line}</li>)}</ul>
-                              </div>
-                            </article>
-                            {index === 0 && rtiGates.owner ? (
-                              <article className="hub-rti-player-snapshot-card hub-rti-owner-snapshot-card">
-                                <HeadshotUploadOverlay
-                                  disabled={!guildId}
-                                  onUpload={async (resized) => {
-                                    await recApi.uploadImmortalityOwnerHeadshot({ guildId, ...resized });
-                                    await load();
-                                  }}
-                                >
-                                  <div className="hub-rti-player-portrait">
-                                    {rtiGates.owner.headshotUrl
-                                      ? <img src={rtiGates.owner.headshotUrl} alt={`${rtiGates.owner.name} headshot`} />
-                                      : <span>{rtiGates.owner.name.slice(0, 1)}</span>}
-                                  </div>
-                                </HeadshotUploadOverlay>
-                                <div className="hub-rti-player-copy">
-                                  <p>Owner</p>
-                                  <h3>{rtiGates.owner.name}</h3>
-                                </div>
-                              </article>
-                            ) : null}
-                          </Fragment>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {hasRiseBody && rtiGates?.playerSnapshots?.length ? (
-                      <div className="hub-rti-hof-progress-grid">
-                        {rtiGates.playerSnapshots.map((player) => (
-                          <article key={`hof-${player.playerId}`}>
-                            <div className="hub-rti-progress-row">
-                              <span>Player XP Progress</span>
-                              <strong>{player.playerXpTotal.toLocaleString("en-US")} XP · {player.xpProgressPct.toFixed(1)}%</strong>
-                            </div>
-                            <p>{player.playerName} · {player.position} · to next Player XP point</p>
-                            <div
-                              className="hub-rti-xp-meter"
-                              role="progressbar"
-                              aria-label={`${player.playerName} progress to next Player XP point`}
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                              aria-valuenow={player.xpProgressPct}
-                            >
-                              <i style={{ width: `${player.xpProgressPct}%` }} />
-                            </div>
-                            <div className="hub-rti-progress-row">
-                              <span>{player.side === "offense" ? "Offensive" : "Defensive"} HOF Progress</span>
-                              <strong>{player.hofProgress.toFixed(1)}%</strong>
-                            </div>
-                            <p>{player.playerName} · {player.position}</p>
-                            <div
-                              className="hub-rti-hof-meter"
-                              role="progressbar"
-                              aria-label={`${player.playerName} Hall of Fame progress`}
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                              aria-valuenow={player.hofProgress}
-                            >
-                              <i style={{ width: `${player.hofProgress}%` }} />
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {showRiseMediaDay ? (
-                      <Suspense fallback={<HubSurfaceFallback />}>
-                        <RiseOverviewMediaDayCard
-                          guildId={auth.guildId}
-                          seasonStage={hub.league.seasonStage}
-                          game={hub.league.game as LeagueGame}
-                        />
-                      </Suspense>
-                    ) : null}
-                  </section>
-                </div>
-              </div>
-            </main>
-          </div>
-        ) : null}
-
         {manageFundsOpen && auth.status === "ready" ? (
           <ManageFundsModal
             guildId={auth.guildId}

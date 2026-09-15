@@ -283,7 +283,9 @@ export async function listMySiteLeagues(input: {
             count(*) filter (where gr.losing_user_id = $2) as losses,
             count(*) filter (where gr.is_tie) as ties
           from rec_game_results gr
-          where gr.league_id = l.id and (gr.home_user_id = $2 or gr.away_user_id = $2)
+          where gr.league_id = l.id
+            and gr.season_number = coalesce(l.season_number, l.display_season_number, 1)
+            and (gr.home_user_id = $2 or gr.away_user_id = $2)
         ) record on ta.team_id is not null
         where l.id = any($1::uuid[])
       `,

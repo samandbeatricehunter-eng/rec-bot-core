@@ -11,6 +11,8 @@ import {
   pointsForWeeklyTier,
   pointsToXp,
   pointsTowardNextLevel,
+  ownerXpPerSp,
+  playerXpPerSp,
   positionGroupFor,
   RECORD_SET_BONUS_POINTS,
   WEEKLY_SWEEP_BONUS_PCT,
@@ -74,6 +76,7 @@ export async function grantAbilitySlot(input: {
 }
 
 export async function creditXpPoints(input: {
+  leagueId?: string;
   prospectId: string;
   eventType: string;
   sourceId: string;
@@ -83,7 +86,10 @@ export async function creditXpPoints(input: {
   modifiers: CharacteristicModifiers;
 }): Promise<{ duplicate: boolean; xpGranted: number }> {
   const awarded = Math.max(0, Math.round(input.points * (1 + input.modifiers.xpEarnBonus)));
-  const prospect = await supabase.from("rec_immortality_prospects").select("xp_points_balance").eq("id", input.prospectId).maybeSingle();
+  const prospect = await supabase.from("rec_immortality_prospects")
+    .select("id,immortality_league_id,user_id,player_id,xp_points_balance")
+    .eq("id", input.prospectId)
+    .maybeSingle();
   if (!prospect.data) return { duplicate: true, xpGranted: 0 };
   const start = Number(prospect.data.xp_points_balance ?? 0);
   const total = start + awarded;
@@ -103,6 +109,42 @@ export async function creditXpPoints(input: {
     if (inserted.error.code === "23505") return { duplicate: true, xpGranted: 0 };
     console.error(`[ERROR] Could not credit XP points for prospect ${input.prospectId}:`, inserted.error);
     return { duplicate: true, xpGranted: 0 };
+  }
+  if (prospect.data.player_id) {
+    const leagueId = input.leagueId ?? await Promise.resolve(
+      supabase.from("rec_immortality_leagues")
+        .select("league_id")
+        .eq("id", prospect.data.immortality_league_id)
+        .maybeSingle(),
+    )
+      .then((row) => row.data?.league_id == null ? null : String(row.data.league_id))
+      .catch(() => null);
+    if (leagueId) {
+      const { creditPlayerXp, devTraitsForPlayers } = await import("../player-xp/player-xp-ledger.service.js");
+      const eventType = input.eventType.startsWith("weekly_") ? "weekly_challenge" : `rti_${input.eventType}`;
+      // Same dev-trait multiplier as the standard (non-RTI) path -- an RTI prospect with a real
+      // Star/Superstar/X-Factor dev trait should get the same boosted-earn counterweight to the
+      // OVR-scaled SP threshold as any other player, not be stuck at 1.00x just because this
+      // credit originates from the legacy prospect flow.
+      const devTraitByPlayerId = await devTraitsForPlayers([String(prospect.data.player_id)]).catch(() => new Map<string, string | null>());
+      await creditPlayerXp({
+        leagueId,
+        playerId: String(prospect.data.player_id),
+        creditedToUserId: String(prospect.data.user_id),
+        seasonNumber: input.season ?? 0,
+        weekNumber: input.week ?? null,
+        eventType,
+        sourceId: `${input.prospectId}:${input.eventType}:${input.sourceId}`,
+        rawXp: awarded,
+        devTraitAtEvent: devTraitByPlayerId.get(String(prospect.data.player_id)) ?? null,
+        metadata: {
+          prospectId: input.prospectId,
+          legacyEventType: input.eventType,
+          legacyLedgerId: inserted.data?.id ?? null,
+          formulaVersion: FORMULA_VERSIONS.xp,
+        },
+      }).catch((error) => console.error(`[ERROR] Could not credit scaled Player XP/SP for prospect ${input.prospectId} (non-fatal):`, error));
+    }
   }
   await supabase.from("rec_immortality_prospects").update({
     xp_points_balance: remainder,
@@ -430,6 +472,7 @@ export async function gradeProspectForWeek(
     const points = Math.round(pointsForWeeklyTier(challenge.tier as "bronze" | "silver" | "gold") * rivalry.multiplier);
     weeklyPointsAwarded += points;
     await creditXpPoints({
+      leagueId: input.leagueId,
       prospectId: String(prospect.id),
       eventType: `weekly_${challenge.tier}`,
       sourceId: `${input.seasonNumber}:${input.weekNumber}:${challenge.tier}`,
@@ -470,6 +513,7 @@ export async function gradeProspectForWeek(
   const weeklyBonusPct = (sweptAll ? WEEKLY_SWEEP_BONUS_PCT : 0) + (competitiveDriveEligible ? modifiers.competitiveDriveBonusPct : 0);
   if (weeklyBonusPct > 0 && weeklyPointsAwarded > 0) {
     await creditXpPoints({
+      leagueId: input.leagueId,
       prospectId: String(prospect.id),
       eventType: "weekly_bonus",
       sourceId: `${input.seasonNumber}:${input.weekNumber}:bonus`,
@@ -540,6 +584,7 @@ export async function gradeProspectForWeek(
     if (!challenge.complete) continue;
     const tier = (challenge.tier === "tier2" || challenge.tier === "tier3" ? challenge.tier : "tier1") as "tier1" | "tier2" | "tier3";
     await creditXpPoints({
+      leagueId: input.leagueId,
       prospectId: String(prospect.id),
       eventType: `season_${tier}`,
       sourceId: `${input.seasonNumber}:${challenge.id}`,
@@ -566,6 +611,7 @@ export async function gradeProspectForWeek(
     if (!challenge.complete) continue;
     const tier = (challenge.tier === "tier2" || challenge.tier === "tier3" ? challenge.tier : "tier1") as "tier1" | "tier2" | "tier3";
     await creditXpPoints({
+      leagueId: input.leagueId,
       prospectId: String(prospect.id),
       eventType: `career_${tier}`,
       sourceId: challenge.id,
@@ -609,11 +655,14 @@ export async function loadRtiMemberGates(input: {
     seasonLines: string[]; positionRank: number | null; positionCount: number | null; hofProgress: number;
     xpProgressPct: number;
     playerXpTotal: number;
+    balanceSp: number;
+    xpTowardNextSp: number;
+    nextSpCost: number;
   }>;
   playerXpTotal: number;
   teamXpTotal: number;
   pendingContracts: number;
-  owner: { name: string; headshotUrl: string | null } | null;
+  owner: { name: string; headshotUrl: string | null; balanceSp: number; xpTowardNextSp: number; nextSpCost: number } | null;
 }> {
   const storeUnlocked = gameplaySeasonStages(input.game).has(input.seasonStage);
   const imported = await supabase.from("rec_players")
@@ -638,11 +687,8 @@ export async function loadRtiMemberGates(input: {
   const immortality = await loadImmortalityLeague(input.leagueId);
   if (!immortality) return empty;
   const ownerRow = await supabase.from("rec_immortality_owners")
-    .select("first_name,last_name,headshot_url")
+    .select("id,first_name,last_name,headshot_url")
     .eq("immortality_league_id", immortality.id).eq("user_id", input.userId).maybeSingle();
-  const owner = ownerRow.data
-    ? { name: `${ownerRow.data.first_name ?? ""} ${ownerRow.data.last_name ?? ""}`.trim() || "Owner", headshotUrl: ownerRow.data.headshot_url ?? null }
-    : null;
   const prospects = await supabase.from("rec_immortality_prospects")
     .select("id,side,position,player_id,headshot_url,xp_points_balance")
     .eq("immortality_league_id", immortality.id)
@@ -681,7 +727,7 @@ export async function loadRtiMemberGates(input: {
     .sort((a: any, b: any) => (a.side === "offense" ? 0 : 1) - (b.side === "offense" ? 0 : 1))
     .map((row: any) => row.player_id).filter(Boolean).map(String);
   const playerTeams = playerIds.length
-    ? await supabase.from("rec_players").select("id,team_id").in("id", playerIds)
+    ? await supabase.from("rec_players").select("id,team_id,overall_rating").in("id", playerIds)
     : { data: [] };
   const teamIds = new Set((playerTeams.data ?? []).map((row: any) => String(row.team_id ?? "")).filter(Boolean));
   const games = gameplaySeasonStages(input.game).has(input.seasonStage)
@@ -705,6 +751,17 @@ export async function loadRtiMemberGates(input: {
   const xpLedger = prospectIds.length
     ? await supabase.from("rec_immortality_xp_ledger").select("prospect_id,player_xp_delta,team_xp_delta").in("prospect_id", prospectIds)
     : { data: [] };
+  const [playerXpStates, franchiseXpState, legacyOwnerXpLedger] = await Promise.all([
+    playerIds.length
+      ? supabase.from("rec_player_xp_state").select("player_id,balance_sp,xp_toward_next_sp,last_sp_threshold").eq("league_id", input.leagueId).in("player_id", playerIds)
+      : Promise.resolve({ data: [] as any[] }),
+    supabase.from("rec_franchise_xp_state").select("balance_sp,xp_toward_next_sp,last_sp_threshold").eq("league_id", input.leagueId).eq("user_id", input.userId).maybeSingle(),
+    ownerRow.data?.id
+      ? supabase.from("rec_immortality_owner_xp_ledger").select("xp_delta").eq("owner_id", ownerRow.data.id)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+  const playerXpStateByPlayerId = new Map<string, any>((playerXpStates.data ?? []).map((row: any) => [String(row.player_id), row]));
+  const playerTeamById = new Map<string, any>((playerTeams.data ?? []).map((row: any) => [String(row.id), row]));
   const xpTotalByProspect = new Map<string, number>();
   let teamXpTotal = 0;
   for (const row of (xpLedger.data ?? []) as Array<{ prospect_id: string; player_xp_delta: number | null; team_xp_delta: number | null }>) {
@@ -714,16 +771,39 @@ export async function loadRtiMemberGates(input: {
   }
   const playerSnapshots = await Promise.all(playerIds.map((playerId) => import("../league-week/pro-tracker.service.js")
     .then(({ computePlayerLine }) => computePlayerLine({ leagueId: input.leagueId, playerId, seasonNumber, weekNumber }))
-    .then((snapshot) => snapshot ? ({
+    .then((snapshot) => {
+      if (!snapshot) return null;
+      const prospect = prospectByPlayer.get(playerId);
+      const playerState = playerXpStateByPlayerId.get(playerId);
+      const overall = playerTeamById.get(playerId)?.overall_rating == null ? null : Number(playerTeamById.get(playerId)?.overall_rating);
+      const nextSpCost = Number(playerState?.last_sp_threshold ?? playerXpPerSp(overall));
+      const xpTowardNextSp = Number(playerState?.xp_toward_next_sp ?? prospect?.xp_points_balance ?? 0);
+      const balanceSp = Number(playerState?.balance_sp ?? xpTotalByProspect.get(String(prospect?.id)) ?? 0);
+      return {
       ...snapshot,
-      side: String(prospectByPlayer.get(playerId)?.side ?? ""),
-      headshotUrl: prospectByPlayer.get(playerId)?.headshot_url ?? snapshot.headshotUrl ?? null,
-      hofProgress: Math.max(0, Math.min(100, scoreByProspect.get(String(prospectByPlayer.get(playerId)?.id)) ?? 0)),
-      playerXpTotal: xpTotalByProspect.get(String(prospectByPlayer.get(playerId)?.id)) ?? 0,
-      // xp_points_balance already holds the remainder toward the next Player XP point (see
-      // creditXpPoints -- it stores pointsTowardNextLevel, not the raw running total).
-      xpProgressPct: Math.max(0, Math.min(100, (Number(prospectByPlayer.get(playerId)?.xp_points_balance ?? 0) / XP_POINTS_PER_LEVEL) * 100)),
-    }) : null)));
+      side: String(prospect?.side ?? ""),
+      headshotUrl: prospect?.headshot_url ?? snapshot.headshotUrl ?? null,
+      hofProgress: Math.max(0, Math.min(100, scoreByProspect.get(String(prospect?.id)) ?? 0)),
+      playerXpTotal: balanceSp,
+      balanceSp,
+      xpTowardNextSp,
+      nextSpCost,
+      xpProgressPct: nextSpCost > 0 ? Math.max(0, Math.min(100, (xpTowardNextSp / nextSpCost) * 100)) : 0,
+    };
+  })));
+  const legacyOwnerXp = (legacyOwnerXpLedger.data ?? []).reduce((total: number, row: any) => total + Number(row.xp_delta ?? 0), 0);
+  const ownerNextSpCost = Number(franchiseXpState.data?.last_sp_threshold ?? ownerXpPerSp());
+  const ownerXpTowardNextSp = Number(franchiseXpState.data?.xp_toward_next_sp ?? 0);
+  const ownerBalanceSp = Number(franchiseXpState.data?.balance_sp ?? legacyOwnerXp);
+  const owner = ownerRow.data
+    ? {
+        name: `${ownerRow.data.first_name ?? ""} ${ownerRow.data.last_name ?? ""}`.trim() || "Owner",
+        headshotUrl: ownerRow.data.headshot_url ?? null,
+        balanceSp: ownerBalanceSp,
+        xpTowardNextSp: ownerXpTowardNextSp,
+        nextSpCost: ownerNextSpCost,
+      }
+    : null;
   return {
     rostersUnlocked,
     tradesUnlocked,
@@ -731,8 +811,11 @@ export async function loadRtiMemberGates(input: {
     teammateDevUnlocked,
     weeklyChallenges,
     playerSnapshots: playerSnapshots.filter((row): row is NonNullable<typeof row> => Boolean(row)),
-    playerXpTotal: [...xpTotalByProspect.values()].reduce((total, value) => total + value, 0),
-    teamXpTotal,
+    playerXpTotal: playerSnapshots.reduce((total, value) => total + Number(value?.balanceSp ?? 0), 0),
+    // ownerBalanceSp already has its own correct legacy fallback (line above) when there's no
+    // new-table row yet -- `|| teamXpTotal` here would incorrectly mask a legitimate "0 SP so
+    // far under the new system" with the stale legacy total.
+    teamXpTotal: ownerBalanceSp,
     pendingContracts: Number(pending.count ?? 0),
     owner,
   };
