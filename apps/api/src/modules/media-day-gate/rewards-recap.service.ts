@@ -5,7 +5,13 @@
 // and advance-results.service.ts's game_win/record_book crediting) rather than threading a bespoke
 // event list through every crediting call site -- the ledger IS the authoritative record of what
 // got paid, so reading it back is simpler and can't drift from what advance actually credited.
-import { displayedXpFromPoints, XP_ECONOMY_POINTS_PER_XP, type WeeklyChallengeTier } from "@rec/shared";
+import {
+  displayedXpFromPoints,
+  ownerXpPerSp,
+  playerXpPerSp,
+  XP_ECONOMY_POINTS_PER_XP,
+  type WeeklyChallengeTier,
+} from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 
@@ -18,6 +24,11 @@ export type RewardsRecapSubject = {
   afterPoints: number;
   beforeXp: number;
   afterXp: number;
+  xpEarned: number;
+  spEarned: number;
+  remainderXp: number;
+  nextSpCost: number;
+  balanceSp: number;
   lines: RewardsRecapLine[];
 };
 export type RewardsRecapResult = { seasonNumber: number; weekNumber: number; subjects: RewardsRecapSubject[] };
@@ -31,8 +42,8 @@ function labelForLedgerRow(eventType: string, metadata: Record<string, unknown> 
   const meta = metadata ?? {};
   if (eventType === "weekly_challenge") {
     const tier = tierLabel(meta.tier as WeeklyChallengeTier | undefined);
-    const side = String(meta.side ?? "").replace("_", " ");
-    return `Weekly challenge (${side}): ${tier}`;
+    const side = String(meta.side ?? meta.assignmentClass ?? "").replace("_", " ");
+    return side ? `Weekly challenge (${side}): ${tier}` : `Weekly challenge: ${tier}`;
   }
   if (eventType === "game_win") {
     if (meta.isNationalChampionship) return "Championship win";
@@ -49,6 +60,7 @@ async function buildSubject(input: {
   subjectKey: string; name: string; kind: "player" | "franchise";
   ledgerTable: "rec_player_xp_ledger" | "rec_franchise_xp_ledger"; stateTable: "rec_player_xp_state" | "rec_franchise_xp_state";
   idColumn: "player_id" | "user_id"; idValue: string; leagueId: string; seasonNumber: number; weekNumber: number;
+  nextSpCost: number;
 }): Promise<RewardsRecapSubject | null> {
   const pointsColumn = input.kind === "player" ? "awarded_xp" : "raw_fpp";
   const ledgerRows = await supabase.from(input.ledgerTable)
@@ -61,16 +73,28 @@ async function buildSubject(input: {
 
   const lines = rows.map((row) => ({ label: labelForLedgerRow(row.event_type, row.metadata), points: Number(row[pointsColumn] ?? 0) }));
   const gainedPoints = lines.reduce((sum, line) => sum + line.points, 0);
+  const spEarned = rows.reduce((sum, row) => sum + Number(row.metadata?.spEarned ?? 0), 0);
 
-  const stateColumn = input.kind === "player" ? "balance_xp" : "balance_fpp";
-  const state = await supabase.from(input.stateTable).select(stateColumn)
+  const state = await supabase.from(input.stateTable)
+    .select(input.kind === "player"
+      ? "balance_xp,balance_sp,xp_toward_next_sp,last_sp_threshold"
+      : "balance_fpp,balance_sp,xp_toward_next_sp,last_sp_threshold")
     .eq("league_id", input.leagueId).eq(input.idColumn, input.idValue).maybeSingle();
-  const afterPoints = Number((state.data as Record<string, unknown> | null)?.[stateColumn] ?? gainedPoints);
+  const stateRow = (state.data ?? {}) as Record<string, unknown>;
+  const afterPoints = Number(stateRow[input.kind === "player" ? "balance_xp" : "balance_fpp"] ?? gainedPoints);
   const beforePoints = Math.max(0, afterPoints - gainedPoints);
+  const remainderXp = Number(stateRow.xp_toward_next_sp ?? 0);
+  const balanceSp = Number(stateRow.balance_sp ?? 0);
+  const nextSpCost = Number(stateRow.last_sp_threshold ?? input.nextSpCost);
 
   return {
     subjectKey: input.subjectKey, name: input.name, kind: input.kind,
     beforePoints, afterPoints, beforeXp: displayedXpFromPoints(beforePoints), afterXp: displayedXpFromPoints(afterPoints),
+    xpEarned: gainedPoints,
+    spEarned,
+    remainderXp,
+    nextSpCost,
+    balanceSp,
     lines,
   };
 }
@@ -82,7 +106,9 @@ export async function getRewardsRecap(input: { guildId: string; discordId: strin
   const context = await getCurrentLeagueContext(input.guildId);
   const league = context.rec_leagues;
   const seasonNumber = Number(league.season_number ?? league.display_season_number ?? 1);
-  const weekNumber = Number(league.current_week ?? 1);
+  // After advance, current_week is the week just entered; recap must show the prior completed week.
+  const currentWeek = Number(league.current_week ?? 1);
+  const weekNumber = Math.max(1, currentWeek - 1);
 
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
   const userId = account.data?.user_id ? String(account.data.user_id) : null;
@@ -99,15 +125,17 @@ export async function getRewardsRecap(input: { guildId: string; discordId: strin
       subjectKey: "franchise", name: teamName, kind: "franchise",
       ledgerTable: "rec_franchise_xp_ledger", stateTable: "rec_franchise_xp_state", idColumn: "user_id",
       idValue: userId, leagueId: context.leagueId, seasonNumber, weekNumber,
+      nextSpCost: ownerXpPerSp(),
     });
     if (franchise) subjects.push(franchise);
 
-    const players = await supabase.from("rec_players").select("id,full_name").eq("team_id", teamId);
+    const players = await supabase.from("rec_players").select("id,full_name,overall_rating").eq("team_id", teamId);
     for (const player of players.data ?? []) {
       const subject = await buildSubject({
         subjectKey: `player:${player.id}`, name: String(player.full_name), kind: "player",
         ledgerTable: "rec_player_xp_ledger", stateTable: "rec_player_xp_state", idColumn: "player_id",
         idValue: String(player.id), leagueId: context.leagueId, seasonNumber, weekNumber,
+        nextSpCost: playerXpPerSp(player.overall_rating == null ? null : Number(player.overall_rating)),
       });
       if (subject) subjects.push(subject);
     }

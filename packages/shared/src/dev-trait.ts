@@ -2,6 +2,25 @@
 export const REC_MADDEN_DEV_TRAIT_KEYS = ["normal", "star", "superstar", "xfactor"] as const;
 export type RecMaddenDevTraitKey = (typeof REC_MADDEN_DEV_TRAIT_KEYS)[number];
 
+/** docs/handoff-xp-progression/01_PLAYER/PLAYER_XP_ENGINE.md's "Dev multiplier" -- applies to
+ *  base game performance, player challenge PPP, and configured streak PPP; explicitly NOT to
+ *  MVP/OPOY/DPOY/Pro Bowl/season awards/records. A higher dev trait also means a higher OVR-band
+ *  XP-per-SP threshold (see weekly-challenges/xp-to-sp.ts), so this is the intended counterweight
+ *  -- an elite player earns raw XP faster to offset needing more of it per SP. */
+export const DEV_TRAIT_XP_MULTIPLIER: Record<RecMaddenDevTraitKey, number> = {
+  normal: 1.00,
+  star: 1.05,
+  superstar: 1.10,
+  xfactor: 1.15,
+};
+
+/** Multiplier for a raw dev-trait value (any shape normalizeMaddenDevTrait accepts, or an
+ *  already-normalized key) -- defaults to 1.00x (Normal) when unknown/missing. */
+export function devTraitXpMultiplier(rawDevTrait: unknown): number {
+  const key = normalizeMaddenDevTrait(rawDevTrait);
+  return key ? DEV_TRAIT_XP_MULTIPLIER[key] : DEV_TRAIT_XP_MULTIPLIER.normal;
+}
+
 /**
  * Normalize companion / EA / scrape payloads into a stored Madden trait key.
  * Madden companion often sends numeric codes: 0 normal, 1 star, 2 superstar, 3 xfactor.

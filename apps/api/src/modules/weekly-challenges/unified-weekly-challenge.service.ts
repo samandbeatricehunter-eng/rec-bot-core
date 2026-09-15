@@ -146,9 +146,9 @@ export async function playerStatsBundleForPlayer(input: {
   return playerStatsBundle(input);
 }
 
-async function playerMeta(playerId: string): Promise<{ teamId: string | null; position: string; archetype: string | null; name: string; overall: number | null }> {
+async function playerMeta(playerId: string): Promise<{ teamId: string | null; position: string; archetype: string | null; name: string; overall: number | null; devTrait: string | null }> {
   const row = await supabase.from("rec_players")
-    .select("team_id,position,archetype,full_name,overall_rating")
+    .select("team_id,position,archetype,full_name,overall_rating,dev_trait")
     .eq("id", playerId)
     .maybeSingle();
   return {
@@ -157,6 +157,7 @@ async function playerMeta(playerId: string): Promise<{ teamId: string | null; po
     archetype: row.data?.archetype ? String(row.data.archetype) : null,
     name: String(row.data?.full_name ?? "Player"),
     overall: row.data?.overall_rating == null ? null : Number(row.data.overall_rating),
+    devTrait: row.data?.dev_trait == null ? null : String(row.data.dev_trait),
   };
 }
 
@@ -887,6 +888,7 @@ export async function creditUnifiedOwnerAssignmentsForLeagueAtAdvance(input: {
     if (row.assignment_class === "PLAYER" && row.target_player_id) {
       const previousXp = already ? pointsForWeeklyTeamTier(already) : 0;
       const nextXp = pointsForWeeklyTeamTier(graded);
+      const targetMeta = await playerMeta(String(row.target_player_id));
       const xp = await creditPlayerXp({
         leagueId: input.leagueId,
         playerId: String(row.target_player_id),
@@ -896,6 +898,7 @@ export async function creditUnifiedOwnerAssignmentsForLeagueAtAdvance(input: {
         eventType: "weekly_challenge",
         sourceId,
         rawXp: nextXp - previousXp,
+        devTraitAtEvent: targetMeta.devTrait,
         metadata: { challengeId: row.challenge_id, name: row.challenge_name, assignmentClass: row.assignment_class, tier: graded, previousTier: already },
       }).catch((error) => {
         console.error(`[ERROR] creditPlayerXp failed for unified assignment ${row.id} (non-fatal):`, error);

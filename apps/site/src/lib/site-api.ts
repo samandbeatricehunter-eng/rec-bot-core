@@ -1117,6 +1117,7 @@ export const siteApi = {
       subjects: Array<{
         subjectKey: string; name: string; kind: "player" | "franchise";
         beforePoints: number; afterPoints: number; beforeXp: number; afterXp: number;
+        xpEarned: number; spEarned: number; remainderXp: number; nextSpCost: number; balanceSp: number;
         lines: Array<{ label: string; points: number }>;
       }>;
     }>("/v1/site-leagues/rewards-recap", { leagueId });

@@ -23,7 +23,7 @@ import {
 import { supabase } from "../../lib/supabase.js";
 import { loadImmortalityLeague } from "../immortality/immortality.service.js";
 import { buildWeeklyChallengeContext } from "./weekly-challenge-context.service.js";
-import { creditPlayerXp } from "../player-xp/player-xp-ledger.service.js";
+import { creditPlayerXp, devTraitsForPlayers } from "../player-xp/player-xp-ledger.service.js";
 import { creditFranchiseXp } from "../franchise-xp/franchise-xp-ledger.service.js";
 import { MEDIA_DAY_GATE_ENABLED } from "../media-day-gate/media-day-gate.service.js";
 
@@ -177,11 +177,13 @@ async function creditTierXp(input: {
   if (!input.isRti) {
     const previousTeamXp = input.previousTier ? pointsForWeeklyTeamTier(input.previousTier) : 0;
     const rawXp = pointsForWeeklyTeamTier(input.tier) - previousTeamXp;
+    const devTraitByPlayerId = await devTraitsForPlayers([...beneficiaries]);
     for (const playerId of beneficiaries) {
       const result = await creditPlayerXp({
         leagueId: input.leagueId, playerId, creditedToUserId: input.creditedToUserId,
         seasonNumber: input.seasonNumber, weekNumber: input.weekNumber, eventType: "weekly_challenge",
-        sourceId, rawXp, metadata: { challengeId: input.entry.id, name: input.entry.name, side: input.side, tier: input.tier, previousTier: input.previousTier },
+        sourceId, rawXp, devTraitAtEvent: devTraitByPlayerId.get(playerId) ?? null,
+        metadata: { challengeId: input.entry.id, name: input.entry.name, side: input.side, tier: input.tier, previousTier: input.previousTier },
       }).catch((error) => { console.error(`[ERROR] creditPlayerXp failed for weekly challenge ${sourceId} (non-fatal):`, error); return { credited: false, awardedXp: 0 }; });
       perPlayerAwardedXp = Math.max(perPlayerAwardedXp, result.awardedXp);
     }
@@ -292,6 +294,14 @@ export async function creditGradedWeeklyChallengesForLeagueAtAdvance(input: {
   leagueId: string; seasonNumber: number; weekNumber: number;
 }): Promise<CreditedWeeklyChallenge[]> {
   const immortalityLeague = await loadImmortalityLeague(input.leagueId);
+
+  // V2 owner assignments are independent of the Media Day gate. RTI prospect PLAYER credit still
+  // lands in gradeProspectForWeek; this pays the single unified owner assignment for standard + RTI.
+  const { creditUnifiedOwnerAssignmentsForLeagueAtAdvance } = await import("./unified-weekly-challenge.service.js");
+  await creditUnifiedOwnerAssignmentsForLeagueAtAdvance(input)
+    .catch((error) => console.error(`[ERROR] creditUnifiedOwnerAssignmentsForLeagueAtAdvance failed (non-fatal):`, error));
+
+  // Legacy 3-side TEAM catalog stays gated for RTI until Media Day can reveal those challenges.
   if (immortalityLeague && !MEDIA_DAY_GATE_ENABLED) return [];
   const isRti = Boolean(immortalityLeague);
 
@@ -328,10 +338,6 @@ export async function creditGradedWeeklyChallengesForLeagueAtAdvance(input: {
       });
     }
   }
-
-  const { creditUnifiedOwnerAssignmentsForLeagueAtAdvance } = await import("./unified-weekly-challenge.service.js");
-  await creditUnifiedOwnerAssignmentsForLeagueAtAdvance(input)
-    .catch((error) => console.error(`[ERROR] creditUnifiedOwnerAssignmentsForLeagueAtAdvance failed (non-fatal):`, error));
 
   return credited;
 }

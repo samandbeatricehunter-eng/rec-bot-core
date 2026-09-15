@@ -1,4 +1,4 @@
-﻿import { firstNonEmpty, gameplaySeasonStages, postseasonPayoutStages, regularSeasonWeeks, formatCoins, stageLabel } from "@rec/shared";
+﻿import { firstNonEmpty, gameplaySeasonStages, ownerXpPerSp, playerXpPerSp, postseasonPayoutStages, regularSeasonWeeks, formatCoins, stageLabel } from "@rec/shared";
 import { bestEffort } from "../../lib/best-effort.js";
 import { ApiError } from "../../lib/errors.js";
 import { assertSiteAccountForEconomy } from "../subscriptions/discord-only.service.js";
@@ -1316,28 +1316,44 @@ export async function getUserMenuProfileByDiscordId(discordId: string, guildId: 
     if (w + l + t > 0) gotwH2hRecordText = t > 0 ? `${w}-${l}-${t}` : `${w}-${l}`;
   }
 
-  let progressionSummary = { playerXpTotal: 0, playerXpProgressPct: 0, teamXpTotal: 0, teamXpProgressPct: 0 };
+  let progressionSummary = {
+    playerXpTotal: 0, playerXpProgressPct: 0, teamXpTotal: 0, teamXpProgressPct: 0,
+    playerBalanceSp: 0, teamBalanceSp: 0, teamNextSpCost: ownerXpPerSp(),
+  };
   if (league?.id && assignment?.team_id) {
     const [rosterResult, franchiseXpResult] = await Promise.all([
       supabase.from("rec_players").select("id").eq("league_id", league.id).eq("team_id", assignment.team_id),
-      supabase.from("rec_franchise_xp_state").select("balance_fpp").eq("league_id", league.id).eq("user_id", userId).maybeSingle(),
+      supabase.from("rec_franchise_xp_state").select("balance_fpp,balance_sp,xp_toward_next_sp,last_sp_threshold")
+        .eq("league_id", league.id).eq("user_id", userId).maybeSingle(),
     ]);
     const rosterRows = rosterResult.data ?? [];
     const playerIds = rosterRows.map((player: any) => String(player.id));
     const playerXpResult = playerIds.length
-      ? await supabase.from("rec_player_xp_state").select("balance_xp").eq("league_id", league.id).in("player_id", playerIds)
+      ? await supabase.from("rec_player_xp_state").select("balance_xp,balance_sp,xp_toward_next_sp,last_sp_threshold")
+          .eq("league_id", league.id).in("player_id", playerIds)
       : { data: [] as any[] };
     const balanceFpp = Number(franchiseXpResult.data?.balance_fpp ?? 0);
-    const balanceXp = (playerXpResult.data ?? []).reduce((total: number, row: any) => total + Number(row.balance_xp ?? 0), 0);
+    const teamThreshold = Number(franchiseXpResult.data?.last_sp_threshold ?? ownerXpPerSp());
+    const teamRemainder = Number(franchiseXpResult.data?.xp_toward_next_sp ?? balanceFpp);
+    const playerRows = playerXpResult.data ?? [];
+    const playerBalanceSp = playerRows.reduce((total: number, row: any) => total + Number(row.balance_sp ?? 0), 0);
+    // Roster-wide progress toward each player's own NEXT skill point: sum every player's
+    // remaining XP-toward-next-SP against their own (OVR-scaled) threshold rather than one flat
+    // number, since a 99 OVR player's threshold is double a bench player's.
+    const playerRemainderSum = playerRows.reduce((total: number, row: any) => total + Number(row.xp_toward_next_sp ?? row.balance_xp ?? 0), 0);
+    const playerThresholdSum = playerRows.reduce((total: number, row: any) => total + Number(row.last_sp_threshold ?? playerXpPerSp(null)), 0);
+    const teamBalanceSp = Number(franchiseXpResult.data?.balance_sp ?? 0);
     progressionSummary = {
-      // Same 6000-per-point conversion as Team XP below -- 1 Player XP point = 6000 raw balance_xp.
-      playerXpTotal: Math.floor(balanceXp / 6000),
-      playerXpProgressPct: Math.max(0, Math.min(100, ((balanceXp % 6000) / 6000) * 100)),
-      teamXpTotal: Math.floor(balanceFpp / 6000),
-      // Progress toward the *next* steel shield -- balance_fpp is the running FPP total, not
-      // per-shield, so the remainder after the last completed shield (mod 6000) is what's
-      // actually "in progress" right now.
-      teamXpProgressPct: Math.max(0, Math.min(100, ((balanceFpp % 6000) / 6000) * 100)),
+      // teamXpTotal/playerXpTotal are whole-SP-equivalent counts (matches RTI's own
+      // teamXpTotal/playerXpTotal semantics above -- "already-granted whole points", not a raw
+      // running balance), so the same LeagueHomeSnapshot props mean the same thing either way.
+      playerXpTotal: Math.round(playerBalanceSp),
+      playerXpProgressPct: playerThresholdSum > 0 ? Math.max(0, Math.min(100, (playerRemainderSum / playerThresholdSum) * 100)) : 0,
+      teamXpTotal: teamBalanceSp,
+      teamXpProgressPct: teamThreshold > 0 ? Math.max(0, Math.min(100, (teamRemainder / teamThreshold) * 100)) : 0,
+      playerBalanceSp: Math.round(playerBalanceSp),
+      teamBalanceSp,
+      teamNextSpCost: teamThreshold,
     };
   }
 

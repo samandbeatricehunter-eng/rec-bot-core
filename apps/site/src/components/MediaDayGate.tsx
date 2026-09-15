@@ -10,8 +10,70 @@ type InterviewResult = Awaited<ReturnType<typeof siteApi.getMediaDayInterview>>;
 type GateStage = "hidden" | "advanced" | "recap" | "week_transition" | "media_day" | "reveal";
 const LINE_REVEAL_MS = 550;
 
-function fractionalPct(xp: number): number {
-  return Math.round((xp - Math.floor(xp)) * 100);
+const SP_ROLL_FILL_MS = 700;
+const SP_PULSE_MS = 450;
+
+/** "Lotto roll" SP progress: fills toward the next Skill Point, then -- once it actually crosses
+ *  a whole SP -- pulses the SP counter to its new value and resets to 0, repeating once per SP
+ *  earned this recap before settling on the final remainder. Starts only once `active` (the
+ *  parent's per-subject reveal gate) flips true, mirroring the existing line-reveal pacing.
+ *  A hook (not a component) so the count and the bar can render in two different places in the
+ *  subject layout while sharing one animation timeline. */
+function useAnimatedSp({ beforeSp, afterSp, beforeRemainder, afterRemainder, threshold, active }: {
+  beforeSp: number; afterSp: number; beforeRemainder: number; afterRemainder: number; threshold: number; active: boolean;
+}): { displaySp: number; pulsing: boolean; fillPct: number } {
+  const spDelta = Math.max(0, afterSp - beforeSp);
+  const [step, setStep] = useState(0);
+  const [displaySp, setDisplaySp] = useState(beforeSp);
+  const [pulsing, setPulsing] = useState(false);
+  const [fillPct, setFillPct] = useState(threshold > 0 ? Math.max(0, Math.min(100, (beforeRemainder / threshold) * 100)) : 0);
+
+  useEffect(() => {
+    if (!active || step > spDelta) return;
+    const crossing = step < spDelta;
+    const targetPct = crossing ? 100 : (threshold > 0 ? Math.max(0, Math.min(100, (afterRemainder / threshold) * 100)) : 0);
+    const fillTimer = window.setTimeout(() => setFillPct(targetPct), 50);
+    const advanceTimer = window.setTimeout(() => {
+      if (crossing) {
+        setDisplaySp(beforeSp + step + 1);
+        setPulsing(true);
+        window.setTimeout(() => setPulsing(false), SP_PULSE_MS);
+        setFillPct(0);
+      }
+      setStep((s) => s + 1);
+    }, SP_ROLL_FILL_MS);
+    return () => { window.clearTimeout(fillTimer); window.clearTimeout(advanceTimer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, step, spDelta, threshold, afterRemainder, beforeSp]);
+
+  return { displaySp, pulsing, fillPct };
+}
+
+function RewardsRecapSubjectCard({ subject, active, startIndex, visibleLines }: {
+  subject: NonNullable<RecapResult>["subjects"][number]; active: boolean; startIndex: number; visibleLines: number;
+}) {
+  const beforeSp = subject.balanceSp - subject.spEarned;
+  const beforeRemainder = subject.beforePoints - beforeSp * subject.nextSpCost;
+  const { displaySp, pulsing, fillPct } = useAnimatedSp({
+    beforeSp, afterSp: subject.balanceSp, beforeRemainder, afterRemainder: subject.remainderXp,
+    threshold: subject.nextSpCost, active,
+  });
+  return (
+    <div className="media-day-gate-recap-subject">
+      <div className="media-day-gate-recap-subject-head">
+        <span>{subject.name}</span>
+        <span className={`media-day-gate-sp-count${pulsing ? " is-pulsing" : ""}`}>{displaySp.toLocaleString()} SP</span>
+      </div>
+      <div className="media-day-gate-recap-bar">
+        <div className="media-day-gate-recap-bar-fill" style={{ width: `${fillPct}%` }} />
+      </div>
+      <ul className="media-day-gate-recap-lines">
+        {subject.lines.map((line, i) => (
+          startIndex + i < visibleLines ? <li key={i}>+{line.points.toLocaleString()} — {line.label}</li> : null
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function RewardsRecapScreen({ leagueId, onContinue }: { leagueId: string; onContinue: () => void }) {
@@ -51,28 +113,15 @@ function RewardsRecapScreen({ leagueId, onContinue }: { leagueId: string; onCont
   return (
     <div className="media-day-gate-recap">
       <p className="media-day-gate-eyebrow">Last week's recap</p>
-      {subjectsWithCounts.map(({ subject, startIndex }) => {
-        const subjectFullyRevealed = visibleLines >= startIndex + subject.lines.length;
-        return (
-          <div key={subject.subjectKey} className="media-day-gate-recap-subject">
-            <div className="media-day-gate-recap-subject-head">
-              <span>{subject.name}</span>
-              <span className="media-day-gate-eyebrow">Level {Math.floor(subject.afterXp)}</span>
-            </div>
-            <div className="media-day-gate-recap-bar">
-              <div
-                className="media-day-gate-recap-bar-fill"
-                style={{ width: `${subjectFullyRevealed ? fractionalPct(subject.afterXp) : fractionalPct(subject.beforeXp)}%` }}
-              />
-            </div>
-            <ul className="media-day-gate-recap-lines">
-              {subject.lines.map((line, i) => (
-                startIndex + i < visibleLines ? <li key={i}>+{line.points.toLocaleString()} — {line.label}</li> : null
-              ))}
-            </ul>
-          </div>
-        );
-      })}
+      {subjectsWithCounts.map(({ subject, startIndex }) => (
+        <RewardsRecapSubjectCard
+          key={subject.subjectKey}
+          subject={subject}
+          active={visibleLines >= startIndex + subject.lines.length}
+          startIndex={startIndex}
+          visibleLines={visibleLines}
+        />
+      ))}
       {allRevealed && (
         <button type="button" className="site-btn site-btn-primary" onClick={onContinue}>Continue</button>
       )}

@@ -11,7 +11,7 @@
 // FPP (needs the Media Day answer-grading pipeline), player recognition dividend (POTW/season
 // award hooks), and the 6,000-FPP-per-game regular-season cap. Each becomes a new event_type
 // writing into the same tables when built -- no migration needed.
-import { displayedXpFromPoints } from "@rec/shared";
+import { convertXpToSp, displayedXpFromPoints, ownerXpPerSp } from "@rec/shared";
 import { supabase } from "../../lib/supabase.js";
 
 const FORMULA_VERSION = "franchise_xp_ledger.v1";
@@ -28,9 +28,16 @@ export async function creditFranchiseXp(input: {
   sourceId: string;
   rawFpp: number;
   metadata?: Record<string, unknown>;
-}): Promise<{ credited: boolean; awardedFpp: number }> {
+}): Promise<{ credited: boolean; awardedFpp: number; spEarned: number; remainderXp: number }> {
   const awardedFpp = Math.max(0, Math.round(input.rawFpp));
-  if (awardedFpp <= 0) return { credited: false, awardedFpp: 0 };
+  if (awardedFpp <= 0) return { credited: false, awardedFpp: 0, spEarned: 0, remainderXp: 0 };
+
+  const state = await supabase.from("rec_franchise_xp_state")
+    .select("balance_fpp,lifetime_earned_fpp,balance_sp,lifetime_earned_sp,xp_toward_next_sp,last_sp_conversion_at")
+    .eq("league_id", input.leagueId).eq("user_id", input.userId).maybeSingle();
+  const threshold = ownerXpPerSp();
+  const priorRemainder = Number(state.data?.xp_toward_next_sp ?? state.data?.balance_fpp ?? 0);
+  const conversion = convertXpToSp(priorRemainder + awardedFpp, threshold);
 
   const inserted = await supabase.from("rec_franchise_xp_ledger").insert({
     league_id: input.leagueId,
@@ -42,26 +49,34 @@ export async function creditFranchiseXp(input: {
     source_id: input.sourceId,
     raw_fpp: awardedFpp,
     formula_version: FORMULA_VERSION,
-    metadata: input.metadata ?? {},
+    metadata: {
+      ...(input.metadata ?? {}),
+      spEarned: conversion.spEarned,
+      remainderXp: conversion.remainderXp,
+      xpPerSp: threshold,
+    },
   }).select("id");
   if (inserted.error) {
-    if (inserted.error.code === "23505") return { credited: false, awardedFpp: 0 }; // already credited
+    if (inserted.error.code === "23505") return { credited: false, awardedFpp: 0, spEarned: 0, remainderXp: 0 };
     throw inserted.error;
   }
 
-  const state = await supabase.from("rec_franchise_xp_state").select("balance_fpp,lifetime_earned_fpp")
-    .eq("league_id", input.leagueId).eq("user_id", input.userId).maybeSingle();
   const nowIso = new Date().toISOString();
   await supabase.from("rec_franchise_xp_state").upsert({
     league_id: input.leagueId,
     user_id: input.userId,
     balance_fpp: (state.data?.balance_fpp ?? 0) + awardedFpp,
     lifetime_earned_fpp: (state.data?.lifetime_earned_fpp ?? 0) + awardedFpp,
+    balance_sp: (state.data?.balance_sp ?? 0) + conversion.spEarned,
+    lifetime_earned_sp: (state.data?.lifetime_earned_sp ?? 0) + conversion.spEarned,
+    xp_toward_next_sp: conversion.remainderXp,
+    last_sp_threshold: threshold,
+    last_sp_conversion_at: conversion.spEarned > 0 ? nowIso : (state.data?.last_sp_conversion_at ?? null),
     last_award_at: nowIso,
     updated_at: nowIso,
   }, { onConflict: "league_id,user_id" });
 
-  return { credited: true, awardedFpp };
+  return { credited: true, awardedFpp, spEarned: conversion.spEarned, remainderXp: conversion.remainderXp };
 }
 
 export async function getFranchiseXpState(leagueId: string, userId: string) {
@@ -74,5 +89,9 @@ export async function getFranchiseXpState(leagueId: string, userId: string) {
     lifetimeEarnedFpp,
     balanceXp: displayedXpFromPoints(balanceFpp),
     lifetimeEarnedXp: displayedXpFromPoints(lifetimeEarnedFpp),
+    balanceSp: Number(state.data?.balance_sp ?? 0),
+    lifetimeEarnedSp: Number(state.data?.lifetime_earned_sp ?? 0),
+    xpTowardNextSp: Number(state.data?.xp_toward_next_sp ?? 0),
+    nextSpCost: ownerXpPerSp(),
   };
 }

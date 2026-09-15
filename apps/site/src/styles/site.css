@@ -1534,7 +1534,16 @@ h1, h2, h3, .site-wordmark {
   height: 100%;
   border-radius: 4px;
   background: var(--accent, #d9a521);
-  transition: width 900ms ease;
+  transition: width 650ms ease;
+}
+.media-day-gate-sp-count {
+  font-weight: 700;
+  color: var(--accent, #d9a521);
+  transition: transform 220ms ease, color 220ms ease;
+}
+.media-day-gate-sp-count.is-pulsing {
+  color: #fff;
+  transform: scale(1.25);
 }
 .media-day-gate-recap-lines {
   list-style: none;

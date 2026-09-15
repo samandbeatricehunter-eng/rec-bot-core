@@ -755,6 +755,10 @@ export const recApi = {
     recApiFetch<import("../types/api.js").StorePurchaseContext>("/v1/purchases/store-context", { method: "POST", body: JSON.stringify({ guildId }) }),
   getMyWeeklyChallenges: (guildId: string) =>
     recApiFetch<import("../types/api.js").MyWeeklyChallengesResponse>("/v1/weekly-challenges/mine", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getFranchiseXpState: (guildId: string) =>
+    recApiFetch<import("../types/api.js").FranchiseXpStateResponse>("/v1/franchise-xp/state", { method: "POST", body: JSON.stringify({ guildId }) }),
+  getPlayerXpState: (guildId: string, playerId: string) =>
+    recApiFetch<import("../types/api.js").PlayerXpStateResponse>("/v1/player-xp/state", { method: "POST", body: JSON.stringify({ guildId, playerId }) }),
   listHubLegends: (guildId: string) =>
     recApiFetch<{ legends: import("../types/api.js").LegendCatalogEntry[] }>("/v1/legends/catalog", { method: "POST", body: JSON.stringify({ guildId }) }),
   listHubLegendAvailability: (guildId: string) =>

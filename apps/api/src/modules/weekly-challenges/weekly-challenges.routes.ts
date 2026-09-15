@@ -5,6 +5,7 @@ import { sendError } from "../../lib/errors.js";
 import { requireBotOrUserSession } from "../../lib/user-auth.js";
 import { getMyWeeklyTeamChallenges } from "./weekly-challenge-issuance.service.js";
 import { getPlayerXpState } from "../player-xp/player-xp-ledger.service.js";
+import { getFranchiseXpState } from "../franchise-xp/franchise-xp-ledger.service.js";
 
 const GuildBody = z.object({ guildId: z.string().min(1), discordId: z.string().optional() });
 
@@ -26,6 +27,20 @@ export async function weeklyChallengesRoutes(app: FastifyInstance) {
       await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
       const context = await getCurrentLeagueContext(body.guildId);
       return reply.send(await getPlayerXpState(context.leagueId, body.playerId));
+    } catch (error) { return sendError(reply, error); }
+  });
+
+  app.post("/v1/franchise-xp/state", async (request, reply) => {
+    try {
+      const body = GuildBody.parse(request.body);
+      const { getCurrentLeagueContext } = await import("../league-context/league-context.service.js");
+      const { recUserIdFromDiscordId } = await import("../madden-companion/madden-companion.service.js");
+      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
+      const discordId = auth.mode === "user" ? auth.discordId : body.discordId;
+      if (!discordId) throw new ApiError(400, "discordId is required for bot-mode calls.");
+      const context = await getCurrentLeagueContext(body.guildId);
+      const userId = await recUserIdFromDiscordId(discordId);
+      return reply.send(await getFranchiseXpState(context.leagueId, userId));
     } catch (error) { return sendError(reply, error); }
   });
 }

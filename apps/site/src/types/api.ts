@@ -937,6 +937,28 @@ export type MyWeeklyChallengesResponse = {
   challenges: WeeklyTeamChallenge[];
 };
 
+export type FranchiseXpStateResponse = {
+  balanceFpp: number;
+  lifetimeEarnedFpp: number;
+  balanceXp: number;
+  lifetimeEarnedXp: number;
+  balanceSp: number;
+  lifetimeEarnedSp: number;
+  xpTowardNextSp: number;
+  nextSpCost: number;
+};
+
+export type PlayerXpStateResponse = {
+  balance_xp: number;
+  lifetime_earned_xp: number;
+  lifetime_spent_xp?: number;
+  balance_sp: number;
+  lifetime_earned_sp: number;
+  xp_toward_next_sp: number;
+  last_sp_threshold?: number | null;
+  last_sp_ovr?: number | null;
+};
+
 export type NflTeamSummary = {
   teamId: string;
   name: string;
