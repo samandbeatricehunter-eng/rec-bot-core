@@ -783,7 +783,10 @@ export type SiteActivityCounts = {
   unreadCommissionerItems: number;
 };
 
-type RtiInterviewQuestion = { id: number; question: string; options: Array<{ text: string }> };
+type RtiInterviewQuestion = {
+  id: number; question: string; options: Array<{ text: string }>;
+  reporterId: string; reporterName: string; reporterRole: string; reporterHeadshotUrl: string;
+};
 
 type MediaDaySubjectStatus = {
   required: boolean;
@@ -1156,7 +1159,9 @@ export const siteApi = {
         questionId: string;
         questionText: string;
         answerFamily: string;
+        reporterId: string;
         reporterName: string;
+        reporterRole: string;
         reporterHeadshotUrl: string;
         options: Array<{ key: string; text: string }>;
         answered: boolean;

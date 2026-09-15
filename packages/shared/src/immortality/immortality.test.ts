@@ -464,6 +464,27 @@ test("matchup interview selection is deterministic per seed and biases toward co
   assert.ok(rivalryHits > 5, `expected rivalry context to meaningfully bias selection, got ${rivalryHits}/50`);
 });
 
+test("season_finale questions never surface outside the real season finale", () => {
+  // Regression: previously only up-weighted (never hard-excluded) when isSeasonFinale was true,
+  // so a normal mid-season context still had a real chance to draw one at random -- confirmed
+  // live for a Week 4 defensive prospect interview ("Last game of the season...").
+  const pool = matchupInterviewPool();
+  for (let week = 0; week < 200; week++) {
+    const picked = selectMatchupInterviewQuestion({ pool, context: { isSeasonFinale: false }, seed: `not-finale:${week}` });
+    assert.notEqual(picked.category, "season_finale", `season_finale question ${picked.id} drawn outside the finale`);
+  }
+  for (let week = 0; week < 200; week++) {
+    const picked = selectMatchupInterviewQuestion({ pool, context: {}, seed: `unset-finale:${week}` });
+    assert.notEqual(picked.category, "season_finale", `season_finale question ${picked.id} drawn with isSeasonFinale unset`);
+  }
+  let finaleHits = 0;
+  for (let week = 0; week < 50; week++) {
+    const picked = selectMatchupInterviewQuestion({ pool, context: { isSeasonFinale: true }, seed: `finale:${week}` });
+    if (picked.category === "season_finale") finaleHits++;
+  }
+  assert.ok(finaleHits > 5, `expected the real finale to meaningfully surface season_finale questions, got ${finaleHits}/50`);
+});
+
 test("stage interview pool fills a 3-question slate without repeats", () => {
   const pool = stageInterviewPool();
   assert.ok(pool.length >= 80, `expected a substantial stage pool, got ${pool.length}`);

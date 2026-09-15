@@ -71,9 +71,12 @@ async function resolveRtiProspectStatus(input: {
   if (!interview) return NOT_REQUIRED;
 
   const { weeklyChallengesForUser } = await import("../immortality/xp-awards.service.js");
+  // Logged, not silently swallowed: a real failure here must never look identical to "no
+  // challenge issued yet" in Railway logs -- see unified-weekly-challenge.service.ts's
+  // loadAssignment/insertAssignment, which used to fail this exact way with zero visibility.
   const views = await weeklyChallengesForUser({
     leagueId: input.leagueId, userId: input.userId, seasonNumber: input.seasonNumber, weekNumber: input.weekNumber,
-  }).catch(() => []);
+  }).catch((err) => { console.error(`[ERROR] weeklyChallengesForUser failed for user ${input.userId} (Media Day session status, non-fatal):`, err); return []; });
   const challengeIssued = Boolean(views.find((view) => view.side === input.side)?.challenges.length);
 
   const interviewComplete = interview.complete;
@@ -98,7 +101,8 @@ async function resolveRtiOwnerStatus(input: {
   if (!interview) return NOT_REQUIRED;
 
   const { getMyMediaDayChallengeReveal } = await import("../media-day/media-day-interview.service.js");
-  const reveal = await getMyMediaDayChallengeReveal({ guildId: input.guildId, discordId: input.discordId }).catch(() => []);
+  const reveal = await getMyMediaDayChallengeReveal({ guildId: input.guildId, discordId: input.discordId })
+    .catch((err) => { console.error(`[ERROR] getMyMediaDayChallengeReveal failed for owner user ${input.userId} (Media Day session status, non-fatal):`, err); return []; });
   const challengeIssued = reveal.length > 0;
   const interviewComplete = interview.complete;
   return {
@@ -111,7 +115,8 @@ async function resolveTeamStatus(input: { guildId: string; discordId: string }):
   const { getMyMediaDayInterview, getMyMediaDayChallengeReveal } = await import("../media-day/media-day-interview.service.js");
   const interview = await getMyMediaDayInterview(input).catch(() => null);
   if (!interview || !interview.periodId) return NOT_REQUIRED;
-  const reveal = await getMyMediaDayChallengeReveal(input).catch(() => []);
+  const reveal = await getMyMediaDayChallengeReveal(input)
+    .catch((err) => { console.error("[ERROR] getMyMediaDayChallengeReveal failed (Media Day session status, non-fatal):", err); return []; });
   const challengeIssued = reveal.length > 0;
   const interviewComplete = interview.complete;
   return {

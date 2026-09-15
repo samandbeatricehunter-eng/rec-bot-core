@@ -118,6 +118,7 @@ import {
   getRecAttributeDisplayName,
   sortRecAttributeCodes,
   xpDiscountForAttribute,
+  isChampionshipWeek,
 } from "@rec/shared";
 import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
@@ -135,6 +136,24 @@ import { resolveSeasonId } from "../league-context/season.service.js";
 import { leagueWeekGamesQuery, leagueSeasonGamesQuery } from "../league-context/league-games.query.js";
 import { postInterviewQuoteHeadline } from "./interview-headline.js";
 import { gameplaySeasonStages } from "@rec/shared";
+import { pickReporter } from "../media-day/media-day-interview.service.js";
+
+// RTI's matchup/owner interview screens used to show the interview SUBJECT's own headshot next to
+// the question instead of a reporter identity -- there was no reporter concept on these questions
+// at all. Reuses the same fixed-media-personality roster and weighted picker the non-RTI weekly
+// interview already uses (media-day-interview.service.ts), seeded per (subject, question id) so a
+// given question always gets asked by the same reporter. Idempotent against already-persisted
+// rendered_question rows that predate this field (falls through to a fresh deterministic pick only
+// when one isn't already stored), so historical answers don't retroactively swap reporters.
+function withReporter<T extends { id: number; reporterId?: string; reporterName?: string; reporterRole?: string; reporterHeadshotUrl?: string }>(
+  question: T, seed: string,
+): T & { reporterId: string; reporterName: string; reporterRole: string; reporterHeadshotUrl: string } {
+  if (question.reporterId && question.reporterName && question.reporterHeadshotUrl) {
+    return question as T & { reporterId: string; reporterName: string; reporterRole: string; reporterHeadshotUrl: string };
+  }
+  const reporter = pickReporter(seed);
+  return { ...question, reporterId: reporter.key, reporterName: reporter.displayName, reporterRole: reporter.role, reporterHeadshotUrl: reporter.headshotUrl };
+}
 
 const HEADSHOT_ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const HEADSHOT_MAX_BYTES = 5 * 1024 * 1024;
@@ -2792,21 +2811,27 @@ export async function getWeeklyMatchupInterview(input: { guildId: string; discor
   }
 
   if (answered.length >= MEDIA_DAY_SLOTS) {
-    return { season, week, prospectName, headshotUrl, questions: answered.map((row) => row.rendered_question), answers: answered, complete: true, windowClosed };
+    return { season, week, prospectName, headshotUrl, questions: answered.map((row) => withReporter(row.rendered_question, `${prospect.id}:${row.rendered_question.id}:reporter`)), answers: answered, complete: true, windowClosed };
   }
   if (windowClosed) {
-    return { season, week, prospectName, headshotUrl, questions: answered.map((row) => row.rendered_question), answers: answered, complete: false, windowClosed };
+    return { season, week, prospectName, headshotUrl, questions: answered.map((row) => withReporter(row.rendered_question, `${prospect.id}:${row.rendered_question.id}:reporter`)), answers: answered, complete: false, windowClosed };
   }
 
   const answeredIds = new Set(answered.map((row) => Number(row.question_id)));
   const pool = matchupInterviewPool().filter((question) => !answeredIds.has(question.id));
   const remainingSlots = MEDIA_DAY_SLOTS - answered.length;
+  // The league's actual final week of the season -- never inferred from anything but the real
+  // week number, so a season_finale-tagged question (hard-excluded otherwise, see
+  // matchup-interview.ts) can only ever surface during the real finale, not by random draw in a
+  // normal mid-season week (confirmed live: a Week 4 interview was previously eligible for one).
+  const isSeasonFinale = isChampionshipWeek(week, context.rec_leagues.game);
   const remainingStatic = selectMatchupInterviewQuestions({
     pool,
     context: {
       lastResult: matchup.lastResult, isRivalryGame: matchup.isRivalryGame,
       hasPlayedThisSeason: matchup.hasPlayedThisSeason,
       priorMeetingResult: matchup.priorMeetingResult, priorMeetingMargin: matchup.priorMeetingMargin,
+      isSeasonFinale,
     },
     seed: `${league.id}:${prospect.id}:${week}`,
     count: remainingSlots,
@@ -2836,7 +2861,10 @@ export async function getWeeklyMatchupInterview(input: { guildId: string; discor
 
   return {
     season, week, prospectName, headshotUrl, complete: false, windowClosed: false,
-    questions: [...answered.map((row) => row.rendered_question), ...nextQuestions],
+    questions: [
+      ...answered.map((row) => withReporter(row.rendered_question, `${prospect.id}:${row.rendered_question.id}:reporter`)),
+      ...nextQuestions.map((question) => withReporter(question, `${prospect.id}:${question.id}:reporter`)),
+    ],
     answers: answered,
   };
 }
@@ -2898,6 +2926,7 @@ export async function submitWeeklyMatchupInterview(input: {
     if (!found) throw new ApiError(404, "That question isn't in this week's pool.");
     question = found;
   }
+  question = withReporter(question, `${prospect.id}:${question.id}:reporter`);
   const result = scoreMatchupInterviewAnswer({ question, optionIndex: input.optionIndex });
 
   const saved = await supabase.from("rec_immortality_matchup_interview_answers").insert({
@@ -2982,7 +3011,7 @@ export async function getOwnerWeeklyInterview(input: { guildId: string; discordI
   if (existing.error) throw new ApiError(500, "Could not load this week's owner interview.", existing.error);
   const answered = existing.data ?? [];
   if (answered.length >= OWNER_INTERVIEW_SLOTS) {
-    return { season, seasonStage, group, ownerName, headshotUrl, complete: true, questions: answered.map((row) => row.rendered_question), answers: answered };
+    return { season, seasonStage, group, ownerName, headshotUrl, complete: true, questions: answered.map((row) => withReporter(row.rendered_question, `owner:${owner.data.id}:${row.rendered_question.id}:reporter`)), answers: answered };
   }
 
   const remainingSlots = OWNER_INTERVIEW_SLOTS - answered.length;
@@ -2996,7 +3025,10 @@ export async function getOwnerWeeklyInterview(input: { guildId: string; discordI
 
   return {
     season, seasonStage, group, ownerName, headshotUrl, complete: false,
-    questions: [...answered.map((row) => row.rendered_question), ...nextQuestions],
+    questions: [
+      ...answered.map((row) => withReporter(row.rendered_question, `owner:${owner.data.id}:${row.rendered_question.id}:reporter`)),
+      ...nextQuestions.map((question) => withReporter(question, `owner:${owner.data.id}:${question.id}:reporter`)),
+    ],
     answers: answered,
   };
 }
@@ -3026,8 +3058,9 @@ export async function submitOwnerWeeklyInterview(input: {
   if (answeredCount >= OWNER_INTERVIEW_SLOTS) throw new ApiError(409, "This week's owner interview is already complete.");
   const nextSlot = answeredCount + 1;
 
-  const question = OWNER_INTERVIEW_POOL.find((item) => item.id === input.questionId && item.group === group);
-  if (!question) throw new ApiError(404, "That question isn't in this week's pool.");
+  const foundQuestion = OWNER_INTERVIEW_POOL.find((item) => item.id === input.questionId && item.group === group);
+  if (!foundQuestion) throw new ApiError(404, "That question isn't in this week's pool.");
+  const question = withReporter(foundQuestion, `owner:${owner.data.id}:${foundQuestion.id}:reporter`);
   const result = scoreOwnerInterviewAnswer({ question, optionIndex: input.optionIndex });
 
   const saved = await supabase.from("rec_immortality_owner_interview_answers").insert({

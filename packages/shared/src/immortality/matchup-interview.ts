@@ -113,6 +113,11 @@ export function selectMatchupInterviewQuestion(input: {
       && !(context.priorMeetingResult === "win" && context.priorMeetingMargin === "blowout")) return false;
     if (question.tags.includes("requires_prior_meeting_close") && context.priorMeetingMargin !== "close") return false;
     if (question.tags.includes("debut_only") && context.hasPlayedThisSeason !== false) return false;
+    // season_finale questions ("Last game of the season," "What are you taking into the
+    // offseason") presuppose the year is actually ending -- previously only up-weighted (never
+    // hard-excluded) when context.isSeasonFinale was true, so a normal mid-season week still had
+    // a real chance to draw one at random (confirmed live: a Week 4 defensive prospect interview).
+    if ((question.category === "season_finale" || question.tags.includes("season_finale")) && context.isSeasonFinale !== true) return false;
     return true;
   });
   const effectivePool = eligiblePool.length ? eligiblePool : pool;

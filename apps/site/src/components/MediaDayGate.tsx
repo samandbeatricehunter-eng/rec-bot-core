@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useHub } from "../lib/hub-context.js";
 import { siteApi } from "../lib/site-api.js";
 
@@ -76,9 +76,15 @@ function RewardsRecapSubjectCard({ subject, active, startIndex, visibleLines }: 
   );
 }
 
+// Every subject's SP bar finishes its own roll-and-pulse animation shortly after its last line
+// reveals (useAnimatedSp's SP_ROLL_FILL_MS/SP_PULSE_MS) -- Continue waits this long past the last
+// line so the final balance visibly settles instead of the button appearing mid-animation.
+const RECAP_SETTLE_MS = 800;
+
 function RewardsRecapScreen({ leagueId, onContinue }: { leagueId: string; onContinue: () => void }) {
   const [recap, setRecap] = useState<RecapResult | null>(null);
   const [visibleLines, setVisibleLines] = useState(0);
+  const [settled, setSettled] = useState(false);
 
   useEffect(() => {
     void siteApi.getRewardsRecap(leagueId).then(setRecap).catch(() => setRecap({ seasonNumber: 0, weekNumber: 0, subjects: [] }));
@@ -92,6 +98,13 @@ function RewardsRecapScreen({ leagueId, onContinue }: { leagueId: string; onCont
     return () => window.clearTimeout(timer);
   }, [recap, visibleLines, totalLines]);
 
+  const allRevealed = totalLines > 0 && visibleLines >= totalLines;
+  useEffect(() => {
+    if (!allRevealed) return;
+    const timer = window.setTimeout(() => setSettled(true), RECAP_SETTLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [allRevealed]);
+
   if (!recap) return <p>Loading last week's recap...</p>;
   if (!recap.subjects.length) {
     return (
@@ -102,7 +115,6 @@ function RewardsRecapScreen({ leagueId, onContinue }: { leagueId: string; onCont
     );
   }
 
-  const allRevealed = totalLines > 0 && visibleLines >= totalLines;
   let seenLines = 0;
   const subjectsWithCounts = recap.subjects.map((subject) => {
     const startIndex = seenLines;
@@ -122,8 +134,8 @@ function RewardsRecapScreen({ leagueId, onContinue }: { leagueId: string; onCont
           visibleLines={visibleLines}
         />
       ))}
-      {allRevealed && (
-        <button type="button" className="site-btn site-btn-primary" onClick={onContinue}>Continue</button>
+      {settled && (
+        <button type="button" className="site-btn site-btn-primary media-day-reveal-fade-in" onClick={onContinue}>Continue</button>
       )}
     </div>
   );
@@ -206,32 +218,94 @@ function MediaDayInterviewScreen({ leagueId, onComplete }: { leagueId: string; o
     }
   }
 
+  const turns: ConversationTurn[] = interview.questions
+    .filter((q) => q.answered || q.questionId === current.questionId)
+    .map((q) => ({
+      key: q.questionId, reporterName: q.reporterName, reporterRole: q.reporterRole, reporterHeadshotUrl: q.reporterHeadshotUrl,
+      questionText: q.questionText,
+      answerText: q.answered ? (q.options.find((o) => o.key === q.answerKey)?.text ?? null) : null,
+    }));
+
   return (
-    <div className="media-day-gate-interview">
+    <>
+      <InterviewConversation
+        heading={<span>{interview.teamName} press conference</span>}
+        progress={{ total: interview.questions.length, done: answeredCount }}
+        turns={turns}
+        currentOptions={current.options}
+        onChoose={(key) => void choose(String(key))}
+        submitting={submitting}
+        youLabel={interview.teamName}
+      />
+      {error && <p className="media-day-gate-eyebrow">{error}</p>}
+    </>
+  );
+}
+
+type ConversationTurn = {
+  key: string | number;
+  reporterName: string;
+  reporterRole: string;
+  reporterHeadshotUrl: string;
+  questionText: string;
+  /** null = this is the live turn -- not yet answered, options render below it instead of a reply bubble. */
+  answerText: string | null;
+};
+
+// The REC Media Day conversation stage: every question/answer pair this session stays visible as
+// the interview goes, instead of each new question replacing the last one on screen. Reporter
+// questions render as a bubble on the left (their real identity -- see immortality.service.ts's
+// withReporter), the user's own answer as a contrasting bubble on the right once chosen. Shared by
+// all three interview screens (non-RTI team, RTI prospect, RTI owner) so the redesigned layout only
+// needs to be built and tuned once.
+function InterviewConversation({ heading, progress, turns, currentOptions, onChoose, submitting, youLabel }: {
+  heading: ReactNode;
+  progress: { total: number; done: number };
+  turns: ConversationTurn[];
+  currentOptions: Array<{ key: string | number; text: string }>;
+  onChoose: (key: string | number) => void;
+  submitting: boolean;
+  youLabel: string;
+}) {
+  return (
+    <div className="media-day-conversation">
       <div className="media-day-gate-interview-head">
-        <span>{interview.teamName} press conference</span>
-        <span className="media-day-gate-eyebrow">{answeredCount + 1} of {interview.questions.length}</span>
+        {heading}
+        <span className="media-day-gate-eyebrow">{progress.done + 1} of {progress.total}</span>
       </div>
       <div className="media-day-gate-interview-progress">
-        {interview.questions.map((q) => (
-          <div key={q.questionId} className={q.answered ? "media-day-gate-interview-progress-seg is-done" : "media-day-gate-interview-progress-seg"} />
+        {Array.from({ length: progress.total }).map((_, i) => (
+          <div key={i} className={i < progress.done ? "media-day-gate-interview-progress-seg is-done" : "media-day-gate-interview-progress-seg"} />
         ))}
       </div>
-      <div className="media-day-gate-interview-question">
-        <img className="media-day-gate-interview-avatar" src={current.reporterHeadshotUrl} alt={current.reporterName} />
-        <div>
-          <p className="media-day-gate-eyebrow">{current.reporterName}</p>
-          <p>{current.questionText}</p>
+      <div className="media-day-conversation-log">
+        {turns.map((turn) => (
+          <div className="media-day-conversation-turn" key={turn.key}>
+            <div className="media-day-conversation-bubble media-day-conversation-bubble-reporter">
+              <img className="media-day-conversation-avatar" src={turn.reporterHeadshotUrl} alt={turn.reporterName} />
+              <div className="media-day-conversation-bubble-body">
+                <p className="media-day-conversation-byline">{turn.reporterName} <span>{turn.reporterRole}</span></p>
+                <p>{turn.questionText}</p>
+              </div>
+            </div>
+            {turn.answerText != null && (
+              <div className="media-day-conversation-bubble media-day-conversation-bubble-you">
+                <div className="media-day-conversation-bubble-body">
+                  <p className="media-day-conversation-byline">{youLabel}</p>
+                  <p>{turn.answerText}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      {currentOptions.length > 0 && (
+        <div className="media-day-gate-interview-options">
+          {currentOptions.map((option) => (
+            <button key={option.key} type="button" disabled={submitting} onClick={() => onChoose(option.key)}>{option.text}</button>
+          ))}
         </div>
-      </div>
-      <div className="media-day-gate-interview-options">
-        {current.options.map((option) => (
-          <button key={option.key} type="button" disabled={submitting} onClick={() => void choose(option.key)}>
-            {option.text}
-          </button>
-        ))}
-      </div>
-      {error && <p className="media-day-gate-eyebrow">{error}</p>}
+      )}
     </div>
   );
 }
@@ -294,31 +368,28 @@ function RtiOwnerInterviewScreen({ guildId, status, onAnswered }: { guildId: str
     }
   }
 
+  const turns: ConversationTurn[] = interview.questions.slice(0, answeredCount + 1).map((q, i) => {
+    const answer = interview.answers[i];
+    return {
+      key: q.id, reporterName: q.reporterName, reporterRole: q.reporterRole, reporterHeadshotUrl: q.reporterHeadshotUrl,
+      questionText: q.question,
+      answerText: answer ? (q.options[Number(answer.option_index)]?.text ?? null) : null,
+    };
+  });
+
   return (
-    <div className="media-day-gate-interview">
-      <div className="media-day-gate-interview-head">
-        <span>Owner interview</span>
-        <span className="media-day-gate-eyebrow">{answeredCount + 1} of {interview.questions.length}</span>
-      </div>
-      <div className="media-day-gate-interview-progress">
-        {interview.questions.map((q, i) => (
-          <div key={q.id} className={i < answeredCount ? "media-day-gate-interview-progress-seg is-done" : "media-day-gate-interview-progress-seg"} />
-        ))}
-      </div>
-      <div className="media-day-gate-interview-question">
-        {interview.headshotUrl && <img className="media-day-gate-interview-avatar" src={interview.headshotUrl} alt={interview.ownerName} />}
-        <div>
-          <p className="media-day-gate-eyebrow">{interview.ownerName}</p>
-          <p>{current.question}</p>
-        </div>
-      </div>
-      <div className="media-day-gate-interview-options">
-        {current.options.map((option, i) => (
-          <button key={i} type="button" disabled={submitting} onClick={() => void choose(i)}>{option.text}</button>
-        ))}
-      </div>
+    <>
+      <InterviewConversation
+        heading={<span>Owner interview — {interview.ownerName}</span>}
+        progress={{ total: interview.questions.length, done: answeredCount }}
+        turns={turns}
+        currentOptions={current.options.map((option, i) => ({ key: i, text: option.text }))}
+        onChoose={(key) => void choose(Number(key))}
+        submitting={submitting}
+        youLabel={interview.ownerName}
+      />
       {error && <p className="media-day-gate-eyebrow">{error}</p>}
-    </div>
+    </>
   );
 }
 
@@ -370,32 +441,71 @@ function RtiProspectInterviewScreen({ guildId, side, status, onAnswered }: { gui
     }
   }
 
+  const turns: ConversationTurn[] = interview.questions.slice(0, answeredCount + 1).map((q, i) => {
+    const answer = interview.answers[i];
+    return {
+      key: q.id, reporterName: q.reporterName, reporterRole: q.reporterRole, reporterHeadshotUrl: q.reporterHeadshotUrl,
+      questionText: q.question,
+      answerText: answer ? (q.options[Number(answer.option_index)]?.text ?? null) : null,
+    };
+  });
+
   return (
-    <div className="media-day-gate-interview">
-      <div className="media-day-gate-interview-head">
-        <span>{interview.prospectName} ({side})</span>
-        <span className="media-day-gate-eyebrow">{answeredCount + 1} of {interview.questions.length}</span>
-      </div>
-      <div className="media-day-gate-interview-progress">
-        {interview.questions.map((q, i) => (
-          <div key={q.id} className={i < answeredCount ? "media-day-gate-interview-progress-seg is-done" : "media-day-gate-interview-progress-seg"} />
-        ))}
-      </div>
-      <div className="media-day-gate-interview-question">
-        {interview.headshotUrl && <img className="media-day-gate-interview-avatar" src={interview.headshotUrl} alt={interview.prospectName} />}
-        <p>{current.question}</p>
-      </div>
-      <div className="media-day-gate-interview-options">
-        {current.options.map((option, i) => (
-          <button key={i} type="button" disabled={submitting} onClick={() => void choose(i)}>{option.text}</button>
-        ))}
-      </div>
+    <>
+      <InterviewConversation
+        heading={<span>{interview.prospectName} ({side})</span>}
+        progress={{ total: interview.questions.length, done: answeredCount }}
+        turns={turns}
+        currentOptions={current.options.map((option, i) => ({ key: i, text: option.text }))}
+        onChoose={(key) => void choose(Number(key))}
+        submitting={submitting}
+        youLabel={interview.prospectName}
+      />
       {error && <p className="media-day-gate-eyebrow">{error}</p>}
-    </div>
+    </>
   );
 }
 
 const RTI_TIER_TITLE: Record<string, string> = { bronze: "Bronze", silver: "Silver", gold: "Gold" };
+
+const REVEAL_CARD_STAGGER_MS = 450;
+const REVEAL_TIER_STAGGER_MS = 220;
+
+type RevealCard = {
+  key: string;
+  category: string;
+  identity: string;
+  tiers: Array<{ tier: "bronze" | "silver" | "gold"; lines: string[] }>;
+};
+
+// Each of the (up to) three RTI Media Day challenges -- Offensive Prospect, Defensive Prospect,
+// Owner/Team -- reads as an assignment being handed out rather than a database row appearing:
+// the category label shows first, then the subject's identity, then Bronze/Silver/Gold animate in
+// one at a time (staggered via animation-delay, computed from the tier's index), Gold getting the
+// strongest visual treatment. Cards themselves also stagger in sequence.
+function RevealCardView({ card, cardIndex }: { card: RevealCard; cardIndex: number }) {
+  return (
+    <div
+      className="media-day-reveal-card"
+      style={{ animationDelay: `${cardIndex * REVEAL_CARD_STAGGER_MS}ms` }}
+    >
+      <p className="media-day-reveal-card-category">{card.category}</p>
+      <p className="media-day-reveal-card-identity">{card.identity}</p>
+      <div className="media-day-reveal-card-tiers">
+        {card.tiers.map((tier, tierIndex) => (
+          <div
+            key={tier.tier}
+            className={`media-day-reveal-tier media-day-reveal-tier-${tier.tier}`}
+            style={{ animationDelay: `${cardIndex * REVEAL_CARD_STAGGER_MS + 300 + tierIndex * REVEAL_TIER_STAGGER_MS}ms` }}
+          >
+            <p className="media-day-reveal-tier-title">{RTI_TIER_TITLE[tier.tier] ?? tier.tier}</p>
+            <ul className="media-day-gate-recap-lines">{tier.lines.map((line, i) => <li key={i}>{line}</li>)}</ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function RtiChallengeRevealScreen({ leagueId, onContinue }: { leagueId: string; onContinue: () => void }) {
   const [ownerReveal, setOwnerReveal] = useState<Awaited<ReturnType<typeof siteApi.getMediaDayChallengeReveal>> | null>(null);
@@ -407,30 +517,37 @@ function RtiChallengeRevealScreen({ leagueId, onContinue }: { leagueId: string; 
   }, [leagueId]);
 
   const loaded = ownerReveal !== null && prospectReveal !== null;
+  if (!loaded) return <div className="media-day-gate-recap"><p className="media-day-gate-eyebrow">This week's challenges</p><p>Loading...</p></div>;
+
+  // Fixed order -- offense, then defense, then owner/team -- regardless of what order the API
+  // happened to return each half in, so the sequence always reads the same way.
+  const cards: RevealCard[] = [
+    ...prospectReveal.filter((p) => p.side === "offense").map((p): RevealCard => ({
+      key: p.prospectId, category: "Offensive Prospect", identity: p.name,
+      tiers: p.tiers.map((t) => ({ tier: t.tier as "bronze" | "silver" | "gold", lines: [t.label] })),
+    })),
+    ...prospectReveal.filter((p) => p.side === "defense").map((p): RevealCard => ({
+      key: p.prospectId, category: "Defensive Prospect", identity: p.name,
+      tiers: p.tiers.map((t) => ({ tier: t.tier as "bronze" | "silver" | "gold", lines: [t.label] })),
+    })),
+    ...ownerReveal.map((entry): RevealCard => ({
+      key: entry.side, category: `Owner Challenge — Team (${entry.side})`, identity: entry.challengeName,
+      tiers: entry.tiers,
+    })),
+  ];
+
   return (
-    <div className="media-day-gate-recap">
+    <div className="media-day-gate-recap media-day-reveal">
       <p className="media-day-gate-eyebrow">This week's challenges</p>
-      {!loaded && <p>Loading...</p>}
-      {prospectReveal?.map((prospect) => (
-        <div key={prospect.prospectId} className="media-day-gate-recap-subject">
-          <div className="media-day-gate-recap-subject-head"><span>{prospect.name}</span><span className="media-day-gate-eyebrow">{prospect.side}</span></div>
-          <ul className="media-day-gate-recap-lines">
-            {prospect.tiers.map((tier) => <li key={tier.tier}>{RTI_TIER_TITLE[tier.tier] ?? tier.tier}: {tier.label}</li>)}
-          </ul>
-        </div>
-      ))}
-      {ownerReveal?.map((entry) => (
-        <div key={entry.side} className="media-day-gate-recap-subject">
-          <div className="media-day-gate-recap-subject-head"><span>{entry.challengeName}</span><span className="media-day-gate-eyebrow">Team ({entry.side})</span></div>
-          {entry.tiers.map((tier) => (
-            <div key={tier.tier}>
-              <p className="media-day-gate-eyebrow">{RTI_TIER_TITLE[tier.tier]}</p>
-              <ul className="media-day-gate-recap-lines">{tier.lines.map((line, i) => <li key={i}>{line}</li>)}</ul>
-            </div>
-          ))}
-        </div>
-      ))}
-      {loaded && <button type="button" className="site-btn site-btn-primary" onClick={onContinue}>Continue to league hub</button>}
+      {cards.map((card, i) => <RevealCardView key={card.key} card={card} cardIndex={i} />)}
+      {!cards.length && <p>No challenges assigned yet this week.</p>}
+      <button
+        type="button" className="site-btn site-btn-primary media-day-reveal-fade-in"
+        style={{ animationDelay: `${cards.length * REVEAL_CARD_STAGGER_MS + 300}ms` }}
+        onClick={onContinue}
+      >
+        Continue to league hub
+      </button>
     </div>
   );
 }

@@ -1557,6 +1557,80 @@ h1, h2, h3, .site-wordmark {
   font-size: 13px;
   color: var(--text-muted);
 }
+
+/* —— Challenge reveal choreography: each card (and its tiers within) fades/slides in on its own
+   delay (set inline per index by RevealCardView), so the three RTI challenges read as assignments
+   being handed out one at a time instead of every row appearing at once. —— */
+@keyframes media-day-reveal-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.media-day-reveal-fade-in {
+  opacity: 0;
+  animation: media-day-reveal-in 500ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.media-day-reveal-card {
+  opacity: 0;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  animation: media-day-reveal-in 500ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.media-day-reveal-card-category {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent, #d9a521);
+}
+.media-day-reveal-card-identity {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.media-day-reveal-card-tiers {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.media-day-reveal-tier {
+  opacity: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  animation: media-day-reveal-in 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.media-day-reveal-tier-title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+.media-day-reveal-tier-silver {
+  border-color: rgba(200, 205, 212, 0.28);
+}
+.media-day-reveal-tier-silver .media-day-reveal-tier-title {
+  color: #c8cdd4;
+}
+/* Gold gets the strongest visual treatment -- a real glow, not just a label color swap. */
+.media-day-reveal-tier-gold {
+  border-color: rgba(217, 165, 33, 0.55);
+  background: linear-gradient(135deg, rgba(217, 165, 33, 0.14), rgba(217, 165, 33, 0.03));
+  box-shadow: 0 0 24px rgba(217, 165, 33, 0.18), inset 0 1px 0 rgba(255, 240, 168, 0.12);
+}
+.media-day-reveal-tier-gold .media-day-reveal-tier-title {
+  color: #fff0a8;
+  text-shadow: 0 0 12px rgba(217, 165, 33, 0.5);
+}
+.media-day-reveal .media-day-gate-recap-lines {
+  color: rgba(255, 255, 255, 0.82);
+}
+
 .media-day-gate-interview {
   display: flex;
   flex-direction: column;
@@ -1603,7 +1677,131 @@ h1, h2, h3, .site-wordmark {
 }
 .media-day-gate-interview-options button {
   width: 100%;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
   text-align: left;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+.media-day-gate-interview-options button:hover:not(:disabled) {
+  background: rgba(217, 165, 33, 0.14);
+  border-color: rgba(217, 165, 33, 0.45);
+  transform: translateY(-1px);
+}
+.media-day-gate-interview-options button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* —— REC Media Day conversation stage: reporter questions accumulate as bubbles on the left,
+   the user's own answers as contrasting bubbles on the right, over the press-conference backdrop
+   set on .media-day-gate. Replaces the old narrow single-question-at-a-time strip. —— */
+.media-day-conversation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(900px, 100%);
+  max-height: min(78vh, 760px);
+  padding: 28px 32px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(180deg, rgba(10, 12, 16, 0.72), rgba(6, 7, 9, 0.85));
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  text-align: left;
+  overflow: hidden;
+}
+.media-day-conversation-log {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scroll-behavior: smooth;
+}
+.media-day-conversation-turn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.media-day-conversation-bubble {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 82%;
+}
+.media-day-conversation-bubble-reporter {
+  align-self: flex-start;
+}
+.media-day-conversation-bubble-you {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+.media-day-conversation-avatar {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: var(--accent, #d9a521);
+}
+.media-day-conversation-bubble-body {
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.media-day-conversation-bubble-body p {
+  margin: 0;
+}
+.media-day-conversation-bubble-reporter .media-day-conversation-bubble-body {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top-left-radius: 4px;
+  color: rgba(255, 255, 255, 0.92);
+}
+.media-day-conversation-bubble-you .media-day-conversation-bubble-body {
+  background: linear-gradient(135deg, var(--accent, #d9a521), #b9860f);
+  border-top-right-radius: 4px;
+  color: #14100a;
+  font-weight: 500;
+}
+.media-day-conversation-byline {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+.media-day-conversation-byline span {
+  margin-left: 4px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.75;
+}
+.media-day-conversation-bubble-you .media-day-conversation-byline {
+  color: rgba(20, 16, 10, 0.65);
+  text-align: right;
+}
+@media (max-width: 700px) {
+  .media-day-conversation {
+    width: 100%;
+    padding: 18px 16px;
+    border-radius: 14px;
+    max-height: 82vh;
+  }
+  .media-day-conversation-bubble {
+    max-width: 92%;
+  }
 }
 
 /* —— Account menu item (used inside the header's portal-based dropdown panels, see

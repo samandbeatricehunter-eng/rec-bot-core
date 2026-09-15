@@ -145,6 +145,30 @@ test("every supported RTI position/archetype pair has eligible PLAYER entries", 
   }
 });
 
+// resolveRtiProspectWeeklyAssignment (unified-weekly-challenge.service.ts) always passes
+// contexts: ["rti_offense"/"rti_defense", "rti_prospect"], unlike the two tests above which pass
+// no contexts at all -- unifiedPlayerChallengeCatalog's preferredContexts filter only excludes an
+// entry when BOTH the entry has preferred tags AND none of them are in the passed set, so this
+// closes the gap those tests leave: real RTI weekly-assignment context tags must never starve a
+// position/archetype pair down to zero eligible entries the way an empty contexts array can't.
+test("every supported RTI position/archetype pair still resolves under real rti_<side>/rti_prospect contexts", () => {
+  const compatibility = unifiedArchetypeCompatibility() as { archetypes: Record<string, string[]> };
+  for (const [position, archetypes] of Object.entries(compatibility.archetypes ?? {})) {
+    if (["OL", "K", "P", "FB"].includes(position)) continue;
+    for (const side of ["offense", "defense"] as const) {
+      for (const archetype of archetypes) {
+        const challenge = pickUnifiedPlayerChallenge({
+          seed: `rti:${side}:${position}:${archetype}`,
+          position,
+          archetype,
+          contexts: [`rti_${side}`, "rti_prospect"],
+        });
+        assert.ok(challenge, `missing challenge for ${position}/${archetype} under rti_${side}/rti_prospect contexts`);
+      }
+    }
+  }
+});
+
 test("high-variance challenges can be blocked after a high-variance week", () => {
   // QB has no high-variance entries in the real catalog (only EDGE/DT/CB/FS/SS do) -- search
   // every position rather than assuming QB specifically has one, so this doesn't silently start

@@ -40,10 +40,15 @@ const CATEGORY_PERSONA_WEIGHTS: Partial<Record<TweetFixedAccountKey, number>> = 
   elliot: 4, gridiron_gospel: 4, marcus: 2, darius: 2, vaughn: 1, rec_insider: 1, nfl_front_office: 1, tmz: 1,
 };
 
+export type MediaDayReporter = { key: string; displayName: string; role: string; headshotUrl: string };
+
 /** Deterministic weighted reporter assignment per (team, week, side) -- same weights every call
  * for a given seed (so re-fetching the interview before answering never swaps the byline), picked
- * via a hash-seeded cumulative-weight walk instead of Math.random() for that determinism. */
-function pickReporter(seed: string): { key: string; displayName: string; headshotUrl: string } {
+ * via a hash-seeded cumulative-weight walk instead of Math.random() for that determinism. Exported
+ * so RTI's matchup/owner interviews (immortality.service.ts) share the same reporter roster and
+ * picking logic instead of the RTI screens showing the interview SUBJECT's own headshot next to
+ * the question -- which is what a reporter identity is supposed to replace. */
+export function pickReporter(seed: string): MediaDayReporter {
   const accounts = tweetFixedAccounts();
   const weighted = accounts.map((account) => ({ account, weight: CATEGORY_PERSONA_WEIGHTS[account.key] ?? 1 }));
   const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0);
@@ -51,10 +56,10 @@ function pickReporter(seed: string): { key: string; displayName: string; headsho
   let cumulative = 0;
   for (const entry of weighted) {
     cumulative += entry.weight;
-    if (roll < cumulative) return { key: entry.account.key, displayName: entry.account.display, headshotUrl: entry.account.headshotUrl };
+    if (roll < cumulative) return { key: entry.account.key, displayName: entry.account.display, role: entry.account.role, headshotUrl: entry.account.headshotUrl };
   }
   const fallback = weighted[weighted.length - 1]!.account;
-  return { key: fallback.key, displayName: fallback.display, headshotUrl: fallback.headshotUrl };
+  return { key: fallback.key, displayName: fallback.display, role: fallback.role, headshotUrl: fallback.headshotUrl };
 }
 
 export type MediaDayInterviewQuestion = {
@@ -62,7 +67,9 @@ export type MediaDayInterviewQuestion = {
   questionId: string;
   questionText: string;
   answerFamily: string;
+  reporterId: string;
   reporterName: string;
+  reporterRole: string;
   reporterHeadshotUrl: string;
   options: Array<{ key: string; text: string }>;
   answered: boolean;
@@ -138,7 +145,7 @@ export async function getMyMediaDayInterview(input: { guildId: string; discordId
     const reporter = pickReporter(`${seed}:reporter`);
     questions.push({
       side, questionId: variant.id, questionText, answerFamily: variant.answer_family,
-      reporterName: reporter.displayName, reporterHeadshotUrl: reporter.headshotUrl, options,
+      reporterId: reporter.key, reporterName: reporter.displayName, reporterRole: reporter.role, reporterHeadshotUrl: reporter.headshotUrl, options,
       answered: answeredBySide.has(side), answerKey: answeredBySide.get(side) ?? null,
     });
   }

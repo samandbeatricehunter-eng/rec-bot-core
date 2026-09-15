@@ -12,6 +12,7 @@ import {
   type UnifiedTierResult,
 } from "@rec/shared";
 import type { ChallengeCondition, IssuedChallenge } from "@rec/shared";
+import { ApiError } from "../../lib/errors.js";
 import { supabase } from "../../lib/supabase.js";
 import { buildWeeklyChallengeContext } from "./weekly-challenge-context.service.js";
 
@@ -286,6 +287,14 @@ async function loadAssignment(input: {
     .eq("user_id", input.userId)
     .eq("subject_key", input.subjectKey)
     .maybeSingle();
+  // This table's writes were completely silent on failure until now (neither this read nor
+  // insertAssignment's upsert ever checked .error) -- rec_weekly_challenge_assignments had zero
+  // rows in production across every league despite gradeProspectForWeek calling this every
+  // advance, and the resulting `null` just looked like "nothing to assign yet" all the way up
+  // through weeklyChallengesForUser's own .catch(() => []). Throwing here surfaces the real cause
+  // in Railway logs via the existing best-effort .catch() at the advance call site, instead of a
+  // silent no-op that's indistinguishable from "no challenge available this week."
+  if (existing.error) throw new ApiError(500, "Could not load this weekly challenge assignment.", existing.error);
   return existing.data as AssignmentRow | null;
 }
 
@@ -308,7 +317,7 @@ async function insertAssignment(input: {
   contextSnapshot: Record<string, unknown>;
 }): Promise<AssignmentRow | null> {
   const challenge = input.challenge;
-  await supabase.from("rec_weekly_challenge_assignments").upsert({
+  const written = await supabase.from("rec_weekly_challenge_assignments").upsert({
     league_id: input.leagueId,
     season_number: input.seasonNumber,
     week_number: input.weekNumber,
@@ -336,6 +345,7 @@ async function insertAssignment(input: {
     context_snapshot: input.contextSnapshot,
     formula_version: UNIFIED_CHALLENGE_CATALOG_VERSION,
   }, { onConflict: "league_id,season_number,week_number,user_id,subject_key", ignoreDuplicates: true });
+  if (written.error) throw new ApiError(500, "Could not save this weekly challenge assignment.", written.error);
   return loadAssignment({
     leagueId: input.leagueId,
     seasonNumber: input.seasonNumber,
