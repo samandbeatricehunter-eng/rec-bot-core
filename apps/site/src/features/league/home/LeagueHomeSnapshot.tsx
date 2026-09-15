@@ -8,6 +8,7 @@ type RtiMiniProspect = {
   playerName: string;
   position: string | null;
   side: string;
+  headshotUrl?: string | null;
   xpProgressPct: number;
   playerXpTotal: number;
 };
@@ -82,12 +83,17 @@ export function LeagueHomeSnapshot({
     const sp = Math.max(0, Number(player?.playerXpTotal ?? 0));
     return (
       <Link className="hub-rti-mini-card" to={playerProgressionPath}>
-        <span>{label}</span>
-        <strong>{title}</strong>
-        <small>{position} · {sp.toLocaleString()} SP</small>
-        <div className="hub-season-team-xp-track" aria-label={`${title} XP progress`}>
-          <i style={{ width: `${progress}%` }} />
+        <div className="hub-rti-mini-card-info">
+          <span>{label}</span>
+          <strong>{title}</strong>
+          <small>{position} · {sp.toLocaleString()} SP</small>
+          <div className="hub-season-team-xp-track" aria-label={`${title} XP progress`}>
+            <i style={{ width: `${progress}%` }} />
+          </div>
         </div>
+        <span className="hub-rti-mini-card-avatar" aria-hidden="true">
+          {player?.headshotUrl ? <img src={player.headshotUrl} alt="" /> : null}
+        </span>
       </Link>
     );
   }
@@ -140,12 +146,17 @@ export function LeagueHomeSnapshot({
         <div className="hub-season-snapshot-grid hub-season-snapshot-secondary hub-season-snapshot-rti-trio" aria-label="Rise progression snapshot">
           {rtiProspectCard(offense, "offense")}
           <Link className="hub-rti-mini-card hub-rti-mini-card-owner" to={ownerProgressionPath}>
-            <span>Owner</span>
-            <strong>{rtiOwner?.name?.trim() || "Owner"}</strong>
-            <small>{teamXpTotal.toLocaleString()} SP</small>
-            <div className="hub-season-team-xp-track" aria-label="Owner XP progress">
-              <i style={{ width: `${teamXpProgress}%` }} />
+            <div className="hub-rti-mini-card-info">
+              <span>Owner</span>
+              <strong>{rtiOwner?.name?.trim() || "Owner"}</strong>
+              <small>{teamXpTotal.toLocaleString()} SP</small>
+              <div className="hub-season-team-xp-track" aria-label="Owner XP progress">
+                <i style={{ width: `${teamXpProgress}%` }} />
+              </div>
             </div>
+            <span className="hub-rti-mini-card-avatar" aria-hidden="true">
+              {rtiOwner?.headshotUrl ? <img src={rtiOwner.headshotUrl} alt="" /> : null}
+            </span>
           </Link>
           {rtiProspectCard(defense, "defense")}
         </div>

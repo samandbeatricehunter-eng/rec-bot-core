@@ -4802,17 +4802,18 @@ button.hub-div-standing-team:focus-visible {
 .hub-season-team-xp-track { width:80%; height:5px; overflow:hidden; border:1px solid rgba(255,255,255,.12); border-radius:999px; background:rgba(255,255,255,.08); }
 .hub-season-team-xp-track i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#565e66,#d7dde2); box-shadow:0 0 8px rgba(215,221,226,.4); }
 .hub-season-snapshot-rti-trio { grid-template-columns:repeat(3,minmax(0,1fr)); }
-.hub-rti-mini-card { align-items:flex-start !important; text-align:left; }
-.hub-rti-mini-card > span,
-.hub-rti-mini-card > strong,
-.hub-rti-mini-card > small,
-.hub-rti-mini-card > .hub-season-team-xp-track { width:100%; }
-.hub-rti-mini-card > strong {
+.hub-rti-mini-card { display:flex !important; flex-direction:row !important; align-items:center !important; justify-content:space-between !important; gap:10px; text-align:left; }
+.hub-rti-mini-card-info { display:flex; flex-direction:column; align-items:flex-start; gap:3px; min-width:0; flex:1 1 auto; }
+.hub-rti-mini-card-info > span,
+.hub-rti-mini-card-info > strong,
+.hub-rti-mini-card-info > small,
+.hub-rti-mini-card-info > .hub-season-team-xp-track { width:100%; }
+.hub-rti-mini-card-info > strong {
   justify-content:flex-start !important;
   overflow:hidden;
   text-overflow:ellipsis;
 }
-.hub-rti-mini-card > small {
+.hub-rti-mini-card-info > small {
   color:rgba(255,255,255,.68);
   font-size:.63rem;
   font-weight:800;
@@ -4822,8 +4823,20 @@ button.hub-div-standing-team:focus-visible {
   overflow:hidden;
   text-overflow:ellipsis;
 }
-.hub-rti-mini-card > .hub-season-team-xp-track { width:100%; }
-.hub-rti-mini-card-owner > .hub-season-team-xp-track i { background:linear-gradient(90deg,#7c5b19,#d9a521,#fff0a8); box-shadow:0 0 8px rgba(217,165,33,.4); }
+.hub-rti-mini-card-avatar {
+  flex:0 0 auto;
+  display:grid;
+  place-items:center;
+  width:40px;
+  height:40px;
+  overflow:hidden;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.18);
+  background:linear-gradient(180deg,#20262e,#0c0f13);
+}
+.hub-rti-mini-card-avatar img { width:100%; height:100%; object-fit:cover; object-position:center top; }
+.hub-rti-mini-card-owner > .hub-rti-mini-card-info > .hub-season-team-xp-track i { background:linear-gradient(90deg,#7c5b19,#d9a521,#fff0a8); box-shadow:0 0 8px rgba(217,165,33,.4); }
+.hub-rti-mini-card-owner .hub-rti-mini-card-avatar { border-color:rgba(217,165,33,.45); }
 .hub-rti-player-snapshot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .hub-rti-player-snapshot-grid.has-owner { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .hub-rti-owner-snapshot-card { grid-template-columns: 1fr; min-height: 0; text-align: center; }
