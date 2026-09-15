@@ -31,12 +31,9 @@ export type RecGlobalEconomyConfig = {
     highlightWeeklyUploadLimit: number;
     stream: number;
     article: number;
-    /** Legacy free-text interview payout -- retired for non-RTI leagues (replaced by
-     *  mediaDay below) but left configurable since RTI leagues still expose it. */
+    /** Legacy free-text interview payout -- retired for non-RTI leagues but left configurable
+     *  since RTI leagues still expose it. */
     interview: number;
-    /** Weekly Media Day interview payout, paid once a team completes all 3 weekly questions.
-     *  Non-RTI leagues' primary weekly interview action; RTI has its own separate constant. */
-    mediaDay: number;
     gotwCorrectVote: number;
     gotwSeasonTopGuesserBonus: number;
   };
@@ -89,7 +86,6 @@ export const DEFAULT_REC_GLOBAL_ECONOMY_CONFIG: RecGlobalEconomyConfig = {
     stream: 100,
     article: 250,
     interview: 50,
-    mediaDay: 300,
     gotwCorrectVote: 75,
     gotwSeasonTopGuesserBonus: 2500,
   },

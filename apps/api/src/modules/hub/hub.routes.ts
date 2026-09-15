@@ -24,7 +24,6 @@ import {
   getHubMediaPortal,
   getMyRecentTransactions,
   getMyTeamSchedule,
-  getNonRtiMediaDay,
   HUB_REACTION_KEYS,
   listHubStoryComments,
   persistMediaImageBuffer,
@@ -38,7 +37,6 @@ import {
   retireAsCommissioner,
   reviewMediaSubmission,
   STREAM_VIEWER_COOKIE,
-  submitNonRtiMediaDayAnswer,
   shareHubMatchupStream,
   toggleHubGameReaction,
   toggleHubHighlightReaction,
@@ -334,22 +332,12 @@ export async function hubRoutes(app: FastifyInstance) {
     return sendError(reply, new ApiError(410, "Manual interview submissions have been removed. Use weekly Media Day instead."));
   });
 
-  app.post("/v1/hub/media/media-day", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1) }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      if (auth.mode === "bot") throw new ApiError(400, "Media Day requires a user session.");
-      return reply.send(await getNonRtiMediaDay(body.guildId, auth.discordId));
-    } catch (error) { return sendError(reply, error); }
+  app.post("/v1/hub/media/media-day", async (_request, reply) => {
+    return sendError(reply, new ApiError(410, "This Media Day flow has been replaced by the site's post-advance Media Day experience."));
   });
 
-  app.post("/v1/hub/media/media-day/submit", async (request, reply) => {
-    try {
-      const body = z.object({ guildId: z.string().min(1), slot: z.number().int().min(1).max(3), answer: z.string().trim().min(1).max(1400) }).parse(request.body);
-      const auth = await requireBotOrUserSession(request, { resolveGuildId: () => body.guildId, permission: "member" });
-      if (auth.mode === "bot") throw new ApiError(400, "Media Day submissions require a user session.");
-      return reply.send(await submitNonRtiMediaDayAnswer({ ...body, discordId: auth.discordId }));
-    } catch (error) { return sendError(reply, error); }
+  app.post("/v1/hub/media/media-day/submit", async (_request, reply) => {
+    return sendError(reply, new ApiError(410, "This Media Day flow has been replaced by the site's post-advance Media Day experience."));
   });
 
   app.post("/v1/hub/media/commissioner-article", async (request, reply) => {

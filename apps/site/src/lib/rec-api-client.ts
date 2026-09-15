@@ -1,7 +1,7 @@
 import { createReadCache } from "./read-cache.js";
 import { REC_API_ROUTES } from "@rec/shared";
 import type { RecGlobalEconomyConfig } from "@rec/shared";
-import type { ImportAuditReport, NonRtiMediaDayResponse, TradeEvaluatorReport } from "../types/api.js";
+import type { ImportAuditReport, TradeEvaluatorReport } from "../types/api.js";
 import type {
   ActiveCheckReview,
   AdvanceResultInput,
@@ -450,10 +450,6 @@ export const recApi = {
     recApiFetch<{ submitted: true; id: string }>("/v1/hub/media/article/submit", { method: "POST", body: JSON.stringify(input) }),
   submitHubInterview: (input: { guildId: string; tagOpponent?: boolean; answers: Array<{ questionId: string; question: string; answer: string }> }) =>
     recApiFetch<{ submitted: true; id: string }>("/v1/hub/media/interview/submit", { method: "POST", body: JSON.stringify(input) }),
-  getNonRtiMediaDay: (guildId: string) =>
-    recApiFetch<NonRtiMediaDayResponse>("/v1/hub/media/media-day", { method: "POST", body: JSON.stringify({ guildId }) }),
-  submitNonRtiMediaDayAnswer: (input: { guildId: string; slot: number; answer: string }) =>
-    recApiFetch<{ submitted: true; complete: boolean }>("/v1/hub/media/media-day/submit", { method: "POST", body: JSON.stringify(input) }),
   publishCommissionerMediaArticle: (input: { guildId: string; title: string; body: string; imageUrl?: string | null; immediatePost?: boolean }) =>
     recApiFetch<{ published?: true; scheduled?: true; id: string; storyId?: string }>("/v1/hub/media/commissioner-article", { method: "POST", body: JSON.stringify(input) }),
   reviewMedia: (input: { guildId: string; reviewId: string; action: "approve" | "deny"; deniedReason?: string }) =>
