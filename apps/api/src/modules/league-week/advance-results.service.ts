@@ -582,7 +582,43 @@ export async function getWeeklyH2hGames(guildId: string): Promise<{ weekLabel: s
   return { weekLabel, games: mapped };
 }
 
+// Marks the league as mid-advance (advance_in_progress_since) for the entire duration of
+// completeAdvanceWeekInternal, including every non-fatal step after the core game-result
+// writes -- the Media Day gate reads this flag first and short-circuits to `required: false`
+// while it's set, so nobody (including the commissioner running the advance) can get the
+// gate's blocking modal mid-advance. Cleared in `finally` so a thrown error still releases it;
+// getMediaDayGateStatus also treats a stale flag (crashed process, never reached `finally`) as
+// expired past a TTL, so a league can never get stuck gate-suppressed forever.
 export async function completeAdvanceWeek(input: {
+  guildId: string;
+  nextWeekNumber: number;
+  nextSeasonStage: string;
+  advancedByDiscordId: string;
+  results: AdvanceGameResultInput[];
+  nextAdvance?: {
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute: number;
+    tzLabel: string;
+  } | null;
+  nextGotwGameId?: string | null;
+  advanceRunId?: string | null;
+}) {
+  const context = await getCurrentLeagueContext(input.guildId);
+  await supabase.from("rec_leagues").update({ advance_in_progress_since: new Date().toISOString() }).eq("id", context.leagueId);
+  try {
+    return await completeAdvanceWeekInternal(input);
+  } finally {
+    await supabase.from("rec_leagues").update({ advance_in_progress_since: null }).eq("id", context.leagueId).then(
+      () => {},
+      (err) => console.error("[ERROR] failed to clear advance_in_progress_since after advance:", err),
+    );
+  }
+}
+
+async function completeAdvanceWeekInternal(input: {
   guildId: string;
   nextWeekNumber: number;
   nextSeasonStage: string;

@@ -616,6 +616,12 @@ export async function gradeProspectForWeek(
       eventType: `career_${tier}`,
       sourceId: challenge.id,
       points: pointsForCareerTier(tier),
+      // Career challenges track multi-season cumulative stats, but the CREDIT itself happens
+      // right now, during this week's grading pass -- tag it with the current season/week (not
+      // omitted -> season_number 0) so it actually shows up in the recap for the week it was
+      // earned, same as every other credit type.
+      season: input.seasonNumber,
+      week: input.weekNumber,
       modifiers,
     });
     await grantAbilitySlot({

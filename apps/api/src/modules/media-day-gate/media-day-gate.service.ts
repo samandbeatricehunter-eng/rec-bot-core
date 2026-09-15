@@ -1,15 +1,32 @@
 // Media Day gate (Post-Advance Experience). Blocks the site until the user has answered Media Day
-// for the league's current week/stage "period" -- but ONLY once MEDIA_DAY_GATE_ENABLED is flipped
-// on, once the full flow (Rewards Recap, question banks, answer-driven challenge targeting) is
-// built end to end. Until then, getMediaDayGateStatus always reports `required: false` so this is
-// completely inert in production -- the schema, period-opening, and status plumbing can land and
-// be exercised safely well before the gate can actually strand anyone.
+// for the league's current week/stage "period". Live as of MEDIA_DAY_GATE_ENABLED = true -- flip
+// back to false to fully disable (getMediaDayGateStatus always reports `required: false` in that
+// case) if a rollback is ever needed.
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { loadImmortalityLeague } from "../immortality/immortality.service.js";
 import { stageLabel, type LeagueGame } from "@rec/shared";
 
-export const MEDIA_DAY_GATE_ENABLED = false;
+export const MEDIA_DAY_GATE_ENABLED = true;
+
+// completeAdvanceWeek sets rec_leagues.advance_in_progress_since at the start of the advance and
+// clears it in a `finally` once every step (including the many best-effort side effects after the
+// core game-result writes) has finished -- while it's set, nobody, including the commissioner
+// running the advance, should see the gate's blocking modal, since current_week/season_stage can
+// change well before the rest of the advance (XP crediting, Media Day period open, tweets, etc.)
+// has settled. Read fresh (never through getCurrentLeagueContext's 15s cache) so the flag is
+// visible the instant it's set. A flag older than this is treated as stale -- e.g. the API process
+// crashed mid-advance and never reached the `finally` -- so a league can never get stuck
+// gate-suppressed forever.
+const ADVANCE_IN_PROGRESS_STALE_MS = 15 * 60 * 1000;
+
+/** Pure so it's directly unit-testable without a Supabase round-trip -- see media-day-gate.service.test.ts. */
+export function isAdvanceInProgress(advanceInProgressSince: string | null | undefined, now: number = Date.now()): boolean {
+  if (!advanceInProgressSince) return false;
+  const since = new Date(advanceInProgressSince).getTime();
+  if (Number.isNaN(since)) return false;
+  return now - since < ADVANCE_IN_PROGRESS_STALE_MS;
+}
 
 /** Opens (idempotently) the Media Day period for the week/stage a league just advanced INTO --
  * call right after setLeagueWeek with the new target, not the week that just completed. */
@@ -73,6 +90,9 @@ export async function getMediaDayGateStatus(input: { guildId: string; discordId:
   const immortality = await loadImmortalityLeague(context.leagueId);
   const none: MediaDayGateStatus = { required: false, leagueId: context.leagueId, seasonNumber, weekNumber, seasonStage, weekLabel, isRti: Boolean(immortality), missingSubjectKeys: [] };
   if (!MEDIA_DAY_GATE_ENABLED) return none;
+
+  const advanceFlag = await supabase.from("rec_leagues").select("advance_in_progress_since").eq("id", context.leagueId).maybeSingle();
+  if (isAdvanceInProgress(advanceFlag.data?.advance_in_progress_since as string | null | undefined)) return none;
 
   const account = await supabase.from("rec_discord_accounts").select("user_id").eq("discord_id", input.discordId).maybeSingle();
   const userId = account.data?.user_id ? String(account.data.user_id) : null;

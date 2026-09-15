@@ -198,7 +198,8 @@ export const recLeagues = pgTable("rec_leagues", {
   discordBotInviteCreatedAt: timestamp("discord_bot_invite_created_at", { withTimezone: true, mode: "string" }),
   subscriptionFrozen: boolean("subscription_frozen").notNull().default(false),
   subscriptionFrozenAt: timestamp("subscription_frozen_at", { withTimezone: true, mode: "string" }),
-  subscriptionFreezeReason: text("subscription_freeze_reason")
+  subscriptionFreezeReason: text("subscription_freeze_reason"),
+  advanceInProgressSince: timestamp("advance_in_progress_since", { withTimezone: true, mode: "string" })
 });
 
 export const recServerLeagueLinks = pgTable("rec_server_league_links", {
