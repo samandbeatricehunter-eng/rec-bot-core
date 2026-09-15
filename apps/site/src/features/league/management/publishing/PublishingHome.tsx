@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import { PageHeader } from "../../../../../../web/src/components/ui/PageHeader.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
-import type { CommissionerPoll, TeamRosterResponse, TradeLegInput } from "../../../../../../web/src/types/api.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import { PageHeader } from "../../../../components/ui/PageHeader.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
+import type { CommissionerPoll, TeamRosterResponse, TradeLegInput } from "../../../../types/api.js";
 import { CommissionerHighlightUploadCard } from "./CommissionerHighlightUploadCard.js";
 import { useReadyAuth, useHubChrome } from "@rec/hub-ui";
 

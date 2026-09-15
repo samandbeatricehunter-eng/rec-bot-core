@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CFB_POSITIONS, REC_DEV_TRAITS, getRecAttributeDisplayName, getRecEditableAttributes, sortRecAttributeCodes } from "@rec/shared";
 import { useReadyAuth, useLeagueTheme } from "@rec/hub-ui";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import type { RosterPoolPlayer, RosterPositionGroup, TeamManagementSummaryRow, TeamRosterResponse } from "../../../../../../web/src/types/api.js";
-import { PageHeader } from "../../../../../../web/src/components/ui/PageHeader.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { Modal } from "../../../../../../web/src/components/ui/Modal.js";
-import { Table, Th, Td } from "../../../../../../web/src/components/ui/Table.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
-import { PlayerPhoto } from "../../../../../../web/src/components/hub/PlayerPhoto.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import type { RosterPoolPlayer, RosterPositionGroup, TeamManagementSummaryRow, TeamRosterResponse } from "../../../../types/api.js";
+import { PageHeader } from "../../../../components/ui/PageHeader.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { Modal } from "../../../../components/ui/Modal.js";
+import { Table, Th, Td } from "../../../../components/ui/Table.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
+import { PlayerPhoto } from "../../../../components/hub/PlayerPhoto.js";
 
 function formatHeight(inches: number | null): string {
   if (inches == null) return "—";

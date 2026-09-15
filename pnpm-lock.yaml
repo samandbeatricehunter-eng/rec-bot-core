@@ -120,9 +120,6 @@ importers:
 
   apps/site:
     dependencies:
-      '@rec/hub-ui':
-        specifier: workspace:*
-        version: link:../../packages/hub-ui
       '@rec/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -157,49 +154,6 @@ importers:
       vite:
         specifier: ^7.3.6
         version: 7.3.6(@types/node@22.20.1)(tsx@4.23.13)
-
-  apps/web:
-    dependencies:
-      '@rec/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-      lucide-react:
-        specifier: ^1.24.0
-        version: 1.39.0(react@18.3.1)
-      react:
-        specifier: ^18.3.1
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.3.1
-        version: 18.3.1(react@18.3.1)
-      react-router-dom:
-        specifier: ^7.18.1
-        version: 7.18.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-    devDependencies:
-      '@types/react':
-        specifier: ^18.3.12
-        version: 18.3.31
-      '@types/react-dom':
-        specifier: ^18.3.1
-        version: 18.3.7(@types/react@18.3.31)
-
-  packages/hub-ui:
-    dependencies:
-      '@rec/shared':
-        specifier: workspace:*
-        version: link:../shared
-      lucide-react:
-        specifier: ^1.24.0
-        version: 1.39.0(react@18.3.1)
-      react:
-        specifier: ^18.3.1
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.3.1
-        version: 18.3.1(react@18.3.1)
-      react-router-dom:
-        specifier: ^7.18.1
-        version: 7.18.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
 
   packages/shared:
     devDependencies:

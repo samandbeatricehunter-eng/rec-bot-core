@@ -1,12 +1,13 @@
 /// <reference types="vite/client" />
 
+declare module "*.png" {
+  const src: string;
+  export default src;
+}
+
 interface ImportMetaEnv {
-  readonly VITE_SUPABASE_URL: string;
-  readonly VITE_SUPABASE_PUBLISHABLE_KEY: string;
   readonly VITE_REC_CORE_API_URL: string;
-  readonly VITE_SITE_URL?: string;
-  readonly VITE_BUILD_ID?: string;
-  readonly VITE_ASSET_BASE_URL?: string;
+  readonly VITE_SITE_PUBLIC_URL?: string;
 }
 
 interface ImportMeta {

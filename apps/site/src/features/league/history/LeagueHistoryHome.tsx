@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useReadyAuth, useHubChrome } from "@rec/hub-ui";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import type { LeagueHistoryResponse, LeagueHistorySeason } from "../../../../../web/src/types/api.js";
-import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
-import { Card } from "../../../../../web/src/components/ui/Card.js";
-import { Button } from "../../../../../web/src/components/ui/Button.js";
-import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import type { LeagueHistoryResponse, LeagueHistorySeason } from "../../../types/api.js";
+import { PageHeader } from "../../../components/ui/PageHeader.js";
+import { Card } from "../../../components/ui/Card.js";
+import { Button } from "../../../components/ui/Button.js";
+import { LoadingState } from "../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../components/ui/ErrorState.js";
 
 function shiftLabel(delta: number | null): string {
   if (delta == null) return "new";

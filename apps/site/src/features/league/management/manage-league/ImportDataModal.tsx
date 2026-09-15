@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { apiBaseUrl, recApi, type EaConnection, type EaDataset, type EaFranchise, type EaImportProgressEvent, type EaImportResult } from "../../../../../../web/src/lib/rec-api-client.js";
+import { apiBaseUrl, recApi, type EaConnection, type EaDataset, type EaFranchise, type EaImportProgressEvent, type EaImportResult } from "../../../../lib/rec-api-client.js";
 import { useImportStatus } from "@rec/hub-ui";
-import { ImportProgressLines } from "../../../../../../web/src/components/import/ImportProgressLines.js";
-import { Modal } from "../../../../../../web/src/components/ui/Modal.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
+import { ImportProgressLines } from "../../../../components/import/ImportProgressLines.js";
+import { Modal } from "../../../../components/ui/Modal.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
 
 const EA_DATASET_LABELS: Record<EaDataset, string> = {
   teams: "Teams",

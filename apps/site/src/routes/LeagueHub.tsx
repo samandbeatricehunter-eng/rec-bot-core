@@ -59,10 +59,10 @@ import { TradesPage } from "../features/league/trades/index.js";
 // centralization) -- see hub-tokens.css/hub-layout.css/hub-features.css for what each groups
 // and why. responsive.css stays its own final import; it must load after every other
 // stylesheet regardless of bundle grouping (see hub-features.css's comment).
-import "../../../web/src/styles/hub-tokens.css";
-import "../../../web/src/styles/hub-layout.css";
-import "../../../web/src/styles/hub-features.css";
-import "../../../web/src/styles/responsive.css";
+import "../styles/web/hub-tokens.css";
+import "../styles/web/hub-layout.css";
+import "../styles/web/hub-features.css";
+import "../styles/web/responsive.css";
 
 type HubView = "home" | "matchups" | "team" | "store" | "wagers" | "roster" | "trades" | "rules" | "stats" | "standings" | "career-stats" | "history" | "records" | "mgmt" | "playoff-bracket";
 

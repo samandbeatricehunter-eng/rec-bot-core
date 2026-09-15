@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import type { GotwPollStatus, HubMatchupSchedule } from "../../../../../../web/src/types/api.js";
-import { Modal } from "../../../../../../web/src/components/ui/Modal.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import type { GotwPollStatus, HubMatchupSchedule } from "../../../../types/api.js";
+import { Modal } from "../../../../components/ui/Modal.js";
+import { Button } from "../../../../components/ui/Button.js";
 
 export function ManageGotwToolsModal({
   guildId,

@@ -11,15 +11,15 @@ import {
   type LeagueGame,
 } from "@rec/shared";
 import { useAuth } from "@rec/hub-ui";
-import { HeroMatchupActions } from "../../../../../web/src/components/hub/HeroMatchupActions.js";
-import { HeroMatchupBreakdown } from "../../../../../web/src/components/hub/HeroMatchupBreakdown.js";
-import { GotwVotingCarousel } from "../../../../../web/src/components/hub/GotwVotingCarousel.js";
-import { GameDayEmpty, byeWeekEmptyCopy, noGotwEmptyCopy, noScheduleEmptyCopy, offseasonEmptyCopy } from "../../../../../web/src/components/hub/GameDayEmpty.js";
-import { MatchupGameMedia } from "../../../../../web/src/components/hub/MatchupGameMedia.js";
-import { MatchupTeamLeaders } from "../../../../../web/src/components/hub/MatchupTeamLeaders.js";
-import { ShareStreamModal } from "../../../../../web/src/components/hub/ShareStreamModal.js";
-import { RequestHelpSheet } from "../../../../../web/src/components/matchups/RequestHelpSheet.js";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
+import { HeroMatchupActions } from "../../../components/hub/HeroMatchupActions.js";
+import { HeroMatchupBreakdown } from "../../../components/hub/HeroMatchupBreakdown.js";
+import { GotwVotingCarousel } from "../../../components/hub/GotwVotingCarousel.js";
+import { GameDayEmpty, byeWeekEmptyCopy, noGotwEmptyCopy, noScheduleEmptyCopy, offseasonEmptyCopy } from "../../../components/hub/GameDayEmpty.js";
+import { MatchupGameMedia } from "../../../components/hub/MatchupGameMedia.js";
+import { MatchupTeamLeaders } from "../../../components/hub/MatchupTeamLeaders.js";
+import { ShareStreamModal } from "../../../components/hub/ShareStreamModal.js";
+import { RequestHelpSheet } from "../../../components/matchups/RequestHelpSheet.js";
+import { recApi } from "../../../lib/rec-api-client.js";
 import type {
   GotwGuessingRecordsResponse,
   HubMatchupSchedule,
@@ -27,17 +27,17 @@ import type {
   MatchupPreview as MatchupPreviewData,
   TeamScheduleManualState,
   WagerOptionsResponse,
-} from "../../../../../web/src/types/api.js";
-import { Modal } from "../../../../../web/src/components/ui/Modal.js";
-import { Button } from "../../../../../web/src/components/ui/Button.js";
-import { CoinAmount } from "../../../../../web/src/components/ui/CoinAmount.js";
-import { TeamLogo } from "../../../../../web/src/components/ui/TeamLogo.js";
-import { SectionFrame } from "../../../../../web/src/components/design-system/SectionFrame.js";
-import { StatusChip } from "../../../../../web/src/components/design-system/StatusChip.js";
-import { LateSubmissionsModal } from "../../../../../web/src/components/hub/LateSubmissionsModal.js";
-import { HighlightUploadModal } from "../../../../../web/src/components/hub/HighlightUploadModal.js";
-import { MatchupCard } from "../../../../../web/src/components/matchups/MatchupCard.js";
-import { ExpandableMatchupCard } from "../../../../../web/src/components/matchups/ExpandableMatchupCard.js";
+} from "../../../types/api.js";
+import { Modal } from "../../../components/ui/Modal.js";
+import { Button } from "../../../components/ui/Button.js";
+import { CoinAmount } from "../../../components/ui/CoinAmount.js";
+import { TeamLogo } from "../../../components/ui/TeamLogo.js";
+import { SectionFrame } from "../../../components/design-system/SectionFrame.js";
+import { StatusChip } from "../../../components/design-system/StatusChip.js";
+import { LateSubmissionsModal } from "../../../components/hub/LateSubmissionsModal.js";
+import { HighlightUploadModal } from "../../../components/hub/HighlightUploadModal.js";
+import { MatchupCard } from "../../../components/matchups/MatchupCard.js";
+import { ExpandableMatchupCard } from "../../../components/matchups/ExpandableMatchupCard.js";
 import { GameDayMiniNav, type GameDayNavId } from "./GameDayMiniNav.js";
 
 type WagerMode = "single" | "parlay" | "peer";

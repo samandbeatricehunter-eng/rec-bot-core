@@ -1,4 +1,4 @@
-import { PageHeader } from "../../../../../../web/src/components/ui/PageHeader.js";
+import { PageHeader } from "../../../../components/ui/PageHeader.js";
 import { PendingItemsPanel } from "./PendingItemsPanel.js";
 
 export function NotificationsHome() {

@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useReadyAuth } from "@rec/hub-ui";
 import { DiscordServerSettings } from "../../../components/DiscordServerSettings.js";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import type { HubMatchupGame, HubMatchupSchedule } from "../../../../../web/src/types/api.js";
-import { Button } from "../../../../../web/src/components/ui/Button.js";
-import { Modal } from "../../../../../web/src/components/ui/Modal.js";
-import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import type { HubMatchupGame, HubMatchupSchedule } from "../../../types/api.js";
+import { Button } from "../../../components/ui/Button.js";
+import { Modal } from "../../../components/ui/Modal.js";
+import { LoadingState } from "../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../components/ui/ErrorState.js";
 import { SettingsHome } from "./settings/SettingsHome.js";
 import { ToolsHome } from "./ToolsHome.js";
 

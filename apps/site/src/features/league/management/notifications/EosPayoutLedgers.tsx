@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { formatCoins } from "@rec/shared";
 import { useReadyAuth } from "@rec/hub-ui";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import type { EosLedger, PendingEosLedgers, RecPayoutTier } from "../../../../../../web/src/types/api.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { Badge } from "../../../../../../web/src/components/ui/Badge.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { CoinAmount } from "../../../../../../web/src/components/ui/CoinAmount.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import type { EosLedger, PendingEosLedgers, RecPayoutTier } from "../../../../types/api.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { Badge } from "../../../../components/ui/Badge.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { CoinAmount } from "../../../../components/ui/CoinAmount.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
 
 // Embedded in Notifications as the "EOS Payout" tab — one collapsible receipt per linked
 // user, collapsed by default. Expanding shows every stat line the user's team qualified

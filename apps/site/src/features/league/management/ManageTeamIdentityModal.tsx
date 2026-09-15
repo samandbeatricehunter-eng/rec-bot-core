@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import type { TeamManagementSummaryRow } from "../../../../../web/src/types/api.js";
-import { Modal } from "../../../../../web/src/components/ui/Modal.js";
-import { Button } from "../../../../../web/src/components/ui/Button.js";
-import { TeamLogo } from "../../../../../web/src/components/ui/TeamLogo.js";
-import { resolveTeamAppearance } from "../../../../../web/src/components/team/index.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import type { TeamManagementSummaryRow } from "../../../types/api.js";
+import { Modal } from "../../../components/ui/Modal.js";
+import { Button } from "../../../components/ui/Button.js";
+import { TeamLogo } from "../../../components/ui/TeamLogo.js";
+import { resolveTeamAppearance } from "../../../components/team/index.js";
 
 type FieldKey = "abbr" | "city" | "nick";
 

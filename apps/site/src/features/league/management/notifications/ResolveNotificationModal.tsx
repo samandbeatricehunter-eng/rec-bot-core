@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { CASE_STATUS_BADGE, sortRecAttributeKeys } from "@rec/shared";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import type { CommissionerCaseEvent, CommissionerNotification, HighlightReviewDetail } from "../../../../../../web/src/types/api.js";
-import { Modal } from "../../../../../../web/src/components/ui/Modal.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { Badge } from "../../../../../../web/src/components/ui/Badge.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import type { CommissionerCaseEvent, CommissionerNotification, HighlightReviewDetail } from "../../../../types/api.js";
+import { Modal } from "../../../../components/ui/Modal.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { Badge } from "../../../../components/ui/Badge.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
 import { useReadyAuth, useHubChrome } from "@rec/hub-ui";
 
 type ReplaceTarget = { playerId?: string; position: string; firstName: string; lastName: string };

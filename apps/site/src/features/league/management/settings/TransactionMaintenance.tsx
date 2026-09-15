@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useReadyAuth } from "@rec/hub-ui";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import type { LinkedTeamRow, ReversibleTransaction } from "../../../../../../web/src/types/api.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import type { LinkedTeamRow, ReversibleTransaction } from "../../../../types/api.js";
 import { formatCoins } from "@rec/shared";
 
 // Site-only replacement for the Discord bot's old "Troubleshoot -> Reverse Transaction" flow —

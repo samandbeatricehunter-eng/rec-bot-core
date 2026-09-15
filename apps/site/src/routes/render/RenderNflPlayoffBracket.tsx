@@ -6,12 +6,12 @@ import { siteApi } from "../../lib/site-api.js";
 
 // Chromeless page Playwright screenshots for the Discord playoff-picture post's image
 // (apps/api/src/lib/nfl-playoff-bracket-render.ts) -- no SiteShell/nav, no auth, just the board.
-import "../../../../web/src/styles/tokens.css";
-import "../../../../web/src/styles/themes/madden27.css";
-import "../../../../web/src/styles/typography.css";
-import "../../../../web/src/styles/surfaces.css";
-import "../../../../web/src/styles/football-components.css";
-import "../../../../web/src/styles/nfl-playoff-bracket.css";
+import "../../styles/web/tokens.css";
+import "../../styles/web/themes/madden27.css";
+import "../../styles/web/typography.css";
+import "../../styles/web/surfaces.css";
+import "../../styles/web/football-components.css";
+import "../../styles/web/nfl-playoff-bracket.css";
 
 export function RenderNflPlayoffBracket() {
   const { leagueId = "" } = useParams();

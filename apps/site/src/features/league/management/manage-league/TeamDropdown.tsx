@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronDown, Calendar, UserPlus, UserMinus, Shield, Gavel, UserCog, Search } from "lucide-react";
-import type { TeamManagementSummaryRow } from "../../../../../../web/src/types/api.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { Modal } from "../../../../../../web/src/components/ui/Modal.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
-import { SearchInput } from "../../../../../../web/src/components/ui/SearchInput.js";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
+import type { TeamManagementSummaryRow } from "../../../../types/api.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { Modal } from "../../../../components/ui/Modal.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
+import { SearchInput } from "../../../../components/ui/SearchInput.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
 
 type Props = {
   team: TeamManagementSummaryRow;

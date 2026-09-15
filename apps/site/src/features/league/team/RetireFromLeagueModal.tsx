@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useHubChrome } from "@rec/hub-ui";
-import { Button } from "../../../../../web/src/components/ui/Button.js";
-import { Modal } from "../../../../../web/src/components/ui/Modal.js";
+import { Button } from "../../../components/ui/Button.js";
+import { Modal } from "../../../components/ui/Modal.js";
 
 export function RetireFromLeagueModal({
   leagueName,

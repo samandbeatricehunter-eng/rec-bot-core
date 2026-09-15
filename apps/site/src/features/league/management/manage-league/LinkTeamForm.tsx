@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useReadyAuth } from "@rec/hub-ui";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import type { LeagueIdentity, OpenTeam } from "../../../../../../web/src/types/api.js";
-import { PageHeader } from "../../../../../../web/src/components/ui/PageHeader.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { SearchInput } from "../../../../../../web/src/components/ui/SearchInput.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import type { LeagueIdentity, OpenTeam } from "../../../../types/api.js";
+import { PageHeader } from "../../../../components/ui/PageHeader.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { SearchInput } from "../../../../components/ui/SearchInput.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
 
 // The searchable-list replacement for Discord's paginated 25-option team/user selects
 // (apps/bot/src/ui/team-options.ts's buildUserSelectRows/buildOpenTeamSelectRow).

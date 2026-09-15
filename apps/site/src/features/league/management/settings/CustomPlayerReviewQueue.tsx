@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { Modal } from "../../../../../../web/src/components/ui/Modal.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { Modal } from "../../../../components/ui/Modal.js";
 import { REC_CUSTOM_PLAYER_ATTRIBUTE_FLOOR, customPlayerRenderPublicUrl, getRecAttributeDisplayName, getRecEditableAttributes, sortRecAttributeCodes, type RecGameFamily } from "@rec/shared";
 
 function completeRatings(build: any) {

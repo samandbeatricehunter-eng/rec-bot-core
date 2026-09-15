@@ -1,12 +1,12 @@
-import type { TeamManagementSummaryRow } from "../../../../../web/src/types/api.js";
-import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
+import type { TeamManagementSummaryRow } from "../../../types/api.js";
+import { LoadingState } from "../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../components/ui/ErrorState.js";
 import {
   NflDivisionBoard,
   NflDivisionColumn,
   TeamColorBlock,
   useNflDivisionBuckets,
-} from "../../../../../web/src/components/team/index.js";
+} from "../../../components/team/index.js";
 
 export type DivisionTeamsBoardMode = "users" | "teams";
 

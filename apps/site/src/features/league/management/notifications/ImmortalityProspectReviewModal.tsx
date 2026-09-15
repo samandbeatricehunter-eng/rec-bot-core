@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { REC_ATTRIBUTE_DISPLAY_ORDER, getRecAttributeDisplayName, sortRecAttributeCodes } from "@rec/shared";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import type { CommissionerNotification } from "../../../../../../web/src/types/api.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { Modal } from "../../../../../../web/src/components/ui/Modal.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import type { CommissionerNotification } from "../../../../types/api.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { Modal } from "../../../../components/ui/Modal.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
 
 type ProspectReviewPayload = {
   prospectId: string;

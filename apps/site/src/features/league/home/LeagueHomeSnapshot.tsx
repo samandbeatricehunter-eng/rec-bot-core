@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Shield } from "lucide-react";
-import { CoinAmount } from "../../../../../web/src/components/ui/CoinAmount.js";
-import { TeamLogo } from "../../../../../web/src/components/ui/TeamLogo.js";
+import { CoinAmount } from "../../../components/ui/CoinAmount.js";
+import { TeamLogo } from "../../../components/ui/TeamLogo.js";
 
 export type LeagueHomeSnapshotProps = {
   leagueId: string;

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useReadyAuth } from "@rec/hub-ui";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import type { TeamManagementSummaryRow } from "../../../../../web/src/types/api.js";
-import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import type { TeamManagementSummaryRow } from "../../../types/api.js";
+import { PageHeader } from "../../../components/ui/PageHeader.js";
 import { DivisionTeamsBoard } from "./DivisionTeamsBoard.js";
 import { ManageTeamIdentityModal } from "./ManageTeamIdentityModal.js";
 

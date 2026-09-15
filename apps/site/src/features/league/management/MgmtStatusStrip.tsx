@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { stageLabel, type LeagueGame } from "@rec/shared";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import type { AdvanceWeekGames } from "../../../../../web/src/types/api.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import type { AdvanceWeekGames } from "../../../types/api.js";
 import { useLeagueTheme, useReadyAuth } from "@rec/hub-ui";
 
 export type MgmtNavId =

@@ -6,12 +6,12 @@ import { siteApi, type PlayerOfWeekRenderData } from "../../lib/site-api.js";
 // Chromeless page Playwright screenshots for the Discord Player of the Week post's image
 // (apps/api/src/lib/player-of-week-render.ts) -- no SiteShell/nav, no auth, just the card.
 // Same pattern as RenderMatchup.tsx.
-import "../../../../web/src/styles/tokens.css";
-import "../../../../web/src/styles/themes/madden27.css";
-import "../../../../web/src/styles/typography.css";
-import "../../../../web/src/styles/surfaces.css";
-import "../../../../web/src/styles/football-components.css";
-import "../../../../web/src/styles/hub.css";
+import "../../styles/web/tokens.css";
+import "../../styles/web/themes/madden27.css";
+import "../../styles/web/typography.css";
+import "../../styles/web/surfaces.css";
+import "../../styles/web/football-components.css";
+import "../../styles/web/hub.css";
 
 export function RenderPlayerOfWeek() {
   const { storyId = "" } = useParams();

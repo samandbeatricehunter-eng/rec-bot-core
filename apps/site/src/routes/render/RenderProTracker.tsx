@@ -6,12 +6,12 @@ import { siteApi, type ProTrackerRenderData } from "../../lib/site-api.js";
 // Chromeless page Playwright screenshots for the Rise to Immortality weekly Pro Tracker Discord
 // post's image (apps/api/src/lib/pro-tracker-render.ts) -- no SiteShell/nav, no auth, just the
 // card. Same pattern as RenderPlayerOfWeek.tsx.
-import "../../../../web/src/styles/tokens.css";
-import "../../../../web/src/styles/themes/madden27.css";
-import "../../../../web/src/styles/typography.css";
-import "../../../../web/src/styles/surfaces.css";
-import "../../../../web/src/styles/football-components.css";
-import "../../../../web/src/styles/hub.css";
+import "../../styles/web/tokens.css";
+import "../../styles/web/themes/madden27.css";
+import "../../styles/web/typography.css";
+import "../../styles/web/surfaces.css";
+import "../../styles/web/football-components.css";
+import "../../styles/web/hub.css";
 
 export function RenderProTracker() {
   const { userId = "", leagueId = "", weekNumber = "" } = useParams();

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useReadyAuth } from "@rec/hub-ui";
-import { Button } from "../../../../../web/src/components/ui/Button.js";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import type { HubResponse } from "../../../../../web/src/types/api.js";
+import { Button } from "../../../components/ui/Button.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import type { HubResponse } from "../../../types/api.js";
 import { RetireFromLeagueModal } from "./RetireFromLeagueModal.js";
 
 /**

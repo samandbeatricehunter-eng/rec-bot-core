@@ -1,6 +1,6 @@
 import { useParams } from "react-router-dom";
-import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
-import { Card } from "../../../../../web/src/components/ui/Card.js";
+import { PageHeader } from "../../../components/ui/PageHeader.js";
+import { Card } from "../../../components/ui/Card.js";
 
 /** Per-team management destination — body left empty until the next build-out. */
 export function TeamManagePlaceholderPage() {

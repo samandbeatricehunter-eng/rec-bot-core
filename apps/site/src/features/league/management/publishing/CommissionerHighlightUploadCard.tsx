@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useReadyAuth } from "@rec/hub-ui";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
 
 function uploadFileWithProgress(url: string, file: File, onProgress: (percent: number) => void): Promise<void> {
   return new Promise((resolve, reject) => {

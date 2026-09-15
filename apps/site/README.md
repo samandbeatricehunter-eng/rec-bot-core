@@ -4,8 +4,7 @@ Canonical frontend application for REC.
 
 This is the Vite app that runs and builds the public website, authenticated app shell, and
 league experience. League UI lives under `src/features/league/*` — routing, chassis, top rails,
-and route bodies are site-owned. Some page implementations still deep-import legacy source from
-`apps/web` through local feature re-exports or `@rec/hub-ui` providers until those files move.
+and route bodies are site-owned.
 
 ```text
 src/
@@ -29,5 +28,4 @@ src/
   styles/
 ```
 
-Do not add new site-facing league chrome to `apps/web` or `packages/hub-ui`; put it in
-`src/features/league` instead. See `docs/frontend-consolidation-and-league-chassis-plan.md`.
+Add new site-facing league chrome to `src/features/league`. See `docs/frontend-consolidation-and-league-chassis-plan.md`.

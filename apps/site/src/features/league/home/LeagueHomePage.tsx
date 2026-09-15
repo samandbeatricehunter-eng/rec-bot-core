@@ -2,16 +2,16 @@ import { Fragment, Suspense, lazy, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { stageHasScheduledGames, type LeagueGame } from "@rec/shared";
 import { useReadyAuth, useAuth } from "@rec/hub-ui";
-import { HeadshotUploadOverlay } from "../../../../../web/src/components/hub/HeadshotUploadOverlay.js";
-import { ManageFundsModal, SnapshotFundsModal } from "../../../../../web/src/components/hub/WalletSavingsCard.js";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import type { HubMatchupSchedule, HubResponse } from "../../../../../web/src/types/api.js";
+import { HeadshotUploadOverlay } from "../../../components/hub/HeadshotUploadOverlay.js";
+import { ManageFundsModal, SnapshotFundsModal } from "../../../components/hub/WalletSavingsCard.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import type { HubMatchupSchedule, HubResponse } from "../../../types/api.js";
 import { LeagueTopRail } from "../chassis/index.js";
 import { RetireFromLeagueModal } from "../team/RetireFromLeagueModal.js";
 import { LeagueHomeSnapshot } from "./LeagueHomeSnapshot.js";
 
 const RiseOverviewMediaDayCard = lazy(() =>
-  import("../../../../../web/src/routes/hub/RiseOverviewMediaDay.js").then((m) => ({ default: m.RiseOverviewMediaDayCard })),
+  import("./RiseOverviewMediaDay.js").then((m) => ({ default: m.RiseOverviewMediaDayCard })),
 );
 
 function HubSurfaceFallback() {

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { PlayCircle, ShieldOff, ShieldPlus, UserX, Swords, RotateCcw, Bot, ArrowRightLeft, Search } from "lucide-react";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import type { LinkedTeamRow } from "../../../../../../web/src/types/api.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import type { LinkedTeamRow } from "../../../../types/api.js";
+import { Button } from "../../../../components/ui/Button.js";
 
 // Live writes into a commissioner's Madden franchise via EA's Blaze API -- there's no sandbox,
 // so every one of these fires a real in-game action the moment it's confirmed.

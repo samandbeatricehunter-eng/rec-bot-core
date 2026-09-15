@@ -8,7 +8,11 @@
     "outDir": "dist",
     "noEmit": true,
     "isolatedModules": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "baseUrl": ".",
+    "paths": {
+      "@rec/hub-ui": ["src/lib/hub-ui.ts"]
+    }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "../web/src/**/*.ts", "../web/src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

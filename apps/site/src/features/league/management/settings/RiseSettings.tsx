@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
 import { useReadyAuth } from "@rec/hub-ui";
 
 // Reachable from League Mgmt regardless of chapter state -- unlike the normal hub route, which

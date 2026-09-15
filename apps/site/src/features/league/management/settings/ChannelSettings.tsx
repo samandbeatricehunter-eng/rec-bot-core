@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { REC_ROUTE_CHANNELS, ROUTE_CHANNEL_BLOCKS, type RouteChannelBlock } from "@rec/shared";
 import { Plus } from "lucide-react";
 import { useReadyAuth } from "@rec/hub-ui";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { Modal } from "../../../../../../web/src/components/ui/Modal.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { Modal } from "../../../../components/ui/Modal.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
 
 type Channel = { id: string; name: string; type: "text" | "category" };
 type RouteEntry = [string, (typeof REC_ROUTE_CHANNELS)[keyof typeof REC_ROUTE_CHANNELS]];

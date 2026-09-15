@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Settings, Trash2 } from "lucide-react";
-import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
-import { Button } from "../../../../../web/src/components/ui/Button.js";
+import { PageHeader } from "../../../components/ui/PageHeader.js";
+import { Button } from "../../../components/ui/Button.js";
 import { TroubleshootModal } from "./manage-league/TroubleshootModal.js";
 import { useReadyAuth, useHubChrome, useLeagueTheme } from "@rec/hub-ui";
 

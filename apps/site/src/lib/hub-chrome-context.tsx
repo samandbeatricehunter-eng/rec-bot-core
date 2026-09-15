@@ -1,0 +1,225 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "./injected-auth-context.js";
+import { recApi } from "./rec-api-client.js";
+
+const SCOPE_KEY = "rec-web-hub-scope";
+
+export type HubScope = { kind: "main" } | { kind: "league" };
+
+export type HubLeagueMeta = {
+  id: string;
+  name: string;
+  game: string;
+  gameLabel: string;
+  isCommissioner: boolean;
+  commissionerTier: "commissioner" | "co_commissioner" | null;
+  dataMode: "import" | "box_scores" | "manual";
+};
+
+const GAME_LABELS: Record<string, string> = {
+  madden_26: "Madden 26",
+  madden_27: "Madden 27",
+};
+
+export function gameLabelFor(game: string): string {
+  return GAME_LABELS[game] ?? game.replace(/_/g, " ").toUpperCase();
+}
+
+type HubChromeContextValue = {
+  scope: HubScope;
+  currentLeague: HubLeagueMeta | null;
+  leagueLoading: boolean;
+  selectMainHub: () => void;
+  /** Leave league scope and navigate to a main-chrome route (e.g. /leagues, /account). */
+  exitToMain: (path?: string) => void;
+  selectLeague: () => void;
+  retireFromCurrentLeague: () => Promise<void>;
+  refreshLeague: () => Promise<HubLeagueMeta | null>;
+};
+
+const HubChromeContext = createContext<HubChromeContextValue | null>(null);
+
+function readStoredScope(): HubScope {
+  try {
+    const raw = sessionStorage.getItem(SCOPE_KEY);
+    if (!raw) return { kind: "league" };
+    const parsed = JSON.parse(raw) as HubScope;
+    if (parsed?.kind === "main" || parsed?.kind === "league") return parsed;
+  } catch {
+    /* ignore */
+  }
+  // Discord Activity opens into a single guild's hub — default to league scope.
+  return { kind: "league" };
+}
+
+function persistScope(scope: HubScope) {
+  try {
+    sessionStorage.setItem(SCOPE_KEY, JSON.stringify(scope));
+  } catch {
+    /* ignore */
+  }
+}
+
+function applyTheme(_scope: HubScope, _league: HubLeagueMeta | null, embedded: boolean) {
+  // Site shell owns theme when hub is mounted in-process.
+  if (embedded) return;
+  const root = document.documentElement;
+  // Discord Activity hub also uses universal Platinum — no per-game reskin.
+  root.setAttribute("data-site-theme", "app");
+  root.removeAttribute("data-game-theme");
+}
+
+export function HubChromeProvider({
+  children,
+  embedded = false,
+}: {
+  children: ReactNode;
+  /** When true (apps/site in-process hub), leave document theme / navigation to the site shell. */
+  embedded?: boolean;
+}) {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [scope, setScope] = useState<HubScope>(() => (embedded ? { kind: "league" } : readStoredScope()));
+  const [currentLeague, setCurrentLeague] = useState<HubLeagueMeta | null>(null);
+  const [leagueLoading, setLeagueLoading] = useState(false);
+
+  const refreshLeague = useCallback(async () => {
+    if (auth.status !== "ready") {
+      setCurrentLeague(null);
+      return null;
+    }
+    setLeagueLoading(true);
+    try {
+      const header = await recApi.getLeagueHeaderSummary(auth.guildId).catch(() => null);
+      if (!header?.league) {
+        setCurrentLeague(null);
+        return null;
+      }
+      const id = header.league.id;
+      const name = header.league.name ?? "League";
+      const game = header.league.game ?? "madden_27";
+      const meta: HubLeagueMeta = {
+        id,
+        name,
+        game,
+        gameLabel: gameLabelFor(game),
+        isCommissioner: header.canManageLeague,
+        commissionerTier: header.commissionerTier,
+        dataMode: header.league.dataMode,
+      };
+      setCurrentLeague(meta);
+      return meta;
+    } finally {
+      setLeagueLoading(false);
+    }
+  }, [auth]);
+
+  useEffect(() => {
+    void refreshLeague();
+  }, [refreshLeague]);
+
+  useEffect(() => {
+    applyTheme(scope, currentLeague, embedded);
+  }, [scope, currentLeague, embedded]);
+
+  // Some navigation (browser/OS back gesture, direct links) lands on a main-hub-only
+  // route without going through exitToMain/selectMainHub, which left the league
+  // switcher and league bottom nav stuck showing the league. Land on one of these
+  // routes with no league-content query params → force scope back to main.
+  useEffect(() => {
+    if (embedded || scope.kind !== "league") return;
+    const mainOnlyRoutes = ["/home", "/leagues", "/comp", "/account"];
+    if (!mainOnlyRoutes.includes(location.pathname)) return;
+    const hasLeagueContentParams = new URLSearchParams(location.search).get("section") === "league";
+    if (hasLeagueContentParams) return;
+    const next: HubScope = { kind: "main" };
+    setScope(next);
+    persistScope(next);
+  }, [embedded, location.pathname, location.search, scope.kind]);
+
+  const exitToMain = useCallback(
+    (path = "/home") => {
+      const next: HubScope = { kind: "main" };
+      setScope(next);
+      if (!embedded) persistScope(next);
+      applyTheme(next, currentLeague, embedded);
+      if (embedded) {
+        // Leave the MemoryRouter and return to the real site chrome.
+        window.location.assign(path.startsWith("/") ? path : "/home");
+        return;
+      }
+      navigate(path);
+    },
+    [currentLeague, embedded, navigate],
+  );
+
+  const selectMainHub = useCallback(() => {
+    exitToMain("/home");
+  }, [exitToMain]);
+
+  const selectLeague = useCallback(() => {
+    const next: HubScope = { kind: "league" };
+    setScope(next);
+    if (!embedded) persistScope(next);
+    applyTheme(next, currentLeague, embedded);
+    // Legacy web hub: site path `/home` isn't available here — land on matchups.
+    navigate("/?section=league&subTab=matchups");
+  }, [currentLeague, embedded, navigate]);
+
+  const retireFromCurrentLeague = useCallback(async () => {
+    if (auth.status !== "ready") return;
+    await recApi.retireFromHub(auth.guildId);
+    await refreshLeague();
+    const next: HubScope = { kind: "main" };
+    setScope(next);
+    if (!embedded) persistScope(next);
+    applyTheme(next, null, embedded);
+    if (embedded) {
+      window.location.assign("/leagues");
+      return;
+    }
+    // Legacy web hub: site path `/home` isn't available here — land on matchups.
+    navigate("/?section=league&subTab=matchups");
+  }, [auth, embedded, navigate, refreshLeague]);
+
+  const value = useMemo<HubChromeContextValue>(
+    () => ({
+      scope,
+      currentLeague,
+      leagueLoading,
+      selectMainHub,
+      exitToMain,
+      selectLeague,
+      retireFromCurrentLeague,
+      refreshLeague,
+    }),
+    [
+      scope,
+      currentLeague,
+      leagueLoading,
+      selectMainHub,
+      exitToMain,
+      selectLeague,
+      retireFromCurrentLeague,
+      refreshLeague,
+    ],
+  );
+
+  return <HubChromeContext.Provider value={value}>{children}</HubChromeContext.Provider>;
+}
+
+export function useHubChrome() {
+  const context = useContext(HubChromeContext);
+  if (!context) throw new Error("useHubChrome must be used within HubChromeProvider");
+  return context;
+}

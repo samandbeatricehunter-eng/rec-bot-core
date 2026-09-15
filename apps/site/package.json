@@ -10,7 +10,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@rec/hub-ui": "workspace:*",
     "@rec/shared": "workspace:*",
     "@supabase/supabase-js": "^2.111.0",
     "lucide-react": "^1.24.0",

@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { CFB_POSITIONS } from "@rec/shared";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import { readImageAsResizedBase64 } from "../../../../../../web/src/lib/image-resize.js";
-import type { RosterPlayer, TeamDraftPick, TeamManagementSummaryRow, TeamRosterResponse } from "../../../../../../web/src/types/api.js";
-import { PageHeader } from "../../../../../../web/src/components/ui/PageHeader.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { Table, Th, Td } from "../../../../../../web/src/components/ui/Table.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import { readImageAsResizedBase64 } from "../../../../lib/image-resize.js";
+import type { RosterPlayer, TeamDraftPick, TeamManagementSummaryRow, TeamRosterResponse } from "../../../../types/api.js";
+import { PageHeader } from "../../../../components/ui/PageHeader.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { Table, Th, Td } from "../../../../components/ui/Table.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
 import { RosterPoolEditor } from "./RosterPoolEditor.js";
-import { PlayerPhoto } from "../../../../../../web/src/components/hub/PlayerPhoto.js";
+import { PlayerPhoto } from "../../../../components/hub/PlayerPhoto.js";
 import { useReadyAuth, useLeagueTheme } from "@rec/hub-ui";
 
 function formatHeight(inches: number | null): string {

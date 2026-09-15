@@ -1,5 +1,5 @@
 import type { RecGlobalEconomyConfig } from "@rec/shared";
-import type { HubMatchupGame, NflPlayoffPicture } from "@rec/hub-ui";
+import type { HubMatchupGame, NflPlayoffPicture } from "../types/api.js";
 import { createReadCache } from "./read-cache.js";
 import { siteApiBaseUrl, supabase } from "./supabase-client.js";
 

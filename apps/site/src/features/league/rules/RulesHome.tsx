@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useReadyAuth } from "@rec/hub-ui";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import type { LeagueSettingsDraft } from "../../../../../web/src/types/api.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import type { LeagueSettingsDraft } from "../../../types/api.js";
 import { SETTINGS_CATEGORIES, settingsCategoryNavLabel } from "../management/settings/settings-fields.js";
-import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
-import { Card } from "../../../../../web/src/components/ui/Card.js";
-import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
-import { Button } from "../../../../../web/src/components/ui/Button.js";
+import { PageHeader } from "../../../components/ui/PageHeader.js";
+import { Card } from "../../../components/ui/Card.js";
+import { LoadingState } from "../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../components/ui/ErrorState.js";
+import { Button } from "../../../components/ui/Button.js";
 
 // Read-only mirror of SettingsHome's generic field renderer — same schema
 // (settings-fields.ts), no edit affordance, open to every league member. Channels,

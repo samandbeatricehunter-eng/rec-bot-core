@@ -1,5 +1,5 @@
 import { FAIR_SIM_RULE_OPTIONS, FORCE_WIN_RULE_OPTIONS } from "@rec/shared";
-import type { LeagueSettingsDraft } from "../../../../../../web/src/types/api.js";
+import type { LeagueSettingsDraft } from "../../../../types/api.js";
 
 const FORCE_WIN_OPTIONS = FORCE_WIN_RULE_OPTIONS.map((o) => ({ value: o.key, label: o.label }));
 const FAIR_SIM_OPTIONS = FAIR_SIM_RULE_OPTIONS.map((o) => ({ value: o.key, label: o.label }));

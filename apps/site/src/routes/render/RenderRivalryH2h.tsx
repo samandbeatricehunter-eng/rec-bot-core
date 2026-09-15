@@ -8,12 +8,12 @@ import { RivalryProspectComparison } from "../../components/RivalryProspectCompa
 // Discord post's image (apps/api/src/lib/rivalry-h2h-render.ts) -- the existing team-comparison
 // card/breakdown stacked with a new prospect-vs-prospect comparison. Same pattern as
 // RenderMatchup.tsx/RenderProspectCard.tsx.
-import "../../../../web/src/styles/tokens.css";
-import "../../../../web/src/styles/themes/madden27.css";
-import "../../../../web/src/styles/typography.css";
-import "../../../../web/src/styles/surfaces.css";
-import "../../../../web/src/styles/football-components.css";
-import "../../../../web/src/styles/hub.css";
+import "../../styles/web/tokens.css";
+import "../../styles/web/themes/madden27.css";
+import "../../styles/web/typography.css";
+import "../../styles/web/surfaces.css";
+import "../../styles/web/football-components.css";
+import "../../styles/web/hub.css";
 
 type RenderData = {
   side: "offense" | "defense";

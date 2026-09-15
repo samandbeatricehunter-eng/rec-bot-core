@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { firstOffseasonStage, isTerminalSeasonStage, stageLabel, type LeagueGame } from "@rec/shared";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import type { AdvanceGame, AdvanceResultInput, AdvanceWeekGames, GotwCandidate, GotwPollStatus } from "../../../../../web/src/types/api.js";
-import { Badge } from "../../../../../web/src/components/ui/Badge.js";
-import { Button } from "../../../../../web/src/components/ui/Button.js";
-import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
-import { Modal } from "../../../../../web/src/components/ui/Modal.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import type { AdvanceGame, AdvanceResultInput, AdvanceWeekGames, GotwCandidate, GotwPollStatus } from "../../../types/api.js";
+import { Badge } from "../../../components/ui/Badge.js";
+import { Button } from "../../../components/ui/Button.js";
+import { LoadingState } from "../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../components/ui/ErrorState.js";
+import { Modal } from "../../../components/ui/Modal.js";
 import { useReadyAuth, useLeagueTheme, useAdvanceStatus } from "@rec/hub-ui";
 
 const TZ_LABELS = ["EST", "CST", "MST", "PST", "AKST"];

@@ -2,16 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { canonicalConferenceName, stageForWeek, stageLabel } from "@rec/shared";
 import { useReadyAuth } from "@rec/hub-ui";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import type { TeamScheduleManualState, TeamScheduleManualWeek, ScheduleTeam } from "../../../../../../web/src/types/api.js";
-import { PageHeader } from "../../../../../../web/src/components/ui/PageHeader.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { Badge } from "../../../../../../web/src/components/ui/Badge.js";
-import { Table, Th, Td } from "../../../../../../web/src/components/ui/Table.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
-import { Tooltip } from "../../../../../../web/src/components/ui/Tooltip.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import type { TeamScheduleManualState, TeamScheduleManualWeek, ScheduleTeam } from "../../../../types/api.js";
+import { PageHeader } from "../../../../components/ui/PageHeader.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { Badge } from "../../../../components/ui/Badge.js";
+import { Table, Th, Td } from "../../../../components/ui/Table.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
+import { Tooltip } from "../../../../components/ui/Tooltip.js";
 
 type WeekPick = {
   isBye: boolean;

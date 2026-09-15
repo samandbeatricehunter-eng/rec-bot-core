@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useReadyAuth } from "@rec/hub-ui";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import type { ActiveCheckCandidate, ActiveCheckReview } from "../../../../../../web/src/types/api.js";
-import { Modal } from "../../../../../../web/src/components/ui/Modal.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import type { ActiveCheckCandidate, ActiveCheckReview } from "../../../../types/api.js";
+import { Modal } from "../../../../components/ui/Modal.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
 
 // Mirrors the Discord flow's boot list exactly (apps/bot/src/flows/active-check.ts): every
 // missed/kick-me candidate defaults to "boot" — unchecking a box "keeps" that person instead.

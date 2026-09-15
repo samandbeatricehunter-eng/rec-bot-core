@@ -1,5 +1,5 @@
 import { useReadyAuth } from "@rec/hub-ui";
-import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
+import { PageHeader } from "../../../components/ui/PageHeader.js";
 
 // This deliberately does not reuse LeagueStatsHome wholesale — that page bundles Leaders /
 // Season / Team as separate mini-nav destinations. Career Stats is its own nav destination

@@ -1,6 +1,6 @@
 import { useReadyAuth, useHubChrome } from "@rec/hub-ui";
-import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
-import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
+import { PageHeader } from "../../../components/ui/PageHeader.js";
+import { LoadingState } from "../../../components/ui/LoadingState.js";
 import { ImportDataModal } from "./manage-league/ImportDataModal.js";
 
 /** Games tile destination — data import wizard as the page body. */

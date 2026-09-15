@@ -8,7 +8,7 @@ export function MyTeamRecordRow({
     leagueSeasonPlayoffText?: string | null;
   };
   profile: {
-    globalRecord?: { text?: string | null; playoffText?: string | null } | null;
+    globalRecord?: { text?: string | null; playoffText?: string | null; superbowlText?: string | null } | null;
   };
 }) {
   return (

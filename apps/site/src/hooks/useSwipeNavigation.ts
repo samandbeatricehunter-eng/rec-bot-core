@@ -21,11 +21,9 @@ function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** Pointer-event based swipe navigation — works with touch and mouse-drag alike. Ignores
- * drags that are more vertical than horizontal so it never fights page scroll.
- * Kept as a local copy of apps/web/src/hooks/useSwipeNavigation.ts — apps/site can't
- * import across the app boundary, and this is small enough not to be worth a shared
- * package for. Keep the two in sync if either changes. */
+/** Pointer-event based swipe navigation — works with touch and mouse-drag alike (so it's
+ * exercisable via the preview tool, not just a real touchscreen). Ignores drags that are
+ * more vertical than horizontal so it never fights page scroll. */
 export function useSwipeNavigation({ itemCount, onIndexChange, threshold = 60, enabled = true }: SwipeOptions) {
   const [dragOffsetPx, setDragOffsetPx] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -66,7 +64,9 @@ export function useSwipeNavigation({ itemCount, onIndexChange, threshold = 60, e
       const velocity = Math.abs(dx) / elapsed;
       const committed = axisLocked.current === "horizontal" && (Math.abs(dx) > threshold || velocity > FLING_VELOCITY_PX_PER_MS);
       if (committed) {
+        const direction = dx < 0 ? 1 : -1;
         const nextIndex = ((dx < 0 ? currentIndexRef.current + 1 : currentIndexRef.current - 1) + itemCount) % itemCount;
+        void direction;
         onIndexChange(nextIndex);
       }
       reset();

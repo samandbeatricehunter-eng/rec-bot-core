@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
 
 type RosterAddRequest = { id: string; header: string; summary: string; payload: any; requester_discord_id: string | null; created_at: string };
 

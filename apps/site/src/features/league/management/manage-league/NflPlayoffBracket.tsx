@@ -1,11 +1,11 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
 import { useReadyAuth } from "@rec/hub-ui";
-import type { NflPlayoffMatchup, NflPlayoffPicture, NflTeamSummary } from "../../../../../../web/src/types/api.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
-import { TeamLogo } from "../../../../../../web/src/components/ui/TeamLogo.js";
+import type { NflPlayoffMatchup, NflPlayoffPicture, NflTeamSummary } from "../../../../types/api.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
+import { TeamLogo } from "../../../../components/ui/TeamLogo.js";
 
 const BRACKET_CACHE_PREFIX = "rec:nfl-playoff-bracket:v1:";
 

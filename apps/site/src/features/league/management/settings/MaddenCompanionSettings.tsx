@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useReadyAuth } from "@rec/hub-ui";
-import { apiBaseUrl, recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
-import { ErrorState } from "../../../../../../web/src/components/ui/ErrorState.js";
-import { LoadingState } from "../../../../../../web/src/components/ui/LoadingState.js";
+import { apiBaseUrl, recApi } from "../../../../lib/rec-api-client.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { Card } from "../../../../components/ui/Card.js";
+import { ErrorState } from "../../../../components/ui/ErrorState.js";
+import { LoadingState } from "../../../../components/ui/LoadingState.js";
 
 type Connection = {
   id: string;

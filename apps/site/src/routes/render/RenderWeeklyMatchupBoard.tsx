@@ -6,12 +6,12 @@ import { siteApi, type WeeklyMatchupBoardRenderData } from "../../lib/site-api.j
 // Chromeless page Playwright screenshots for the weekly highlight recap's "here's this week's
 // slate" hold screen (apps/api/src/lib/weekly-matchup-board-render.ts) -- no SiteShell/nav, no
 // auth, just the matchup cards over black. Same pattern as RenderMatchup.tsx.
-import "../../../../web/src/styles/tokens.css";
-import "../../../../web/src/styles/themes/madden27.css";
-import "../../../../web/src/styles/typography.css";
-import "../../../../web/src/styles/surfaces.css";
-import "../../../../web/src/styles/football-components.css";
-import "../../../../web/src/styles/hub.css";
+import "../../styles/web/tokens.css";
+import "../../styles/web/themes/madden27.css";
+import "../../styles/web/typography.css";
+import "../../styles/web/surfaces.css";
+import "../../styles/web/football-components.css";
+import "../../styles/web/hub.css";
 
 function Section({ title, games }: { title: string; games: WeeklyMatchupBoardRenderData["gotw"] }) {
   if (!games.length) return null;

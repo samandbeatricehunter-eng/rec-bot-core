@@ -6,7 +6,7 @@ import {
   resolveLeagueSliderValues,
   type SliderGame,
 } from "@rec/shared";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
+import { Card } from "../../../../components/ui/Card.js";
 
 const CATEGORY_LABELS: Record<string, string> = {
   gameplay: "Gameplay", special_teams: "Special Teams", penalties: "Penalties",

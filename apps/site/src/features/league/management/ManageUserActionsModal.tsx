@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import type { TeamManagementSummaryRow } from "../../../../../web/src/types/api.js";
-import { Modal } from "../../../../../web/src/components/ui/Modal.js";
-import { Button } from "../../../../../web/src/components/ui/Button.js";
-import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
-import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
-import { resolveTeamAppearance } from "../../../../../web/src/components/team/index.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import type { TeamManagementSummaryRow } from "../../../types/api.js";
+import { Modal } from "../../../components/ui/Modal.js";
+import { Button } from "../../../components/ui/Button.js";
+import { LoadingState } from "../../../components/ui/LoadingState.js";
+import { ErrorState } from "../../../components/ui/ErrorState.js";
+import { resolveTeamAppearance } from "../../../components/team/index.js";
 
 type Panel = "menu" | "activity" | "transactions" | "suspend";
 

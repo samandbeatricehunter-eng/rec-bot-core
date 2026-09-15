@@ -1,5 +1,5 @@
-import { PageHeader } from "../../../../../web/src/components/ui/PageHeader.js";
-import { Card } from "../../../../../web/src/components/ui/Card.js";
+import { PageHeader } from "../../../components/ui/PageHeader.js";
+import { Card } from "../../../components/ui/Card.js";
 
 /** Manage Media destination — structural placeholder. */
 export function ManageMediaPlaceholderPage() {

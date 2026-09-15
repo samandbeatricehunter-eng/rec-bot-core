@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useReadyAuth } from "@rec/hub-ui";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import type { HubResponse } from "../../../../../web/src/types/api.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import type { HubResponse } from "../../../types/api.js";
 import type { TeamNavId } from "./TeamMiniNav.js";
 
 type NavItem = {

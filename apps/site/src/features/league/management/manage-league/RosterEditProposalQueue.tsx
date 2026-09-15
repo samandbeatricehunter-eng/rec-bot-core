@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import type { RosterEditProposal } from "../../../../../../web/src/types/api.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
-import { Card } from "../../../../../../web/src/components/ui/Card.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import type { RosterEditProposal } from "../../../../types/api.js";
+import { Button } from "../../../../components/ui/Button.js";
+import { Card } from "../../../../components/ui/Card.js";
 
 function describeChanges(changes: RosterEditProposal["proposed_changes"]): string {
   const lines: string[] = [];

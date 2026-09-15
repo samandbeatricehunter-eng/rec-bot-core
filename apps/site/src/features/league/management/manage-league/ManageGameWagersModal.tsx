@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { recApi } from "../../../../../../web/src/lib/rec-api-client.js";
-import type { HubMatchupSchedule } from "../../../../../../web/src/types/api.js";
-import { Modal } from "../../../../../../web/src/components/ui/Modal.js";
-import { Button } from "../../../../../../web/src/components/ui/Button.js";
+import { recApi } from "../../../../lib/rec-api-client.js";
+import type { HubMatchupSchedule } from "../../../../types/api.js";
+import { Modal } from "../../../../components/ui/Modal.js";
+import { Button } from "../../../../components/ui/Button.js";
 
 export function ManageGameWagersModal({ guildId, onClose, onDone }: { guildId: string; onClose: () => void; onDone: (message: string) => void }) {
   const [schedule, setSchedule] = useState<HubMatchupSchedule | null>(null);

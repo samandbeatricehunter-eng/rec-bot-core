@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useReadyAuth } from "@rec/hub-ui";
-import { recApi } from "../../../../../web/src/lib/rec-api-client.js";
-import { readStandingsBoardCache, writeStandingsBoardCache, type StandingsBoardResponse } from "../../../../../web/src/lib/standings-board-cache.js";
-import { ErrorState } from "../../../../../web/src/components/ui/ErrorState.js";
-import { LoadingState } from "../../../../../web/src/components/ui/LoadingState.js";
-import { normalizeConference, normalizeDivision, resolveTeamAppearance, TeamColorBlock } from "../../../../../web/src/components/team/index.js";
+import { recApi } from "../../../lib/rec-api-client.js";
+import { readStandingsBoardCache, writeStandingsBoardCache, type StandingsBoardResponse } from "../../../lib/standings-board-cache.js";
+import { ErrorState } from "../../../components/ui/ErrorState.js";
+import { LoadingState } from "../../../components/ui/LoadingState.js";
+import { normalizeConference, normalizeDivision, resolveTeamAppearance, TeamColorBlock } from "../../../components/team/index.js";
 
 type PowerRankingTeam = NonNullable<StandingsBoardResponse["powerRankings"]>["teams"][number];
 type SosTeam = NonNullable<StandingsBoardResponse["sos"]>["teams"][number];
@@ -21,22 +21,7 @@ function formatRecord(team: PowerRankingTeam) {
   return team.ties ? `${team.wins}-${team.losses}-${team.ties}` : `${team.wins}-${team.losses}`;
 }
 
-function normalizeConference(value: string | null | undefined): "NFC" | "AFC" | null {
-  const raw = String(value ?? "").trim().toUpperCase();
-  if (raw === "NFC" || raw.includes("NATIONAL")) return "NFC";
-  if (raw === "AFC" || raw.includes("AMERICAN")) return "AFC";
-  return null;
-}
 
-function normalizeDivision(value: string | null | undefined): (typeof NFL_DIVISION_ORDER)[number] | null {
-  const raw = String(value ?? "").trim();
-  if (!raw) return null;
-  const lower = raw.toLowerCase();
-  for (const division of NFL_DIVISION_ORDER) {
-    if (lower === division.toLowerCase() || lower.endsWith(` ${division.toLowerCase()}`)) return division;
-  }
-  return null;
-}
 
 function sortStandings(a: PowerRankingTeam, b: PowerRankingTeam) {
   return winPct(b) - winPct(a) || b.wins - a.wins || a.teamName.localeCompare(b.teamName);
