@@ -1,13 +1,20 @@
 // Media Day gate (Post-Advance Experience). Blocks the site until the user has answered Media Day
-// for the league's current week/stage "period". Live as of MEDIA_DAY_GATE_ENABLED = true -- flip
-// back to false to fully disable (getMediaDayGateStatus always reports `required: false` in that
-// case) if a rollback is ever needed.
+// for the league's current week/stage "period".
+//
+// Turned back OFF (2026-09-15) after a live acceptance-test recording showed the RTI orchestration
+// is broken in a way that can genuinely strand a user: RtiOwnerInterviewScreen/
+// RtiProspectInterviewScreen in MediaDayGate.tsx each independently infer "done" (including
+// treating windowClosed as done), so a transient/incorrect `missingSubjectKeys` computation can
+// skip a required RTI subject permanently for that session, and the reveal screen wasn't reliably
+// assembling the RTI prospect-challenge payload. Re-enable only once the server-authoritative
+// session/completion model described in the fix plan lands -- getMediaDayGateStatus always
+// reports `required: false` while this is false, so the gate stays completely inert.
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { loadImmortalityLeague } from "../immortality/immortality.service.js";
 import { stageLabel, type LeagueGame } from "@rec/shared";
 
-export const MEDIA_DAY_GATE_ENABLED = true;
+export const MEDIA_DAY_GATE_ENABLED = false;
 
 // completeAdvanceWeek sets rec_leagues.advance_in_progress_since at the start of the advance and
 // clears it in a `finally` once every step (including the many best-effort side effects after the
