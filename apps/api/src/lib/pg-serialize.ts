@@ -19,6 +19,8 @@ export const NATIVE_PG_ARRAY_COLUMNS = new Set([
   "rec_immortality_iq_answers.presented_option_order",
   "rec_immortality_tweet_conversations.participant_handles",
   "rec_immortality_tweet_conversations.used_keys",
+  "rec_immortality_team_offers.offered_team_ids",
+  "rec_weekly_challenge_assignments.reason_codes",
 ]);
 
 export function serializePgValue(table: string, column: string, value: unknown): unknown {
