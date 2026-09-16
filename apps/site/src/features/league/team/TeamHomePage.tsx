@@ -42,21 +42,17 @@ export function TeamHomePage() {
 
   if (error && !hub) {
     return (
-      <div className="hub-page">
-        <section className="hub-section hub-my-team">
-          <p className="hub-empty">{error}</p>
-        </section>
-      </div>
+      <section className="hub-section hub-my-team">
+        <p className="hub-empty">{error}</p>
+      </section>
     );
   }
 
   if (!hub) {
     return (
-      <div className="hub-page">
-        <section className="hub-section hub-my-team">
-          <p className="hub-empty">Loading My Team…</p>
-        </section>
-      </div>
+      <section className="hub-section hub-my-team">
+        <p className="hub-empty">Loading My Team…</p>
+      </section>
     );
   }
 
@@ -73,7 +69,7 @@ export function TeamHomePage() {
   const heroTeam = String(profile.teamName ?? my.teamName ?? "").trim() || teamName;
 
   return (
-    <div className="hub-page">
+    <>
       <section className="hub-section hub-my-team">
         <div className="hub-section-heading">
           <div>
@@ -101,6 +97,6 @@ export function TeamHomePage() {
           onClose={() => setRetireOpen(false)}
         />
       ) : null}
-    </div>
+    </>
   );
 }

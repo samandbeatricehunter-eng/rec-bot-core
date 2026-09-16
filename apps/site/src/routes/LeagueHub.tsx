@@ -286,6 +286,54 @@ function StatsSectionLayout({ view, leagueId, children }: { view: StatsFamilyVie
   );
 }
 
+/** Game Day rail + body share one .hub-page, matching StatsSectionLayout. A rail rendered as a
+ * sibling BEFORE its own separate .hub-page (as this used to be) fails to paint on mobile browsers
+ * on first load -- the rail exists in the DOM with correct layout/computed styles but doesn't get
+ * composited, and only repaints correctly after a later reflow (e.g. a resize). Keeping the rail
+ * inside the same .hub-page as the body sidesteps it. */
+function GameDaySectionLayout({ leagueId, children }: { leagueId: string; children: ReactNode }) {
+  return (
+    <div className="hub-page">
+      <GameDayRouteRail leagueId={leagueId} />
+      {children}
+    </div>
+  );
+}
+
+/** My Team family (team/roster/store/trades) rail + body share one .hub-page -- see
+ * GameDaySectionLayout for why the rail can't be a sibling of its own separate .hub-page. */
+function TeamSectionLayout({
+  active,
+  leagueId,
+  isRise,
+  tradesUnlocked,
+  storeUnlocked,
+  progressionAvailable,
+  children,
+}: {
+  active: TeamNavId;
+  leagueId: string;
+  isRise: boolean;
+  tradesUnlocked: boolean;
+  storeUnlocked: boolean;
+  progressionAvailable: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="hub-page">
+      <TeamRouteRail
+        active={active}
+        leagueId={leagueId}
+        isRise={isRise}
+        tradesUnlocked={tradesUnlocked}
+        storeUnlocked={storeUnlocked}
+        progressionAvailable={progressionAvailable}
+      />
+      {children}
+    </div>
+  );
+}
+
 /**
  * Renders the Discord hub panels inside the site shell (no iframe).
  * Uses the site BrowserRouter only — never nest MemoryRouter.
@@ -463,25 +511,23 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
                 ) : view === "rules" ? (
                   <RulesHome />
                 ) : view === "matchups" ? (
-                  <>
-                    <GameDayRouteRail leagueId={leagueId} />
+                  <GameDaySectionLayout leagueId={leagueId}>
                     <GameDayPage key={leagueId} />
-                  </>
+                  </GameDaySectionLayout>
                 ) : isTeamFamilyView(view) ? (
-                  <>
-                    <TeamRouteRail
-                      active={view as TeamNavId}
-                      leagueId={leagueId}
-                      isRise={isRise}
-                      tradesUnlocked={!isRise || routeLeague?.rtiTradesUnlocked !== false}
-                      storeUnlocked={!isRise || Boolean(routeLeague?.rtiStoreUnlocked ?? routeLeague?.riseHubUnlocked)}
-                      progressionAvailable={isRise}
-                    />
+                  <TeamSectionLayout
+                    active={view as TeamNavId}
+                    leagueId={leagueId}
+                    isRise={isRise}
+                    tradesUnlocked={!isRise || routeLeague?.rtiTradesUnlocked !== false}
+                    storeUnlocked={!isRise || Boolean(routeLeague?.rtiStoreUnlocked ?? routeLeague?.riseHubUnlocked)}
+                    progressionAvailable={isRise}
+                  >
                     {view === "team" ? <TeamHomePage />
                       : view === "roster" ? <RosterPage />
                       : view === "store" ? <StorePage />
                       : <TradesPage />}
-                  </>
+                  </TeamSectionLayout>
                 ) : view === "home" ? (
                   <LeagueHomePage />
                 ) : view === "wagers" ? (

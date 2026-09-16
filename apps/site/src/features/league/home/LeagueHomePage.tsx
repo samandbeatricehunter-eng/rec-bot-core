@@ -105,7 +105,7 @@ export function LeagueHomePage() {
   }>;
 
   return (
-    <>
+    <div className="hub-page">
       <LeagueTopRail>
         <LeagueHomeSnapshot
           leagueId={hub.league.id}
@@ -132,35 +132,33 @@ export function LeagueHomePage() {
         />
       </LeagueTopRail>
 
-      <div className="hub-page">
-        {manageFundsOpen && auth.status === "ready" ? (
-          <ManageFundsModal
-            guildId={auth.guildId}
-            wallet={Number(my.wallet ?? 0)}
-            savings={Number(my.savings ?? 0)}
-            onTransferred={load}
-            onClose={() => setManageFundsOpen(false)}
-          />
-        ) : null}
-        {snapshotFundsKind && auth.status === "ready" ? (
-          <SnapshotFundsModal
-            kind={snapshotFundsKind}
-            guildId={auth.guildId}
-            wallet={Number(my.wallet ?? 0)}
-            savings={Number(my.savings ?? 0)}
-            onTransferred={load}
-            onClose={() => setSnapshotFundsKind(null)}
-          />
-        ) : null}
+      {manageFundsOpen && auth.status === "ready" ? (
+        <ManageFundsModal
+          guildId={auth.guildId}
+          wallet={Number(my.wallet ?? 0)}
+          savings={Number(my.savings ?? 0)}
+          onTransferred={load}
+          onClose={() => setManageFundsOpen(false)}
+        />
+      ) : null}
+      {snapshotFundsKind && auth.status === "ready" ? (
+        <SnapshotFundsModal
+          kind={snapshotFundsKind}
+          guildId={auth.guildId}
+          wallet={Number(my.wallet ?? 0)}
+          savings={Number(my.savings ?? 0)}
+          onTransferred={load}
+          onClose={() => setSnapshotFundsKind(null)}
+        />
+      ) : null}
 
-        {retireOpen ? (
-          <RetireFromLeagueModal
-            leagueName={hub.league.name}
-            teamNickname={String(heroTeam)}
-            onClose={() => setRetireOpen(false)}
-          />
-        ) : null}
-      </div>
-    </>
+      {retireOpen ? (
+        <RetireFromLeagueModal
+          leagueName={hub.league.name}
+          teamNickname={String(heroTeam)}
+          onClose={() => setRetireOpen(false)}
+        />
+      ) : null}
+    </div>
   );
 }

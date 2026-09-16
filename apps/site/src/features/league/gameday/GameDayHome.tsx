@@ -451,8 +451,8 @@ export function GameDayHome({ showGameDayNav = true }: { showGameDayNav?: boolea
     : null;
 
   return (
-    <div className="hub-page" data-bg={isRise ? "rise" : "madden"}>
-      <div className="hub-body">
+    <>
+      <div className="hub-body" data-bg={isRise ? "rise" : "madden"}>
         <main className="hub-content">
           <div className="hub-league-tab">
             {showGameDayNav ? <GameDayMiniNav active={gameDayView} leagueId={hub.league.id} /> : null}
@@ -921,6 +921,6 @@ export function GameDayHome({ showGameDayNav = true }: { showGameDayNav?: boolea
           }}
         />
       )}
-    </div>
+    </>
   );
 }
