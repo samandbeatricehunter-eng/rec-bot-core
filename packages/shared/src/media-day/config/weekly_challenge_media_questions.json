@@ -17,7 +17,7 @@
       "category": "scoring_overall",
       "id": "offense_001:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to finishing drives the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finishing drives the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -67,7 +67,7 @@
       "category": "scoring_overall",
       "id": "offense_002:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to avoiding empty possessions the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to avoiding empty possessions the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -117,7 +117,7 @@
       "category": "scoring_overall",
       "id": "offense_003:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to setting the scoring pace the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to setting the scoring pace the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -167,7 +167,7 @@
       "category": "scoring_overall",
       "id": "offense_004:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to creating short fields the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating short fields the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -217,7 +217,7 @@
       "category": "scoring_overall",
       "id": "offense_005:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to sustaining pressure for four quarters the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to sustaining pressure for four quarters the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -267,7 +267,7 @@
       "category": "scoring_overall",
       "id": "offense_006:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to responding after a stalled drive the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to responding after a stalled drive the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -317,7 +317,7 @@
       "category": "scoring_overall",
       "id": "offense_007:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to turning field position into points the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to turning field position into points the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -367,7 +367,7 @@
       "category": "scoring_overall",
       "id": "offense_008:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to staying efficient in scoring territory the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to staying efficient in scoring territory the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -417,7 +417,7 @@
       "category": "scoring_overall",
       "id": "offense_009:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to keeping the opponent from dictating tempo the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping the opponent from dictating tempo the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -467,7 +467,7 @@
       "category": "scoring_overall",
       "id": "offense_010:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to finding points without becoming reckless the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finding points without becoming reckless the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -517,7 +517,7 @@
       "category": "scoring_overall",
       "id": "offense_011:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to making early possessions matter the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making early possessions matter the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -567,7 +567,7 @@
       "category": "scoring_overall",
       "id": "offense_012:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to keeping pressure on after halftime the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping pressure on after halftime the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -617,7 +617,7 @@
       "category": "scoring_overall",
       "id": "offense_013:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to converting opportunities instead of trading punts the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to converting opportunities instead of trading punts the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -667,7 +667,7 @@
       "category": "scoring_overall",
       "id": "offense_014:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to making the offense travel the length of the field consistently the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making the offense travel the length of the field consistently the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -717,7 +717,7 @@
       "category": "scoring_overall",
       "id": "offense_015:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to balancing patience with scoring urgency the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to balancing patience with scoring urgency the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -767,7 +767,7 @@
       "category": "scoring_overall",
       "id": "offense_016:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to handling a possible scoring race the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to handling a possible scoring race the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -817,7 +817,7 @@
       "category": "scoring_overall",
       "id": "offense_017:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to keeping the game on your preferred scoreboard pace the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping the game on your preferred scoreboard pace the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -867,7 +867,7 @@
       "category": "scoring_overall",
       "id": "offense_018:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to finding answers if the first plan stalls the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finding answers if the first plan stalls the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -917,7 +917,7 @@
       "category": "scoring_overall",
       "id": "offense_019:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's approach to building a complete scoring performance the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to building a complete scoring performance the most?",
       "answer_family": "scoring_overall"
     },
     {
@@ -967,7 +967,7 @@
       "category": "rushing",
       "id": "offense_020:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to establishing a reliable run game the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to establishing a reliable run game the most?",
       "answer_family": "rushing"
     },
     {
@@ -1017,7 +1017,7 @@
       "category": "rushing",
       "id": "offense_021:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to creating efficient early-down runs the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating efficient early-down runs the most?",
       "answer_family": "rushing"
     },
     {
@@ -1067,7 +1067,7 @@
       "category": "rushing",
       "id": "offense_022:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to staying committed when the box gets crowded the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to staying committed when the box gets crowded the most?",
       "answer_family": "rushing"
     },
     {
@@ -1117,7 +1117,7 @@
       "category": "rushing",
       "id": "offense_023:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to finding explosive runs without forcing them the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finding explosive runs without forcing them the most?",
       "answer_family": "rushing"
     },
     {
@@ -1167,7 +1167,7 @@
       "category": "rushing",
       "id": "offense_024:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to wearing down the front over four quarters the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to wearing down the front over four quarters the most?",
       "answer_family": "rushing"
     },
     {
@@ -1217,7 +1217,7 @@
       "category": "rushing",
       "id": "offense_025:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to keeping the offense out of long-yardage situations the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping the offense out of long-yardage situations the most?",
       "answer_family": "rushing"
     },
     {
@@ -1267,7 +1267,7 @@
       "category": "rushing",
       "id": "offense_026:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to making the defense tackle consistently the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making the defense tackle consistently the most?",
       "answer_family": "rushing"
     },
     {
@@ -1317,7 +1317,7 @@
       "category": "rushing",
       "id": "offense_027:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to using the run to control tempo the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to using the run to control tempo the most?",
       "answer_family": "rushing"
     },
     {
@@ -1367,7 +1367,7 @@
       "category": "rushing",
       "id": "offense_028:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to creating manageable third downs the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating manageable third downs the most?",
       "answer_family": "rushing"
     },
     {
@@ -1417,7 +1417,7 @@
       "category": "rushing",
       "id": "offense_031:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to protecting the football while running aggressively the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to protecting the football while running aggressively the most?",
       "answer_family": "rushing"
     },
     {
@@ -1467,7 +1467,7 @@
       "category": "rushing",
       "id": "offense_032:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to keeping the run game useful when trailing the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping the run game useful when trailing the most?",
       "answer_family": "rushing"
     },
     {
@@ -1517,7 +1517,7 @@
       "category": "rushing",
       "id": "offense_033:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to making the backfield a matchup problem the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making the backfield a matchup problem the most?",
       "answer_family": "rushing"
     },
     {
@@ -1567,7 +1567,7 @@
       "category": "rushing",
       "id": "offense_034:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to winning contact and finishing runs the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to winning contact and finishing runs the most?",
       "answer_family": "rushing"
     },
     {
@@ -1617,7 +1617,7 @@
       "category": "rushing",
       "id": "offense_035:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to creating a rushing identity early the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating a rushing identity early the most?",
       "answer_family": "rushing"
     },
     {
@@ -1667,7 +1667,7 @@
       "category": "rushing",
       "id": "offense_036:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the run game's approach to using patience behind the line the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to using patience behind the line the most?",
       "answer_family": "rushing"
     },
     {
@@ -1717,7 +1717,7 @@
       "category": "passing",
       "id": "offense_039:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to protecting the ball while attacking coverage the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to protecting the ball while attacking coverage the most?",
       "answer_family": "passing"
     },
     {
@@ -1767,7 +1767,7 @@
       "category": "passing",
       "id": "offense_040:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to creating efficient completions the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating efficient completions the most?",
       "answer_family": "passing"
     },
     {
@@ -1817,7 +1817,7 @@
       "category": "passing",
       "id": "offense_041:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to finding explosive passes without forcing windows the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finding explosive passes without forcing windows the most?",
       "answer_family": "passing"
     },
     {
@@ -1867,7 +1867,7 @@
       "category": "passing",
       "id": "offense_042:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to handling pressure looks the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to handling pressure looks the most?",
       "answer_family": "passing"
     },
     {
@@ -1917,7 +1917,7 @@
       "category": "passing",
       "id": "offense_043:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to staying on schedule through the air the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to staying on schedule through the air the most?",
       "answer_family": "passing"
     },
     {
@@ -1967,7 +1967,7 @@
       "category": "passing",
       "id": "offense_044:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to winning on money downs the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to winning on money downs the most?",
       "answer_family": "passing"
     },
     {
@@ -2017,7 +2017,7 @@
       "category": "passing",
       "id": "offense_045:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to using the whole field the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to using the whole field the most?",
       "answer_family": "passing"
     },
     {
@@ -2067,7 +2067,7 @@
       "category": "passing",
       "id": "offense_046:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to responding if the opponent takes away the first read the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to responding if the opponent takes away the first read the most?",
       "answer_family": "passing"
     },
     {
@@ -2117,7 +2117,7 @@
       "category": "passing",
       "id": "offense_047:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to creating yards after the catch the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating yards after the catch the most?",
       "answer_family": "passing"
     },
     {
@@ -2167,7 +2167,7 @@
       "category": "passing",
       "id": "offense_048:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to keeping sacks from killing drives the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping sacks from killing drives the most?",
       "answer_family": "passing"
     },
     {
@@ -2217,7 +2217,7 @@
       "category": "passing",
       "id": "offense_049:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to finding answers against tight coverage the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finding answers against tight coverage the most?",
       "answer_family": "passing"
     },
     {
@@ -2267,7 +2267,7 @@
       "category": "passing",
       "id": "offense_050:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to making deep shots count the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making deep shots count the most?",
       "answer_family": "passing"
     },
     {
@@ -2317,7 +2317,7 @@
       "category": "passing",
       "id": "offense_051:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to using the passing game to control tempo the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to using the passing game to control tempo the most?",
       "answer_family": "passing"
     },
     {
@@ -2367,7 +2367,7 @@
       "category": "passing",
       "id": "offense_052:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to keeping the quarterback comfortable the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping the quarterback comfortable the most?",
       "answer_family": "passing"
     },
     {
@@ -2417,7 +2417,7 @@
       "category": "passing",
       "id": "offense_053:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to finding the matchup the defense is conceding the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finding the matchup the defense is conceding the most?",
       "answer_family": "passing"
     },
     {
@@ -2467,7 +2467,7 @@
       "category": "passing",
       "id": "offense_054:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to staying aggressive without becoming careless the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to staying aggressive without becoming careless the most?",
       "answer_family": "passing"
     },
     {
@@ -2517,7 +2517,7 @@
       "category": "passing",
       "id": "offense_055:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to sustaining a high-volume passing plan the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to sustaining a high-volume passing plan the most?",
       "answer_family": "passing"
     },
     {
@@ -2567,7 +2567,7 @@
       "category": "passing",
       "id": "offense_056:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to turning passing yards into touchdowns the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to turning passing yards into touchdowns the most?",
       "answer_family": "passing"
     },
     {
@@ -2617,7 +2617,7 @@
       "category": "passing",
       "id": "offense_057:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the passing game's approach to proving the air game can carry the offense the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to proving the air game can carry the offense the most?",
       "answer_family": "passing"
     },
     {
@@ -2667,7 +2667,7 @@
       "category": "receiving",
       "id": "offense_058:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the receiving corps' approach to getting the primary targets involved the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to getting the primary targets involved the most?",
       "answer_family": "receiving"
     },
     {
@@ -2717,7 +2717,7 @@
       "category": "receiving",
       "id": "offense_059:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the receiving corps' approach to creating separation consistently the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating separation consistently the most?",
       "answer_family": "receiving"
     },
     {
@@ -2767,7 +2767,7 @@
       "category": "receiving",
       "id": "offense_061:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the receiving corps' approach to winning contested opportunities the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to winning contested opportunities the most?",
       "answer_family": "receiving"
     },
     {
@@ -2817,7 +2817,7 @@
       "category": "receiving",
       "id": "offense_062:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the receiving corps' approach to finding production against bracket coverage the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finding production against bracket coverage the most?",
       "answer_family": "receiving"
     },
     {
@@ -2867,7 +2867,7 @@
       "category": "receiving",
       "id": "offense_067:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the receiving corps' approach to finding red-zone receiving answers the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finding red-zone receiving answers the most?",
       "answer_family": "receiving"
     },
     {
@@ -2917,7 +2917,7 @@
       "category": "receiving",
       "id": "offense_070:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the receiving corps' approach to staying productive if the top target is limited the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to staying productive if the top target is limited the most?",
       "answer_family": "receiving"
     },
     {
@@ -2967,7 +2967,7 @@
       "category": "receiving",
       "id": "offense_072:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the receiving corps' approach to keeping drops/missed opportunities from defining drives the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping drops/missed opportunities from defining drives the most?",
       "answer_family": "receiving"
     },
     {
@@ -3017,7 +3017,7 @@
       "category": "receiving",
       "id": "offense_073:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the receiving corps' approach to creating a reliable chain-moving target the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating a reliable chain-moving target the most?",
       "answer_family": "receiving"
     },
     {
@@ -3067,7 +3067,7 @@
       "category": "receiving",
       "id": "offense_075:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the receiving corps' approach to forcing coverage adjustments the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to forcing coverage adjustments the most?",
       "answer_family": "receiving"
     },
     {
@@ -3117,7 +3117,7 @@
       "category": "situational",
       "id": "offense_077:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's situational approach to handling the specific stakes of this matchup the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to handling the specific stakes of this matchup the most?",
       "answer_family": "situational_offense"
     },
     {
@@ -3167,7 +3167,7 @@
       "category": "situational",
       "id": "offense_081:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's situational approach to handling a rivalry atmosphere the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to handling a rivalry atmosphere the most?",
       "answer_family": "situational_offense"
     },
     {
@@ -3217,7 +3217,7 @@
       "category": "situational",
       "id": "offense_082:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's situational approach to playing from the favorite's position the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to playing from the favorite's position the most?",
       "answer_family": "situational_offense"
     },
     {
@@ -3267,7 +3267,7 @@
       "category": "situational",
       "id": "offense_083:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's situational approach to embracing an underdog opportunity the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to embracing an underdog opportunity the most?",
       "answer_family": "situational_offense"
     },
     {
@@ -3317,7 +3317,7 @@
       "category": "situational",
       "id": "offense_084:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's situational approach to responding after a difficult previous week the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to responding after a difficult previous week the most?",
       "answer_family": "situational_offense"
     },
     {
@@ -3367,7 +3367,7 @@
       "category": "situational",
       "id": "offense_090:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's situational approach to taking away the opponent's current strength the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to taking away the opponent's current strength the most?",
       "answer_family": "situational_offense"
     },
     {
@@ -3417,7 +3417,7 @@
       "category": "situational",
       "id": "offense_091:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's situational approach to containing the opponent's hottest player the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to containing the opponent's hottest player the most?",
       "answer_family": "situational_offense"
     },
     {
@@ -3467,7 +3467,7 @@
       "category": "situational",
       "id": "offense_093:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the offense's situational approach to extending a positive trend the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to extending a positive trend the most?",
       "answer_family": "situational_offense"
     },
     {
@@ -3517,7 +3517,7 @@
       "category": "points_total_defense",
       "id": "defense_001:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to forcing long drives the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to forcing long drives the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -3567,7 +3567,7 @@
       "category": "points_total_defense",
       "id": "defense_002:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to holding touchdowns to field goals the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to holding touchdowns to field goals the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -3617,7 +3617,7 @@
       "category": "points_total_defense",
       "id": "defense_003:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to preventing easy points the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to preventing easy points the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -3667,7 +3667,7 @@
       "category": "points_total_defense",
       "id": "defense_004:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to making the opponent earn every possession the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making the opponent earn every possession the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -3717,7 +3717,7 @@
       "category": "points_total_defense",
       "id": "defense_005:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to winning high-leverage downs the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to winning high-leverage downs the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -3767,7 +3767,7 @@
       "category": "points_total_defense",
       "id": "defense_006:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to limiting scoring bursts the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to limiting scoring bursts the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -3817,7 +3817,7 @@
       "category": "points_total_defense",
       "id": "defense_007:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to recovering after one bad defensive series the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to recovering after one bad defensive series the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -3867,7 +3867,7 @@
       "category": "points_total_defense",
       "id": "defense_008:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to protecting short fields the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to protecting short fields the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -3917,7 +3917,7 @@
       "category": "points_total_defense",
       "id": "defense_009:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to keeping the score inside your preferred range the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping the score inside your preferred range the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -3967,7 +3967,7 @@
       "category": "points_total_defense",
       "id": "defense_010:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to finishing drives with stops the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finishing drives with stops the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -4017,7 +4017,7 @@
       "category": "points_total_defense",
       "id": "defense_011:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to winning in the red zone the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to winning in the red zone the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -4067,7 +4067,7 @@
       "category": "points_total_defense",
       "id": "defense_012:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to preventing back-to-back scoring drives the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to preventing back-to-back scoring drives the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -4117,7 +4117,7 @@
       "category": "points_total_defense",
       "id": "defense_013:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to keeping the opponent from setting tempo the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping the opponent from setting tempo the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -4167,7 +4167,7 @@
       "category": "points_total_defense",
       "id": "defense_014:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to playing disciplined football for four quarters the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to playing disciplined football for four quarters the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -4217,7 +4217,7 @@
       "category": "points_total_defense",
       "id": "defense_015:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to creating punts after the opponent crosses midfield the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating punts after the opponent crosses midfield the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -4267,7 +4267,7 @@
       "category": "points_total_defense",
       "id": "defense_016:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to handling sudden-change situations the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to handling sudden-change situations the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -4317,7 +4317,7 @@
       "category": "points_total_defense",
       "id": "defense_017:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to staying sound when the offense speeds up the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to staying sound when the offense speeds up the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -4367,7 +4367,7 @@
       "category": "points_total_defense",
       "id": "defense_018:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to making late-game stops the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making late-game stops the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -4417,7 +4417,7 @@
       "category": "points_total_defense",
       "id": "defense_019:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's approach to building a complete defensive performance the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to building a complete defensive performance the most?",
       "answer_family": "points_total_defense"
     },
     {
@@ -4467,7 +4467,7 @@
       "category": "rush_defense",
       "id": "defense_020:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to winning first down against the run the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to winning first down against the run the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -4517,7 +4517,7 @@
       "category": "rush_defense",
       "id": "defense_021:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to setting the edge the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to setting the edge the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -4567,7 +4567,7 @@
       "category": "rush_defense",
       "id": "defense_022:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to preventing efficient early-down rushing the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to preventing efficient early-down rushing the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -4617,7 +4617,7 @@
       "category": "rush_defense",
       "id": "defense_023:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to handling a high-volume back the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to handling a high-volume back the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -4667,7 +4667,7 @@
       "category": "rush_defense",
       "id": "defense_024:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to limiting explosive runs the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to limiting explosive runs the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -4717,7 +4717,7 @@
       "category": "rush_defense",
       "id": "defense_025:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to forcing the opponent away from its ground game the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to forcing the opponent away from its ground game the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -4767,7 +4767,7 @@
       "category": "rush_defense",
       "id": "defense_026:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to tackling cleanly in space the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to tackling cleanly in space the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -4817,7 +4817,7 @@
       "category": "rush_defense",
       "id": "defense_029:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to holding up after repeated rushing attempts the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to holding up after repeated rushing attempts the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -4867,7 +4867,7 @@
       "category": "rush_defense",
       "id": "defense_030:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to handling quarterback rushing the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to handling quarterback rushing the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -4917,7 +4917,7 @@
       "category": "rush_defense",
       "id": "defense_031:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to staying disciplined against option looks the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to staying disciplined against option looks the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -4967,7 +4967,7 @@
       "category": "rush_defense",
       "id": "defense_032:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to making the opponent one-dimensional the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making the opponent one-dimensional the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -5017,7 +5017,7 @@
       "category": "rush_defense",
       "id": "defense_033:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to winning inside gaps the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to winning inside gaps the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -5067,7 +5067,7 @@
       "category": "rush_defense",
       "id": "defense_034:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to preventing yards after contact the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to preventing yards after contact the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -5117,7 +5117,7 @@
       "category": "rush_defense",
       "id": "defense_035:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to keeping rushes from creating easy third downs the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping rushes from creating easy third downs the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -5167,7 +5167,7 @@
       "category": "rush_defense",
       "id": "defense_038:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defensive front's approach to proving the front can control the matchup the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to proving the front can control the matchup the most?",
       "answer_family": "rush_defense"
     },
     {
@@ -5217,7 +5217,7 @@
       "category": "pass_defense",
       "id": "defense_039:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to making the quarterback hold the ball the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making the quarterback hold the ball the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5267,7 +5267,7 @@
       "category": "pass_defense",
       "id": "defense_040:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to taking away explosive passes the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to taking away explosive passes the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5317,7 +5317,7 @@
       "category": "pass_defense",
       "id": "defense_041:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to winning third-down coverage the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to winning third-down coverage the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5367,7 +5367,7 @@
       "category": "pass_defense",
       "id": "defense_042:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to handling the opponent's top target the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to handling the opponent's top target the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5417,7 +5417,7 @@
       "category": "pass_defense",
       "id": "defense_043:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to limiting yards after catch the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to limiting yards after catch the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5467,7 +5467,7 @@
       "category": "pass_defense",
       "id": "defense_047:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to making checkdowns stay short the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making checkdowns stay short the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5517,7 +5517,7 @@
       "category": "pass_defense",
       "id": "defense_048:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to winning in the red zone the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to winning in the red zone the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5567,7 +5567,7 @@
       "category": "pass_defense",
       "id": "defense_049:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to handling a high-volume passing attack the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to handling a high-volume passing attack the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5617,7 +5617,7 @@
       "category": "pass_defense",
       "id": "defense_051:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to staying sound against playmakers in space the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to staying sound against playmakers in space the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5667,7 +5667,7 @@
       "category": "pass_defense",
       "id": "defense_053:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to keeping completions from turning into chunk plays the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to keeping completions from turning into chunk plays the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5717,7 +5717,7 @@
       "category": "pass_defense",
       "id": "defense_054:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to responding after giving up one explosive play the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to responding after giving up one explosive play the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5767,7 +5767,7 @@
       "category": "pass_defense",
       "id": "defense_056:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the coverage unit's approach to protecting the middle of the field the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to protecting the middle of the field the most?",
       "answer_family": "pass_defense"
     },
     {
@@ -5817,7 +5817,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_058:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to creating negative plays the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating negative plays the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -5867,7 +5867,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_059:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to turning pressure into mistakes the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to turning pressure into mistakes the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -5917,7 +5917,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_060:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to finding a takeaway opportunity the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finding a takeaway opportunity the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -5967,7 +5967,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_061:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to making the quarterback uncomfortable the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making the quarterback uncomfortable the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6017,7 +6017,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_062:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to winning behind the line of scrimmage the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to winning behind the line of scrimmage the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6067,7 +6067,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_063:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to creating momentum-changing defensive plays the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating momentum-changing defensive plays the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6117,7 +6117,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_064:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to forcing hurried decisions the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to forcing hurried decisions the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6167,7 +6167,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_065:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to getting off the field with disruption the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to getting off the field with disruption the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6217,7 +6217,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_066:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to creating pressure without losing discipline the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating pressure without losing discipline the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6267,7 +6267,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_067:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to turning one mistake into a short field the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to turning one mistake into a short field the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6317,7 +6317,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_068:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to finding impact plays from multiple defenders the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finding impact plays from multiple defenders the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6367,7 +6367,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_069:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to making pressure show up on money downs the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making pressure show up on money downs the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6417,7 +6417,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_070:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to forcing the offense off schedule the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to forcing the offense off schedule the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6467,7 +6467,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_071:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to finishing pressure with sacks or turnovers the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to finishing pressure with sacks or turnovers the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6517,7 +6517,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_072:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to creating a defensive scoring opportunity the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to creating a defensive scoring opportunity the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6567,7 +6567,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_073:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to making the opponent protect the football nervously the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to making the opponent protect the football nervously the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6617,7 +6617,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_074:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to responding when the offense becomes aggressive the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to responding when the offense becomes aggressive the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6667,7 +6667,7 @@
       "category": "splash_takeaways_pressure",
       "id": "defense_075:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's pressure-and-takeaway approach to building pressure over four quarters the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to building pressure over four quarters the most?",
       "answer_family": "splash_takeaways_pressure"
     },
     {
@@ -6717,7 +6717,7 @@
       "category": "situational",
       "id": "defense_082:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's situational approach to playing from the favorite's position the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to playing from the favorite's position the most?",
       "answer_family": "situational_defense"
     },
     {
@@ -6767,7 +6767,7 @@
       "category": "situational",
       "id": "defense_083:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's situational approach to embracing an underdog opportunity the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to embracing an underdog opportunity the most?",
       "answer_family": "situational_defense"
     },
     {
@@ -6817,7 +6817,7 @@
       "category": "situational",
       "id": "defense_093:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's situational approach to extending a positive trend the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to extending a positive trend the most?",
       "answer_family": "situational_defense"
     },
     {
@@ -6867,7 +6867,7 @@
       "category": "situational",
       "id": "defense_094:media:2",
       "variant": 2,
-      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to the defense's situational approach to meeting a top-tier opponent's level the most?",
+      "question": "When you look at {opponent_team}, where do you think the game will test {team_name}'s approach to meeting a top-tier opponent's level the most?",
       "answer_family": "situational_defense"
     },
     {
