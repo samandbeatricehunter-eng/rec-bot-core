@@ -264,6 +264,30 @@ async function loadEaConnection(connectionId: string, leagueId: string): Promise
   return result.rows[0];
 }
 
+/** Creates a fresh Blaze session, refreshing the OAuth token and retrying once first if EA
+ * rejects the attempt with ERR_SYSTEM/ERR_TIMEOUT (usually a stale access token, not a dead
+ * session -- withEaAdminSession and importEaDatasetsWithProgress already did this inline;
+ * listEaLeagues and bindEaLeague didn't, so a transient ERR_SYSTEM right after a fresh persona
+ * login -- confirmed live, "franchise" step failing every time post-reconnect -- had no retry at
+ * all and failed the whole re-link flow outright. Mutates `token` in place on refresh so the
+ * caller's own copy stays current for whatever it does next. */
+async function createSessionWithRetry(token: EaTokenRecord, row: EaConnectionRow): Promise<EaSessionCache> {
+  try {
+    return await createBlazeSession(token.accessToken, token.console);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("ERR_SYSTEM") && !message.includes("ERR_TIMEOUT")) throw error;
+    console.warn("[EA] Blaze session creation failed, refreshing token and retrying:", message);
+    const { refreshEaToken } = await import("./ea-client.js");
+    const refreshed = await refreshEaToken(token.refreshToken);
+    await updateSealedToken(row.blaze_persona_id, { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId });
+    token.accessToken = refreshed.accessToken;
+    token.refreshToken = refreshed.refreshToken;
+    token.expiresAt = refreshed.expiresAt;
+    return await createBlazeSession(refreshed.accessToken, token.console);
+  }
+}
+
 async function loadDirectSyncConnection(leagueId: string): Promise<CompanionConnection | null> {
   const result = await getPgPool().query<CompanionConnection>(
     `select id, league_id, endpoint_slug, external_league_id, config, status,
@@ -305,23 +329,7 @@ export async function withEaAdminSession<T>(
   if (cached) {
     session = cached;
   } else {
-    try {
-      session = await createBlazeSession(token.accessToken, token.console);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("ERR_SYSTEM") || message.includes("ERR_TIMEOUT")) {
-        const { refreshEaToken } = await import("./ea-client.js");
-        const refreshed = await refreshEaToken(token.refreshToken);
-        const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
-        await updateSealedToken(row.blaze_persona_id, next);
-        token.accessToken = refreshed.accessToken;
-        token.refreshToken = refreshed.refreshToken;
-        token.expiresAt = refreshed.expiresAt;
-        session = await createBlazeSession(refreshed.accessToken, token.console);
-      } else {
-        throw error;
-      }
-    }
+    session = await createSessionWithRetry(token, row);
     await persistSession(row.blaze_persona_id, session);
   }
 
@@ -513,7 +521,7 @@ export async function listEaLeagues(connectionId: string, leagueId: string): Pro
   const row = await loadEaConnection(connectionId, leagueId);
   const token = await refreshedToken(row);
   const existingSession = await cachedSession(row);
-  const session = existingSession ?? await createBlazeSession(token.accessToken, token.console);
+  const session = existingSession ?? await createSessionWithRetry(token, row);
   if (!existingSession) await persistSession(row.blaze_persona_id, session);
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
   try {
@@ -555,7 +563,7 @@ export async function bindEaLeague(connectionId: string, leagueId: string, eaLea
   const row = await loadEaConnection(connectionId, leagueId);
   const token = await refreshedToken(row);
   const existingSession = await cachedSession(row);
-  const session = existingSession ?? await createBlazeSession(token.accessToken, token.console);
+  const session = existingSession ?? await createSessionWithRetry(token, row);
   if (!existingSession) await persistSession(row.blaze_persona_id, session);
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
 
@@ -755,31 +763,12 @@ export async function importEaDatasetsWithProgress(
   if (datasets.length === 0) throw new ApiError(422, "No datasets are enabled for import.");
 
   const token = await refreshedToken(row);
-  // Create Blaze session with retry — ERR_SYSTEM often means a stale token, so force
-  // a token refresh and retry once before giving up.
   let session: EaSessionCache;
   const cached = await cachedSession(row);
   if (cached) {
     session = cached;
   } else {
-    try {
-      session = await createBlazeSession(token.accessToken, token.console);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("ERR_SYSTEM") || message.includes("ERR_TIMEOUT")) {
-        console.warn("[EA] Blaze session creation failed, refreshing token and retrying:", message);
-        const { refreshEaToken } = await import("./ea-client.js");
-        const refreshed = await refreshEaToken(token.refreshToken);
-        const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
-        await updateSealedToken(row.blaze_persona_id, next);
-        token.accessToken = refreshed.accessToken;
-        token.refreshToken = refreshed.refreshToken;
-        token.expiresAt = refreshed.expiresAt;
-        session = await createBlazeSession(refreshed.accessToken, token.console);
-      } else {
-        throw error;
-      }
-    }
+    session = await createSessionWithRetry(token, row);
     await persistSession(row.blaze_persona_id, session);
   }
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
