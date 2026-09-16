@@ -9,8 +9,11 @@ export async function snapshotImportState(leagueId: string): Promise<ImportState
   const pool = getPgPool();
   const [games, playerStats, teamStats, roster] = await Promise.all([
     pool.query<{ n: number }>(
+      // status is the rec_game_status enum -- coalesce(status, '') forces Postgres to cast the ''
+      // literal to that enum to unify COALESCE's argument types, which fails at parse time before
+      // any row is even read (every call, unconditionally). Cast to text first.
       `select count(*)::int as n from rec_games
-        where league_id=$1 and lower(coalesce(status,'')) in ('completed','final')`,
+        where league_id=$1 and lower(coalesce(status::text,'')) in ('completed','final')`,
       [leagueId],
     ),
     pool.query<{ n: number }>(

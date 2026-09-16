@@ -1393,7 +1393,6 @@ export async function runAutoImportSweep(): Promise<{ attempted: number; succeed
       failed += 1;
       const message = error instanceof Error ? error.message : String(error);
       console.error(`[EA] Auto-import sweep failed for league ${row.league_id}:`, message);
-      console.error("DEBUG full error", error);
       pushProgress(row.league_id, { type: "error", error: message });
       await recordEaImportError(row.id, error);
     } finally {
