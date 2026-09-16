@@ -2668,18 +2668,19 @@ export async function getImmortalityRivalHistory(input: { guildId: string; disco
  * actual stat line is a manual commissioner call for now, the same way EOS payouts are. */
 const MEDIA_DAY_SLOTS = 3;
 
-/** True once this week's game for teamId is no longer a "pregame" opportunity -- live, its
- * scheduled kickoff has passed, or a stream got posted for it (per direction: whichever of the
- * three happens first ends the window). No game scheduled yet this week just means no game to
- * be pregame about, which isn't a closed window on its own. */
+/** True once this week's game for teamId is no longer a "pregame" opportunity -- live, or a
+ * stream got posted for it. (Used to also close on scheduled kickoff time, but rec_games has no
+ * scheduled_for column -- manual game scheduling was removed as a feature, so that check always
+ * silently no-op'd via the shim's error-swallowing select; removed rather than left dead.) No
+ * game scheduled yet this week just means no game to be pregame about, which isn't a closed
+ * window on its own. */
 async function isMediaDayWindowClosed(gameId: string | null): Promise<boolean> {
   if (!gameId) return false;
   const [game, streamLog] = await Promise.all([
-    supabase.from("rec_games").select("status,scheduled_for").eq("id", gameId).maybeSingle(),
+    supabase.from("rec_games").select("status").eq("id", gameId).maybeSingle(),
     supabase.from("rec_stream_compliance_logs").select("id").eq("game_id", gameId).limit(1).maybeSingle(),
   ]);
   if (game.data?.status === "live") return true;
-  if (game.data?.scheduled_for && new Date(String(game.data.scheduled_for)).getTime() <= Date.now()) return true;
   if (streamLog.data) return true;
   return false;
 }

@@ -1,20 +1,22 @@
 // Media Day gate (Post-Advance Experience). Blocks the site until the user has answered Media Day
 // for the league's current week/stage "period".
 //
-// Turned back OFF (2026-09-15) after a live acceptance-test recording showed the RTI orchestration
-// is broken in a way that can genuinely strand a user: RtiOwnerInterviewScreen/
-// RtiProspectInterviewScreen in MediaDayGate.tsx each independently infer "done" (including
-// treating windowClosed as done), so a transient/incorrect `missingSubjectKeys` computation can
-// skip a required RTI subject permanently for that session, and the reveal screen wasn't reliably
-// assembling the RTI prospect-challenge payload. Re-enable only once the server-authoritative
-// session/completion model described in the fix plan lands -- getMediaDayGateStatus always
-// reports `required: false` while this is false, so the gate stays completely inert.
+// Turned back OFF on 2026-09-15 after a live acceptance-test recording showed the RTI
+// orchestration could genuinely strand a user (each interview screen inferred "done"
+// independently, so a subject could silently drop out of the flow). The server-authoritative
+// session/completion model (media-day-session.service.ts) replaced that per-screen inference, and
+// the real reason "the reveal screen wasn't reliably assembling the RTI prospect-challenge
+// payload" -- rec_weekly_challenge_assignments.reason_codes being JSON-stringified against its
+// native array column, so every assignment insert failed -- is fixed (see pg-serialize.ts's
+// NATIVE_PG_ARRAY_COLUMNS). Re-enabled 2026-09-16 after confirming live against a real RTI
+// league's fully-answered week: interviewComplete and challengeIssued both correctly resolve
+// true post-fix, and mediaDayComplete/satisfied compute correctly off them.
 import { supabase } from "../../lib/supabase.js";
 import { getCurrentLeagueContext } from "../league-context/league-context.service.js";
 import { loadImmortalityLeague } from "../immortality/immortality.service.js";
 import { stageLabel, type LeagueGame } from "@rec/shared";
 
-export const MEDIA_DAY_GATE_ENABLED = false;
+export const MEDIA_DAY_GATE_ENABLED = true;
 
 // completeAdvanceWeek sets rec_leagues.advance_in_progress_since at the start of the advance and
 // clears it in a `finally` once every step (including the many best-effort side effects after the
