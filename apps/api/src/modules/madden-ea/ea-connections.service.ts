@@ -1349,28 +1349,42 @@ export async function recordEaImportError(connectionId: string, error: unknown):
 // genuinely elapsed.
 const AUTO_IMPORT_MIN_INTERVAL_SQL = "interval '4 hours'";
 
-export type LeagueImportLock = { readonly leagueId: string; readonly client: import("pg").PoolClient };
+export type LeagueImportLock = { readonly leagueId: string };
 
-/** Session-scoped Postgres advisory lock, held on a dedicated checked-out connection for one
- * league's whole import (imports run many separate pool.query calls over several minutes, not
- * one transaction, so pg_advisory_xact_lock's auto-release-at-commit doesn't fit here). Guards
- * the real cross-process failure mode: a redeploy landing while another process's import for
- * this league is still mid-write, whose new process has no way to see that in-flight work (the
- * in-memory getImportProgress check only protects against overlap within one process). Non-
- * blocking: returns null immediately if another process already holds it, rather than queuing
- * up behind it -- callers should skip/reject rather than wait. Always pair with
- * releaseLeagueImportLock in a finally block. */
+// Was a session-scoped pg_advisory_lock held on a dedicated checked-out connection. Found live:
+// releaseLeagueImportLock ran pg_advisory_unlock then swallowed its own failure before
+// unconditionally releasing the connection back to the pool -- if the unlock itself ever failed,
+// the connection went back into circulation for ordinary unrelated queries while Postgres still
+// considered the advisory lock held on that session, permanently blocking every future import for
+// that league ("an automatic import is already running" when nothing was; confirmed live via
+// pg_locks showing a connection idle and serving unrelated queries for hours while still holding
+// the lock). A session-scoped lock has no way to self-heal from that. This is now a plain row
+// timestamp on rec_ea_connections instead, staleness-gated the same way
+// rec_leagues.advance_in_progress_since already is -- no session to leak.
+const IMPORT_LOCK_STALE_INTERVAL_SQL = "interval '15 minutes'";
+
+/** Non-blocking: returns null immediately if another process already holds it (or acquired it
+ * less than IMPORT_LOCK_STALE_INTERVAL_SQL ago), rather than queuing up behind it -- callers
+ * should skip/reject rather than wait. Always pair with releaseLeagueImportLock in a finally
+ * block. Guards the real cross-process failure mode: a redeploy landing while another process's
+ * import for this league is still mid-write, whose new process has no way to see that in-flight
+ * work (the in-memory getImportProgress check only protects against overlap within one process). */
 export async function acquireLeagueImportLock(leagueId: string): Promise<LeagueImportLock | null> {
-  const client = await getPgPool().connect();
-  const acquired = await client.query<{ locked: boolean }>(`select pg_try_advisory_lock(hashtext($1)) as locked`, [`ea_import:${leagueId}`]);
-  if (acquired.rows[0]?.locked) return { leagueId, client };
-  client.release();
-  return null;
+  const result = await getPgPool().query<{ id: string }>(
+    `update rec_ea_connections set import_lock_acquired_at=now()
+      where league_id=$1
+        and (import_lock_acquired_at is null or import_lock_acquired_at < now() - ${IMPORT_LOCK_STALE_INTERVAL_SQL})
+      returning id`,
+    [leagueId],
+  );
+  return result.rows[0] ? { leagueId } : null;
 }
 
 export async function releaseLeagueImportLock(lock: LeagueImportLock): Promise<void> {
-  await lock.client.query(`select pg_advisory_unlock(hashtext($1))`, [`ea_import:${lock.leagueId}`]).catch(() => undefined);
-  lock.client.release();
+  await getPgPool().query(
+    `update rec_ea_connections set import_lock_acquired_at=null where league_id=$1`,
+    [lock.leagueId],
+  ).catch(() => undefined);
 }
 
 export async function runAutoImportSweep(): Promise<{ attempted: number; succeeded: number; failed: number }> {
