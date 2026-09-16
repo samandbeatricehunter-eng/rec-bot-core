@@ -4927,8 +4927,25 @@ button.hub-div-standing-team:focus-visible {
   .hub-season-form-game .team-logo { width:18px; height:18px; }
   .hub-season-form-game b { font-size:.56rem; }
   .hub-season-team-xp-track { width:90%; }
-  .hub-season-snapshot-rti-trio { grid-template-columns:1fr; }
-  .hub-rti-mini-card { min-height:58px !important; }
+  .hub-season-snapshot-rti-trio { grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+  .hub-rti-mini-card {
+    flex-direction:column !important;
+    justify-content:flex-start !important;
+    align-items:center !important;
+    gap:6px;
+    min-height:0 !important;
+    padding:8px 6px;
+    text-align:center;
+  }
+  .hub-rti-mini-card-info { align-items:center; text-align:center; }
+  .hub-rti-mini-card-info > span,
+  .hub-rti-mini-card-info > strong,
+  .hub-rti-mini-card-info > small { text-align:center; white-space:normal; }
+  .hub-rti-mini-card-info > span { font-size:.52rem; line-height:1.15; }
+  .hub-rti-mini-card-info > strong { justify-content:center !important; font-size:.72rem; }
+  .hub-rti-mini-card-info > small { font-size:.52rem; }
+  .hub-rti-mini-card-info > .hub-season-team-xp-track { margin-inline:auto; }
+  .hub-rti-mini-card-avatar { width:28px; height:28px; }
   .hub-rti-player-snapshot-grid { grid-template-columns: 1fr; }
   .hub-rti-player-snapshot-grid.has-owner { grid-template-columns: 1fr; }
   .hub-rti-player-snapshot-card { grid-template-columns: 112px minmax(0, 1fr); }
