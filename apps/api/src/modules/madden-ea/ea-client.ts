@@ -598,6 +598,18 @@ async function sendExport<T>(
       try {
         parsed = JSON.parse(stripControlCharacters(text));
       } catch {
+        // EA's gateway itself (as opposed to the Blaze app-level JSON error envelope) can reject
+        // with plain XML, e.g. <error><errorcode>401</errorcode><errormessage>...</errormessage>
+        // </error> -- sendBlazeRpc already classifies this the same way. Throwing EaAuthError
+        // here (as this used to, unconditionally) skips both retry paths below it entirely: the
+        // CareerMode_/FranchiseMode_ prefix swap only triggers on a BlazeSessionError, and so does
+        // the caller's session-recreate retry in importEaDatasetsWithProgress -- so a wrong prefix
+        // (or a genuinely stale session) surfaced as this exact XML shape failed identically on
+        // every retry regardless of which one was the real problem. Classify it as retriable
+        // instead, so both fallbacks actually get a chance to run.
+        const xmlMessage = /<errormessage>([^<]*)<\/errormessage>/i.exec(text)?.[1]?.trim();
+        const xmlCode = /<errorcode>([^<]*)<\/errorcode>/i.exec(text)?.[1]?.trim();
+        if (xmlMessage) throw new BlazeSessionError(`${name}: ${xmlCode ? `${xmlCode} ` : ""}${xmlMessage}`);
         throw new EaAuthError(`EA returned unreadable export data: ${text.slice(0, 300)}`, "Try the import again.");
       }
       const errorPayload =
