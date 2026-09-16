@@ -80,6 +80,10 @@ function collectImportedPlayerIds(raw: unknown, into: Set<string>): void {
   }
 }
 
+// Fields through session_request_id live on rec_ea_persona_sessions (keyed by blaze_persona_id,
+// shared by every league connected under that EA persona -- EA allows only one active Blaze
+// session per persona, so these must never be stored per-league); every query producing this
+// shape joins the two tables. Everything from ea_league_id down is genuinely per-league.
 type EaConnectionRow = {
   id: string;
   league_id: string;
@@ -199,14 +203,17 @@ function openEaToken(row: Pick<EaConnectionRow, "token_ciphertext" | "token_iv" 
   return openToken({ ciphertext: row.token_ciphertext, iv: row.token_iv, tag: row.token_tag });
 }
 
-async function updateSealedToken(connectionId: string, token: EaTokenRecord) {
+// Every function below keys the shared session by blaze_persona_id, not connection id -- EA
+// allows only one active Blaze session per persona, so two leagues on the same EA account must
+// read/write the exact same row (see rec_ea_persona_sessions' migration comment).
+async function updateSealedToken(blazePersonaId: string, token: EaTokenRecord) {
   const sealed = sealToken(token);
   await getPgPool().query(
-    `update rec_ea_connections
+    `update rec_ea_persona_sessions
         set token_ciphertext=$2, token_iv=$3, token_tag=$4,
-            token_expires_at=to_timestamp($5 / 1000.0), last_refreshed_at=now(), status='active', updated_at=now()
-      where id=$1`,
-    [connectionId, sealed.ciphertext, sealed.iv, sealed.tag, token.expiresAt],
+            token_expires_at=to_timestamp($5 / 1000.0), last_refreshed_at=now(), updated_at=now()
+      where blaze_persona_id=$1`,
+    [blazePersonaId, sealed.ciphertext, sealed.iv, sealed.tag, token.expiresAt],
   );
 }
 
@@ -217,7 +224,7 @@ async function refreshedToken(row: EaConnectionRow): Promise<EaTokenRecord> {
   const { refreshEaToken } = await import("./ea-client.js");
   const refreshed = await refreshEaToken(current.refreshToken);
   const next: EaTokenRecord = { ...refreshed, console: current.console, blazePersonaId: current.blazePersonaId };
-  await updateSealedToken(row.id, next);
+  await updateSealedToken(row.blaze_persona_id, next);
   return next;
 }
 
@@ -227,23 +234,30 @@ async function cachedSession(row: EaConnectionRow): Promise<EaSessionCache | nul
   return { blazeId: Number(row.session_blaze_id), sessionKey: row.session_key, requestId: row.session_request_id ?? 1 };
 }
 
-async function persistSession(connectionId: string, session: EaSessionCache) {
+async function persistSession(blazePersonaId: string, session: EaSessionCache) {
   await getPgPool().query(
-    `update rec_ea_connections set session_key=$2, session_blaze_id=$3, session_request_id=$4, updated_at=now() where id=$1`,
-    [connectionId, session.sessionKey, session.blazeId, session.requestId],
+    `update rec_ea_persona_sessions set session_key=$2, session_blaze_id=$3, session_request_id=$4, updated_at=now() where blaze_persona_id=$1`,
+    [blazePersonaId, session.sessionKey, session.blazeId, session.requestId],
   );
 }
 
-async function clearSession(connectionId: string) {
+async function clearSession(blazePersonaId: string) {
   await getPgPool().query(
-    `update rec_ea_connections set session_key=null, session_blaze_id=null, updated_at=now() where id=$1`,
-    [connectionId],
+    `update rec_ea_persona_sessions set session_key=null, session_blaze_id=null, updated_at=now() where blaze_persona_id=$1`,
+    [blazePersonaId],
   );
 }
+
+const CONNECTION_JOIN_SESSION_SELECT = `
+  select c.*, p.persona_display_name, p.ea_namespace, p.console, p.token_ciphertext, p.token_iv,
+         p.token_tag, p.token_expires_at, p.session_key, p.session_blaze_id, p.session_request_id,
+         p.last_refreshed_at
+    from rec_ea_connections c
+    join rec_ea_persona_sessions p on p.blaze_persona_id = c.blaze_persona_id`;
 
 async function loadEaConnection(connectionId: string, leagueId: string): Promise<EaConnectionRow> {
   const result = await getPgPool().query<EaConnectionRow>(
-    `select * from rec_ea_connections where id=$1 and league_id=$2`,
+    `${CONNECTION_JOIN_SESSION_SELECT} where c.id=$1 and c.league_id=$2`,
     [connectionId, leagueId],
   );
   if (!result.rows[0]) throw new ApiError(404, "EA connection not found for this league.");
@@ -264,7 +278,7 @@ async function loadDirectSyncConnection(leagueId: string): Promise<CompanionConn
 
 async function loadEaConnectionByLeague(leagueId: string): Promise<EaConnectionRow | null> {
   const result = await getPgPool().query<EaConnectionRow>(
-    `select * from rec_ea_connections where league_id=$1 and status='active'`,
+    `${CONNECTION_JOIN_SESSION_SELECT} where c.league_id=$1 and c.status='active'`,
     [leagueId],
   );
   return result.rows[0] ?? null;
@@ -299,7 +313,7 @@ export async function withEaAdminSession<T>(
         const { refreshEaToken } = await import("./ea-client.js");
         const refreshed = await refreshEaToken(token.refreshToken);
         const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
-        await updateSealedToken(row.id, next);
+        await updateSealedToken(row.blaze_persona_id, next);
         token.accessToken = refreshed.accessToken;
         token.refreshToken = refreshed.refreshToken;
         token.expiresAt = refreshed.expiresAt;
@@ -308,7 +322,7 @@ export async function withEaAdminSession<T>(
         throw error;
       }
     }
-    await persistSession(row.id, session);
+    await persistSession(row.blaze_persona_id, session);
   }
 
   const eaLeagueId = Number(row.ea_league_id);
@@ -321,9 +335,9 @@ export async function withEaAdminSession<T>(
   } catch (error) {
     if (!(error instanceof BlazeSessionError) && !(error instanceof EaAuthError)) throw error;
     console.warn("[EA] Blaze session stale during admin action, recreating:", error instanceof Error ? error.message.slice(0, 200) : error);
-    await clearSession(row.id);
+    await clearSession(row.blaze_persona_id);
     const fresh = await createBlazeSession(token.accessToken, token.console);
-    await persistSession(row.id, fresh);
+    await persistSession(row.blaze_persona_id, fresh);
     return await run(fresh);
   }
 }
@@ -439,29 +453,41 @@ export async function selectEaPersona(
     blazePersonaId: String(persona.personaId),
   });
 
-  const result = await getPgPool().query<EaConnectionRow>(
-    `insert into rec_ea_connections
-       (league_id, blaze_persona_id, persona_display_name, ea_namespace, console,
-        token_ciphertext, token_iv, token_tag, token_expires_at, enabled_datasets,
-        connected_by_user_id)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,to_timestamp($9 / 1000.0),$10::jsonb,$11)
-     on conflict (league_id) do update set
-       blaze_persona_id=excluded.blaze_persona_id, persona_display_name=excluded.persona_display_name,
-       ea_namespace=excluded.ea_namespace, console=excluded.console,
-       token_ciphertext=excluded.token_ciphertext, token_iv=excluded.token_iv, token_tag=excluded.token_tag,
-       token_expires_at=excluded.token_expires_at, enabled_datasets=excluded.enabled_datasets,
-       session_key=null, session_blaze_id=null, ea_league_id=null, ea_league_name=null,
-       ea_season_year=null, status='active', last_error=null, connected_by_user_id=excluded.connected_by_user_id,
-       updated_at=now()
-     returning *`,
-    [leagueId, String(persona.personaId), persona.displayName, persona.namespaceName, persona.console,
-      sealed.ciphertext, sealed.iv, sealed.tag, personaToken.expiresAt, JSON.stringify(EA_DATASETS), userId],
+  // A fresh persona login is a genuinely new EA session -- write it to the shared per-persona row
+  // (every OTHER league on this same EA account picks it up on their next access, instead of
+  // going stale independently) rather than the per-league connection row. Clearing session_key
+  // here is correct even for those other leagues: EA allows only one active Blaze session per
+  // persona, so the old one is dead the moment this new login completes regardless of who's
+  // holding it.
+  await getPgPool().query(
+    `insert into rec_ea_persona_sessions
+       (blaze_persona_id, persona_display_name, ea_namespace, console,
+        token_ciphertext, token_iv, token_tag, token_expires_at, session_request_id)
+     values ($1,$2,$3,$4,$5,$6,$7,to_timestamp($8 / 1000.0),1)
+     on conflict (blaze_persona_id) do update set
+       persona_display_name=excluded.persona_display_name, ea_namespace=excluded.ea_namespace,
+       console=excluded.console, token_ciphertext=excluded.token_ciphertext,
+       token_iv=excluded.token_iv, token_tag=excluded.token_tag,
+       token_expires_at=excluded.token_expires_at, session_key=null, session_blaze_id=null,
+       session_request_id=1, last_refreshed_at=now(), updated_at=now()`,
+    [String(persona.personaId), persona.displayName, persona.namespaceName, persona.console,
+      sealed.ciphertext, sealed.iv, sealed.tag, personaToken.expiresAt],
   );
-  const row = result.rows[0];
+  const result = await getPgPool().query<{ id: string; enabled_datasets: string[] | null }>(
+    `insert into rec_ea_connections (league_id, blaze_persona_id, enabled_datasets, connected_by_user_id)
+     values ($1,$2,$3::jsonb,$4)
+     on conflict (league_id) do update set
+       blaze_persona_id=excluded.blaze_persona_id, enabled_datasets=excluded.enabled_datasets,
+       ea_league_id=null, ea_league_name=null, ea_season_year=null, status='active', last_error=null,
+       connected_by_user_id=excluded.connected_by_user_id, updated_at=now()
+     returning id, enabled_datasets`,
+    [leagueId, String(persona.personaId), JSON.stringify(EA_DATASETS), userId],
+  );
+  const connectionId = result.rows[0]!.id;
   await getPgPool().query("delete from rec_ea_pending_auth where id=$1", [pending.id]);
   const direct = await ensureDirectSyncConnection(leagueId, userId);
-  await syncDirectSyncEndpointKeys(direct.id, parseDatasets(row.enabled_datasets));
-  return toSummary(row);
+  await syncDirectSyncEndpointKeys(direct.id, parseDatasets(result.rows[0]!.enabled_datasets));
+  return toSummary(await loadEaConnection(connectionId, leagueId));
 }
 
 // ── Status / franchise binding ──
@@ -472,7 +498,7 @@ export async function getEaConnectionStatus(leagueId: string): Promise<{ configu
   // Import Data modal) need the chooser to render even if the connection row can't be read.
   try {
     const result = await getPgPool().query<EaConnectionRow>(
-      `select * from rec_ea_connections where league_id=$1 order by updated_at desc limit 1`,
+      `${CONNECTION_JOIN_SESSION_SELECT} where c.league_id=$1 order by c.updated_at desc limit 1`,
       [leagueId],
     );
     return { configured: isEaImportConfigured(), connection: result.rows[0] ? toSummary(result.rows[0]) : null };
@@ -488,7 +514,7 @@ export async function listEaLeagues(connectionId: string, leagueId: string): Pro
   const token = await refreshedToken(row);
   const existingSession = await cachedSession(row);
   const session = existingSession ?? await createBlazeSession(token.accessToken, token.console);
-  if (!existingSession) await persistSession(row.id, session);
+  if (!existingSession) await persistSession(row.blaze_persona_id, session);
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
   try {
     const leagues = await client.getLeagues();
@@ -504,9 +530,9 @@ export async function listEaLeagues(connectionId: string, leagueId: string): Pro
     }));
   } catch (error) {
     if (error instanceof BlazeSessionError) {
-      await clearSession(row.id);
+      await clearSession(row.blaze_persona_id);
       const fresh = await createBlazeSession(token.accessToken, token.console);
-      await persistSession(row.id, fresh);
+      await persistSession(row.blaze_persona_id, fresh);
       const retry = createEaClient({ accessToken: token.accessToken, console: token.console }, fresh);
       try {
         return (await retry.getLeagues()).map((league) => ({
@@ -530,7 +556,7 @@ export async function bindEaLeague(connectionId: string, leagueId: string, eaLea
   const token = await refreshedToken(row);
   const existingSession = await cachedSession(row);
   const session = existingSession ?? await createBlazeSession(token.accessToken, token.console);
-  if (!existingSession) await persistSession(row.id, session);
+  if (!existingSession) await persistSession(row.blaze_persona_id, session);
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
 
   let info: Awaited<ReturnType<typeof client.getLeagueInfo>>;
@@ -539,9 +565,9 @@ export async function bindEaLeague(connectionId: string, leagueId: string, eaLea
       info = await client.getLeagueInfo(eaLeagueId);
     } catch (error) {
       if (error instanceof BlazeSessionError) {
-        await clearSession(row.id);
+        await clearSession(row.blaze_persona_id);
         const fresh = await createBlazeSession(token.accessToken, token.console);
-        await persistSession(row.id, fresh);
+        await persistSession(row.blaze_persona_id, fresh);
         info = await createEaClient({ accessToken: token.accessToken, console: token.console }, fresh).getLeagueInfo(eaLeagueId);
       } else {
         throw error;
@@ -554,8 +580,8 @@ export async function bindEaLeague(connectionId: string, leagueId: string, eaLea
   if (!info.success) throw new ApiError(422, `EA rejected that franchise: ${info.message ?? "unknown error"}`);
 
   const seasonYear = info.careerHubInfo?.seasonInfo?.seasonYear ?? null;
-  const result = await getPgPool().query<EaConnectionRow>(
-    `update rec_ea_connections set ea_league_id=$2, ea_league_name=$3, ea_season_year=$4, status='active', updated_at=now() where id=$1 returning *`,
+  await getPgPool().query(
+    `update rec_ea_connections set ea_league_id=$2, ea_league_name=$3, ea_season_year=$4, status='active', updated_at=now() where id=$1`,
     [connectionId, String(eaLeagueId), info.careerHubInfo?.seasonInfo?.seasonTitle ?? null, seasonYear],
   );
   const direct = await loadDirectSyncConnection(leagueId);
@@ -571,7 +597,9 @@ export async function bindEaLeague(connectionId: string, leagueId: string, eaLea
   const { ensureNflRecordBaselinePosted } = await import("../immortality/nfl-record-holders.service.js");
   ensureNflRecordBaselinePosted(leagueId).catch((err) => console.error(`[ERROR] RTI NFL record baseline post failed for league ${leagueId} (non-fatal):`, err));
 
-  return toSummary(result.rows[0]);
+  // Re-fetch (rather than RETURNING * off the update above) since the summary needs the
+  // persona's session fields too, which now live on the joined rec_ea_persona_sessions row.
+  return toSummary(await loadEaConnection(connectionId, leagueId));
 }
 
 export async function updateEaConnectionSettings(
@@ -583,13 +611,13 @@ export async function updateEaConnectionSettings(
   const row = await loadEaConnection(connectionId, leagueId);
   const nextDatasets = datasets !== undefined ? parseDatasets(datasets) : parseDatasets(row.enabled_datasets);
   const nextAuto = autoImport !== undefined ? autoImport : row.auto_import;
-  const result = await getPgPool().query<EaConnectionRow>(
-    `update rec_ea_connections set enabled_datasets=$2::jsonb, auto_import=$3, updated_at=now() where id=$1 returning *`,
+  await getPgPool().query(
+    `update rec_ea_connections set enabled_datasets=$2::jsonb, auto_import=$3, updated_at=now() where id=$1`,
     [connectionId, JSON.stringify(nextDatasets), nextAuto],
   );
   const direct = await loadDirectSyncConnection(leagueId);
   if (direct) await syncDirectSyncEndpointKeys(direct.id, nextDatasets);
-  return toSummary(result.rows[0]);
+  return toSummary(await loadEaConnection(connectionId, leagueId));
 }
 
 // ── Import ──
@@ -743,7 +771,7 @@ export async function importEaDatasetsWithProgress(
         const { refreshEaToken } = await import("./ea-client.js");
         const refreshed = await refreshEaToken(token.refreshToken);
         const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
-        await updateSealedToken(row.id, next);
+        await updateSealedToken(row.blaze_persona_id, next);
         token.accessToken = refreshed.accessToken;
         token.refreshToken = refreshed.refreshToken;
         token.expiresAt = refreshed.expiresAt;
@@ -752,7 +780,7 @@ export async function importEaDatasetsWithProgress(
         throw error;
       }
     }
-    await persistSession(row.id, session);
+    await persistSession(row.blaze_persona_id, session);
   }
   const client = createEaClient({ accessToken: token.accessToken, console: token.console }, session);
 
@@ -767,20 +795,20 @@ export async function importEaDatasetsWithProgress(
       return;
     }
     refreshInFlight = (async () => {
-      await clearSession(row.id);
+      await clearSession(row.blaze_persona_id);
       try {
         activeSession = await createBlazeSession(token.accessToken, token.console);
       } catch {
         const { refreshEaToken } = await import("./ea-client.js");
         const refreshed = await refreshEaToken(token.refreshToken);
         const next: EaTokenRecord = { ...refreshed, console: token.console, blazePersonaId: token.blazePersonaId };
-        await updateSealedToken(row.id, next);
+        await updateSealedToken(row.blaze_persona_id, next);
         token.accessToken = refreshed.accessToken;
         token.refreshToken = refreshed.refreshToken;
         token.expiresAt = refreshed.expiresAt;
         activeSession = await createBlazeSession(refreshed.accessToken, token.console);
       }
-      await persistSession(row.id, activeSession);
+      await persistSession(row.blaze_persona_id, activeSession);
       lastKeepAlive = Date.now();
     })().finally(() => {
       refreshInFlight = null;
@@ -1347,8 +1375,10 @@ export async function releaseLeagueImportLock(lock: LeagueImportLock): Promise<v
 
 export async function runAutoImportSweep(): Promise<{ attempted: number; succeeded: number; failed: number }> {
   if (!isEaImportConfigured()) return { attempted: 0, succeeded: 0, failed: 0 };
-  const rows = await getPgPool().query<EaConnectionRow>(
-    `select * from rec_ea_connections
+  // Only id/league_id are used below (importEaDatasetsWithProgress re-fetches the full joined row
+  // per league) -- no need to join rec_ea_persona_sessions just to sweep the candidate list.
+  const rows = await getPgPool().query<Pick<EaConnectionRow, "id" | "league_id">>(
+    `select id, league_id from rec_ea_connections
       where auto_import=true and status='active' and ea_league_id is not null
         and (last_import_at is null or last_import_at <= now() - ${AUTO_IMPORT_MIN_INTERVAL_SQL})`,
   );
