@@ -308,7 +308,6 @@ function TeamSectionLayout({
   isRise,
   tradesUnlocked,
   storeUnlocked,
-  progressionAvailable,
   children,
 }: {
   active: TeamNavId;
@@ -316,7 +315,6 @@ function TeamSectionLayout({
   isRise: boolean;
   tradesUnlocked: boolean;
   storeUnlocked: boolean;
-  progressionAvailable: boolean;
   children: ReactNode;
 }) {
   return (
@@ -327,7 +325,6 @@ function TeamSectionLayout({
         isRise={isRise}
         tradesUnlocked={tradesUnlocked}
         storeUnlocked={storeUnlocked}
-        progressionAvailable={progressionAvailable}
       />
       {children}
     </div>
@@ -521,7 +518,6 @@ function LeagueHubPageForLeague({ leagueId }: { leagueId: string }) {
                     isRise={isRise}
                     tradesUnlocked={!isRise || routeLeague?.rtiTradesUnlocked !== false}
                     storeUnlocked={!isRise || Boolean(routeLeague?.rtiStoreUnlocked ?? routeLeague?.riseHubUnlocked)}
-                    progressionAvailable={isRise}
                   >
                     {view === "team" ? <TeamHomePage />
                       : view === "roster" ? <RosterPage />

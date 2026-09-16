@@ -10,14 +10,12 @@ export function TeamRouteRail({
   isRise = false,
   tradesUnlocked = true,
   storeUnlocked = true,
-  progressionAvailable = true,
 }: {
   active: TeamNavId;
   leagueId: string;
   isRise?: boolean;
   tradesUnlocked?: boolean;
   storeUnlocked?: boolean;
-  progressionAvailable?: boolean;
 }) {
   return (
     <LeagueTopRail>
@@ -27,7 +25,6 @@ export function TeamRouteRail({
         isRise={isRise}
         tradesUnlocked={tradesUnlocked}
         storeUnlocked={storeUnlocked}
-        progressionAvailable={progressionAvailable}
       />
     </LeagueTopRail>
   );

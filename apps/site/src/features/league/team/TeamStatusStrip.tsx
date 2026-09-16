@@ -19,26 +19,16 @@ function teamNavItems({
   isRise,
   tradesUnlocked,
   storeUnlocked,
-  progressionAvailable,
 }: {
   leagueId: string;
   isRise: boolean;
   tradesUnlocked: boolean;
   storeUnlocked: boolean;
-  progressionAvailable: boolean;
 }): NavItem[] {
   const base = `/l/${leagueId}`;
   return [
     { id: "team", top: "My", bottom: "Team", to: `${base}/team` },
     { id: "roster", top: "View", bottom: "Rosters", to: `${base}/roster` },
-    progressionAvailable
-      ? {
-          id: "progression" as const,
-          top: isRise ? "Build Your" : "Team",
-          bottom: isRise ? "Legacy" : "Progression",
-          to: `${base}/team/progression`,
-        }
-      : null,
     {
       id: "trades" as const,
       top: "Trade",
@@ -61,7 +51,7 @@ function teamNavItems({
 /**
  * My Team family chassis — two snapshot rows inside LeagueTopRail:
  * Top: Season / Post-season / Career / Career post-season records
- * Bottom: My Team · View Rosters · (Progression) · Trade Center · League Store
+ * Bottom: My Team · View Rosters · Trade Center · League Store
  */
 export function TeamStatusStrip({
   active,
@@ -69,14 +59,12 @@ export function TeamStatusStrip({
   isRise = false,
   tradesUnlocked = true,
   storeUnlocked = true,
-  progressionAvailable = true,
 }: {
   active: TeamNavId;
   leagueId: string;
   isRise?: boolean;
   tradesUnlocked?: boolean;
   storeUnlocked?: boolean;
-  progressionAvailable?: boolean;
 }) {
   const { guildId } = useReadyAuth();
   const [hub, setHub] = useState<HubResponse | null>(null);
@@ -102,7 +90,6 @@ export function TeamStatusStrip({
     isRise,
     tradesUnlocked,
     storeUnlocked,
-    progressionAvailable,
   });
 
   return (

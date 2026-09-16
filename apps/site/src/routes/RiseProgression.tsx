@@ -108,7 +108,6 @@ export function RiseProgressionPage() {
           isRise
           tradesUnlocked={selected?.rtiTradesUnlocked !== false}
           storeUnlocked={!selected || Boolean(selected.rtiStoreUnlocked ?? selected.riseHubUnlocked)}
-          progressionAvailable
         />
       ) : null}
       <header className="rise-hero">
