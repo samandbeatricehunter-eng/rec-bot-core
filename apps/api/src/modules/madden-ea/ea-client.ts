@@ -652,9 +652,25 @@ async function sendExport<T>(
     // exhausted its own retries/backoff above, and the prefix isn't the problem there).
     const fallbackName = error instanceof BlazeSessionError ? swapExportPrefix(effectiveName) : null;
     if (!fallbackName) throw error;
-    const result = await attempt(fallbackName);
-    workingExportPrefixByBlazeId.set(session.blazeId, fallbackName.match(/^(CareerMode_|FranchiseMode_)/)?.[0] ?? "CareerMode_");
-    return result;
+    try {
+      const result = await attempt(fallbackName);
+      workingExportPrefixByBlazeId.set(session.blazeId, fallbackName.match(/^(CareerMode_|FranchiseMode_)/)?.[0] ?? "CareerMode_");
+      return result;
+    } catch (fallbackError) {
+      // Both CareerMode_ and FranchiseMode_ rejected the exact same command with the exact same
+      // EA gateway error (as opposed to one prefix genuinely being wrong, which the swap above
+      // exists for) -- confirmed live for GetTeamRostersExport and GetWeeklySchedulesExport,
+      // against a freshly-refreshed token/session that other exports in the same run succeeded
+      // with. That's not a session, token, or prefix problem this client can retry its way out
+      // of; it's EA restricting this specific bulk export, same as the JSON "restricted" case
+      // above just surfaced as a raw gateway rejection instead of a Blaze app-level error.
+      if (fallbackError instanceof BlazeSessionError && error instanceof BlazeSessionError) {
+        throw new BlazeRestrictedError(
+          `EA is currently restricting access to ${name}. This isn't a session or authentication problem — reconnecting won't fix it. It typically clears on its own; try again later.`,
+        );
+      }
+      throw fallbackError;
+    }
   }
 }
 
