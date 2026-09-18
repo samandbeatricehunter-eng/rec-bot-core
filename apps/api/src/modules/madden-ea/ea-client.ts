@@ -666,7 +666,7 @@ async function sendExport<T>(
       // above just surfaced as a raw gateway rejection instead of a Blaze app-level error.
       if (fallbackError instanceof BlazeSessionError && error instanceof BlazeSessionError) {
         throw new BlazeRestrictedError(
-          `EA is currently restricting access to ${name}. This isn't a session or authentication problem — reconnecting won't fix it. It typically clears on its own; try again later.`,
+          `EA is currently restricting access to ${effectiveName}. This isn't a session or authentication problem — reconnecting won't fix it. It typically clears on its own; try again later.`,
         );
       }
       throw fallbackError;
