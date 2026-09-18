@@ -986,6 +986,12 @@ export async function importEaDatasetsWithProgress(
     const faPromise = datasets.includes("free_agents")
       ? runWithFreshSession((c) => fetchDataset(c, "free_agents", eaLeagueId, defaultWeekRef, teamIdInfoList))
       : null;
+    // rosterPromise is awaited first below; if it rejects, control leaves this block before
+    // faPromise is ever awaited. Since both fire concurrently, an independent faPromise
+    // rejection would then be a floating unhandled rejection -- which crashes the whole
+    // process on Node's default unhandledRejection behavior. This silences that without
+    // affecting the real `await faPromise` below (a promise can have multiple handlers).
+    faPromise?.catch(() => undefined);
     if (rosterPromise) {
       preloadedRosterRaw = await rosterPromise;
       const preloadedCount = extractEaRows(preloadedRosterRaw, "rosterInfoList").length;
